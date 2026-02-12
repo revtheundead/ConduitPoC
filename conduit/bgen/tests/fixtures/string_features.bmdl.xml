@@ -1,0 +1,43 @@
+<bmdl version="1.0">
+<protocol name="string-features" version="1.0">
+  <defaults endian="big" string-encoding="ascii" string-padding="null" string-trim="right"/>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <!-- Fixed-length ASCII string with null padding (default) -->
+    <type name="name-str" base="string" length="20" encoding="ascii" padding="null" trim="right"/>
+    <!-- UTF-8 string with space padding, trim both sides -->
+    <type name="label-str" base="string" length="16" encoding="utf8" padding="space" trim="both"/>
+    <!-- String with max-length -->
+    <type name="bounded-str" base="string" length="32" encoding="ascii" max-length="32"/>
+    <!-- Packed character type (6-bit characters) -->
+    <type name="packed-str" base="string" length="8" char-bits="6"/>
+    <!-- Terminated string type -->
+    <type name="term-str" base="string" length="64" terminated="0x00"/>
+  </types>
+  <messages>
+    <message name="StringMsg">
+      <field name="id" type="uint16"/>
+      <field name="name" type="name-str"/>
+      <field name="label" type="label-str"/>
+      <field name="bounded" type="bounded-str"/>
+      <field name="packed" type="packed-str"/>
+      <field name="term" type="term-str"/>
+    </message>
+    <!-- Terminated string tests (no fixed length — reads until terminator) -->
+    <message name="TermStringMsg">
+      <field name="id" type="uint8"/>
+      <field name="null-term" type="string" terminated="null"/>
+      <field name="newline-term" type="string" terminated="newline"/>
+      <field name="crlf-term" type="string" terminated="crlf"/>
+    </message>
+
+    <!-- Test inline string attributes on fields -->
+    <message name="InlineStringMsg">
+      <field name="id" type="uint8"/>
+      <field name="inline-name" type="name-str" encoding="utf8" padding="space" trim="left"/>
+      <field name="prefix-str" type="uint8" length-prefix="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

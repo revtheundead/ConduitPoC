@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-bcd-signed" version="1.0">
+  <types>
+    <!-- BCD requires base='uint', not 'int' -->
+    <type name="bad-bcd" base="int" bits="16" wire-encoding="bcd"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="val" type="bad-bcd"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

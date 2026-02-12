@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="bitmap-advanced" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <!-- Enum type for bitmap field -->
+    <type name="status-code" base="uint" bits="8">
+      <enum>
+        <value name="ok" id="0"/>
+        <value name="warning" id="1"/>
+        <value name="error" id="2"/>
+        <value name="critical" id="3"/>
+      </enum>
+    </type>
+
+    <!-- BCD type for bitmap field -->
+    <type name="bcd-value" base="uint" bits="8" wire-encoding="bcd"/>
+
+    <!-- Bitmap struct with enum, string, bytes, and BCD fields -->
+    <struct name="AdvancedBitmap" presence="bitmap">
+      <bitmap bits="16"/>
+
+      <!-- Enum in bitmap (bit 0) -->
+      <field name="status" type="status-code" bit="0"/>
+
+      <!-- String in bitmap (bit 1) -->
+      <field name="label" type="string" length="8" bit="1"/>
+
+      <!-- Bytes in bitmap (bit 2) -->
+      <field name="data" type="bytes" length="4" bit="2"/>
+
+      <!-- BCD in bitmap (bit 3) -->
+      <field name="bcd-field" type="bcd-value" bit="3"/>
+
+      <!-- Regular primitive in bitmap (bit 4) -->
+      <field name="counter" type="uint16" bit="4"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="BitmapAdvancedMsg">
+      <field name="header" type="uint8"/>
+      <field name="bitmap-data" type="AdvancedBitmap"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

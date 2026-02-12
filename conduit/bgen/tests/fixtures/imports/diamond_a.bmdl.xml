@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <import href="diamond_shared.bmdl.xml"/>
+  <types>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="BranchA">
+      <field name="shared" type="SharedData"/>
+      <field name="a-extra" type="uint32"/>
+    </struct>
+  </types>
+</bmdl>

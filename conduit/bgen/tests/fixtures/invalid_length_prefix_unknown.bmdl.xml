@@ -1,0 +1,13 @@
+<bmdl version="1.0">
+<protocol name="invalid-length-prefix-unknown" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- length-prefix references a type that does not exist -->
+      <field name="data" bytes="0" length-prefix="no-such-type"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

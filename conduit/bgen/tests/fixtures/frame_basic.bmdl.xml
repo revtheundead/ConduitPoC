@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>frame_basic</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="SimpleFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Heartbeat">
+      <field name="timestamp" type="uint16"/>
+    </message>
+    <message id="2" name="Status">
+      <field name="code" type="uint8"/>
+      <field name="detail" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

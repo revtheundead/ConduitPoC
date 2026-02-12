@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-constant-range" version="1.0">
+
+  <types>
+    <type name="uint4" base="uint" bits="4"/>
+  </types>
+
+  <constants>
+    <!-- 999 exceeds 4-bit unsigned range [0, 15] -->
+    <const name="TooBig" type="uint4" value="999"/>
+  </constants>
+
+  <messages>
+    <message name="Msg">
+      <field name="value" type="uint4"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

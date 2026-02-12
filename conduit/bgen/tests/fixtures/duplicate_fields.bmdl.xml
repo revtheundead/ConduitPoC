@@ -1,0 +1,13 @@
+<bmdl version="1.0">
+<protocol name="dup-fields" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="BadMsg">
+      <field name="x" type="uint8"/>
+      <field name="x" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

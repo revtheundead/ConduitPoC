@@ -1,0 +1,11 @@
+<bmdl version="1.0">
+  <import href="empty_lib.bmdl.xml"/>
+  <import href="types_lib.bmdl.xml"/>
+  <protocol name="empty-import-test" version="1.0">
+    <messages>
+      <message name="EmptyImportMsg" role="entry-point">
+        <field name="data" type="uint32"/>
+      </message>
+    </messages>
+  </protocol>
+</bmdl>

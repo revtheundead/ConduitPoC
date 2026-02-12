@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="constraint-range-64bit" version="1.0">
+
+  <types>
+    <type name="uint64" base="uint" bits="64"/>
+    <type name="int64" base="int" bits="64"/>
+  </types>
+
+  <messages>
+    <message name="Unsigned64">
+      <!-- uint64 field: any non-negative value should pass -->
+      <field name="big-val" type="uint64">
+        <constraint equals="9999999999"/>
+      </field>
+    </message>
+    <message name="Signed64">
+      <!-- int64 field: any value should pass (full int64_t range) -->
+      <field name="signed-val" type="int64">
+        <constraint min="-1000000" max="1000000"/>
+      </field>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

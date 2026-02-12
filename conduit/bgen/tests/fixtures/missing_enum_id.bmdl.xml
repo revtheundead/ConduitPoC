@@ -1,0 +1,18 @@
+<bmdl version="1.0">
+<protocol name="missing-enum-id" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="status" base="uint" bits="8">
+      <enum>
+        <value name="ok" id="0"/>
+        <value name="missing-id-val"/>
+      </enum>
+    </type>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="s" type="status"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

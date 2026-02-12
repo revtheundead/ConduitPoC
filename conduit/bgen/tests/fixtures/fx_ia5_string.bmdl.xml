@@ -1,0 +1,20 @@
+<bmdl version="1.0">
+<protocol name="fx-ia5-string" version="1.0">
+  <defaults>
+    <string-encoding>ia5</string-encoding>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="FxIa5Msg">
+      <field name="header" type="uint8"/>
+      <fx>
+        <field name="label" type="string" length="8" encoding="ia5" padding="space"/>
+        <field name="code" type="uint16"/>
+      </fx>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

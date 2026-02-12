@@ -1,0 +1,21 @@
+<bmdl version="1.0">
+<protocol name="default-initial" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+  <messages>
+    <message name="DefaultMsg">
+      <field name="version" type="uint8" default="1"/>
+      <field name="priority" type="uint8" default="0"/>
+      <field name="data" type="uint32"/>
+    </message>
+    <message name="InitialMsg">
+      <field name="counter" type="uint16" initial="100"/>
+      <field name="status" type="uint8" initial="0"/>
+      <field name="payload" type="uint32"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

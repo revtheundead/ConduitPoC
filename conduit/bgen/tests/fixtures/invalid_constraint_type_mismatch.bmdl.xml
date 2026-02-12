@@ -1,0 +1,19 @@
+<bmdl version="1.0">
+<protocol name="invalid-constraint-type-mismatch" version="1.0">
+  <constants>
+    <const name="STR_CONST" type="label-str" value="hello"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="label-str" base="string" length="8"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- uint field with constraint referencing a string-typed constant -->
+      <field name="code" type="uint8">
+        <constraint equals="STR_CONST"/>
+      </field>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

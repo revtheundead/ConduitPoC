@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-keyword" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+
+  <messages>
+    <message name="Msg">
+      <!-- 'class' maps to C++ keyword -->
+      <field name="class" type="uint8"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

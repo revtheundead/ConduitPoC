@@ -1,0 +1,19 @@
+<bmdl version="1.0">
+<protocol name="fx-string" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <!-- FX extension with string and bytes fields -->
+    <message name="FxStringMsg">
+      <field name="header" type="uint8"/>
+      <fx>
+        <field name="label" type="string" length="10"/>
+        <field name="payload" type="bytes" length="4"/>
+        <field name="extra" type="uint16"/>
+      </fx>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-align" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="BadAlignMsg">
+      <field name="a" type="uint8"/>
+      <align to="3"/>
+      <field name="b" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

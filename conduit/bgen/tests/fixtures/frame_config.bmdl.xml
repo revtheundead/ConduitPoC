@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>frame_config</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="ConfigFrame">
+    <field name="system-id" type="uint8" auto="config(system-id)"/>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Ping">
+      <field name="seq" type="uint16"/>
+    </message>
+    <message id="2" name="Pong">
+      <field name="seq" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

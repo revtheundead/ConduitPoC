@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <types>
+    <type name="big_val" base="uint" bits="16" endian="big"/>
+    <struct name="ExplicitStruct">
+      <field name="val" type="big_val"/>
+      <field name="data" type="uint16" endian="big"/>
+    </struct>
+  </types>
+</bmdl>

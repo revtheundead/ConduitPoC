@@ -1,0 +1,36 @@
+<bmdl version="1.0">
+<protocol name="struct-features" version="1.0">
+  <constants>
+    <const name="MAGIC" type="uint16" value="0xCAFE"/>
+    <const name="VERSION" type="uint8" value="3"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="GpsCoord">
+      <field name="latitude" type="uint32"/>
+      <field name="longitude" type="uint32"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="ConstrainedMessage">
+      <field name="magic" type="uint16"><constraint equals="MAGIC"/></field>
+      <field name="version" type="uint8"><constraint equals="VERSION"/></field>
+      <field name="value" type="uint16"><constraint min="10" max="1000"/></field>
+      <reserved bits="8"/>
+      <field name="position" type="GpsCoord"/>
+    </message>
+    <message name="AlignedMessage">
+      <field name="flag" type="uint8"/>
+      <align to="2"/>
+      <field name="data" type="uint32"/>
+    </message>
+    <message name="ConditionalMessage">
+      <field name="has-extra" type="uint8"/>
+      <field name="base-value" type="uint16"/>
+      <field name="extra-value" type="uint16" present-when="has-extra != 0"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

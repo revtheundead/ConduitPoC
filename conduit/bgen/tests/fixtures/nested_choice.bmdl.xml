@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="nested-choice" version="1.0">
+
+  <constants>
+    <const name="CAT_A" type="uint8" value="1"/>
+    <const name="CAT_B" type="uint8" value="2"/>
+    <const name="SUB_X" type="uint8" value="10"/>
+    <const name="SUB_Y" type="uint8" value="20"/>
+  </constants>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <struct name="LeafX">
+      <field name="data-x" type="uint16"/>
+    </struct>
+
+    <struct name="LeafY">
+      <field name="data-y" type="uint16"/>
+    </struct>
+
+    <!-- Intermediate message with a nested choice -->
+    <struct name="CategoryA">
+      <field name="sub-type" type="uint8"/>
+      <choice name="sub-body" switch="sub-type">
+        <case name="x" value="SUB_X" type="LeafX"/>
+        <case name="y" value="SUB_Y" type="LeafY"/>
+      </choice>
+    </struct>
+
+    <struct name="CategoryB">
+      <field name="simple" type="uint16"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="Envelope" role="entry-point">
+      <field name="category" type="uint8"/>
+      <choice name="payload" switch="category">
+        <case name="cat-a" value="CAT_A" type="CategoryA"/>
+        <case name="cat-b" value="CAT_B" type="CategoryB"/>
+      </choice>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

@@ -1,0 +1,19 @@
+<bmdl version="1.0">
+<protocol name="invalid-bitmap-dup" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="Items" presence="bitmap">
+      <bitmap bits="8"/>
+      <!-- Duplicate bitmap bit position 7 -->
+      <field name="item-a" type="uint16" bit="7"/>
+      <field name="item-b" type="uint16" bit="7"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="items" type="Items"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

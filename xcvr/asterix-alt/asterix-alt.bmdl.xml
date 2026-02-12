@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Protocol Definition (v2)
+  All Purpose Structured Eurocontrol Surveillance Information Exchange
+
+  This file is the protocol root. It imports category-specific message
+  definitions, sets wire-level defaults, and defines the ASTERIX data-block
+  frame.
+
+  The <frame> replaces the v1 DataBlock/AsterixFrame message wrappers.
+  Each data block is a frame instance: [CAT:1][LEN:2][records...].
+  The session dispatches individual records (e.g. Cat007DownlinkRecord)
+  to MessageHandler — users work directly with record types.
+
+  Currently implemented:
+    - CAT007 Downlink (receive-only: message types 0-4)
+    - CAT007 Uplink (send-only: message types 5-8)
+    - CAT021 ADS-B Target Reports (Edition 2.4)
+    - CAT048 Monoradar Target Reports (Edition 1.23)
+    - CAT253 Remote Monitoring and Control (Issue 9.0)
+-->
+<bmdl version="2.0">
+  <import href="types.bmdl.xml"/>
+  <import href="cat007-shared.bmdl.xml"/>
+  <import href="cat007-downlink.bmdl.xml"/>
+  <import href="cat007-uplink.bmdl.xml"/>
+  <import href="cat021.bmdl.xml"/>
+  <import href="cat048.bmdl.xml"/>
+  <import href="cat253.bmdl.xml"/>
+
+  <defaults>
+    <endian>big</endian>
+    <string-encoding>ia5</string-encoding>
+    <string-padding>space</string-padding>
+    <string-trim>right</string-trim>
+    <namespace>asterix-alt</namespace>
+  </defaults>
+
+  <!--
+    AsterixDataBlock frame: wire-level transport for ASTERIX.
+    Structure: [CAT:1][LEN:2][payload records...]
+
+    The cat field (auto="id") dispatches to the correct message type
+    based on the ASTERIX category number. The len field (auto="length")
+    gives the total data block length including the 3-byte header.
+    The payload contains one or more records of the dispatched type.
+  -->
+  <frame name="AsterixDataBlock">
+    <doc>
+      ASTERIX Data Block
+      Contains one or more records of a single category.
+      CAT007 uses direction-based dispatch: downlink (receive) vs uplink (send).
+    </doc>
+    <field name="cat" type="uint8" auto="id">
+      <doc>Category number</doc>
+    </field>
+    <field name="len" type="uint16" auto="length">
+      <doc>Total data block length including CAT and LEN fields</doc>
+    </field>
+    <payload count="*"/>
+  </frame>
+
+</bmdl>

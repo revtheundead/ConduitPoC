@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-bitmap-ext" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="BadBitmapStruct" presence="bitmap">
+      <bitmap ext="9"/>
+      <field name="a" type="uint16" bit="0"/>
+    </struct>
+  </types>
+</protocol>
+</bmdl>

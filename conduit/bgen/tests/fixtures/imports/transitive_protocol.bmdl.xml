@@ -1,0 +1,11 @@
+<bmdl version="1.0">
+  <import href="transitive_mid.bmdl.xml"/>
+  <protocol name="transitive-test" version="1.0">
+    <messages>
+      <message name="TransMsg">
+        <field name="mid" type="MidStruct"/>
+        <field name="direct-base" type="BaseStruct"/>
+      </message>
+    </messages>
+  </protocol>
+</bmdl>

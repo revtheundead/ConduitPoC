@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Common Types Library
+  Shared primitive types and structures used across all ASTERIX categories.
+-->
+<bmdl version="2.0">
+
+  <constants>
+    <const name="CAT007" type="uint8" value="7"/>
+    <const name="CAT021" type="uint8" value="21"/>
+    <const name="CAT048" type="uint8" value="48"/>
+    <const name="CAT253" type="uint8" value="253"/>
+  </constants>
+
+  <types>
+    <!-- Standard integer aliases -->
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint24" base="uint" bits="24"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="int8" base="int" bits="8"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int24" base="int" bits="24"/>
+    <type name="int32" base="int" bits="32"/>
+
+    <!-- ASTERIX Time of Day: 1/128 second resolution, 24 bits unsigned -->
+    <type name="time-of-day" base="uint" bits="24">
+      <doc>Time of day in 1/128 second units since midnight UTC</doc>
+      <scale>0.0078125</scale>
+      <unit>seconds</unit>
+    </type>
+
+    <!-- Aircraft address (24-bit ICAO) -->
+    <type name="aircraft-address" base="uint" bits="24" format="hex">
+      <doc>24-bit ICAO aircraft address</doc>
+    </type>
+
+    <!-- Aircraft identification: 8 characters, 6-bit packed (6 bytes on wire) -->
+    <type name="aircraft-ident" base="string" length="8" encoding="ia5" char-bits="6">
+      <doc>ICAO aircraft identification (8 chars x 6 bits = 48 bits = 6 bytes)</doc>
+    </type>
+
+    <!-- Data Source / Destination Identifier (SAC/SIC) -->
+    <struct name="DataSourceId">
+      <doc>System Area Code / System Identification Code</doc>
+      <field name="sac" type="uint8">
+        <doc>System Area Code</doc>
+      </field>
+      <field name="sic" type="uint8">
+        <doc>System Identification Code</doc>
+      </field>
+    </struct>
+  </types>
+
+</bmdl>

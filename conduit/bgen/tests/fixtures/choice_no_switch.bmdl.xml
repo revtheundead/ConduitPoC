@@ -1,0 +1,15 @@
+<bmdl version="1.0">
+<protocol name="no-switch" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <struct name="BodyA"><field name="x" type="uint8"/></struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <choice name="body">
+        <case name="a" value="1" type="BodyA"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

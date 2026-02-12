@@ -1,0 +1,14 @@
+<bmdl version="1.0">
+<protocol name="resolve-unresolved-ref" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="BadRefMsg">
+      <field name="ok" type="uint8"/>
+      <!-- References a type that does not exist -->
+      <field name="bad" type="NonExistentType"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

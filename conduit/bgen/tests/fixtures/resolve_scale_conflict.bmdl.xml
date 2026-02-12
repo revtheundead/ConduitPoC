@@ -1,0 +1,18 @@
+<bmdl version="1.0">
+<protocol name="resolve-scale-conflict" version="1.0">
+  <types>
+    <type name="uint16" base="uint" bits="16">
+      <scale>0.1</scale>
+      <offset>-10</offset>
+    </type>
+  </types>
+  <messages>
+    <message name="ConflictMsg">
+      <!-- Field also defines scale/offset, conflicting with type -->
+      <field name="value" type="uint16">
+        <scale>0.5</scale>
+      </field>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

@@ -1,0 +1,29 @@
+<bmdl version="1.0">
+<protocol name="signed-length" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="msg-id" base="uint" bits="8"/>
+
+    <struct name="DataBody">
+      <field name="value" type="uint16"/>
+    </struct>
+  </types>
+  <constants>
+    <const name="SYNC" type="uint16" value="0xDEAD"/>
+    <const name="MSG_A" type="msg-id" value="1"/>
+  </constants>
+  <messages>
+    <!-- Frame with signed type reference for length field -->
+    <message name="SignedFrame" role="entry-point">
+      <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
+      <field name="length" type="int16"/>
+      <field name="msg-type" type="msg-id"/>
+      <choice name="body" switch="msg-type">
+        <case name="DataBody" value="MSG_A" type="DataBody"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

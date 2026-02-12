@@ -1,0 +1,9 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <types>
+    <struct name="TypesOnlyStruct">
+      <field name="x" type="uint16"/>
+      <field name="y" type="uint16"/>
+    </struct>
+  </types>
+</bmdl>

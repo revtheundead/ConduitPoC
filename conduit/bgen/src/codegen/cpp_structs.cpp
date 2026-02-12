@@ -1,0 +1,1607 @@
+// SPDX-License-Identifier: MIT
+// Bgen - Struct/Message Code Generator: Core (constructor, struct/message emission, accessors, bitmap)
+
+#include "cpp_structs.hpp"
+#include "cpp_structs_emitter.hpp"
+#include <algorithm>
+#include <functional>
+#include <map>
+#include <sstream>
+
+namespace bgen::codegen {
+
+namespace { constexpr int BITS_PER_BYTE = 8; }
+
+// ============================================================================
+// Frame class emission (v2 frame-based protocols)
+// ============================================================================
+
+namespace {
+
+// Emit a frame field write: for auto="length", writes a zero placeholder
+// and stores the byte offset. For other fields, writes the member value.
+void emit_frame_field_write(EmitContext& ctx, const model::Field& f,
+                            const FieldTypeInfo& fti,
+                            [[maybe_unused]] const analyzer::TypeIndex& index) {
+    std::string member = to_member_name(f.name);
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
+        ctx.line("auto length_byte_pos_ = w.size_bytes();");
+        // Write zero placeholder for backpatching
+        FieldTypeInfo zero_fti = fti;
+        emit_write_stmt(ctx, "0", zero_fti, f.endian);
+    } else {
+        std::string value = member;
+        // Enum fields: cast to underlying storage for write
+        if (fti.is_enum) {
+            value = "static_cast<" + storage_type_for_bits(fti.bits, fti.is_signed) + ">(" + member + ")";
+        }
+        emit_write_stmt(ctx, value, fti, f.endian);
+    }
+}
+
+// Emit frame field read into result.member_
+void emit_frame_field_read(EmitContext& ctx, const model::Field& f,
+                           const FieldTypeInfo& fti,
+                           [[maybe_unused]] const analyzer::TypeIndex& index) {
+    std::string member = to_member_name(f.name);
+    std::string var = to_accessor_name(f.name) + "_val_";
+    std::string read_expr = emit_read_expr(fti, f.endian);
+    ctx.line("auto " + var + " = " + read_expr + ";");
+    ctx.line("if (!" + var + ") return std::unexpected(" + var + ".error());");
+    if (fti.is_enum) {
+        ctx.line("result." + member + " = static_cast<" + fti.cpp_type + ">(*" + var + ");");
+    } else {
+        ctx.line("result." + member + " = *" + var + ";");
+    }
+}
+
+// Emit the length backpatch after payload and footer encoding
+void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
+                                 const FieldTypeInfo& fti) {
+    std::string length_expr = "w.size_bytes()";
+    if (f.auto_expr->offset != 0) {
+        length_expr = "w.size_bytes() + (" + std::to_string(f.auto_expr->offset) + ")";
+    }
+    std::string cast_type = storage_type_for_bits(fti.bits, false);
+    std::string patch_call;
+    if (fti.bits <= 8) {
+        patch_call = "w.patch_u8(length_byte_pos_, static_cast<" + cast_type + ">(" + length_expr + "))";
+    } else if (fti.bits <= 16) {
+        patch_call = "w.patch_u16(length_byte_pos_, static_cast<" + cast_type + ">(" + length_expr + "), "
+                     + endian_str(f.endian) + ")";
+    } else {
+        patch_call = "w.patch_u32(length_byte_pos_, static_cast<" + cast_type + ">(" + length_expr + "), "
+                     + endian_str(f.endian) + ")";
+    }
+    ctx.line("if (!" + patch_call + ")");
+    ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"failed to patch frame length\"));");
+}
+
+void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
+                      const analyzer::TypeIndex& index,
+                      const analyzer::SessionInfo& session) {
+    std::string class_name = to_cpp_type_name(frame.name);
+
+    // Build payload variant type list (all leaf message types)
+    std::string variant_types;
+    for (const auto& lt : session.leaf_types) {
+        if (!variant_types.empty()) variant_types += ", ";
+        variant_types += to_cpp_type_name(lt.name);
+    }
+
+    ctx.line("class " + class_name + " {");
+    ctx.line("public:");
+    ctx.indent();
+
+    // Payload variant type alias
+    ctx.line("using PayloadVariant = std::variant<" + variant_types + ">;");
+    if (session.payload_is_array) {
+        ctx.line("using PayloadContainer = std::vector<PayloadVariant>;");
+    }
+    ctx.line();
+
+    // Header field accessors
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            std::string accessor = to_accessor_name(f->name);
+            std::string member = to_member_name(f->name);
+            ctx.line(fti.cpp_type + " " + accessor + "() const { return " + member + "; }");
+            ctx.line("void set_" + accessor + "(" + fti.cpp_type + " v) { " + member + " = v; }");
+        }
+    }
+
+    // Footer field accessors
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            std::string accessor = to_accessor_name(f->name);
+            std::string member = to_member_name(f->name);
+            ctx.line(fti.cpp_type + " " + accessor + "() const { return " + member + "; }");
+            ctx.line("void set_" + accessor + "(" + fti.cpp_type + " v) { " + member + " = v; }");
+        }
+    }
+    ctx.line();
+
+    // Payload accessor
+    if (session.payload_is_array) {
+        ctx.line("const PayloadContainer& payload() const { return payload_; }");
+        ctx.line("PayloadContainer& payload() { return payload_; }");
+    } else {
+        ctx.line("const PayloadVariant& payload() const { return payload_; }");
+        ctx.line("PayloadVariant& payload() { return payload_; }");
+    }
+    ctx.line();
+
+    // wrap() overloads — one per message type
+    for (const auto& lt : session.leaf_types) {
+        std::string msg_type = to_cpp_type_name(lt.name);
+        ctx.line("static " + class_name + " wrap(const " + msg_type + "& msg) {");
+        ctx.indent();
+        ctx.line(class_name + " frame;");
+        // Set id field from message's ID_VALUE
+        if (!session.id_field_name.empty()) {
+            ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
+        }
+        if (session.payload_is_array) {
+            ctx.line("frame.payload_.push_back(msg);");
+        } else {
+            ctx.line("frame.payload_ = msg;");
+        }
+        ctx.line("return frame;");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+    }
+
+    // encode()
+    ctx.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
+    ctx.indent();
+
+    // Find the length field for backpatching
+    const model::Field* length_field = nullptr;
+    FieldTypeInfo length_fti;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                length_field = f;
+                length_fti = resolve_field_type(*f, index);
+            }
+        }
+    }
+
+    // Write header fields
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            emit_frame_field_write(ctx, *f, fti, index);
+        }
+    }
+
+    // Write payload
+    if (session.payload_is_array) {
+        ctx.line("for (const auto& item : payload_) {");
+        ctx.indent();
+        ctx.line("CONDUIT_TRY(std::visit([&w](const auto& m) -> conduit::VoidResult {");
+        ctx.line("    return m.encode(w);");
+        ctx.line("}, item));");
+        ctx.dedent();
+        ctx.line("}");
+    } else {
+        ctx.line("CONDUIT_TRY(std::visit([&w](const auto& m) -> conduit::VoidResult {");
+        ctx.line("    return m.encode(w);");
+        ctx.line("}, payload_));");
+    }
+
+    // Write footer fields
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            emit_frame_field_write(ctx, *f, fti, index);
+        }
+    }
+
+    // Backpatch length
+    if (length_field) {
+        emit_frame_length_backpatch(ctx, *length_field, length_fti);
+    }
+
+    ctx.line("return {};");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // decode()
+    ctx.line("static conduit::Result<" + class_name + "> decode(conduit::io::BitReader& r) {");
+    ctx.indent();
+    ctx.line(class_name + " result;");
+
+    // Read header fields
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            emit_frame_field_read(ctx, *f, fti, index);
+        }
+    }
+
+    // Find the id field for dispatch
+    std::string id_member = to_member_name(session.id_field_name);
+    std::string id_accessor = to_accessor_name(session.id_field_name);
+
+    // Resolve id field C++ type for the switch cast
+    std::string id_cast_type;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Id) {
+                auto fti = resolve_field_type(*f, index);
+                id_cast_type = fti.is_enum
+                    ? storage_type_for_bits(fti.bits, fti.is_signed)
+                    : fti.cpp_type;
+                break;
+            }
+        }
+    }
+
+    // Dispatch on id value
+    if (session.payload_is_array) {
+        // Array payload: read until payload bytes are exhausted.
+        // Use a sub-reader bounded to the payload region so we don't consume footer bytes.
+        int footer_bits = 0;
+        for (const auto& child : frame.footer_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                auto ffti = resolve_field_type(*f, index);
+                footer_bits += ffti.bits;
+            }
+        }
+        std::string reader_name = "r";
+        if (footer_bits > 0) {
+            auto footer_bytes = static_cast<size_t>((footer_bits + 7) / 8);
+            ctx.line("if (r.remaining_bytes() < " + std::to_string(footer_bytes) + ")");
+            ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"frame too short for footer\"));");
+            ctx.line("auto payload_reader_ = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            ctx.line("while (payload_reader_->remaining_bytes() > 0) {");
+            reader_name = "(*payload_reader_)";
+        } else {
+            ctx.line("while (r.remaining_bytes() > 0) {");
+        }
+        ctx.indent();
+        // Each record in the array has the same message type from the id
+        ctx.line("switch (static_cast<" + id_cast_type + ">(result." + id_member + ")) {");
+        ctx.indent();
+        for (const auto& lt : session.leaf_types) {
+            if (lt.send_only) continue; // skip send-only in decode
+            std::string msg_type = to_cpp_type_name(lt.name);
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            ctx.line("case " + id_val + ": {");
+            ctx.indent();
+            ctx.line("auto payload_val_ = " + msg_type + "::decode(" + reader_name + ");");
+            ctx.line("if (!payload_val_) return std::unexpected(payload_val_.error());");
+            ctx.line("result.payload_.push_back(std::move(*payload_val_));");
+            ctx.line("break;");
+            ctx.dedent();
+            ctx.line("}");
+        }
+        ctx.line("default:");
+        ctx.indent();
+        ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownDiscriminator,");
+        ctx.line("    \"unknown frame message id: \" + std::to_string(static_cast<int>(result." + id_member + "))));");
+        ctx.dedent();
+        ctx.dedent();
+        ctx.line("}");
+        ctx.dedent();
+        ctx.line("}");
+        // sub_reader() already advanced r past the payload bytes
+    } else {
+        // Single payload dispatch
+        ctx.line("switch (static_cast<" + id_cast_type + ">(result." + id_member + ")) {");
+        ctx.indent();
+
+        // Group leaves by id to handle direction pairs
+        std::map<std::string, std::vector<const analyzer::LeafTypeInfo*>> id_groups;
+        for (const auto& lt : session.leaf_types) {
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            id_groups[id_val].push_back(&lt);
+        }
+
+        for (const auto& [id_val, leaves] : id_groups) {
+            // For decode, prefer the receive or both-direction type
+            const analyzer::LeafTypeInfo* decode_leaf = leaves[0];
+            for (const auto* lt : leaves) {
+                if (!lt->send_only) { decode_leaf = lt; break; }
+            }
+            std::string msg_type = to_cpp_type_name(decode_leaf->name);
+            ctx.line("case " + id_val + ": {");
+            ctx.indent();
+            ctx.line("auto payload_val_ = " + msg_type + "::decode(r);");
+            ctx.line("if (!payload_val_) return std::unexpected(payload_val_.error());");
+            ctx.line("result.payload_ = std::move(*payload_val_);");
+            ctx.line("break;");
+            ctx.dedent();
+            ctx.line("}");
+        }
+
+        ctx.line("default:");
+        ctx.indent();
+        ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownDiscriminator,");
+        ctx.line("    \"unknown frame message id: \" + std::to_string(static_cast<int>(result." + id_member + "))));");
+        ctx.dedent();
+        ctx.dedent();
+        ctx.line("}");
+    }
+
+    // Read footer fields
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            emit_frame_field_read(ctx, *f, fti, index);
+        }
+    }
+
+    ctx.line("return result;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // Convenience encode_bytes / decode_bytes
+    ctx.line("conduit::Result<std::vector<uint8_t>> encode_bytes() const {");
+    ctx.indent();
+    ctx.line("conduit::io::BitWriter w;");
+    ctx.line("CONDUIT_TRY(encode(w));");
+    ctx.line("return w.finish();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    ctx.line("static conduit::Result<" + class_name + "> decode_bytes(std::span<const uint8_t> data) {");
+    ctx.indent();
+    ctx.line("conduit::io::BitReader r(data);");
+    ctx.line("return decode(r);");
+    ctx.dedent();
+    ctx.line("}");
+
+    // Private section
+    ctx.dedent();
+    ctx.line("private:");
+    ctx.indent();
+
+    // Header field members
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            ctx.line(fti.cpp_type + " " + to_member_name(f->name) + "{};");
+        }
+    }
+
+    // Payload member
+    if (session.payload_is_array) {
+        ctx.line("PayloadContainer payload_;");
+    } else {
+        ctx.line("PayloadVariant payload_;");
+    }
+
+    // Footer field members
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fti = resolve_field_type(*f, index);
+            ctx.line(fti.cpp_type + " " + to_member_name(f->name) + "{};");
+        }
+    }
+
+    ctx.dedent();
+    ctx.line("};");
+    ctx.line();
+}
+
+} // anonymous namespace (frame emission)
+
+// ============================================================================
+// StructEmitter constructor and inline public methods
+// ============================================================================
+
+StructEmitter::StructEmitter(EmitContext& ctx, const analyzer::TypeIndex& index,
+                              const analyzer::WireSizeInfo& sizes, const std::string& ns)
+    : ctx_(ctx), index_(index), sizes_(sizes), ns_(ns) {
+    // Build enum value lookup map for O(1) resolution
+    for (const auto& [type_name, td] : index.types) {
+        for (const auto& ev : td->enum_values) {
+            enum_value_lookup_[ev.name] = to_cpp_type_name(type_name) + "::" + to_enum_value_name(ev.name);
+        }
+    }
+}
+
+void StructEmitter::set_case_type_contexts(const std::unordered_map<std::string, std::string>& map) {
+    case_type_to_context_ = map;
+}
+
+void StructEmitter::set_leaf_type_ids(const std::unordered_map<std::string, uint64_t>& map) {
+    leaf_type_ids_ = map;
+}
+
+void StructEmitter::set_current_session(const analyzer::SessionInfo* session) {
+    current_session_ = session;
+    if (session) {
+        for (const auto& cf : session->context_fields) {
+            context_field_names_.insert(cf.bmdl_name);
+        }
+    } else {
+        context_field_names_.clear();
+    }
+}
+
+bool StructEmitter::is_byte_aligned() const {
+    return bit_mod8_ == 0;
+}
+
+void StructEmitter::advance_bits(int bits) {
+    if (bit_mod8_ < 0) return; // already unknown
+    bit_mod8_ = (bit_mod8_ + bits) % BITS_PER_BYTE;
+}
+
+void StructEmitter::advance_bits_variable() {
+    if (bit_mod8_ != 0) bit_mod8_ = -1;
+    // else: stays 0 (byte-aligned → still byte-aligned after whole-byte field)
+}
+
+void StructEmitter::advance_fx_field_bits(const model::Field& f, const FieldTypeInfo& fti) {
+    if (fti.is_struct && !fti.is_string && !fti.is_bytes) {
+        advance_bits_variable();
+    } else if (fti.is_string) {
+        if (f.length) advance_bits(static_cast<int>(*f.length * 8));
+        else advance_bits_variable();
+    } else if (fti.is_bytes) {
+        if (f.length) advance_bits(static_cast<int>(*f.length * 8));
+        else if (f.bytes_attr) advance_bits(static_cast<int>(*f.bytes_attr * 8));
+        else advance_bits_variable();
+    } else if (fti.has_field_scale) {
+        advance_bits(fti.raw_bits);
+    } else {
+        advance_bits(fti.bits);
+    }
+}
+
+void StructEmitter::reset_alignment() { bit_mod8_ = 0; fx_depth_ = 0; }
+
+std::string StructEmitter::resolve_enum_value(const std::string& name) const {
+    auto it = enum_value_lookup_.find(name);
+    if (it != enum_value_lookup_.end()) return it->second;
+    return name; // fallback: return as-is
+}
+
+// ============================================================================
+// Variant aliases and child class emission
+// ============================================================================
+
+void StructEmitter::emit_variant_aliases(const std::vector<model::StructChild>& children) {
+    for (const auto& child : children) {
+        if (auto* c = std::get_if<model::ChoiceDef>(&child)) {
+            std::string variant_name = to_cpp_type_name(c->name) + "Variant";
+            std::string cases_str;
+            for (size_t i = 0; i < c->cases.size(); i++) {
+                if (i > 0) cases_str += ", ";
+                const auto& cs = c->cases[i];
+                cases_str += to_cpp_type_name(!cs.type_ref.empty() ? cs.type_ref : cs.name);
+            }
+            if (c->otherwise) {
+                if (!c->otherwise->type_ref.empty()) {
+                    if (!cases_str.empty()) cases_str += ", ";
+                    cases_str += to_cpp_type_name(c->otherwise->type_ref);
+                } else if (!c->otherwise->children.empty()) {
+                    if (!cases_str.empty()) cases_str += ", ";
+                    cases_str += get_child_class_name(c->name + "Otherwise");
+                }
+            }
+            ctx_.line("using " + variant_name + " = std::variant<" + cases_str + ">;");
+        } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // Recurse into FX block children to find nested choices
+            emit_variant_aliases(fx->children);
+        }
+    }
+}
+
+void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>& children,
+                                            const std::string& parent_name) {
+    for (const auto& child : children) {
+        if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            if (!sd->name.empty()) {
+                emit_struct(*sd, parent_name);
+            }
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            if (ad->type_ref.empty() && !ad->children.empty()) {
+                emit_synthetic_struct(ad->name + "Element", ad->children, parent_name);
+            }
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            for (const auto& cs : cd->cases) {
+                if (cs.type_ref.empty() && !cs.children.empty()) {
+                    emit_synthetic_struct(cs.name, cs.children, parent_name);
+                }
+            }
+            if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
+                emit_synthetic_struct(cd->name + "Otherwise", cd->otherwise->children, parent_name);
+            }
+        }
+    }
+}
+
+void StructEmitter::emit_synthetic_struct(const std::string& bmdl_name,
+                                           const std::vector<model::StructChild>& children,
+                                           const std::string& parent_name) {
+    std::string name = resolve_child_class_name(bmdl_name, parent_name);
+    if (name.empty()) return;
+
+    if (!emitted_classes_.insert(name).second) return;
+
+    emit_child_class_defs(children, bmdl_name);
+    emit_variant_aliases(children);
+
+    auto prev_parent = current_parent_;
+    current_parent_ = bmdl_name;
+
+    ctx_.line("class " + name + " {");
+    ctx_.line("public:");
+    ctx_.indent();
+
+    // Emit TYPE_ID and TYPE_NAME for leaf synthetic struct types (e.g., batch case wrappers)
+    auto leaf_it = leaf_type_ids_.find(bmdl_name);
+    if (leaf_it != leaf_type_ids_.end()) {
+        ctx_.line("static constexpr uint64_t TYPE_ID = " + type_id_literal(leaf_it->second) + ";");
+        ctx_.line("static constexpr std::string_view TYPE_NAME = \"" + bmdl_name + "\";");
+        ctx_.line();
+    }
+
+    emit_plain_struct(children, name);
+
+    current_parent_ = prev_parent;
+
+    ctx_.dedent();
+    ctx_.line("};");
+    ctx_.line();
+}
+
+void StructEmitter::emit_doc_comment(const std::string& doc) {
+    std::istringstream stream(doc);
+    std::string line;
+    while (std::getline(stream, line)) {
+        size_t start = line.find_first_not_of(" \t\r\n");
+        size_t end = line.find_last_not_of(" \t\r\n");
+        if (start != std::string::npos && end != std::string::npos) {
+            ctx_.line("// " + line.substr(start, end - start + 1));
+        }
+    }
+}
+
+// ============================================================================
+// emit_struct / emit_message
+// ============================================================================
+
+void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& parent_name) {
+    std::string name = resolve_child_class_name(sd.name, parent_name);
+    if (name.empty()) return;
+
+    if (!emitted_classes_.insert(name).second) return;
+
+    auto prev_has_context = has_context_;
+    auto prev_context_struct = context_struct_name_;
+    auto prev_context_fields = context_field_names_;
+    auto ctx_it = case_type_to_context_.find(sd.name);
+    if (ctx_it != case_type_to_context_.end()) {
+        has_context_ = true;
+        context_struct_name_ = ctx_it->second;
+        if (current_session_) {
+            for (const auto& cf : current_session_->context_fields) {
+                context_field_names_.insert(cf.bmdl_name);
+            }
+        }
+    }
+
+    emit_child_class_defs(sd.children, sd.name);
+    emit_variant_aliases(sd.children);
+
+    if (!sd.doc.empty()) {
+        emit_doc_comment(sd.doc);
+    }
+
+    ctx_.line("class " + name + " {");
+    ctx_.line("public:");
+    ctx_.indent();
+
+    // Emit TYPE_ID and TYPE_NAME for leaf struct types (used in session dispatch)
+    auto leaf_it = leaf_type_ids_.find(sd.name);
+    if (leaf_it != leaf_type_ids_.end()) {
+        ctx_.line("static constexpr uint64_t TYPE_ID = " + type_id_literal(leaf_it->second) + ";");
+        ctx_.line("static constexpr std::string_view TYPE_NAME = \"" + sd.name + "\";");
+        ctx_.line();
+    }
+
+    auto prev_parent = current_parent_;
+    current_parent_ = sd.name;
+
+    if (sd.is_bitmap) {
+        emit_bitmap_struct(sd, name);
+        optional_field_names_.clear();
+    } else {
+        emit_plain_struct(sd.children, name);
+    }
+
+    current_parent_ = prev_parent;
+    has_context_ = prev_has_context;
+    context_struct_name_ = prev_context_struct;
+    context_field_names_ = prev_context_fields;
+
+    ctx_.dedent();
+    ctx_.line("};");
+    ctx_.line();
+}
+
+void StructEmitter::emit_message(const model::MessageDef& md,
+                                  const analyzer::SessionInfo* session) {
+    std::string name = to_cpp_type_name(md.name);
+
+    auto prev_session = current_session_;
+    auto prev_has_context = has_context_;
+    auto prev_context_struct = context_struct_name_;
+    auto prev_context_fields = context_field_names_;
+
+    if (session) {
+        current_session_ = session;
+        for (const auto& cf : session->context_fields) {
+            context_field_names_.insert(cf.bmdl_name);
+        }
+    }
+
+    auto ctx_it = case_type_to_context_.find(md.name);
+    if (ctx_it != case_type_to_context_.end()) {
+        has_context_ = true;
+        context_struct_name_ = ctx_it->second;
+        if (current_session_) {
+            for (const auto& cf : current_session_->context_fields) {
+                context_field_names_.insert(cf.bmdl_name);
+            }
+        }
+    }
+
+    emit_child_class_defs(md.children, md.name);
+    emit_variant_aliases(md.children);
+
+    if (!md.doc.empty()) {
+        emit_doc_comment(md.doc);
+    }
+
+    ctx_.line("class " + name + " {");
+    ctx_.line("public:");
+    ctx_.indent();
+
+    // Type ID and name
+    uint64_t type_id = analyzer::fnv1a_hash(md.name.c_str());
+    ctx_.line("static constexpr uint64_t TYPE_ID = " + type_id_literal(type_id) + ";");
+    ctx_.line("static constexpr std::string_view TYPE_NAME = \"" + md.name + "\";");
+
+    // v2: message ID value (when frame-based session exists)
+    if (!md.id.empty() && current_session_ && current_session_->is_frame_based) {
+        // Resolve the id field type from the frame
+        std::string id_cpp_type = "uint8_t"; // default
+        if (current_session_->frame) {
+            for (const auto& child : current_session_->frame->header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Id) {
+                        auto fti = resolve_field_type(*f, index_);
+                        id_cpp_type = fti.cpp_type;
+                        break;
+                    }
+                }
+            }
+        }
+        ctx_.line("static constexpr " + id_cpp_type + " ID_VALUE = " + md.id + ";");
+    }
+    ctx_.line();
+
+    auto prev_parent = current_parent_;
+    current_parent_ = md.name;
+
+    emit_plain_struct(md.children, name);
+
+    // Re-enter public section for convenience methods
+    ctx_.dedent();
+    ctx_.line("public:");
+    ctx_.indent();
+
+    // Convenience encode/decode from bytes
+    ctx_.line("conduit::Result<std::vector<uint8_t>> encode_bytes() const {");
+    ctx_.indent();
+    ctx_.line("conduit::io::BitWriter w;");
+    ctx_.line("CONDUIT_TRY(encode(w));");
+    ctx_.line("return w.finish();");
+    ctx_.dedent();
+    ctx_.line("}");
+    ctx_.line();
+
+    ctx_.line("static conduit::Result<" + name + "> decode_bytes(std::span<const uint8_t> data, size_t max_bytes = 0) {");
+    ctx_.indent();
+    ctx_.line("if (max_bytes > 0 && data.size() > max_bytes) {");
+    ctx_.indent();
+    ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::MaxLengthExceeded,");
+    ctx_.line("    \"message size \" + std::to_string(data.size()) + \" exceeds limit \" + std::to_string(max_bytes)));");
+    ctx_.dedent();
+    ctx_.line("}");
+    ctx_.line("conduit::io::BitReader r(data);");
+    ctx_.line("return decode(r);");
+    ctx_.dedent();
+    ctx_.line("}");
+
+    // Generate wrap() overloads for v1 entry-point messages (v2 frame wrapping is on the frame class)
+    if (session && !session->is_frame_based) {
+        emit_wrap_overloads(md, *session, name);
+    }
+
+    current_parent_ = prev_parent;
+    current_session_ = prev_session;
+    has_context_ = prev_has_context;
+    context_struct_name_ = prev_context_struct;
+    context_field_names_ = prev_context_fields;
+
+    ctx_.dedent();
+    ctx_.line("};");
+    ctx_.line();
+}
+
+// ============================================================================
+// Plain struct
+// ============================================================================
+
+void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& children,
+                                       const std::string& class_name) {
+    std::vector<FieldInfo> fields;
+    bool has_fx = false;
+
+    collect_fields(children, fields, has_fx, false, 0);
+
+    for (const auto& fi : fields) {
+        if (fi.is_optional) {
+            emit_optional_accessors(fi.name, fi.cpp_type, fi.default_value,
+                                     fi.constraint, fi.is_signed, fi.max_length);
+        } else {
+            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length);
+        }
+    }
+
+    auto ws = sizes_.get(class_name);
+    if (ws) {
+        ctx_.line("static constexpr size_t WIRE_SIZE = " + std::to_string(*ws) + ";");
+        ctx_.line();
+    }
+
+    ctx_.line("bool operator==(const " + class_name + "&) const = default;");
+    ctx_.line();
+
+    emit_encode(children);
+    emit_decode(children, class_name);
+    emit_to_string(children, fields, class_name);
+    emit_deferred_validate(children);
+
+    // Private section
+    ctx_.dedent();
+    ctx_.line("private:");
+    ctx_.indent();
+    for (const auto& fi : fields) {
+        std::string decl_type = qualify_type_if_shadowed(fi.name, fi.cpp_type);
+        if (fi.is_optional) {
+            ctx_.line("std::optional<" + decl_type + "> " + to_member_name(fi.name) + ";");
+        } else if (fi.initial_value) {
+            ctx_.line(decl_type + " " + to_member_name(fi.name) + "{" + *fi.initial_value + "};");
+        } else {
+            ctx_.line(decl_type + " " + to_member_name(fi.name) + "{};");
+        }
+    }
+}
+
+void StructEmitter::collect_fields(const std::vector<model::StructChild>& children,
+                                    std::vector<FieldInfo>& fields, bool& has_fx,
+                                    bool in_fx, int fx_depth) {
+    for (const auto& child : children) {
+        FieldInfo fi;
+        std::visit([&](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                fi.name = c.name;
+                auto fti = resolve_field_type(c, index_);
+                fi.cpp_type = fti.cpp_type;
+                fi.is_signed = fti.is_signed;
+                fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
+                fi.initial_value = c.initial_value;
+                // Enum fields: qualify initial value with type prefix
+                if (fi.initial_value && fti.is_enum && !c.type_ref.empty()) {
+                    fi.initial_value = fti.cpp_type + "::" +
+                        to_enum_value_name(*fi.initial_value);
+                } else if (!fi.initial_value && fti.is_enum && !c.type_ref.empty()) {
+                    auto resolved = index_.find(c.type_ref);
+                    if (resolved) {
+                        std::visit([&](const auto* def) {
+                            using DT = std::decay_t<decltype(*def)>;
+                            if constexpr (std::is_same_v<DT, model::TypeDef>) {
+                                if (!def->enum_values.empty()) {
+                                    fi.initial_value = fti.cpp_type + "::" +
+                                        to_enum_value_name(def->enum_values[0].name);
+                                }
+                            }
+                        }, *resolved);
+                    }
+                }
+                fi.constraint = c.constraint ? &*c.constraint : nullptr;
+                fi.default_value = c.default_value;
+                fi.max_length = c.max_length;
+                if (c.is_inline) {
+                    auto resolved = index_.find(c.type_ref);
+                    if (resolved) {
+                        std::visit([&](const auto* def) {
+                            using DT = std::decay_t<decltype(*def)>;
+                            if constexpr (std::is_same_v<DT, model::StructDef> ||
+                                          std::is_same_v<DT, model::MessageDef>) {
+                                collect_fields(def->children, fields, has_fx, in_fx, fx_depth);
+                            }
+                        }, *resolved);
+                    }
+                    return;
+                }
+                fields.push_back(fi);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                if (!c.name.empty()) {
+                    fi.name = c.name;
+                    fi.cpp_type = get_child_class_name(c.name);
+                    fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
+                    fields.push_back(fi);
+                }
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                fi.name = c.name;
+                std::string elem_type;
+                if (!c.type_ref.empty()) {
+                    bool elem_primitive = false;
+                    auto resolved = index_.find(c.type_ref);
+                    if (resolved) {
+                        std::visit([&](const auto* def) {
+                            using DT = std::decay_t<decltype(*def)>;
+                            if constexpr (std::is_same_v<DT, model::TypeDef>) {
+                                bool has_wrapper = !def->enum_values.empty() || !def->flags.empty() ||
+                                                  def->scale.has_value() || def->offset.has_value() ||
+                                                  (def->base == model::PrimitiveBase::String) ||
+                                                  def->constraint.has_value();
+                                if (!has_wrapper && def->bits > 0 &&
+                                    def->base != model::PrimitiveBase::Bool &&
+                                    def->base != model::PrimitiveBase::Float) {
+                                    elem_primitive = true;
+                                    elem_type = storage_type_for_bits(def->bits, def->base == model::PrimitiveBase::Int);
+                                }
+                            }
+                        }, *resolved);
+                    }
+                    if (!elem_primitive) {
+                        elem_type = to_cpp_type_name(c.type_ref);
+                    }
+                } else {
+                    elem_type = get_child_class_name(c.name + "Element");
+                }
+                fi.cpp_type = "std::vector<" + elem_type + ">";
+                fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
+                fields.push_back(fi);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                fi.name = c.name;
+                fi.cpp_type = to_cpp_type_name(c.name) + "Variant";
+                fi.is_variant = true;
+                fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
+                fields.push_back(fi);
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                has_fx = true;
+                collect_fields(c.children, fields, has_fx, true, fx_depth + 1);
+            }
+        }, child);
+    }
+}
+
+// ============================================================================
+// Accessors
+// ============================================================================
+
+void StructEmitter::emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
+                                                    const model::Constraint* constraint, bool is_signed,
+                                                    std::optional<int> max_length) {
+    if (constraint) {
+        if (constraint->equals) {
+            ctx_.line("if (v != static_cast<" + qual_type + ">(" + *constraint->equals + "))");
+            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+            ctx_.line("        \"" + name + " constraint: expected " + *constraint->equals + "\"));");
+        }
+        if (constraint->max) {
+            ctx_.line("if (v > " + *constraint->max + ")");
+            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+            ctx_.line("        \"" + name + " exceeds max " + *constraint->max + "\"));");
+        }
+        if (constraint->min && (*constraint->min != "0" || is_signed)) {
+            ctx_.line("if (v < " + *constraint->min + ")");
+            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+            ctx_.line("        \"" + name + " below min " + *constraint->min + "\"));");
+        }
+    }
+    if (max_length) {
+        ctx_.line("if (v.size() > " + std::to_string(*max_length) + ")");
+        ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::StringTooLong,");
+        ctx_.line("        \"" + name + " exceeds max length " + std::to_string(*max_length) + "\"));");
+    }
+}
+
+void StructEmitter::emit_plain_accessors(const std::string& name, const std::string& cpp_type,
+                                           const model::Constraint* constraint,
+                                           bool is_signed,
+                                           std::optional<int> max_length) {
+    std::string acc = to_accessor_name(name);
+    std::string member = to_member_name(name);
+    std::string qual_type = (acc == cpp_type && !ns_.empty())
+                            ? "::" + ns_ + "::" + cpp_type : cpp_type;
+    ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + "; }");
+    ctx_.line(qual_type + "& mutable_" + acc + "() { return " + member + "; }");
+    // Only validate immediate constraints in setters; deferred constraints are checked at validate()
+    bool has_constraint = constraint
+        && constraint->validate != model::ValidateTiming::Deferred
+        && (constraint->equals || constraint->min || constraint->max);
+    if (has_constraint || max_length) {
+        ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        ctx_.indent();
+        emit_setter_constraint_checks(name, qual_type,
+            has_constraint ? constraint : nullptr, is_signed, max_length);
+        ctx_.line(member + " = v;");
+        ctx_.line("return {};");
+        ctx_.dedent();
+        ctx_.line("}");
+    } else {
+        ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+    }
+    ctx_.line();
+}
+
+void StructEmitter::emit_optional_accessors(const std::string& name, const std::string& cpp_type,
+                                              const std::optional<std::string>& default_value,
+                                              const model::Constraint* constraint,
+                                              bool is_signed,
+                                              std::optional<int> max_length) {
+    std::string acc = to_accessor_name(name);
+    std::string member = to_member_name(name);
+    std::string qual_type = (acc == cpp_type && !ns_.empty())
+                            ? "::" + ns_ + "::" + cpp_type : cpp_type;
+    ctx_.line("bool has_" + acc + "() const { return " + member + ".has_value(); }");
+    if (default_value) {
+        ctx_.line("const " + qual_type + " " + acc + "() const { return " + member +
+                 ".value_or(" + qual_type + "{" + *default_value + "}); }");
+    } else {
+        ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + ".value(); }");
+    }
+    ctx_.line(qual_type + "& mutable_" + acc + "() { if (!" + member + ") " + member + ".emplace(); return *" + member + "; }");
+    bool has_constraint = constraint
+        && constraint->validate != model::ValidateTiming::Deferred
+        && (constraint->equals || constraint->min || constraint->max);
+    if (has_constraint || max_length) {
+        ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        ctx_.indent();
+        emit_setter_constraint_checks(name, qual_type,
+            has_constraint ? constraint : nullptr, is_signed, max_length);
+        ctx_.line(member + " = v;");
+        ctx_.line("return {};");
+        ctx_.dedent();
+        ctx_.line("}");
+    } else {
+        ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+    }
+    ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
+    ctx_.line();
+}
+
+// ============================================================================
+// Bitmap struct
+// ============================================================================
+
+void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::string& class_name) {
+    // Collect bitmap-controlled fields
+    std::vector<BitmapField> bfields;
+
+    for (const auto& child : sd.children) {
+        std::visit([&](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                if (c.bit) {
+                    BitmapField bf;
+                    bf.name = c.name;
+                    auto fti = resolve_field_type(c, index_);
+                    bf.cpp_type = fti.cpp_type;
+                    bf.bit = *c.bit;
+                    bf.is_struct = fti.is_struct;
+                    bf.is_enum = fti.is_enum;
+                    bf.is_string = fti.is_string;
+                    bf.is_bytes = fti.is_bytes;
+                    bf.type_bits = fti.bits;
+                    bf.is_signed = fti.is_signed;
+                    bf.is_float = fti.is_float;
+                    bf.endian = c.endian;
+                    bf.wire_encoding = fti.wire_encoding;
+                    bf.has_field_scale = fti.has_field_scale;
+                    bf.field_scale = fti.field_scale;
+                    bf.field_offset = fti.field_offset;
+                    bf.raw_bits = fti.raw_bits;
+                    bf.raw_signed = fti.raw_signed;
+                    bf.raw_endian = fti.raw_endian;
+                    bf.length = c.length;
+                    bf.bytes_attr = c.bytes_attr;
+                    bf.source_field = &c;
+                    bfields.push_back(bf);
+                }
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                if (c.bit) {
+                    BitmapField bf;
+                    bf.name = c.name;
+                    bf.cpp_type = get_child_class_name(c.name);
+                    bf.bit = *c.bit;
+                    bf.is_struct = true;
+                    bfields.push_back(bf);
+                }
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                if (c.bit) {
+                    BitmapField bf;
+                    bf.name = c.name;
+                    bf.cpp_type = to_cpp_type_name(c.name) + "Variant";
+                    bf.bit = *c.bit;
+                    bf.is_struct = true;
+                    bf.is_choice = true;
+                    bf.choice_def = &c;
+                    bfields.push_back(bf);
+                }
+            }
+        }, child);
+    }
+
+    int max_bit = 0;
+    for (const auto& bf : bfields) {
+        max_bit = std::max(max_bit, bf.bit);
+    }
+    bool has_ext = sd.bitmap_ext.has_value();
+
+    // Accessors
+    for (const auto& bf : bfields) {
+        std::string acc = to_accessor_name(bf.name);
+        std::string member = to_member_name(bf.name);
+        std::string qual_type = (acc == bf.cpp_type && !ns_.empty())
+                                ? "::" + ns_ + "::" + bf.cpp_type : bf.cpp_type;
+
+        ctx_.line("bool has_" + acc + "() const { return " + member + ".has_value(); }");
+        ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + ".value(); }");
+        ctx_.line(qual_type + "& mutable_" + acc + "() { if (!" + member + ") " + member + ".emplace(); return *" + member + "; }");
+        const model::Constraint* bm_constraint = (bf.source_field && bf.source_field->constraint)
+                                                  ? &*bf.source_field->constraint : nullptr;
+        bool bm_has_constraint = bm_constraint && (bm_constraint->equals || bm_constraint->min || bm_constraint->max);
+        std::optional<int> bm_max_length = bf.source_field ? bf.source_field->max_length : std::nullopt;
+        if (bm_has_constraint || bm_max_length) {
+            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+            ctx_.indent();
+            emit_setter_constraint_checks(bf.name, qual_type,
+                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length);
+            ctx_.line(member + " = v;");
+            ctx_.line("return {};");
+            ctx_.dedent();
+            ctx_.line("}");
+        } else {
+            ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+        }
+        ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
+        ctx_.line();
+    }
+
+    ctx_.line("bool operator==(const " + class_name + "&) const = default;");
+    ctx_.line();
+
+    // Encode
+    ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
+    ctx_.indent();
+
+    if (has_ext) {
+        int max_octet = max_bit / BITS_PER_BYTE;
+        int num_octets = max_octet + 1;
+
+        ctx_.line("int last_octet = 0;");
+        for (const auto& bf : bfields) {
+            ctx_.line("if (" + to_member_name(bf.name) + ".has_value() && " +
+                      std::to_string(bf.bit / BITS_PER_BYTE) + " > last_octet) last_octet = " +
+                      std::to_string(bf.bit / BITS_PER_BYTE) + ";");
+        }
+
+        ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
+        for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / BITS_PER_BYTE;
+            int bit_in_byte = bf.bit % BITS_PER_BYTE;
+            ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[" +
+                      std::to_string(byte_idx) + "] |= (1 << " +
+                      std::to_string(bit_in_byte) + ");");
+        }
+        ctx_.line("for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << " +
+                  std::to_string(*sd.bitmap_ext) + ");");
+        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));");
+
+        emit_bitmap_encode_fields(bfields, 0, max_octet);
+    } else {
+        ctx_.line("std::array<uint8_t, 1> fspec{};");
+        for (const auto& bf : bfields) {
+            int bit_in_byte = bf.bit % BITS_PER_BYTE;
+            ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[0] |= (1 << " +
+                      std::to_string(bit_in_byte) + ");");
+        }
+        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), 1));");
+        emit_bitmap_encode_fields(bfields, 0, 0);
+    }
+
+    ctx_.line("if (w.has_error()) return std::unexpected(w.error());");
+    ctx_.line("return {};");
+    ctx_.dedent();
+    ctx_.line("}");
+    ctx_.line();
+
+    // Decode
+    ctx_.line("static conduit::Result<" + class_name + "> decode(conduit::io::BitReader& r) {");
+    ctx_.indent();
+    ctx_.line(class_name + " result;");
+    ctx_.line();
+    ctx_.line("// Read FSPEC bitmap");
+    {
+        int num_octets = (max_bit / BITS_PER_BYTE) + 1;
+        ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
+        ctx_.line("size_t fspec_len = 0;");
+        ctx_.line("while (true) {");
+        ctx_.indent();
+        ctx_.line("auto byte = r.read_u8();");
+        ctx_.line("if (!byte) return std::unexpected(byte.error());");
+        ctx_.line("if (fspec_len < " + std::to_string(num_octets) + ") fspec[fspec_len] = *byte;");
+        ctx_.line("fspec_len++;");
+        if (has_ext) {
+            ctx_.line("if (!(*byte & (1 << " + std::to_string(*sd.bitmap_ext) + "))) break;");
+        } else {
+            ctx_.line("break; // No FX extension");
+        }
+        ctx_.dedent();
+        ctx_.line("}");
+    }
+    ctx_.line();
+
+    auto sorted_fields = bfields;
+    std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
+        int a_oct = a.bit / BITS_PER_BYTE;
+        int b_oct = b.bit / BITS_PER_BYTE;
+        if (a_oct != b_oct) return a_oct < b_oct;
+        return a.bit > b.bit;
+    });
+
+    optional_field_names_.clear();
+    for (const auto& bf : bfields) {
+        optional_field_names_.insert(to_member_name(bf.name));
+    }
+
+    for (const auto& bf : sorted_fields) {
+        int byte_idx = bf.bit / BITS_PER_BYTE;
+        int bit_in_byte = bf.bit % BITS_PER_BYTE;
+        std::string acc = to_accessor_name(bf.name);
+        std::string member = "result." + to_member_name(bf.name);
+
+        ctx_.line("if (fspec_len > " + std::to_string(byte_idx) +
+                 " && (fspec[" + std::to_string(byte_idx) +
+                 "] & (1 << " + std::to_string(bit_in_byte) + "))) {");
+        ctx_.indent();
+
+        std::string qual_type = qualify_type_if_shadowed(bf.name, bf.cpp_type);
+        if (bf.is_choice && bf.choice_def) {
+            emit_decode_choice(*bf.choice_def, "result");
+        } else if (bf.is_enum) {
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("auto val = decode_" + bf.cpp_type + "(r);");
+            ctx_.line("if (!val) return std::unexpected(val.error());");
+            ctx_.line(member + " = std::move(*val);");
+            ctx_.dedent();
+            ctx_.line("}");
+        } else if (bf.is_string) {
+            ctx_.line("{");
+            ctx_.indent();
+            if (bf.length) {
+                ctx_.line("auto val = r.read_string(" + std::to_string(*bf.length) + ");");
+            } else {
+                ctx_.line("auto val = r.read_string(r.remaining_bytes());");
+            }
+            ctx_.line("if (!val) return std::unexpected(val.error());");
+            ctx_.line(member + " = std::move(*val);");
+            if (bf.source_field) {
+                emit_field_trim(ctx_, "(*" + member + ")", *bf.source_field);
+            }
+            ctx_.dedent();
+            ctx_.line("}");
+        } else if (bf.is_bytes) {
+            ctx_.line("{");
+            ctx_.indent();
+            if (bf.length) {
+                ctx_.line("auto val = r.read_bytes(" + std::to_string(*bf.length) + ");");
+                ctx_.line("if (!val) return std::unexpected(val.error());");
+                ctx_.line(member + ".emplace();");
+                ctx_.line("std::copy(val->begin(), val->end(), " + member + "->begin());");
+            } else if (bf.bytes_attr) {
+                ctx_.line("auto val = r.read_bytes(" + std::to_string(*bf.bytes_attr) + ");");
+                ctx_.line("if (!val) return std::unexpected(val.error());");
+                ctx_.line(member + ".emplace();");
+                ctx_.line("std::copy(val->begin(), val->end(), " + member + "->begin());");
+            } else {
+                ctx_.line("auto val = r.read_bytes(r.remaining_bytes());");
+                ctx_.line("if (!val) return std::unexpected(val.error());");
+                ctx_.line(member + " = " + qual_type + "(val->begin(), val->end());");
+            }
+            ctx_.dedent();
+            ctx_.line("}");
+        } else if (bf.is_struct) {
+            ctx_.line("auto val = " + qual_type + "::decode(r);");
+            ctx_.line("if (!val) return std::unexpected(val.error());");
+            ctx_.line(member + " = std::move(*val);");
+        } else if (bf.has_field_scale) {
+            // Scaled bitmap field: read raw bits, apply scale/offset
+            FieldTypeInfo raw_fti;
+            raw_fti.bits = bf.raw_bits;
+            raw_fti.is_signed = bf.raw_signed;
+            raw_fti.wire_encoding = bf.wire_encoding;
+            std::string read = emit_read_expr(raw_fti, bf.raw_endian, "r", false);
+            std::string scale_str = double_literal(bf.field_scale);
+            std::string offset_str = double_literal(bf.field_offset);
+            ctx_.line("auto raw_val = " + read + ";");
+            ctx_.line("if (!raw_val) return std::unexpected(raw_val.error());");
+            ctx_.line(member + " = static_cast<double>(*raw_val) * " + scale_str + " + " + offset_str + ";");
+        } else {
+            FieldTypeInfo bfti;
+            bfti.bits = bf.type_bits;
+            bfti.is_signed = bf.is_signed;
+            bfti.is_float = bf.is_float;
+            bfti.cpp_type = bf.cpp_type;
+            bfti.wire_encoding = bf.wire_encoding;
+            std::string read = emit_read_expr(bfti, bf.endian, "r", false);
+            ctx_.line("auto val = " + read + ";");
+            ctx_.line("if (!val) return std::unexpected(val.error());");
+            ctx_.line(member + " = static_cast<" + qual_type + ">(*val);");
+        }
+
+        ctx_.dedent();
+        ctx_.line("}");
+    }
+
+    ctx_.line();
+    ctx_.line("return result;");
+    ctx_.dedent();
+    ctx_.line("}");
+
+    emit_bitmap_to_string(bfields, class_name);
+
+    // Private section
+    ctx_.dedent();
+    ctx_.line("private:");
+    ctx_.indent();
+    for (const auto& bf : bfields) {
+        std::string qual_type = qualify_type_if_shadowed(bf.name, bf.cpp_type);
+        ctx_.line("std::optional<" + qual_type + "> " + to_member_name(bf.name) + ";");
+    }
+}
+
+void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bfields,
+                                               int from_oct, int to_oct) {
+    auto sorted = bfields;
+    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+        int a_oct = a.bit / BITS_PER_BYTE;
+        int b_oct = b.bit / BITS_PER_BYTE;
+        if (a_oct != b_oct) return a_oct < b_oct;
+        return a.bit > b.bit;
+    });
+
+    for (const auto& bf : sorted) {
+        int byte_idx = bf.bit / BITS_PER_BYTE;
+        if (byte_idx < from_oct || byte_idx > to_oct) continue;
+
+        std::string member = to_member_name(bf.name);
+        ctx_.line("if (" + member + ".has_value()) {");
+        ctx_.indent();
+
+        if (bf.is_choice && bf.choice_def) {
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("auto _enc_r = std::visit([&w](const auto& v) -> conduit::VoidResult { return v.encode(w); }, *" + member + ");");
+            ctx_.line("if (!_enc_r) return std::unexpected(_enc_r.error());");
+            ctx_.dedent();
+            ctx_.line("}");
+        } else if (bf.is_enum) {
+            ctx_.line("CONDUIT_TRY(encode_" + bf.cpp_type + "(*" + member + ", w));");
+        } else if (bf.is_string) {
+            if (bf.length) {
+                ctx_.line("w.write_string(*" + member + ", " + std::to_string(*bf.length) + ");");
+            } else {
+                ctx_.line("w.write_string(*" + member + ", " + member + "->size());");
+            }
+        } else if (bf.is_bytes) {
+            if (bf.length) {
+                ctx_.line("w.write_bytes(std::span<const uint8_t>(" + member + "->data(), " + std::to_string(*bf.length) + "));");
+            } else if (bf.bytes_attr) {
+                ctx_.line("w.write_bytes(std::span<const uint8_t>(" + member + "->data(), " + std::to_string(*bf.bytes_attr) + "));");
+            } else {
+                ctx_.line("w.write_bytes(std::span<const uint8_t>(" + member + "->data(), " + member + "->size()));");
+            }
+        } else if (bf.is_struct) {
+            ctx_.line("CONDUIT_TRY(" + member + "->encode(w));");
+        } else if (bf.has_field_scale) {
+            // Scaled bitmap field: reverse scale/offset and write raw bits
+            FieldTypeInfo raw_fti;
+            raw_fti.bits = bf.raw_bits;
+            raw_fti.is_signed = bf.raw_signed;
+            raw_fti.wire_encoding = bf.wire_encoding;
+            std::string storage = storage_type_for_bits(bf.raw_bits, bf.raw_signed);
+            std::string scale_str = double_literal(bf.field_scale);
+            std::string offset_str = double_literal(bf.field_offset);
+            std::string raw_expr = "static_cast<" + storage + ">((*" + member + " - " + offset_str + ") / " + scale_str + ")";
+            emit_write_stmt(ctx_, raw_expr, raw_fti, bf.raw_endian, false);
+        } else {
+            FieldTypeInfo bfti;
+            bfti.bits = bf.type_bits;
+            bfti.is_signed = bf.is_signed;
+            bfti.is_float = bf.is_float;
+            bfti.cpp_type = bf.cpp_type;
+            bfti.wire_encoding = bf.wire_encoding;
+            emit_write_stmt(ctx_, "*" + member, bfti, bf.endian, false);
+        }
+
+        ctx_.dedent();
+        ctx_.line("}");
+    }
+}
+
+// ============================================================================
+// Check if any field in the protocol uses a non-ASCII encoding
+// ============================================================================
+
+namespace {
+
+bool protocol_needs_encoding(const model::Protocol& protocol) {
+    std::function<bool(const std::vector<model::StructChild>&)> check_fields;
+    check_fields = [&check_fields](const std::vector<model::StructChild>& children) -> bool {
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->encoding && (*f->encoding == model::StringEncoding::Ia5 ||
+                                     *f->encoding == model::StringEncoding::Ebcdic)) {
+                    return true;
+                }
+            } else if (auto* s = std::get_if<model::StructDef>(&child)) {
+                if (check_fields(s->children)) return true;
+            } else if (auto* a = std::get_if<model::ArrayDef>(&child)) {
+                if (check_fields(a->children)) return true;
+            } else if (auto* c = std::get_if<model::ChoiceDef>(&child)) {
+                for (const auto& cs : c->cases) {
+                    if (check_fields(cs.children)) return true;
+                }
+                if (c->otherwise && check_fields(c->otherwise->children)) return true;
+            } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+                if (check_fields(fx->children)) return true;
+            }
+        }
+        return false;
+    };
+    for (const auto& s : protocol.structs) {
+        if (check_fields(s.children)) return true;
+    }
+    for (const auto& m : protocol.messages) {
+        if (check_fields(m.children)) return true;
+    }
+    return false;
+}
+
+} // anonymous namespace
+
+// ============================================================================
+// Public entry points: generate_structs, generate_messages
+// ============================================================================
+
+std::string generate_structs(const model::Protocol& protocol,
+                             const analyzer::TypeIndex& index,
+                             const analyzer::WireSizeInfo& sizes,
+                             const std::vector<analyzer::SessionInfo>& sessions,
+                             const std::string& ns) {
+    EmitContext ctx;
+
+    ctx.line("// Generated by bgen - DO NOT EDIT");
+    ctx.line("#pragma once");
+    ctx.line();
+    ctx.line("#include \"types.hpp\"");
+    ctx.line("#include \"constants.hpp\"");
+    ctx.line("#include <conduit/core/error.hpp>");
+    ctx.line("#include <conduit/io/bit_reader.hpp>");
+    ctx.line("#include <conduit/io/bit_writer.hpp>");
+    if (protocol_needs_encoding(protocol)) {
+        ctx.line("#include <conduit/string/encoding.hpp>");
+    }
+    ctx.line("#include <algorithm>");
+    ctx.line("#include <array>");
+    ctx.line("#include <cstdint>");
+    ctx.line("#include <optional>");
+    ctx.line("#include <span>");
+    ctx.line("#include <sstream>");
+    ctx.line("#include <string>");
+    ctx.line("#include <variant>");
+    ctx.line("#include <vector>");
+    ctx.line();
+    ctx.line("namespace " + ns + " {");
+    ctx.line();
+
+    // Forward declarations
+    for (const auto& s : protocol.structs) {
+        if (!s.name.empty()) {
+            ctx.line("class " + to_cpp_type_name(s.name) + ";");
+        }
+    }
+    ctx.line();
+
+    // Emit context structs for entry-point sessions and collect case type mappings
+    std::unordered_map<std::string, std::string> case_type_to_context;
+    for (const auto& si : sessions) {
+        if (si.context_fields.empty()) continue;
+
+        std::string ep_class = to_cpp_type_name(si.entry_point_name);
+        std::string ctx_name = ep_class + "Context";
+
+        ctx.line("struct " + ctx_name + " {");
+        ctx.indent();
+        for (const auto& cf : si.context_fields) {
+            std::string cpp_type;
+            if (!cf.type_ref.empty()) {
+                cpp_type = to_cpp_type_name(cf.type_ref);
+            } else if (cf.bits > 0) {
+                cpp_type = storage_type_for_bits(cf.bits, cf.is_signed);
+            } else {
+                cpp_type = "uint8_t";
+            }
+            std::string field_name = to_accessor_name(cf.bmdl_name);
+            if (field_name == cpp_type) {
+                cpp_type = "::" + ns + "::" + cpp_type;
+            }
+            ctx.line(cpp_type + " " + field_name + "{};");
+        }
+        ctx.dedent();
+        ctx.line("};");
+        ctx.line();
+
+        for (const auto& lt : si.leaf_types) {
+            case_type_to_context[lt.name] = ctx_name;
+        }
+    }
+
+    // Build leaf type_id map from ALL sessions (not just those with context fields)
+    std::unordered_map<std::string, uint64_t> leaf_type_ids;
+    for (const auto& si : sessions) {
+        for (const auto& lt : si.leaf_types) {
+            leaf_type_ids[lt.name] = lt.type_id;
+        }
+    }
+
+    StructEmitter emitter(ctx, index, sizes, ns);
+    emitter.set_case_type_contexts(case_type_to_context);
+    emitter.set_leaf_type_ids(leaf_type_ids);
+
+    for (const auto& s : protocol.structs) {
+        if (!s.name.empty()) {
+            const analyzer::SessionInfo* session = nullptr;
+            for (const auto& si : sessions) {
+                for (const auto& lt : si.leaf_types) {
+                    if (lt.name == s.name) {
+                        session = &si;
+                        break;
+                    }
+                }
+                if (session) break;
+            }
+            if (session) {
+                emitter.set_current_session(session);
+            }
+            emitter.emit_struct(s);
+            if (session) {
+                emitter.set_current_session(nullptr);
+            }
+        }
+    }
+
+    ctx.line("} // namespace " + ns);
+    ctx.line();
+
+    return ctx.str();
+}
+
+std::string generate_messages(const model::Protocol& protocol,
+                              const analyzer::TypeIndex& index,
+                              const analyzer::WireSizeInfo& sizes,
+                              const std::vector<analyzer::SessionInfo>& sessions,
+                              const std::string& ns) {
+    EmitContext ctx;
+
+    ctx.line("// Generated by bgen - DO NOT EDIT");
+    ctx.line("#pragma once");
+    ctx.line();
+    ctx.line("#include \"structs.hpp\"");
+    ctx.line("#include \"types.hpp\"");
+    ctx.line("#include \"constants.hpp\"");
+    ctx.line("#include <conduit/core/error.hpp>");
+    ctx.line("#include <conduit/io/bit_reader.hpp>");
+    ctx.line("#include <conduit/io/bit_writer.hpp>");
+    if (protocol_needs_encoding(protocol)) {
+        ctx.line("#include <conduit/string/encoding.hpp>");
+    }
+    ctx.line("#include <algorithm>");
+    ctx.line("#include <any>");
+    ctx.line("#include <array>");
+    ctx.line("#include <cstdint>");
+    ctx.line("#include <optional>");
+    ctx.line("#include <span>");
+    ctx.line("#include <sstream>");
+    ctx.line("#include <string_view>");
+    ctx.line("#include <variant>");
+    ctx.line("#include <vector>");
+    ctx.line();
+    ctx.line("namespace " + ns + " {");
+    ctx.line();
+
+    // Forward declarations
+    for (const auto& m : protocol.messages) {
+        ctx.line("class " + to_cpp_type_name(m.name) + ";");
+    }
+    ctx.line();
+
+    // Build case type → context struct mapping
+    std::unordered_map<std::string, std::string> case_type_to_context;
+    for (const auto& si : sessions) {
+        if (si.context_fields.empty()) continue;
+        std::string ctx_name = to_cpp_type_name(si.entry_point_name) + "Context";
+        for (const auto& lt : si.leaf_types) {
+            case_type_to_context[lt.name] = ctx_name;
+        }
+    }
+
+    // Build leaf type_id map from ALL sessions
+    std::unordered_map<std::string, uint64_t> leaf_type_ids;
+    for (const auto& si : sessions) {
+        for (const auto& lt : si.leaf_types) {
+            leaf_type_ids[lt.name] = lt.type_id;
+        }
+    }
+
+    StructEmitter emitter(ctx, index, sizes, ns);
+    emitter.set_case_type_contexts(case_type_to_context);
+    emitter.set_leaf_type_ids(leaf_type_ids);
+
+    // Find the frame-based session (if any) — applies to ALL messages in v2
+    const analyzer::SessionInfo* frame_session = nullptr;
+    for (const auto& si : sessions) {
+        if (si.is_frame_based) { frame_session = &si; break; }
+    }
+
+    for (const auto& m : protocol.messages) {
+        const analyzer::SessionInfo* session = frame_session;
+        if (!session && m.is_entry_point) {
+            for (const auto& si : sessions) {
+                if (si.entry_point_name == m.name) {
+                    session = &si;
+                    break;
+                }
+            }
+        }
+        emitter.emit_message(m, session);
+    }
+
+    // Emit frame classes (v2 frame-based protocols)
+    for (const auto& si : sessions) {
+        if (si.is_frame_based && si.frame) {
+            emit_frame_class(ctx, *si.frame, index, si);
+        }
+    }
+
+    ctx.line("} // namespace " + ns);
+    ctx.line();
+
+    return ctx.str();
+}
+
+} // namespace bgen::codegen

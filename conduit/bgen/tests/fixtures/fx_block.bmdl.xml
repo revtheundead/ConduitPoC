@@ -1,0 +1,20 @@
+<bmdl version="1.0">
+<protocol name="fx-block" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+  <messages>
+    <!-- FX extension chain: a list of variable-length items -->
+    <message name="FxMessage">
+      <field name="header" type="uint8"/>
+      <fx>
+        <field name="item1" type="uint16"/>
+        <field name="item2" type="uint32"/>
+        <field name="item3" type="uint8"/>
+      </fx>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

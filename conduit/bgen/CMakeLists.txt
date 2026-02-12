@@ -1,0 +1,57 @@
+# ============================================================================
+# bgen — BMDL code generator
+#
+# Reads BMDL XML files and emits C++ headers that #include conduit_runtime.
+# bgen itself does NOT link conduit_runtime; it only needs pugixml.
+# ============================================================================
+
+# Shared source list (excluding main.cpp) — used by both the bgen
+# executable and the bgen_lib test library in tests/CMakeLists.txt.
+set(BGEN_LIB_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/expression_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/xml_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/import_resolver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parser/auto_expr_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/ast_builder.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model/ast_dump.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/type_resolver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/validator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/wire_sizer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/session_analyzer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/name_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_constants.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_types.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs_helpers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs_encode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs_decode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs_expr.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_session.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_protocol.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_umbrella.cpp
+)
+
+add_executable(bgen
+    src/main.cpp
+    ${BGEN_LIB_SOURCES}
+)
+
+target_compile_features(bgen PRIVATE cxx_std_23)
+target_link_libraries(bgen PRIVATE pugixml::pugixml conduit_warnings)
+target_compile_definitions(bgen PRIVATE
+    BGEN_VERSION="${PROJECT_VERSION}"
+)
+
+target_include_directories(bgen PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Put bgen binary under build/bgen/ for easy discovery
+set_target_properties(bgen PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bgen"
+)
+
+# bgen tests
+if(CONDUIT_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

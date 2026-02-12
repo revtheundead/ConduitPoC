@@ -1,0 +1,14 @@
+<bmdl version="1.0">
+<protocol name="string-prefix-incl" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="PrefixMsg">
+      <field name="label" type="string" length-prefix="uint16" length-includes-prefix="true"/>
+      <field name="tag" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

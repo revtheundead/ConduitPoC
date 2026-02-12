@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="NestedHeader">
+      <field name="x" type="uint8"/>
+      <field name="y" type="uint8"/>
+    </struct>
+  </types>
+
+  <frame name="BadFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <!-- Non-scalar field in frame header -->
+    <field name="nested" type="NestedHeader"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Foo">
+      <field name="data" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Invalid fixture: mixed dispatch modes within a single inline case.
+  The "mixed" case has one batch array (default) and one per-record array.
+  The validator should reject this because all arrays within a case must
+  agree on dispatch mode.
+-->
+<bmdl version="1.0">
+<protocol name="mixed-dispatch-test" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <struct name="Record">
+      <field name="id" type="uint16"/>
+    </struct>
+
+    <struct name="Event">
+      <field name="code" type="uint8"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="Frame">
+      <field name="tag" type="uint8"/>
+      <field name="len" type="uint16"/>
+
+      <choice name="body" switch="tag" length-from="len - 3">
+        <!-- This case mixes batch (default) and per-record — should be rejected -->
+        <case name="mixed" value="1">
+          <array name="records" count="*" type="Record"/>
+          <array name="events" count="*" type="Event" dispatch="per-record"/>
+        </case>
+      </choice>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

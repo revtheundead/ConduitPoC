@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="fx-choice" version="1.0">
+
+  <constants>
+    <const name="TAG_A" type="uint8" value="1"/>
+    <const name="TAG_B" type="uint8" value="2"/>
+  </constants>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+
+    <type name="tag-type" base="uint" bits="8">
+      <enum>
+        <value name="case-a" id="1"/>
+        <value name="case-b" id="2"/>
+      </enum>
+    </type>
+
+    <struct name="CaseABody">
+      <field name="x" type="uint16"/>
+    </struct>
+
+    <struct name="CaseBBody">
+      <field name="y" type="uint32"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="FxChoiceMsg">
+      <field name="header" type="uint8"/>
+      <fx>
+        <field name="item1" type="uint16"/>
+        <field name="tag" type="tag-type"/>
+        <choice name="payload" switch="tag">
+          <case name="CaseA" value="TAG_A" type="CaseABody"/>
+          <case name="CaseB" value="TAG_B" type="CaseBBody"/>
+        </choice>
+        <field name="item3" type="uint8"/>
+      </fx>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

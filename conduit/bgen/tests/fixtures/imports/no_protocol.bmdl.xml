@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <!-- Library-only file with no <protocol> wrapper -->
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="OrphanStruct">
+      <field name="x" type="uint16"/>
+    </struct>
+  </types>
+</bmdl>

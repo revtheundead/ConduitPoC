@@ -1,0 +1,22 @@
+<bmdl version="1.0">
+<protocol name="field-scale" version="1.0">
+  <defaults endian="big"/>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+  </types>
+  <messages>
+    <message name="ScaleMsg">
+      <field name="fl" bits="12" signed="true">
+        <scale>0.25</scale>
+      </field>
+      <field name="temp" type="uint16">
+        <scale>0.01</scale>
+        <offset>-40</offset>
+      </field>
+      <field name="plain" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

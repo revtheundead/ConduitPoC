@@ -1,0 +1,13 @@
+<bmdl version="1.0">
+<protocol name="invalid-char-bits" version="1.0">
+  <types>
+    <!-- char-bits out of range -->
+    <type name="bad-packed" base="string" length="8" char-bits="10"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="text" type="bad-packed"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

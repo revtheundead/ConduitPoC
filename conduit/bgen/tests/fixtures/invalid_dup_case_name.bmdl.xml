@@ -1,0 +1,28 @@
+<bmdl version="1.0">
+<protocol name="invalid-dup-case" version="1.0">
+  <constants>
+    <const name="TAG_A" type="uint8" value="1"/>
+    <const name="TAG_B" type="uint8" value="2"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <struct name="BodyA">
+      <field name="x" type="uint16"/>
+    </struct>
+    <struct name="BodyB">
+      <field name="y" type="uint16"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Frame">
+      <field name="tag" type="uint8"/>
+      <choice name="body" switch="tag">
+        <case name="Dup" value="TAG_A" type="BodyA"/>
+        <case name="Dup" value="TAG_B" type="BodyB"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

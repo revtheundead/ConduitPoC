@@ -1,0 +1,12 @@
+<bmdl version="1.0">
+  <import href="diamond_a.bmdl.xml"/>
+  <import href="diamond_b.bmdl.xml"/>
+  <protocol name="diamond-test" version="1.0">
+    <messages>
+      <message name="DiamondMsg">
+        <field name="branch-a" type="BranchA"/>
+        <field name="branch-b" type="BranchB"/>
+      </message>
+    </messages>
+  </protocol>
+</bmdl>

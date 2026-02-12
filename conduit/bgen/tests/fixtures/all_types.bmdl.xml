@@ -1,0 +1,64 @@
+<bmdl version="1.0">
+<protocol name="all-types" version="1.0">
+  <defaults endian="big"/>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="uint64" base="uint" bits="64"/>
+    <type name="int8" base="int" bits="8"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+    <type name="float32" base="float" bits="32"/>
+    <type name="float64" base="float" bits="64"/>
+    <type name="bool8" base="bool" bits="8"/>
+    <type name="ascii-str" base="string" length="10" encoding="ascii" padding="null"/>
+    <type name="utf8-str" base="string" length="16" encoding="utf8" padding="space"/>
+    <type name="le-uint16" base="uint" bits="16" endian="little"/>
+    <type name="le-uint32" base="uint" bits="32" endian="little"/>
+    <type name="scaled-temp" base="uint" bits="16">
+      <scale>0.01</scale>
+      <offset>-40.0</offset>
+      <unit>degC</unit>
+    </type>
+    <type name="hex-id" base="uint" bits="32" format="hex"/>
+    <type name="color-enum" base="uint" bits="8">
+      <enum>
+        <value id="1" name="red"/>
+        <value id="2" name="green"/>
+        <value id="3" name="blue"/>
+      </enum>
+    </type>
+    <type name="status-flags" base="uint" bits="8">
+      <flags>
+        <flag bit="0" name="active"/>
+        <flag bit="1" name="error"/>
+        <flag bit="2" name="ready"/>
+      </flags>
+    </type>
+  </types>
+  <messages>
+    <message name="AllTypesMessage">
+      <field name="u8" type="uint8"/>
+      <field name="u16" type="uint16"/>
+      <field name="u32" type="uint32"/>
+      <field name="u64" type="uint64"/>
+      <field name="i8" type="int8"/>
+      <field name="i16" type="int16"/>
+      <field name="i32" type="int32"/>
+      <field name="f32" type="float32"/>
+      <field name="f64" type="float64"/>
+      <field name="flag" type="bool8"/>
+      <field name="ascii" type="ascii-str"/>
+      <field name="utf8" type="utf8-str"/>
+      <field name="raw" bytes="8"/>
+      <field name="le16" type="le-uint16"/>
+      <field name="le32" type="le-uint32"/>
+      <field name="temp" type="scaled-temp"/>
+      <field name="hex" type="hex-id"/>
+      <field name="color" type="color-enum"/>
+      <field name="status" type="status-flags"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

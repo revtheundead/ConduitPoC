@@ -1,0 +1,13 @@
+<bmdl version="1.0">
+<protocol name="invalid-char-bits-uint" version="1.0">
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- char-bits on a non-string/bytes field should be rejected -->
+      <field name="value" type="uint16" char-bits="6"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

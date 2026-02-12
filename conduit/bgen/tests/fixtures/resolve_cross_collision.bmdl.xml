@@ -1,0 +1,17 @@
+<bmdl version="1.0">
+<protocol name="resolve-cross-collision" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <!-- Same name defined as both type and struct -->
+    <type name="Collision" base="uint" bits="16"/>
+    <struct name="Collision">
+      <field name="x" type="uint8"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="TestMsg">
+      <field name="a" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

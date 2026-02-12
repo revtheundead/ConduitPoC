@@ -1,0 +1,15 @@
+<bmdl version="1.0">
+<protocol name="invalid-initial" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="BadMsg">
+      <!-- initial and default are mutually exclusive -->
+      <field name="val" type="uint8" initial="1" default="2"/>
+      <field name="data" type="uint16"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

@@ -1,0 +1,15 @@
+<bmdl version="1.0">
+<protocol name="invalid-auto-constraint" version="1.0">
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- auto-increment combined with constraint equals should be rejected -->
+      <field name="seq" type="uint16" auto="increment">
+        <constraint equals="42"/>
+      </field>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

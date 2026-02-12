@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="minimal" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="SimpleMessage">
+      <field name="id" type="uint8"/>
+      <field name="value" type="uint16"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

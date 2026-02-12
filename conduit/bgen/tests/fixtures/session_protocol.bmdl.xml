@@ -1,0 +1,46 @@
+<bmdl version="1.0">
+<protocol name="session-test" version="1.0">
+  <constants>
+    <const name="SYNC" type="uint16" value="0xDEAD"/>
+    <const name="MSG_PING" type="uint8" value="1"/>
+    <const name="MSG_DATA" type="uint8" value="2"/>
+    <const name="MSG_ACK" type="uint8" value="3"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="msg-id" base="uint" bits="8">
+      <enum>
+        <value id="1" name="ping"/>
+        <value id="2" name="data"/>
+        <value id="3" name="ack"/>
+      </enum>
+    </type>
+    <struct name="PingBody">
+      <field name="timestamp" type="uint32"/>
+    </struct>
+    <struct name="DataBody">
+      <field name="channel" type="uint8"/>
+      <field name="payload-a" type="uint32"/>
+      <field name="payload-b" type="uint32"/>
+    </struct>
+    <struct name="AckBody">
+      <field name="acked-seq" type="uint16"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Packet" role="entry-point">
+      <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
+      <field name="seq" type="uint16" auto="increment"/>
+      <field name="msg-id" type="msg-id"/>
+      <field name="length" type="uint16"/>
+      <choice name="body" switch="msg-id" length-from="length">
+        <case name="ping" value="MSG_PING" type="PingBody"/>
+        <case name="data" value="MSG_DATA" type="DataBody"/>
+        <case name="ack" value="MSG_ACK" type="AckBody" direction="receive"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

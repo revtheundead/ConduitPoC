@@ -1,0 +1,15 @@
+<bmdl version="1.0">
+<protocol name="invalid-const-type" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <constants>
+    <const name="BAD_CONST" type="nonexistent_type" value="42"/>
+  </constants>
+  <messages>
+    <message name="Msg">
+      <field name="data" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

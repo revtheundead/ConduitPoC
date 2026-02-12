@@ -1,0 +1,22 @@
+<bmdl version="1.0">
+<protocol name="overlap-both-send" version="1.0">
+  <constants>
+    <const name="TAG_X" type="uint8" value="1"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="BodyX"><field name="x" type="uint16"/></struct>
+    <struct name="BodyY"><field name="y" type="uint16"/></struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="tag" type="uint8"/>
+      <choice name="body" switch="tag">
+        <case name="x" value="TAG_X" type="BodyX"/>
+        <case name="y" value="TAG_X" type="BodyY" direction="send"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

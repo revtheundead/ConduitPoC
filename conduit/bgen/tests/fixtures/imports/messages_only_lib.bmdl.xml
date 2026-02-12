@@ -1,0 +1,9 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <messages>
+    <message name="LibMessage">
+      <field name="id" type="uint16"/>
+      <field name="value" type="uint32"/>
+    </message>
+  </messages>
+</bmdl>

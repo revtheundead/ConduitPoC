@@ -1,0 +1,21 @@
+<bmdl version="1.0">
+<protocol name="resolve-constraint-conflict" version="1.0">
+  <constants>
+    <const name="VAL_A" type="uint8" value="10"/>
+    <const name="VAL_B" type="uint8" value="20"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8">
+      <constraint equals="VAL_A"/>
+    </type>
+  </types>
+  <messages>
+    <message name="ConflictMsg">
+      <!-- Field equals conflicts with type equals -->
+      <field name="code" type="uint8">
+        <constraint equals="VAL_B"/>
+      </field>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

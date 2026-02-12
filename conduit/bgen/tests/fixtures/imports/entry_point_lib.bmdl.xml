@@ -1,0 +1,9 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <messages>
+    <message name="LibEntryMsg" role="entry-point">
+      <field name="header" type="SharedHeader"/>
+      <field name="payload" type="uint32"/>
+    </message>
+  </messages>
+</bmdl>

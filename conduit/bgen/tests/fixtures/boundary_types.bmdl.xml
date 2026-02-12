@@ -1,0 +1,56 @@
+<bmdl version="1.0">
+<protocol name="boundary-types" version="1.0">
+  <defaults endian="big"/>
+  <types>
+    <type name="uint1" base="uint" bits="1"/>
+    <type name="uint3" base="uint" bits="3"/>
+    <type name="uint7" base="uint" bits="7"/>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="uint64" base="uint" bits="64"/>
+    <type name="int8" base="int" bits="8"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+    <type name="int64" base="int" bits="64"/>
+    <type name="scaled-temp" base="uint" bits="16">
+      <scale>0.1</scale>
+      <offset>-40</offset>
+      <unit>degC</unit>
+    </type>
+    <type name="uint12" base="uint" bits="12"/>
+    <type name="uint20" base="uint" bits="20"/>
+    <type name="int12" base="int" bits="12"/>
+    <type name="nybble-enum" base="uint" bits="4">
+      <enum>
+        <value id="0" name="off"/>
+        <value id="1" name="low"/>
+        <value id="2" name="mid"/>
+        <value id="3" name="high"/>
+      </enum>
+    </type>
+  </types>
+  <messages>
+    <message name="BoundaryMsg">
+      <field name="flag" type="uint1"/>
+      <field name="small" type="uint3"/>
+      <field name="medium" type="uint7"/>
+      <field name="byte-val" type="uint8"/>
+      <field name="word" type="uint16"/>
+      <field name="dword" type="uint32"/>
+      <field name="qword" type="uint64"/>
+      <field name="signed-byte" type="int8"/>
+      <field name="signed-word" type="int16"/>
+      <field name="signed-dword" type="int32"/>
+      <field name="signed-qword" type="int64"/>
+      <field name="temp" type="scaled-temp"/>
+      <field name="level" type="nybble-enum"/>
+    </message>
+    <message name="OddWidthMsg">
+      <field name="u12" type="uint12"/>
+      <field name="u20" type="uint20"/>
+      <field name="s12" type="int12"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

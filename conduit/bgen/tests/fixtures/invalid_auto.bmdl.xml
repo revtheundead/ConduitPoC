@@ -1,0 +1,13 @@
+<bmdl version="1.0">
+<protocol name="invalid-auto" version="1.0">
+  <types>
+    <type name="int16" base="int" bits="16"/>
+  </types>
+  <messages>
+    <message name="BadMsg">
+      <!-- auto="increment" on signed field should be rejected -->
+      <field name="counter" type="int16" auto="increment"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

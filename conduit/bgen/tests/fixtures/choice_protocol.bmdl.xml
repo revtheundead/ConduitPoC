@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="choice-test" version="1.0">
+
+  <constants>
+    <const name="SYNC" type="uint16" value="0xBEEF"/>
+    <const name="MSG_ALPHA" type="uint8" value="1"/>
+    <const name="MSG_BETA" type="uint8" value="2"/>
+  </constants>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+
+    <type name="msg-type" base="uint" bits="8">
+      <enum>
+        <value id="1" name="alpha"/>
+        <value id="2" name="beta"/>
+      </enum>
+    </type>
+
+    <struct name="AlphaBody">
+      <annotation name="group" value="control"/>
+      <field name="x" type="uint16"/>
+      <field name="y" type="uint16"/>
+    </struct>
+
+    <struct name="BetaBody">
+      <annotation name="group" value="data"/>
+      <field name="payload-size" type="uint8"/>
+      <field name="tag" type="uint32"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="Frame" role="entry-point">
+      <field name="sync" type="uint16">
+        <constraint equals="SYNC"/>
+      </field>
+      <field name="message-type" type="msg-type"/>
+      <field name="length" type="uint16"/>
+
+      <choice name="body" switch="message-type">
+        <case name="alpha" value="MSG_ALPHA" type="AlphaBody"/>
+        <case name="beta" value="MSG_BETA" type="BetaBody" direction="receive"/>
+      </choice>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

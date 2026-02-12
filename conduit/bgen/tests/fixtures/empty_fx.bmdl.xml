@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="empty-fx" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="EmptyFxMsg">
+      <field name="header" type="uint8"/>
+      <fx/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

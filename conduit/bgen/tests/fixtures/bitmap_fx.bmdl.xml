@@ -1,0 +1,30 @@
+<bmdl version="1.0">
+<protocol name="bitmap-fx" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="DataItem010">
+      <field name="sac" type="uint8"/>
+      <field name="sic" type="uint8"/>
+    </struct>
+    <struct name="DataItem020">
+      <field name="code" type="uint16"/>
+    </struct>
+    <struct name="DataItem030">
+      <field name="value" type="uint32"/>
+    </struct>
+    <struct name="BitmapItems" presence="bitmap">
+      <bitmap bits="8" ext="0"/>
+      <field name="item010" type="DataItem010" bit="7"/>
+      <field name="item020" type="DataItem020" bit="6"/>
+      <field name="item030" type="DataItem030" bit="5"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Category">
+      <field name="items" type="BitmapItems"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

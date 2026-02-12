@@ -1,0 +1,1136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Category 021 - ADS-B Target Reports
+  Edition 2.4, June 2015 (EUROCONTROL-SPEC-0149-12)
+
+  42 data items, 7 FSPEC octets (49 FRN positions)
+-->
+<bmdl version="2.0">
+  <import href="types.bmdl.xml"/>
+
+  <types>
+
+    <!-- =======================================================================
+         I021/008 - Aircraft Operational Status
+         Fixed 1 octet: RA(1) TC(2) TS(1) ARV(1) CDTIA(1) not-TCAS(1) SA(1)
+         ======================================================================= -->
+    <struct name="Cat021I008">
+      <doc>I021/008 - Aircraft Operational Status</doc>
+      <field name="ra" bits="1">
+        <doc>TCAS Resolution Advisory active: 0 = not active, 1 = active</doc>
+      </field>
+      <field name="tc" bits="2">
+        <doc>
+          Target Trajectory Change Report Capability:
+          00 = no capability, 01 = TC+0, 10 = multiple TC, 11 = Reserved
+        </doc>
+      </field>
+      <field name="ts" bits="1">
+        <doc>Target State Report Capability: 0 = no capability, 1 = capable</doc>
+      </field>
+      <field name="arv" bits="1">
+        <doc>Air-Referenced Velocity Report Capability: 0 = no capability, 1 = capable</doc>
+      </field>
+      <field name="cdtia" bits="1">
+        <doc>Cockpit Display of Traffic Information Airborne: 0 = not operative, 1 = operative</doc>
+      </field>
+      <field name="not-tcas" bits="1">
+        <doc>TCAS System Status: 0 = TCAS operative, 1 = TCAS not operative</doc>
+      </field>
+      <field name="sa" bits="1">
+        <doc>Single Antenna: 0 = Diversity, 1 = Single Antenna only</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/016 - Service Management
+         Fixed 1 octet: rp(8) LSB=0.5s
+         ======================================================================= -->
+    <struct name="Cat021I016">
+      <doc>I021/016 - Service Management (Report Period)</doc>
+      <field name="rp" type="uint8">
+        <doc>Report Period, LSB = 0.5 seconds</doc>
+        <scale>0.5</scale>
+        <unit>seconds</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/040 - Target Report Descriptor
+         Variable length (1+ octets, FX extension chain, 2 extensions)
+         ======================================================================= -->
+    <struct name="Cat021I040">
+      <doc>I021/040 - Target Report Descriptor</doc>
+      <field name="atp" bits="3">
+        <doc>
+          Address Type:
+          000 = 24-bit ICAO address
+          001 = Duplicate address
+          010 = Surface vehicle address
+          011 = Anonymous address
+          100-111 = Reserved
+        </doc>
+      </field>
+      <field name="arc" bits="2">
+        <doc>
+          Altitude Reporting Capability:
+          00 = 25 ft, 01 = 100 ft, 10 = Unknown, 11 = Invalid
+        </doc>
+      </field>
+      <field name="rc" bits="1">
+        <doc>Range Check: 0 = default, 1 = Range Check passed, CPR Validation pending</doc>
+      </field>
+      <field name="rab" bits="1">
+        <doc>Report Type: 0 = Report from target transponder, 1 = Report from field monitor</doc>
+      </field>
+      <fx>
+        <field name="dcr" bits="1">
+          <doc>Differential Correction: 0 = No, 1 = Differential correction</doc>
+        </field>
+        <field name="gbs" bits="1">
+          <doc>Ground Bit Setting: 0 = Ground bit not set, 1 = Ground bit set</doc>
+        </field>
+        <field name="sim" bits="1">
+          <doc>Simulated Target: 0 = Actual, 1 = Simulated</doc>
+        </field>
+        <field name="tst" bits="1">
+          <doc>Test Target: 0 = Default, 1 = Test Target</doc>
+        </field>
+        <field name="saa" bits="1">
+          <doc>Selected Altitude Available: 0 = Equipment capable, 1 = Equipment not capable</doc>
+        </field>
+        <field name="cl" bits="2">
+          <doc>
+            Confidence Level:
+            00 = Report valid, 01 = Report suspect
+            10 = No information, 11 = Reserved
+          </doc>
+        </field>
+        <fx>
+          <reserved bits="1"/>
+          <field name="llc" bits="1">
+            <doc>List Lookup Check: 0 = default, 1 = failed</doc>
+          </field>
+          <field name="ipc" bits="1">
+            <doc>Independent Position Check: 0 = default, 1 = failed</doc>
+          </field>
+          <field name="nogo" bits="1">
+            <doc>No-go Bit Status: 0 = NOGO-bit not set, 1 = NOGO-bit set</doc>
+          </field>
+          <field name="cpr" bits="1">
+            <doc>Compact Position Reporting: 0 = CPR Validation correct, 1 = CPR Validation failed</doc>
+          </field>
+          <field name="ldpj" bits="1">
+            <doc>Local Decoding Position Jump: 0 = LDPJ not detected, 1 = LDPJ detected</doc>
+          </field>
+          <field name="rcf" bits="1">
+            <doc>Range Check: 0 = default, 1 = Range Check failed</doc>
+          </field>
+        </fx>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I021/070 - Mode 3/A Code in Octal Representation
+         Fixed 2 octets: spare(4) code(12)
+         ======================================================================= -->
+    <struct name="Cat021I070">
+      <doc>I021/070 - Mode 3/A Code in Octal Representation</doc>
+      <reserved bits="4"/>
+      <field name="code" bits="12">
+        <doc>Mode 3/A reply code (A4 A2 A1 B4 B2 B1 C4 C2 C1 D4 D2 D1)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/074 - Time of Message Reception of Position - High Precision
+         Fixed 4 octets: FSI(2) + time(30)
+         ======================================================================= -->
+    <struct name="Cat021I074">
+      <doc>I021/074 - Time of Message Reception of Position - High Precision</doc>
+      <field name="fsi" bits="2">
+        <doc>
+          Full Second Indication:
+          00 = value in whole seconds = (I021/073) UTC time
+          01 = value in whole seconds = (I021/073) UTC time + 1
+          10 = value in whole seconds = (I021/073) UTC time - 1
+          11 = Reserved
+        </doc>
+      </field>
+      <field name="time-frac" bits="30">
+        <doc>Fractional part of Time of Message Reception of Position, LSB = 2^-30 seconds</doc>
+        <scale>9.313225746154785e-10</scale>
+        <unit>seconds</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/076 - Time of Message Reception of Velocity - High Precision
+         Fixed 4 octets: FSI(2) + time(30)
+         ======================================================================= -->
+    <struct name="Cat021I076">
+      <doc>I021/076 - Time of Message Reception of Velocity - High Precision</doc>
+      <field name="fsi" bits="2">
+        <doc>
+          Full Second Indication:
+          00 = value in whole seconds = (I021/075) UTC time
+          01 = value in whole seconds = (I021/075) UTC time + 1
+          10 = value in whole seconds = (I021/075) UTC time - 1
+          11 = Reserved
+        </doc>
+      </field>
+      <field name="time-frac" bits="30">
+        <doc>Fractional part of Time of Message Reception of Velocity, LSB = 2^-30 seconds</doc>
+        <scale>9.313225746154785e-10</scale>
+        <unit>seconds</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/090 - Quality Indicators
+         Variable length (1+ octets, FX extension chain, 3 extensions)
+         ======================================================================= -->
+    <struct name="Cat021I090">
+      <doc>I021/090 - Quality Indicators</doc>
+      <field name="nucr-nacv" bits="3">
+        <doc>Navigation Uncertainty Category for velocity NUCr or NACv</doc>
+      </field>
+      <field name="nucp-nic" bits="4">
+        <doc>Navigation Uncertainty Category for position NUCp or NIC</doc>
+      </field>
+      <fx>
+        <field name="nic-baro" bits="1">
+          <doc>NIC Baro: Navigation Integrity Category for Barometric Altitude</doc>
+        </field>
+        <field name="sil" bits="2">
+          <doc>Surveillance/Source Integrity Level</doc>
+        </field>
+        <field name="nacp" bits="4">
+          <doc>Navigation Accuracy Category for Position</doc>
+        </field>
+        <fx>
+          <reserved bits="2"/>
+          <field name="sils" bits="1">
+            <doc>SIL Supplement: 0 = measured per flight-hour, 1 = measured per sample</doc>
+          </field>
+          <field name="sda" bits="2">
+            <doc>Horizontal Position System Design Assurance Level (SDA)</doc>
+          </field>
+          <field name="gva" bits="2">
+            <doc>Geometric Altitude Accuracy (GVA)</doc>
+          </field>
+          <fx>
+            <field name="pic" bits="4">
+              <doc>Position Integrity Category</doc>
+            </field>
+            <reserved bits="3"/>
+          </fx>
+        </fx>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I021/110 - Trajectory Intent
+         Compound data item (FX-extensible primary): TIS + TID
+         ======================================================================= -->
+
+    <!-- Subfield #1: Trajectory Intent Status (1 octet, FX-extensible per spec) -->
+    <struct name="Cat021I110Tis">
+      <doc>Trajectory Intent Status</doc>
+      <field name="nav" bits="1">
+        <doc>NAV: 0 = Trajectory Intent Data is available, 1 = not available</doc>
+      </field>
+      <field name="nvb" bits="1">
+        <doc>NVB: 0 = Trajectory Intent Data is valid, 1 = not valid</doc>
+      </field>
+      <reserved bits="5"/>
+      <fx>
+        <!-- No extensions defined in Ed. 2.4; FX structure preserved for forward compatibility -->
+        <reserved bits="7"/>
+      </fx>
+    </struct>
+
+    <!-- Subfield #2: Trajectory Intent Data (repetitive) -->
+    <struct name="Cat021I110Tid">
+      <doc>Trajectory Intent Data</doc>
+      <field name="rep" type="uint8">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="points" count-from="rep">
+        <field name="tca" bits="1">
+          <doc>TCP number availability: 0 = available, 1 = not available</doc>
+        </field>
+        <field name="nc" bits="1">
+          <doc>TCP compliance: 0 = compliant, 1 = not compliant</doc>
+        </field>
+        <field name="tcp-number" bits="6">
+          <doc>Trajectory Change Point sequence number</doc>
+        </field>
+        <field name="altitude" bits="16" signed="true">
+          <doc>Altitude in two's complement, LSB = 10 ft, range -1500 to +150000 ft</doc>
+          <scale>10</scale>
+          <unit>ft</unit>
+        </field>
+        <field name="latitude" bits="24" signed="true">
+          <doc>Latitude in WGS-84, LSB = 180/2^23 degrees</doc>
+          <scale>2.1457672119140625e-5</scale>
+          <unit>degrees</unit>
+        </field>
+        <field name="longitude" bits="24" signed="true">
+          <doc>Longitude in WGS-84, LSB = 180/2^23 degrees</doc>
+          <scale>2.1457672119140625e-5</scale>
+          <unit>degrees</unit>
+        </field>
+        <field name="point-type" bits="4">
+          <doc>
+            Point Type:
+            0000 = Unknown, 0001 = Fly by, 0010 = Fly over,
+            0011 = Hold, 0100 = Procedure hold, 0101 = Procedure turn,
+            0110 = RF leg, 0111 = Top of climb, 1000 = Top of descent,
+            1001 = Start of level, 1010 = Cross-over altitude, 1011 = Transition altitude
+          </doc>
+        </field>
+        <field name="td" bits="2">
+          <doc>Turn Direction: 00 = N/A, 01 = Turn right, 10 = Turn left, 11 = No turn</doc>
+        </field>
+        <field name="tra" bits="1">
+          <doc>Turn Radius Availability: 0 = TTR not available, 1 = TTR available</doc>
+        </field>
+        <field name="toa" bits="1">
+          <doc>TOV Available: 0 = TOV available, 1 = TOV not available</doc>
+        </field>
+        <field name="tov" bits="24">
+          <doc>Time Over Point, LSB = 1 second</doc>
+          <unit>seconds</unit>
+        </field>
+        <field name="ttr" bits="16">
+          <doc>TCP Turn Radius, LSB = 0.01 NM</doc>
+          <scale>0.01</scale>
+          <unit>NM</unit>
+        </field>
+      </array>
+    </struct>
+
+    <!-- I021/110 Compound Item -->
+    <struct name="Cat021I110">
+      <doc>
+        I021/110 - Trajectory Intent
+        Compound data item with FX-extensible primary subfield.
+        Subfield #1: Trajectory Intent Status (TIS)
+        Subfield #2: Trajectory Intent Data (TID)
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="tis" bit="7" type="Cat021I110Tis">
+          <doc>Subfield #1: Trajectory Intent Status</doc>
+        </field>
+        <field name="tid" bit="6" type="Cat021I110Tid">
+          <doc>Subfield #2: Trajectory Intent Data</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I021/130 - Position in WGS-84 Co-ordinates
+         Fixed 6 octets: Latitude(24,signed) + Longitude(24,signed)
+         ======================================================================= -->
+    <struct name="Cat021I130">
+      <doc>I021/130 - Position in WGS-84 Co-ordinates</doc>
+      <field name="latitude" type="int24">
+        <doc>Latitude in WGS-84, LSB = 180/2^23 degrees (~2.1458e-5 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="longitude" type="int24">
+        <doc>Longitude in WGS-84, LSB = 180/2^23 degrees (~2.1458e-5 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/131 - High-Resolution Position in WGS-84 Co-ordinates
+         Fixed 8 octets: Latitude(32,signed) + Longitude(32,signed)
+         ======================================================================= -->
+    <struct name="Cat021I131">
+      <doc>I021/131 - High-Resolution Position in WGS-84 Co-ordinates</doc>
+      <field name="latitude" type="int32">
+        <doc>Latitude in WGS-84, LSB = 180/2^30 degrees (~1.676e-7 deg)</doc>
+        <scale>1.6763806343078613e-7</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="longitude" type="int32">
+        <doc>Longitude in WGS-84, LSB = 180/2^30 degrees (~1.676e-7 deg)</doc>
+        <scale>1.6763806343078613e-7</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/140 - Geometric Height
+         Fixed 2 octets: gh(16,signed) LSB=6.25 ft
+         ======================================================================= -->
+    <struct name="Cat021I140">
+      <doc>I021/140 - Geometric Height (WGS-84)</doc>
+      <field name="gh" bits="16" signed="true">
+        <doc>Geometric Height above WGS-84 ellipsoid, LSB = 6.25 ft</doc>
+        <scale>6.25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/145 - Flight Level
+         Fixed 2 octets: fl(16,signed) LSB=0.25 FL
+         ======================================================================= -->
+    <struct name="Cat021I145">
+      <doc>I021/145 - Flight Level</doc>
+      <field name="fl" bits="16" signed="true">
+        <doc>Flight Level, LSB = 1/4 FL</doc>
+        <scale>0.25</scale>
+        <unit>FL</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/146 - Selected Altitude
+         Fixed 2 octets: SAS(1) Source(2) Altitude(13,signed) LSB=25 ft
+         ======================================================================= -->
+    <struct name="Cat021I146">
+      <doc>I021/146 - Selected Altitude</doc>
+      <field name="sas" bits="1">
+        <doc>Source Availability: 0 = No source information, 1 = Source information provided</doc>
+      </field>
+      <field name="source" bits="2">
+        <doc>
+          Source:
+          00 = Unknown, 01 = Aircraft Altitude (Holding),
+          10 = MCP/FCU Selected Altitude, 11 = FMS Selected Altitude
+        </doc>
+      </field>
+      <field name="altitude" bits="13" signed="true">
+        <doc>Altitude, LSB = 25 ft, range -1300 to +100000 ft</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/148 - Final State Selected Altitude
+         Fixed 2 octets: MV(1) AH(1) AM(1) Altitude(13,signed) LSB=25 ft
+         ======================================================================= -->
+    <struct name="Cat021I148">
+      <doc>I021/148 - Final State Selected Altitude</doc>
+      <field name="mv" bits="1">
+        <doc>Manage Vertical Mode: 0 = not active/unknown, 1 = active</doc>
+      </field>
+      <field name="ah" bits="1">
+        <doc>Altitude Hold: 0 = not active/unknown, 1 = active</doc>
+      </field>
+      <field name="am" bits="1">
+        <doc>Approach Mode: 0 = not active/unknown, 1 = active</doc>
+      </field>
+      <field name="altitude" bits="13" signed="true">
+        <doc>Altitude, LSB = 25 ft, range -1300 to +100000 ft</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/150 - Air Speed
+         Fixed 2 octets: IM(1) + air-speed(15)
+         ======================================================================= -->
+    <struct name="Cat021I150">
+      <doc>I021/150 - Air Speed</doc>
+      <field name="im" bits="1">
+        <doc>0 = IAS (LSB=2^-14 NM/s), 1 = Mach (LSB=0.001)</doc>
+      </field>
+      <field name="air-speed" bits="15">
+        <doc>Air speed value (interpretation depends on IM flag)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/151 - True Airspeed
+         Fixed 2 octets: RE(1) + true-air-speed(15) LSB=1 kt
+         ======================================================================= -->
+    <struct name="Cat021I151">
+      <doc>I021/151 - True Airspeed</doc>
+      <field name="re" bits="1">
+        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      </field>
+      <field name="true-air-speed" bits="15">
+        <doc>True Airspeed, LSB = 1 knot</doc>
+        <unit>knots</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/152 - Magnetic Heading
+         Fixed 2 octets: magnetic-heading(16) LSB=360/2^16 deg
+         ======================================================================= -->
+    <struct name="Cat021I152">
+      <doc>I021/152 - Magnetic Heading</doc>
+      <field name="magnetic-heading" bits="16">
+        <doc>Magnetic Heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+        <scale>5.4931640625e-3</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/155 - Barometric Vertical Rate
+         Fixed 2 octets: RE(1) + BVR(15,signed) LSB=6.25 ft/min
+         ======================================================================= -->
+    <struct name="Cat021I155">
+      <doc>I021/155 - Barometric Vertical Rate</doc>
+      <field name="re" bits="1">
+        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      </field>
+      <field name="bvr" bits="15" signed="true">
+        <doc>Barometric Vertical Rate, LSB = 6.25 ft/min</doc>
+        <scale>6.25</scale>
+        <unit>ft/min</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/157 - Geometric Vertical Rate
+         Fixed 2 octets: RE(1) + GVR(15,signed) LSB=6.25 ft/min
+         ======================================================================= -->
+    <struct name="Cat021I157">
+      <doc>I021/157 - Geometric Vertical Rate</doc>
+      <field name="re" bits="1">
+        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      </field>
+      <field name="gvr" bits="15" signed="true">
+        <doc>Geometric Vertical Rate, LSB = 6.25 ft/min</doc>
+        <scale>6.25</scale>
+        <unit>ft/min</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/160 - Airborne Ground Vector
+         Fixed 4 octets: RE(1) + Ground-Speed(15) + Track-Angle(16)
+         ======================================================================= -->
+    <struct name="Cat021I160">
+      <doc>I021/160 - Airborne Ground Vector</doc>
+      <field name="re" bits="1">
+        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      </field>
+      <field name="ground-speed" bits="15">
+        <doc>Ground Speed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
+        <scale>6.103515625e-5</scale>
+        <unit>NM/s</unit>
+      </field>
+      <field name="track-angle" bits="16">
+        <doc>Track Angle clockwise reference to True North, LSB = 360/2^16 degrees</doc>
+        <scale>5.4931640625e-3</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/161 - Track Number
+         Fixed 2 octets: spare(4) + track-number(12)
+         ======================================================================= -->
+    <struct name="Cat021I161">
+      <doc>I021/161 - Track Number</doc>
+      <reserved bits="4"/>
+      <field name="track-number" bits="12">
+        <doc>Track number</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/165 - Track Angle Rate
+         Fixed 2 octets: spare(6) + TAR(10,signed) LSB=1/32 deg/s
+         ======================================================================= -->
+    <struct name="Cat021I165">
+      <doc>I021/165 - Track Angle Rate</doc>
+      <reserved bits="6"/>
+      <field name="tar" bits="10" signed="true">
+        <doc>Track Angle Rate, LSB = 1/32 deg/s</doc>
+        <scale>0.03125</scale>
+        <unit>deg/s</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/200 - Target Status
+         Fixed 1 octet: ICF(1) LNAV(1) ME(1) PS(3) SS(2)
+         ======================================================================= -->
+    <struct name="Cat021I200">
+      <doc>I021/200 - Target Status</doc>
+      <field name="icf" bits="1">
+        <doc>Intent Change Flag</doc>
+      </field>
+      <field name="lnav" bits="1">
+        <doc>LNAV Mode: 0 = LNAV Mode engaged, 1 = LNAV Mode not engaged</doc>
+      </field>
+      <field name="me" bits="1">
+        <doc>Military Emergency: 0 = no, 1 = military emergency</doc>
+      </field>
+      <field name="ps" bits="3">
+        <doc>
+          Priority Status:
+          000 = No emergency/not reported
+          001 = General emergency
+          010 = Lifeguard/medical
+          011 = Minimum fuel
+          100 = No communications
+          101 = Unlawful interference
+          110 = "Downed" Aircraft
+          111 = Reserved
+        </doc>
+      </field>
+      <field name="ss" bits="2">
+        <doc>
+          Surveillance Status:
+          00 = No condition reported
+          01 = Permanent Alert (Emergency condition)
+          10 = Temporary Alert (change in Mode 3/A Code other than emergency)
+          11 = SPI set
+        </doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/210 - MOPS Version
+         Fixed 1 octet: spare(1) VNS(1) VN(3) LTT(3)
+         ======================================================================= -->
+    <struct name="Cat021I210">
+      <doc>I021/210 - MOPS Version</doc>
+      <reserved bits="1"/>
+      <field name="vns" bits="1">
+        <doc>Version Not Supported: 0 = The MOPS Version is supported, 1 = not supported</doc>
+      </field>
+      <field name="vn" bits="3">
+        <doc>
+          Version Number:
+          000 = ED102/DO-260 (DO-242),
+          001 = DO-260A (DO-242A),
+          010 = ED102A/DO-260B (DO-242B)
+        </doc>
+      </field>
+      <field name="ltt" bits="3">
+        <doc>
+          Link Technology Type:
+          000 = Other, 001 = UAT, 010 = 1090 ES,
+          011 = VDL 4, 100-111 = Not assigned
+        </doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/220 - Met Information
+         Compound data item (FX-extensible primary): WS + WD + TMP + TRB
+         ======================================================================= -->
+
+    <!-- Subfield #1: Wind Speed (2 octets) -->
+    <struct name="Cat021I220Ws">
+      <doc>Wind Speed</doc>
+      <field name="wind-speed" type="uint16">
+        <doc>Wind Speed, LSB = 1 knot</doc>
+        <unit>knots</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #2: Wind Direction (2 octets) -->
+    <struct name="Cat021I220Wd">
+      <doc>Wind Direction</doc>
+      <field name="wind-direction" type="uint16">
+        <doc>Wind Direction, LSB = 1 degree</doc>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #3: Temperature (2 octets) -->
+    <struct name="Cat021I220Tmp">
+      <doc>Temperature</doc>
+      <field name="temperature" type="int16">
+        <doc>Temperature, LSB = 0.25 degrees Celsius</doc>
+        <scale>0.25</scale>
+        <unit>degrees-celsius</unit>
+      </field>
+    </struct>
+
+    <!-- I021/220 Compound Item -->
+    <struct name="Cat021I220">
+      <doc>
+        I021/220 - Met Information
+        Compound data item with FX-extensible primary subfield.
+        Subfield #1: Wind Speed (WS)
+        Subfield #2: Wind Direction (WD)
+        Subfield #3: Temperature (TMP)
+        Subfield #4: Turbulence (TRB)
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="ws" bit="7" type="Cat021I220Ws">
+          <doc>Subfield #1: Wind Speed</doc>
+        </field>
+        <field name="wd" bit="6" type="Cat021I220Wd">
+          <doc>Subfield #2: Wind Direction</doc>
+        </field>
+        <field name="tmp" bit="5" type="Cat021I220Tmp">
+          <doc>Subfield #3: Temperature</doc>
+        </field>
+        <field name="trb" bit="4" type="uint8">
+          <doc>Subfield #4: Turbulence (0-15)</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I021/230 - Roll Angle
+         Fixed 2 octets: roll-angle(16,signed) LSB=0.01 deg
+         ======================================================================= -->
+    <struct name="Cat021I230">
+      <doc>I021/230 - Roll Angle</doc>
+      <field name="roll-angle" bits="16" signed="true">
+        <doc>Roll Angle, LSB = 0.01 degrees</doc>
+        <scale>0.01</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/250 - Mode S MB Data
+         Repetitive: REP(8) + N * (MB-Data(7 bytes) + BDS1(4) + BDS2(4))
+         ======================================================================= -->
+    <struct name="Cat021I250">
+      <doc>I021/250 - Mode S MB Data</doc>
+      <field name="rep" type="uint8">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="bds" count-from="rep">
+        <field name="mb-data" bytes="7">
+          <doc>56-bit Mode S Comm B message data</doc>
+        </field>
+        <field name="bds1" bits="4">
+          <doc>Comm B Data Buffer Store 1 Address</doc>
+        </field>
+        <field name="bds2" bits="4">
+          <doc>Comm B Data Buffer Store 2 Address</doc>
+        </field>
+      </array>
+    </struct>
+
+    <!-- =======================================================================
+         I021/260 - ACAS Resolution Advisory Report
+         Fixed 7 octets: TYP(5) STYP(3) ARA(14) RAC(4) RAT(1) MTE(1) TTI(2) TID(26)
+         ======================================================================= -->
+    <struct name="Cat021I260">
+      <doc>I021/260 - ACAS Resolution Advisory Report (BDS 3,0)</doc>
+      <field name="typ" bits="5">
+        <doc>Message Type (= 28 for RA Broadcast)</doc>
+      </field>
+      <field name="styp" bits="3">
+        <doc>Message Sub-type</doc>
+      </field>
+      <field name="ara" bits="14">
+        <doc>Active Resolution Advisories</doc>
+      </field>
+      <field name="rac" bits="4">
+        <doc>RA Complement</doc>
+      </field>
+      <field name="rat" bits="1">
+        <doc>RA Terminated: 0 = not terminated, 1 = terminated</doc>
+      </field>
+      <field name="mte" bits="1">
+        <doc>Multiple Threat Encounter: 0 = no, 1 = yes</doc>
+      </field>
+      <field name="tti" bits="2">
+        <doc>Threat Type Indicator: 00 = no identity, 01 = ID present as address, 10 = ID present as altitude, 11 = ID present as both</doc>
+      </field>
+      <field name="tid" bits="26">
+        <doc>Threat Identity Data</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I021/271 - Surface Capabilities and Characteristics
+         Variable length (1+ octets, FX extension chain, 1 extension)
+         ======================================================================= -->
+    <struct name="Cat021I271">
+      <doc>I021/271 - Surface Capabilities and Characteristics</doc>
+      <reserved bits="2"/>
+      <field name="poa" bits="1">
+        <doc>Position Offset Applied: 0 = Position transmitted is not ADS-B position reference point, 1 = Position transmitted is the ADS-B position reference point</doc>
+      </field>
+      <field name="cdti-s" bits="1">
+        <doc>Cockpit Display of Traffic Information Surface: 0 = CDTI not operational, 1 = CDTI operational</doc>
+      </field>
+      <field name="b2-low" bits="1">
+        <doc>Class B2 transmit power less than 70W: 0 = >= 70W, 1 = &lt; 70W</doc>
+      </field>
+      <field name="ras" bits="1">
+        <doc>Receiving ATC Services: 0 = Aircraft not receiving, 1 = Aircraft receiving</doc>
+      </field>
+      <field name="ident" bits="1">
+        <doc>Setting of IDENT-switch: 0 = IDENT switch not active, 1 = IDENT switch active</doc>
+      </field>
+      <fx>
+        <field name="lw" bits="4">
+          <doc>Length and width of the aircraft (encoded per Table)</doc>
+        </field>
+        <reserved bits="3"/>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I021/295 - Data Ages
+         Compound data item (FX-extensible primary, 23 subfields)
+         All subfields are 1 octet, uint8, LSB=0.1s
+         ======================================================================= -->
+    <struct name="Cat021I295">
+      <doc>
+        I021/295 - Data Ages
+        Compound data item with FX-extensible primary subfield (4 octets).
+        23 subfields, each 1 octet, LSB = 0.1 seconds.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <!-- Octet 1: bits 7-1 -->
+        <field name="aos" bit="7" type="uint8">
+          <doc>#1: Age of the latest received AOS report (LSB=0.1s)</doc>
+        </field>
+        <field name="trd" bit="6" type="uint8">
+          <doc>#2: Age of the latest received Target Report Descriptor (LSB=0.1s)</doc>
+        </field>
+        <field name="m3a" bit="5" type="uint8">
+          <doc>#3: Age of the latest received Mode 3/A Code (LSB=0.1s)</doc>
+        </field>
+        <field name="qi" bit="4" type="uint8">
+          <doc>#4: Age of the latest received Quality Indicators (LSB=0.1s)</doc>
+        </field>
+        <field name="ti" bit="3" type="uint8">
+          <doc>#5: Age of the latest received Trajectory Intent (LSB=0.1s)</doc>
+        </field>
+        <field name="mam" bit="2" type="uint8">
+          <doc>#6: Age of the latest received Message Amplitude (LSB=0.1s)</doc>
+        </field>
+        <field name="gh" bit="1" type="uint8">
+          <doc>#7: Age of the latest received Geometric Height (LSB=0.1s)</doc>
+        </field>
+        <!-- Octet 2: bits 15-9 -->
+        <field name="fl" bit="15" type="uint8">
+          <doc>#8: Age of the latest received Flight Level (LSB=0.1s)</doc>
+        </field>
+        <field name="isa" bit="14" type="uint8">
+          <doc>#9: Age of the latest received Intermediate State Selected Altitude (LSB=0.1s)</doc>
+        </field>
+        <field name="fsa" bit="13" type="uint8">
+          <doc>#10: Age of the latest received Final State Selected Altitude (LSB=0.1s)</doc>
+        </field>
+        <field name="as" bit="12" type="uint8">
+          <doc>#11: Age of the latest received Air Speed (LSB=0.1s)</doc>
+        </field>
+        <field name="tas" bit="11" type="uint8">
+          <doc>#12: Age of the latest received True Air Speed (LSB=0.1s)</doc>
+        </field>
+        <field name="mh" bit="10" type="uint8">
+          <doc>#13: Age of the latest received Magnetic Heading (LSB=0.1s)</doc>
+        </field>
+        <field name="bvr" bit="9" type="uint8">
+          <doc>#14: Age of the latest received Barometric Vertical Rate (LSB=0.1s)</doc>
+        </field>
+        <!-- Octet 3: bits 23-17 -->
+        <field name="gvr" bit="23" type="uint8">
+          <doc>#15: Age of the latest received Geometric Vertical Rate (LSB=0.1s)</doc>
+        </field>
+        <field name="gv" bit="22" type="uint8">
+          <doc>#16: Age of the latest received Ground Vector (LSB=0.1s)</doc>
+        </field>
+        <field name="tar" bit="21" type="uint8">
+          <doc>#17: Age of the latest received Track Angle Rate (LSB=0.1s)</doc>
+        </field>
+        <field name="ti-age" bit="20" type="uint8">
+          <doc>#18: Age of the latest received Target Identification (LSB=0.1s)</doc>
+        </field>
+        <field name="ts" bit="19" type="uint8">
+          <doc>#19: Age of the latest received Target Status (LSB=0.1s)</doc>
+        </field>
+        <field name="met" bit="18" type="uint8">
+          <doc>#20: Age of the latest received Met Information (LSB=0.1s)</doc>
+        </field>
+        <field name="roa" bit="17" type="uint8">
+          <doc>#21: Age of the latest received Roll Angle (LSB=0.1s)</doc>
+        </field>
+        <!-- Octet 4: bits 31-25 -->
+        <field name="ara" bit="31" type="uint8">
+          <doc>#22: Age of the latest received ACAS Resolution Advisory (LSB=0.1s)</doc>
+        </field>
+        <field name="scc" bit="30" type="uint8">
+          <doc>#23: Age of the latest received Surface Capabilities and Characteristics (LSB=0.1s)</doc>
+        </field>
+      </struct>
+    </struct>
+
+  </types>
+
+  <messages>
+    <!-- =======================================================================
+         CAT021 Record
+         FSPEC bitmap with 7 FSPEC octets (49 FRN positions)
+         ======================================================================= -->
+    <message id="21" name="Cat021Record">
+      <doc>
+        CAT021 Record (ADS-B Target Reports, Edition 2.4)
+        User Application Profile with 7 FSPEC octets, 42 data items + RE + SP.
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FSPEC Octet 1 (FRN 1-7) -->
+
+        <!-- FRN 1: I021/010 - Data Source Identifier (2 octets) -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I021/010 - Data Source Identifier (SAC/SIC)</doc>
+        </field>
+
+        <!-- FRN 2: I021/040 - Target Report Descriptor (1+ octets) -->
+        <field name="i040" bit="6" type="Cat021I040">
+          <doc>I021/040 - Target Report Descriptor</doc>
+        </field>
+
+        <!-- FRN 3: I021/161 - Track Number (2 octets) -->
+        <field name="i161" bit="5" type="Cat021I161">
+          <doc>I021/161 - Track Number</doc>
+        </field>
+
+        <!-- FRN 4: I021/015 - Service Identification (1 octet) -->
+        <field name="i015" bit="4" type="uint8">
+          <doc>I021/015 - Service Identification</doc>
+        </field>
+
+        <!-- FRN 5: I021/071 - Time of Applicability for Position (3 octets) -->
+        <field name="i071" bit="3" type="time-of-day">
+          <doc>I021/071 - Time of Applicability for Position</doc>
+        </field>
+
+        <!-- FRN 6: I021/130 - Position in WGS-84 Co-ordinates (6 octets) -->
+        <field name="i130" bit="2" type="Cat021I130">
+          <doc>I021/130 - Position in WGS-84 Co-ordinates</doc>
+        </field>
+
+        <!-- FRN 7: I021/131 - High-Res Position in WGS-84 (8 octets) -->
+        <field name="i131" bit="1" type="Cat021I131">
+          <doc>I021/131 - High-Resolution Position in WGS-84 Co-ordinates</doc>
+        </field>
+
+        <!-- FSPEC Octet 2 (FRN 8-14) -->
+
+        <!-- FRN 8: I021/072 - Time of Applicability for Velocity (3 octets) -->
+        <field name="i072" bit="15" type="time-of-day">
+          <doc>I021/072 - Time of Applicability for Velocity</doc>
+        </field>
+
+        <!-- FRN 9: I021/150 - Air Speed (2 octets) -->
+        <field name="i150" bit="14" type="Cat021I150">
+          <doc>I021/150 - Air Speed</doc>
+        </field>
+
+        <!-- FRN 10: I021/151 - True Airspeed (2 octets) -->
+        <field name="i151" bit="13" type="Cat021I151">
+          <doc>I021/151 - True Airspeed</doc>
+        </field>
+
+        <!-- FRN 11: I021/080 - Target Address (3 octets) -->
+        <field name="i080" bit="12" type="aircraft-address">
+          <doc>I021/080 - Target Address (24-bit ICAO)</doc>
+        </field>
+
+        <!-- FRN 12: I021/073 - Time of Message Reception for Position (3 octets) -->
+        <field name="i073" bit="11" type="time-of-day">
+          <doc>I021/073 - Time of Message Reception for Position</doc>
+        </field>
+
+        <!-- FRN 13: I021/074 - Time of Msg Reception of Position - HP (4 octets) -->
+        <field name="i074" bit="10" type="Cat021I074">
+          <doc>I021/074 - Time of Message Reception of Position - High Precision</doc>
+        </field>
+
+        <!-- FRN 14: I021/075 - Time of Message Reception for Velocity (3 octets) -->
+        <field name="i075" bit="9" type="time-of-day">
+          <doc>I021/075 - Time of Message Reception for Velocity</doc>
+        </field>
+
+        <!-- FSPEC Octet 3 (FRN 15-21) -->
+
+        <!-- FRN 15: I021/076 - Time of Msg Reception of Velocity - HP (4 octets) -->
+        <field name="i076" bit="23" type="Cat021I076">
+          <doc>I021/076 - Time of Message Reception of Velocity - High Precision</doc>
+        </field>
+
+        <!-- FRN 16: I021/140 - Geometric Height (2 octets) -->
+        <field name="i140" bit="22" type="Cat021I140">
+          <doc>I021/140 - Geometric Height</doc>
+        </field>
+
+        <!-- FRN 17: I021/090 - Quality Indicators (1+ octets) -->
+        <field name="i090" bit="21" type="Cat021I090">
+          <doc>I021/090 - Quality Indicators</doc>
+        </field>
+
+        <!-- FRN 18: I021/210 - MOPS Version (1 octet) -->
+        <field name="i210" bit="20" type="Cat021I210">
+          <doc>I021/210 - MOPS Version</doc>
+        </field>
+
+        <!-- FRN 19: I021/070 - Mode 3/A Code (2 octets) -->
+        <field name="i070" bit="19" type="Cat021I070">
+          <doc>I021/070 - Mode 3/A Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 20: I021/230 - Roll Angle (2 octets) -->
+        <field name="i230" bit="18" type="Cat021I230">
+          <doc>I021/230 - Roll Angle</doc>
+        </field>
+
+        <!-- FRN 21: I021/145 - Flight Level (2 octets) -->
+        <field name="i145" bit="17" type="Cat021I145">
+          <doc>I021/145 - Flight Level</doc>
+        </field>
+
+        <!-- FSPEC Octet 4 (FRN 22-28) -->
+
+        <!-- FRN 22: I021/152 - Magnetic Heading (2 octets) -->
+        <field name="i152" bit="31" type="Cat021I152">
+          <doc>I021/152 - Magnetic Heading</doc>
+        </field>
+
+        <!-- FRN 23: I021/200 - Target Status (1 octet) -->
+        <field name="i200" bit="30" type="Cat021I200">
+          <doc>I021/200 - Target Status</doc>
+        </field>
+
+        <!-- FRN 24: I021/155 - Barometric Vertical Rate (2 octets) -->
+        <field name="i155" bit="29" type="Cat021I155">
+          <doc>I021/155 - Barometric Vertical Rate</doc>
+        </field>
+
+        <!-- FRN 25: I021/157 - Geometric Vertical Rate (2 octets) -->
+        <field name="i157" bit="28" type="Cat021I157">
+          <doc>I021/157 - Geometric Vertical Rate</doc>
+        </field>
+
+        <!-- FRN 26: I021/160 - Airborne Ground Vector (4 octets) -->
+        <field name="i160" bit="27" type="Cat021I160">
+          <doc>I021/160 - Airborne Ground Vector</doc>
+        </field>
+
+        <!-- FRN 27: I021/165 - Track Angle Rate (2 octets) -->
+        <field name="i165" bit="26" type="Cat021I165">
+          <doc>I021/165 - Track Angle Rate</doc>
+        </field>
+
+        <!-- FRN 28: I021/077 - Time of Report Transmission (3 octets) -->
+        <field name="i077" bit="25" type="time-of-day">
+          <doc>I021/077 - Time of Report Transmission</doc>
+        </field>
+
+        <!-- FSPEC Octet 5 (FRN 29-35) -->
+
+        <!-- FRN 29: I021/170 - Target Identification (6 octets) -->
+        <field name="i170" bit="39" type="aircraft-ident">
+          <doc>I021/170 - Target Identification</doc>
+        </field>
+
+        <!-- FRN 30: I021/020 - Emitter Category (1 octet) -->
+        <field name="i020" bit="38" type="uint8">
+          <doc>I021/020 - Emitter Category (ECAT)</doc>
+        </field>
+
+        <!-- FRN 31: I021/220 - Met Information (1+ octets, compound) -->
+        <field name="i220" bit="37" type="Cat021I220">
+          <doc>I021/220 - Met Information</doc>
+        </field>
+
+        <!-- FRN 32: I021/146 - Selected Altitude (2 octets) -->
+        <field name="i146" bit="36" type="Cat021I146">
+          <doc>I021/146 - Selected Altitude</doc>
+        </field>
+
+        <!-- FRN 33: I021/148 - Final State Selected Altitude (2 octets) -->
+        <field name="i148" bit="35" type="Cat021I148">
+          <doc>I021/148 - Final State Selected Altitude</doc>
+        </field>
+
+        <!-- FRN 34: I021/110 - Trajectory Intent (1+ octets, compound) -->
+        <field name="i110" bit="34" type="Cat021I110">
+          <doc>I021/110 - Trajectory Intent</doc>
+        </field>
+
+        <!-- FRN 35: I021/016 - Service Management (1 octet) -->
+        <field name="i016" bit="33" type="Cat021I016">
+          <doc>I021/016 - Service Management</doc>
+        </field>
+
+        <!-- FSPEC Octet 6 (FRN 36-42) -->
+
+        <!-- FRN 36: I021/008 - Aircraft Operational Status (1 octet) -->
+        <field name="i008" bit="47" type="Cat021I008">
+          <doc>I021/008 - Aircraft Operational Status</doc>
+        </field>
+
+        <!-- FRN 37: I021/271 - Surface Capabilities and Characteristics (1+ octets) -->
+        <field name="i271" bit="46" type="Cat021I271">
+          <doc>I021/271 - Surface Capabilities and Characteristics</doc>
+        </field>
+
+        <!-- FRN 38: I021/132 - Message Amplitude (1 octet) -->
+        <field name="i132" bit="45" type="int8">
+          <doc>I021/132 - Message Amplitude (LSB = 1 dBm)</doc>
+        </field>
+
+        <!-- FRN 39: I021/250 - Mode S MB Data (1+N*8 octets) -->
+        <field name="i250" bit="44" type="Cat021I250">
+          <doc>I021/250 - Mode S MB Data</doc>
+        </field>
+
+        <!-- FRN 40: I021/260 - ACAS Resolution Advisory Report (7 octets) -->
+        <field name="i260" bit="43" type="Cat021I260">
+          <doc>I021/260 - ACAS Resolution Advisory Report</doc>
+        </field>
+
+        <!-- FRN 41: I021/400 - Receiver ID (1 octet) -->
+        <field name="i400" bit="42" type="uint8">
+          <doc>I021/400 - Receiver ID</doc>
+        </field>
+
+        <!-- FRN 42: I021/295 - Data Ages (1+ octets, compound) -->
+        <field name="i295" bit="41" type="Cat021I295">
+          <doc>I021/295 - Data Ages</doc>
+        </field>
+
+        <!-- FSPEC Octet 7 (FRN 43-49) -->
+        <!-- FRN 43-47: Unused -->
+
+        <!-- FRN 48: RE - Reserved Expansion Field -->
+        <struct name="re" bit="50">
+          <doc>Reserved Expansion Field</doc>
+          <field name="len" type="uint8">
+            <doc>Length of RE including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+        <!-- FRN 49: SP - Special Purpose Field -->
+        <struct name="sp" bit="49">
+          <doc>Special Purpose Field</doc>
+          <field name="len" type="uint8">
+            <doc>Length of SP including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+      </struct>
+    </message>
+  </messages>
+
+</bmdl>

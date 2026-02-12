@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="wire-encodings" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+
+    <!-- BCD: 4-bit nibbles encode decimal digits, unsigned -->
+    <type name="bcd-altitude" base="uint" bits="16" wire-encoding="bcd"/>
+
+    <!-- BCD_S: MSB sign + BCD nibbles, signed -->
+    <type name="bcd-heading" base="int" bits="13" wire-encoding="bcd-s"/>
+
+    <!-- BNR_S: MSB sign + magnitude, signed -->
+    <type name="sign-mag-offset" base="int" bits="16" wire-encoding="bnr-s"/>
+
+    <!-- Explicit CB2 (no-op, already default for int) -->
+    <type name="cb2-value" base="int" bits="16" wire-encoding="cb2"/>
+
+    <!-- Explicit BNR (no-op, already default for uint) -->
+    <type name="bnr-value" base="uint" bits="16" wire-encoding="bnr"/>
+
+    <!-- BCD with scale -->
+    <type name="bcd-scaled" base="uint" bits="16" wire-encoding="bcd">
+      <scale>0.1</scale>
+    </type>
+  </types>
+
+  <messages>
+    <message name="WireEncodingMsg">
+      <field name="bcd-alt" type="bcd-altitude"/>
+      <field name="bcd-hdg" type="bcd-heading"/>
+      <field name="sm-offset" type="sign-mag-offset"/>
+      <field name="cb2-val" type="cb2-value"/>
+      <field name="bnr-val" type="bnr-value"/>
+
+      <!-- Field-level wire encoding override -->
+      <field name="inline-bcd" bits="12" wire-encoding="bcd"/>
+      <field name="inline-bnrs" bits="16" signed="true" wire-encoding="bnr-s"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>frame_direction</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="DirFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <!-- Same id=1, different directions -->
+    <message id="1" name="CommandRequest" direction="send">
+      <field name="cmd" type="uint8"/>
+    </message>
+    <message id="1" name="CommandResponse" direction="receive">
+      <field name="status" type="uint8"/>
+      <field name="detail" type="uint16"/>
+    </message>
+    <!-- Bidirectional message -->
+    <message id="2" name="Heartbeat">
+      <field name="seq" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

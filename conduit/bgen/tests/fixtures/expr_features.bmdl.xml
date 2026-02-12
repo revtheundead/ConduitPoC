@@ -1,0 +1,61 @@
+<bmdl version="1.0">
+<protocol name="expr-features" version="1.0">
+  <constants>
+    <const name="HEADER_SIZE" type="uint8" value="4"/>
+    <const name="TYPE_A" type="uint8" value="1"/>
+    <const name="TYPE_B" type="uint8" value="2"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="ItemA"><field name="val" type="uint16"/></struct>
+    <struct name="ItemB"><field name="tag" type="uint32"/></struct>
+  </types>
+  <messages>
+    <!-- Test arithmetic expression in length-from -->
+    <message name="ArithmeticLengthMsg">
+      <field name="total-length" type="uint16"/>
+      <field name="header-size" type="uint8"/>
+      <field name="tag" type="uint8"/>
+      <choice name="body" switch="tag" length-from="total-length - header-size">
+        <case name="a" value="TYPE_A" type="ItemA"/>
+        <case name="b" value="TYPE_B" type="ItemB"/>
+      </choice>
+    </message>
+    <!-- Test comparison operators in present-when -->
+    <message name="ComparisonMsg">
+      <field name="flags" type="uint8"/>
+      <field name="level" type="uint8"/>
+      <field name="opt-a" type="uint16" present-when="flags != 0"/>
+      <field name="opt-b" type="uint16" present-when="level > 3"/>
+      <field name="opt-c" type="uint16" present-when="level >= 5"/>
+      <field name="opt-d" type="uint16" present-when="level < 10"/>
+    </message>
+    <!-- Test bitwise AND in present-when -->
+    <message name="BitwiseMsg">
+      <field name="mask" type="uint8"/>
+      <field name="base" type="uint16"/>
+      <field name="extended" type="uint16" present-when="(mask &amp; 0x01) != 0"/>
+    </message>
+    <!-- Test logical operators -->
+    <message name="LogicalMsg">
+      <field name="flag-a" type="uint8"/>
+      <field name="flag-b" type="uint8"/>
+      <field name="value" type="uint16"/>
+      <field name="conditional" type="uint16" present-when="flag-a != 0 and flag-b != 0"/>
+    </message>
+    <!-- Test multiplication in count-from -->
+    <message name="MulCountMsg">
+      <field name="rows" type="uint8"/>
+      <field name="cols" type="uint8"/>
+      <array name="cells" type="uint16" count-from="rows * cols"/>
+    </message>
+    <!-- Test remaining keyword in length-from -->
+    <message name="RemainingMsg">
+      <field name="header" type="uint32"/>
+      <field name="payload" type="uint8" length-from="remaining"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

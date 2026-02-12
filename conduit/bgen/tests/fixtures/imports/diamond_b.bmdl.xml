@@ -1,0 +1,9 @@
+<bmdl version="1.0">
+  <import href="diamond_shared.bmdl.xml"/>
+  <types>
+    <struct name="BranchB">
+      <field name="shared" type="SharedData"/>
+      <field name="b-tag" type="uint8"/>
+    </struct>
+  </types>
+</bmdl>

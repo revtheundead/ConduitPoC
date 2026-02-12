@@ -1,0 +1,11 @@
+<bmdl version="1.0">
+  <import href="transitive_base.bmdl.xml"/>
+  <!-- Mid-level library: adds types, imports from base -->
+  <types>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="MidStruct">
+      <field name="base" type="BaseStruct"/>
+      <field name="extra" type="uint32"/>
+    </struct>
+  </types>
+</bmdl>

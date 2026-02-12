@@ -1,0 +1,38 @@
+<bmdl version="1.0">
+<protocol name="multi-entry" version="1.0">
+  <constants>
+    <const name="SYNC_A" type="uint16" value="0xAA55"/>
+    <const name="SYNC_B" type="uint16" value="0x55AA"/>
+    <const name="CMD_1" type="uint8" value="1"/>
+    <const name="CMD_2" type="uint8" value="2"/>
+    <const name="EVT_1" type="uint8" value="10"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="Cmd1Body"><field name="param" type="uint32"/></struct>
+    <struct name="Cmd2Body"><field name="flags" type="uint16"/></struct>
+    <struct name="Evt1Body"><field name="value" type="uint32"/></struct>
+  </types>
+  <messages>
+    <!-- First entry-point: command channel -->
+    <message name="CommandFrame" role="entry-point">
+      <field name="sync" type="uint16"><constraint equals="SYNC_A"/></field>
+      <field name="cmd-id" type="uint8"/>
+      <choice name="cmd" switch="cmd-id">
+        <case name="c1" value="CMD_1" type="Cmd1Body"/>
+        <case name="c2" value="CMD_2" type="Cmd2Body"/>
+      </choice>
+    </message>
+    <!-- Second entry-point: event channel -->
+    <message name="EventFrame" role="entry-point">
+      <field name="sync" type="uint16"><constraint equals="SYNC_B"/></field>
+      <field name="evt-id" type="uint8"/>
+      <choice name="evt" switch="evt-id">
+        <case name="e1" value="EVT_1" type="Evt1Body"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

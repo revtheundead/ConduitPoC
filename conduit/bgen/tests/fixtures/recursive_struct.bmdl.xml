@@ -1,0 +1,20 @@
+<bmdl version="1.0">
+<protocol name="recursive-struct" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <struct name="Alpha">
+      <field name="id" type="uint8"/>
+      <field name="nested" type="Beta"/>
+    </struct>
+    <struct name="Beta">
+      <field name="value" type="uint8"/>
+      <field name="back" type="Alpha"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="data" type="Alpha"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

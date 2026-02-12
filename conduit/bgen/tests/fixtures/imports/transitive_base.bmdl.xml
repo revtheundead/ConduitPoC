@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <!-- Base library: deepest level -->
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="BaseStruct">
+      <field name="base-val" type="uint16"/>
+    </struct>
+  </types>
+</bmdl>

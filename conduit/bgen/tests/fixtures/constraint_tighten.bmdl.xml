@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<bmdl version="1.0">
+<protocol name="constraint-tighten" version="1.0">
+  <defaults endian="big"/>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <!-- Field-level constraint tightening: narrow has tighter range than wide -->
+    <message name="TightenedMsg">
+      <field name="narrow" type="uint16">
+        <constraint min="10" max="200"/>
+      </field>
+      <field name="wide" type="uint16">
+        <constraint min="0" max="1000"/>
+      </field>
+      <field name="tag" type="uint8"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

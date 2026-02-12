@@ -1,0 +1,767 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="asterix" version="1.0">
+
+  <doc>
+    ASTERIX (All Purpose Structured Eurocontrol Surveillance Information Exchange)
+
+    This definition demonstrates BMDL capabilities with:
+    - Simple fixed categories (CAT001)
+    - Complex categories with message type discrimination (CAT253)
+    - Bitmap-controlled optional fields (FSPEC)
+    - FX extension chains (Track Status, Target Report Descriptor)
+    - Packed 6-bit character strings (Aircraft Identification)
+    - Length-bounded choice with named constants (DataBlock dispatch)
+    - Spare/reserved bits
+    - Conditional field structures based on other fields
+  </doc>
+
+  <defaults>
+    <endian>big</endian>
+    <string-encoding>ia5</string-encoding>
+    <string-padding>space</string-padding>
+    <string-trim>right</string-trim>
+  </defaults>
+
+  <constants>
+    <const name="CAT001" type="uint8" value="1"/>
+    <const name="CAT048" type="uint8" value="48"/>
+    <const name="CAT253" type="uint8" value="253"/>
+  </constants>
+
+  <!-- ============================================================================
+       COMMON TYPES
+       ============================================================================ -->
+
+  <types>
+    <!-- Standard integer aliases -->
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint24" base="uint" bits="24"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="int8" base="int" bits="8"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+
+    <!-- ASTERIX Time of Day: 1/128 second resolution, 24 bits -->
+    <type name="time-of-day" base="uint" bits="24">
+      <doc>Time of day in 1/128 second units since midnight UTC</doc>
+      <scale>0.0078125</scale>
+      <unit>seconds</unit>
+    </type>
+
+    <!-- WGS-84 coordinates -->
+    <type name="wgs84-coarse" base="int" bits="24">
+      <doc>WGS-84 coordinate with 180/2^23 degree resolution</doc>
+      <scale>2.1457672119140625e-5</scale>
+      <unit>degrees</unit>
+    </type>
+
+    <type name="wgs84-fine" base="int" bits="32">
+      <doc>WGS-84 coordinate with 180/2^31 degree resolution</doc>
+      <scale>8.381903171539307e-8</scale>
+      <unit>degrees</unit>
+    </type>
+
+    <!-- Flight Level: 1/4 FL resolution -->
+    <type name="flight-level" base="int" bits="16">
+      <doc>Flight level in 1/4 FL units</doc>
+      <scale>0.25</scale>
+      <unit>FL</unit>
+    </type>
+
+    <!-- Mode 3/A code (octal squawk) -->
+    <type name="mode3a-code" base="uint" bits="12" format="octal">
+      <doc>Mode 3/A transponder code (octal)</doc>
+    </type>
+
+    <!-- Callsign: 8 characters, space-padded (8 bytes on wire) -->
+    <type name="callsign" base="string" length="8" encoding="ia5" padding="space" trim="right"/>
+
+    <!-- Aircraft identification: 8 characters, 6-bit packed (6 bytes on wire) -->
+    <type name="aircraft-ident" base="string" length="8" encoding="ia5" char-bits="6">
+      <doc>ICAO aircraft identification (8 chars × 6 bits = 48 bits = 6 bytes)</doc>
+    </type>
+
+    <!-- Aircraft address (24-bit ICAO) -->
+    <type name="aircraft-address" base="uint" bits="24" format="hex">
+      <doc>24-bit ICAO aircraft address</doc>
+    </type>
+
+    <!-- Data Source Identifier (SAC/SIC) -->
+    <struct name="DataSourceId">
+      <doc>System Area Code / System Identification Code</doc>
+      <field name="sac" type="uint8">
+        <doc>System Area Code</doc>
+      </field>
+      <field name="sic" type="uint8">
+        <doc>System Identification Code</doc>
+      </field>
+    </struct>
+
+    <!-- Track number -->
+    <type name="track-number" base="uint" bits="16"/>
+
+    <!-- Cartesian coordinates (radar-relative) -->
+    <struct name="CartesianXY">
+      <field name="x" type="int16">
+        <doc>X component</doc>
+        <unit>meters</unit>
+      </field>
+      <field name="y" type="int16">
+        <doc>Y component</doc>
+        <unit>meters</unit>
+      </field>
+    </struct>
+
+    <!-- Polar coordinates -->
+    <struct name="PolarRhoTheta">
+      <field name="rho" type="uint16">
+        <doc>Slant range</doc>
+        <scale>1</scale>
+        <unit>meters</unit>
+      </field>
+      <field name="theta" type="uint16">
+        <doc>Azimuth angle</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+  </types>
+
+  <!-- ============================================================================
+       ASTERIX FRAME STRUCTURE
+       ============================================================================ -->
+
+  <!-- ============================================================================
+       CAT001 - MONORADAR TARGET REPORTS (Simple Example)
+       ============================================================================ -->
+
+  <types>
+    <!-- CAT001 Target Report Type -->
+    <type name="cat001-report-type" base="uint" bits="8">
+      <enum>
+        <value id="0" name="plot"/>
+        <value id="1" name="track"/>
+      </enum>
+    </type>
+
+    <!-- CAT001 Track Status -->
+    <struct name="Cat001TrackStatus">
+      <field name="cnf" bits="1">
+        <doc>Confirmed vs tentative track</doc>
+      </field>
+      <field name="rad" bits="2">
+        <doc>Type of sensor</doc>
+      </field>
+      <field name="dou" bits="1">
+        <doc>Doubtful track</doc>
+      </field>
+      <field name="man" bits="1">
+        <doc>Maneuvering target</doc>
+      </field>
+      <field name="rdp" bits="1">
+        <doc>RDP chain</doc>
+      </field>
+      <field name="gho" bits="1">
+        <doc>Ghost track</doc>
+      </field>
+      <fx>
+        <field name="tre" bits="1"/>
+        <reserved bits="6"/>
+      </fx>
+    </struct>
+  </types>
+
+  <messages>
+    <!-- CAT001 Record - Simple surveillance data -->
+    <message name="Cat001Record">
+      <doc>
+        CAT001: Monoradar Target Reports
+        A simple category demonstrating basic FSPEC structure.
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FRN 1: Data Source Identifier (compulsory) -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I010 - Data Source Identifier</doc>
+        </field>
+
+        <!-- FRN 2: Target Report Descriptor (compulsory) -->
+        <struct name="i020" bit="6">
+          <doc>I020 - Target Report Descriptor</doc>
+          <field name="typ" type="cat001-report-type"/>
+        </struct>
+
+        <!-- FRN 3: Measured Position in Polar (optional) -->
+        <field name="i040" bit="5" type="PolarRhoTheta">
+          <doc>I040 - Measured Position in Polar Coordinates</doc>
+        </field>
+
+        <!-- FRN 4: Measured Position in Cartesian (optional) -->
+        <field name="i042" bit="4" type="CartesianXY">
+          <doc>I042 - Calculated Position in Cartesian Coordinates</doc>
+        </field>
+
+        <!-- FRN 5: Mode 3/A Code (optional) -->
+        <struct name="i070" bit="3">
+          <doc>I070 - Mode 3/A Code in Octal</doc>
+          <field name="v" bits="1">
+            <doc>Validated</doc>
+          </field>
+          <field name="g" bits="1">
+            <doc>Garbled</doc>
+          </field>
+          <field name="l" bits="1">
+            <doc>Smoothed/Local</doc>
+          </field>
+          <reserved bits="1"/>
+          <field name="code" type="mode3a-code"/>
+        </struct>
+
+        <!-- FRN 6: Flight Level (optional) -->
+        <struct name="i090" bit="2">
+          <doc>I090 - Mode C Code / Flight Level</doc>
+          <field name="v" bits="1"/>
+          <field name="g" bits="1"/>
+          <reserved bits="2"/>
+          <field name="fl" bits="12" signed="true">
+            <scale>0.25</scale>
+            <unit>FL</unit>
+          </field>
+        </struct>
+
+        <!-- FRN 7: Track Number (optional) -->
+        <field name="i161" bit="1" type="track-number">
+          <doc>I161 - Track Number</doc>
+        </field>
+
+        <!-- Second FSPEC octet -->
+        <!-- FRN 8: Track Status (optional) -->
+        <field name="i170" bit="15" type="Cat001TrackStatus">
+          <doc>I170 - Track Status</doc>
+        </field>
+
+        <!-- FRN 9: Time of Day (optional) -->
+        <field name="i141" bit="14" type="time-of-day">
+          <doc>I141 - Truncated Time of Day</doc>
+        </field>
+
+      </struct>
+    </message>
+  </messages>
+
+  <!-- ============================================================================
+       CAT253 - COMPLEX MESSAGE EXAMPLE (Fictional)
+
+       Demonstrates:
+       - Compulsory items (I010-I050)
+       - Message type discrimination (I040)
+       - Spare/reserved bits
+       - Conditional structures based on message type
+       - Field structure determined by another field (I100 based on I080)
+       ============================================================================ -->
+
+  <types>
+    <!-- CAT253 Message Types (6 bits = 0-63) -->
+    <type name="cat253-msg-type" base="uint" bits="6">
+      <enum>
+        <value id="0" name="reserved"/>
+        <value id="1" name="status"/>
+        <value id="2" name="data"/>
+        <value id="3" name="alert"/>
+        <value id="4" name="config"/>
+        <value id="5" name="heartbeat"/>
+        <value id="6" name="request"/>
+        <value id="7" name="response"/>
+        <value id="8" name="extended-data"/>
+      </enum>
+    </type>
+
+    <!-- CAT253 I040 - Message Type Indicator -->
+    <struct name="Cat253I040">
+      <doc>
+        I040 - Message Type
+        Byte structure: [spare:2][msg-type:6]
+      </doc>
+      <reserved bits="2"/>
+      <field name="msg-type" type="cat253-msg-type"/>
+    </struct>
+
+    <!-- CAT253 I060 - Status Information -->
+    <struct name="Cat253I060">
+      <doc>I060 - System Status</doc>
+      <field name="operational" bits="1"/>
+      <field name="degraded" bits="1"/>
+      <field name="maintenance" bits="1"/>
+      <field name="error-code" bits="5"/>
+    </struct>
+
+    <!-- CAT253 I070 - Sequence Information -->
+    <struct name="Cat253I070">
+      <doc>I070 - Sequence Counter</doc>
+      <field name="sequence" type="uint16"/>
+      <field name="fragment" type="uint8"/>
+      <field name="total-fragments" type="uint8"/>
+    </struct>
+
+    <!-- CAT253 I080 - Extended Control Field -->
+    <struct name="Cat253I080">
+      <doc>
+        I080 - Extended Control
+        Word structure: [spare:4][structure-selector:12]
+        The structure-selector determines the format of I100.
+      </doc>
+      <reserved bits="4"/>
+      <field name="structure-selector" bits="12">
+        <doc>Determines the structure of I100 (0-4095)</doc>
+      </field>
+    </struct>
+
+    <!-- CAT253 I090 - Priority and Flags -->
+    <struct name="Cat253I090">
+      <doc>I090 - Priority and Control Flags</doc>
+      <field name="priority" bits="4"/>
+      <field name="urgent" bits="1"/>
+      <field name="ack-required" bits="1"/>
+      <field name="encrypted" bits="1"/>
+      <field name="compressed" bits="1"/>
+    </struct>
+
+    <!-- CAT253 I100 Format A - Simple payload (structure-selector 0-255) -->
+    <struct name="Cat253I100FormatA">
+      <doc>I100 Format A - Simple fixed payload</doc>
+      <field name="data-type" type="uint8"/>
+      <field name="payload" type="bytes" length="16"/>
+    </struct>
+
+    <!-- CAT253 I100 Format B - Variable payload (structure-selector 256-511) -->
+    <struct name="Cat253I100FormatB">
+      <doc>I100 Format B - Variable length payload with header</doc>
+      <field name="version" type="uint8"/>
+      <field name="flags" type="uint8"/>
+      <field name="payload-length" type="uint16"/>
+      <field name="payload" type="bytes" length-from="payload-length"/>
+    </struct>
+
+    <!-- CAT253 I100 Format C - Structured payload (structure-selector 512-1023) -->
+    <struct name="Cat253I100FormatC">
+      <doc>I100 Format C - Structured records</doc>
+      <field name="record-type" type="uint8"/>
+      <field name="record-count" type="uint8"/>
+      <array name="records" count-from="record-count">
+        <field name="id" type="uint16"/>
+        <field name="value" type="uint32"/>
+        <field name="timestamp" type="time-of-day"/>
+      </array>
+    </struct>
+
+    <!-- CAT253 I100 Format D - Position data (structure-selector 1024-2047) -->
+    <struct name="Cat253I100FormatD">
+      <doc>I100 Format D - Geographic position data</doc>
+      <field name="latitude" type="wgs84-fine"/>
+      <field name="longitude" type="wgs84-fine"/>
+      <field name="altitude" type="int32">
+        <scale>0.25</scale>
+        <unit>feet</unit>
+      </field>
+      <field name="ground-speed" type="uint16">
+        <scale>0.1</scale>
+        <unit>knots</unit>
+      </field>
+      <field name="heading" type="uint16">
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- CAT253 I100 Format E - Extended data (structure-selector 2048-4095) -->
+    <struct name="Cat253I100FormatE">
+      <doc>I100 Format E - Extended variable data with nested structure</doc>
+      <field name="format-version" type="uint8"/>
+      <field name="total-length" type="uint16"/>
+
+      <!-- Sub-items controlled by presence bitmap -->
+      <struct name="sub-items" presence="bitmap">
+        <bitmap bits="8"/>
+
+        <field name="source-id" bit="7" type="DataSourceId"/>
+        <field name="callsign" bit="6" type="callsign"/>
+        <field name="aircraft-addr" bit="5" type="aircraft-address"/>
+
+        <struct name="position" bit="4">
+          <field name="lat" type="wgs84-fine"/>
+          <field name="lon" type="wgs84-fine"/>
+        </struct>
+
+        <field name="flight-level" bit="3" type="flight-level"/>
+        <field name="track-number" bit="2" type="track-number"/>
+
+        <struct name="velocity" bit="1">
+          <field name="vx" type="int16"/>
+          <field name="vy" type="int16"/>
+        </struct>
+      </struct>
+    </struct>
+
+    <!-- CAT253 I110 - Text annotation -->
+    <struct name="Cat253I110">
+      <doc>I110 - Text Annotation</doc>
+      <field name="text" type="string" length-prefix="uint8"/>
+    </struct>
+
+    <!-- CAT253 I120 - Reference data -->
+    <struct name="Cat253I120">
+      <doc>I120 - Reference Identifier</doc>
+      <field name="ref-type" type="uint8"/>
+      <field name="ref-id" type="uint32"/>
+    </struct>
+
+  </types>
+
+  <messages>
+    <!--
+      CAT253 Record - Complex message with type discrimination
+
+      Structure:
+      - I010-I050 are compulsory (always present in FSPEC)
+      - I040 contains message type (2 spare bits + 6 type bits)
+      - Depending on message type, different items are meaningful:
+        - Type 1 (status): I060 optional, I070 optional
+        - Type 2 (data): I060 compulsory, I070 optional, I080 compulsory
+        - Type 8 (extended-data): I060-I100 all compulsory, I100 structure varies
+      - I100's structure is determined by I080.structure-selector
+    -->
+    <message name="Cat253Record">
+      <doc>
+        CAT253: Complex Message Protocol (Fictional)
+
+        Demonstrates advanced BMDL features:
+        - Compulsory items in FSPEC (I010-I050 always set)
+        - Message type discrimination via spare bits
+        - Conditional item structures
+        - Variable I100 format based on I080 selector
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- ===== COMPULSORY ITEMS (FRN 1-5) ===== -->
+
+        <!-- FRN 1: Data Source Identifier -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I010 - Data Source Identifier (COMPULSORY)</doc>
+        </field>
+
+        <!-- FRN 2: Time of Day -->
+        <field name="i020" bit="6" type="time-of-day">
+          <doc>I020 - Time of Message (COMPULSORY)</doc>
+        </field>
+
+        <!-- FRN 3: Sequence Number -->
+        <field name="i030" bit="5" type="uint16">
+          <doc>I030 - Message Sequence Number (COMPULSORY)</doc>
+        </field>
+
+        <!-- FRN 4: Message Type (2 spare + 6 type bits) -->
+        <field name="i040" bit="4" type="Cat253I040">
+          <doc>I040 - Message Type Indicator (COMPULSORY)</doc>
+        </field>
+
+        <!-- FRN 5: Priority -->
+        <field name="i050" bit="3" type="uint8">
+          <doc>I050 - Message Priority (COMPULSORY)</doc>
+        </field>
+
+        <!-- ===== CONDITIONAL ITEMS (FRN 6-7) ===== -->
+        <!-- Present based on message type -->
+
+        <!-- FRN 6: Status Information -->
+        <!-- Optional for type 1 (status), compulsory for types 2, 8 -->
+        <field name="i060" bit="2" type="Cat253I060">
+          <doc>I060 - System Status (optional for type 1, compulsory for types 2, 8)</doc>
+        </field>
+
+        <!-- FRN 7: Sequence Information -->
+        <!-- Optional for types 1, 2; compulsory for type 8 -->
+        <field name="i070" bit="1" type="Cat253I070">
+          <doc>I070 - Sequence Information (optional for types 1-2, compulsory for type 8)</doc>
+        </field>
+
+        <!-- ===== SECOND FSPEC OCTET ===== -->
+
+        <!-- FRN 8: Extended Control (contains structure selector for I100) -->
+        <!-- Compulsory for types 2, 8 -->
+        <field name="i080" bit="15" type="Cat253I080">
+          <doc>I080 - Extended Control (compulsory for types 2, 8)</doc>
+        </field>
+
+        <!-- FRN 9: Priority and Flags -->
+        <field name="i090" bit="14" type="Cat253I090">
+          <doc>I090 - Priority and Control Flags</doc>
+        </field>
+
+        <!-- FRN 10: Variable Format Data -->
+        <!-- Structure determined by I080.structure-selector -->
+        <!-- Compulsory for type 8 -->
+        <choice name="i100" bit="13" switch="i080.structure-selector">
+          <doc>
+            I100 - Variable Format Data (compulsory for type 8)
+            Structure determined by I080.structure-selector:
+            - 0-255: Format A (simple fixed)
+            - 256-511: Format B (variable with header)
+            - 512-1023: Format C (structured records)
+            - 1024-2047: Format D (position data)
+            - 2048-4095: Format E (extended nested)
+          </doc>
+
+          <case name="format-a" range="0..255" type="Cat253I100FormatA"/>
+          <case name="format-b" range="256..511" type="Cat253I100FormatB"/>
+          <case name="format-c" range="512..1023" type="Cat253I100FormatC"/>
+          <case name="format-d" range="1024..2047" type="Cat253I100FormatD"/>
+          <case name="format-e" range="2048..4095" type="Cat253I100FormatE"/>
+        </choice>
+
+        <!-- FRN 11: Text Annotation -->
+        <field name="i110" bit="12" type="Cat253I110">
+          <doc>I110 - Optional text annotation</doc>
+        </field>
+
+        <!-- FRN 12: Reference Data -->
+        <field name="i120" bit="11" type="Cat253I120">
+          <doc>I120 - Reference identifier for correlation</doc>
+        </field>
+
+        <!-- ===== THIRD FSPEC OCTET (if needed) ===== -->
+
+        <!-- FRN 13: Reserved Expansion Field -->
+        <struct name="re" bit="23">
+          <doc>RE - Reserved Expansion Field</doc>
+          <field name="len" type="uint8"/>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+        <!-- FRN 14: Special Purpose Field -->
+        <struct name="sp" bit="22">
+          <doc>SP - Special Purpose Field</doc>
+          <field name="len" type="uint8"/>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+      </struct>
+    </message>
+  </messages>
+
+  <!-- ============================================================================
+       CAT048 - MONORADAR TARGET REPORTS (Partial, for reference)
+       A real-world category showing typical ASTERIX patterns
+       ============================================================================ -->
+
+  <types>
+    <!-- CAT048 Target Report Descriptor -->
+    <struct name="Cat048TargetReportDescriptor">
+      <field name="typ" bits="3">
+        <doc>Target report type</doc>
+      </field>
+      <field name="sim" bits="1">
+        <doc>Simulated target</doc>
+      </field>
+      <field name="rdp" bits="1">
+        <doc>RDP chain</doc>
+      </field>
+      <field name="spi" bits="1">
+        <doc>Special Position Identification</doc>
+      </field>
+      <field name="rab" bits="1">
+        <doc>Report from field monitor</doc>
+      </field>
+      <fx>
+        <field name="tst" bits="1"/>
+        <field name="err" bits="1"/>
+        <field name="xpp" bits="1"/>
+        <field name="me" bits="1"/>
+        <field name="mi" bits="1"/>
+        <field name="foe-fri" bits="2"/>
+      </fx>
+    </struct>
+
+    <!-- CAT048 Track Status (with FX extension) -->
+    <struct name="Cat048TrackStatus">
+      <field name="cnf" bits="1"/>
+      <field name="rad" bits="2"/>
+      <field name="dou" bits="1"/>
+      <field name="mah" bits="1"/>
+      <field name="cdm" bits="2"/>
+      <fx>
+        <field name="tre" bits="1"/>
+        <field name="gho" bits="1"/>
+        <field name="sup" bits="1"/>
+        <field name="tcc" bits="1"/>
+        <reserved bits="3"/>
+      </fx>
+    </struct>
+  </types>
+
+  <messages>
+    <!-- CAT048 Record - Partial implementation for reference -->
+    <message name="Cat048Record">
+      <doc>
+        CAT048: Monoradar Target Reports (Partial)
+        Shows real ASTERIX structure patterns.
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FRN 1: Data Source Identifier -->
+        <field name="i010" bit="7" type="DataSourceId"/>
+
+        <!-- FRN 2: Time of Day -->
+        <field name="i140" bit="6" type="time-of-day"/>
+
+        <!-- FRN 3: Target Report Descriptor -->
+        <field name="i020" bit="5" type="Cat048TargetReportDescriptor"/>
+
+        <!-- FRN 4: Measured Position in Slant Polar -->
+        <field name="i040" bit="4" type="PolarRhoTheta"/>
+
+        <!-- FRN 5: Mode 3/A Code -->
+        <struct name="i070" bit="3">
+          <field name="v" bits="1"/>
+          <field name="g" bits="1"/>
+          <field name="l" bits="1"/>
+          <reserved bits="1"/>
+          <field name="code" type="mode3a-code"/>
+        </struct>
+
+        <!-- FRN 6: Flight Level in Binary -->
+        <struct name="i090" bit="2">
+          <field name="v" bits="1"/>
+          <field name="g" bits="1"/>
+          <field name="fl" bits="14" signed="true">
+            <scale>0.25</scale>
+            <unit>FL</unit>
+          </field>
+        </struct>
+
+        <!-- FRN 7: Radar Plot Characteristics -->
+        <struct name="i130" bit="1">
+          <doc>Compound item with sub-fields</doc>
+          <struct name="sub" presence="bitmap">
+            <bitmap bits="8"/>
+            <field name="srl" bit="7" type="uint8"/>
+            <field name="srr" bit="6" type="uint8"/>
+            <field name="sam" bit="5" type="int8"/>
+            <field name="prl" bit="4" type="uint8"/>
+            <field name="pam" bit="3" type="int8"/>
+            <field name="rpd" bit="2" type="int8"/>
+            <field name="apd" bit="1" type="int8"/>
+          </struct>
+        </struct>
+
+        <!-- Second octet -->
+
+        <!-- FRN 8: Aircraft Address -->
+        <field name="i220" bit="15" type="aircraft-address"/>
+
+        <!-- FRN 9: Aircraft Identification (6-bit packed, 6 bytes) -->
+        <field name="i240" bit="14" type="aircraft-ident"/>
+
+        <!-- FRN 10: Mode S MB Data -->
+        <struct name="i250" bit="13">
+          <field name="rep" type="uint8"/>
+          <array name="bds" count-from="rep">
+            <field name="data" bytes="7"/>
+            <field name="bds1" bits="4"/>
+            <field name="bds2" bits="4"/>
+          </array>
+        </struct>
+
+        <!-- FRN 11: Track Number -->
+        <field name="i161" bit="12" type="track-number"/>
+
+        <!-- FRN 12: Calculated Position in Cartesian -->
+        <field name="i042" bit="11" type="CartesianXY"/>
+
+        <!-- FRN 13: Calculated Track Velocity -->
+        <struct name="i200" bit="10">
+          <field name="ground-speed" type="uint16">
+            <scale>0.00006103515625</scale>
+            <unit>NM/s</unit>
+          </field>
+          <field name="heading" type="uint16">
+            <scale>0.0054931640625</scale>
+            <unit>degrees</unit>
+          </field>
+        </struct>
+
+        <!-- FRN 14: Track Status -->
+        <field name="i170" bit="9" type="Cat048TrackStatus"/>
+
+      </struct>
+    </message>
+  </messages>
+
+  <!-- ============================================================================
+       ASTERIX DATA BLOCK AND FRAME
+       Top-level structures that dispatch to category-specific records
+       ============================================================================ -->
+
+  <messages>
+    <!--
+      DataBlock: Single ASTERIX data block containing records of one category.
+      Structure: [CAT:1][LEN:2][records...]
+
+      Uses a length-bounded choice to dispatch to category-specific decoders.
+      The choice is bounded to len-3 bytes, correctly self-delimiting each
+      DataBlock within a frame.
+    -->
+    <message name="DataBlock">
+      <doc>
+        ASTERIX Data Block
+        Contains one or more records of a single category.
+        The bounded choice dispatches to category-specific record arrays.
+      </doc>
+
+      <field name="cat" type="uint8">
+        <doc>Category number (1, 48, 253, etc.)</doc>
+      </field>
+
+      <field name="len" type="uint16">
+        <doc>Total length including CAT and LEN fields</doc>
+      </field>
+
+      <choice name="records" switch="cat" length-from="len - 3">
+        <case name="cat001" value="CAT001">
+          <array name="items" count="*" type="Cat001Record" dispatch="per-record"/>
+        </case>
+        <case name="cat048" value="CAT048">
+          <array name="items" count="*" type="Cat048Record" dispatch="per-record"/>
+        </case>
+        <case name="cat253" value="CAT253">
+          <array name="items" count="*" type="Cat253Record" dispatch="per-record"/>
+        </case>
+        <otherwise name="unknown">
+          <field name="data" type="bytes" length="*"/>
+        </otherwise>
+      </choice>
+    </message>
+
+    <!--
+      AsterixFrame: Sequence of data blocks (top-level entry point).
+      An ASTERIX transmission typically contains one or more data blocks.
+    -->
+    <message name="AsterixFrame" role="entry-point">
+      <doc>
+        ASTERIX Frame (Top-Level)
+        One or more data blocks, each containing records of a single category.
+      </doc>
+      <array name="blocks" count="*" type="DataBlock"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

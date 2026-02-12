@@ -1,0 +1,19 @@
+<bmdl version="1.0">
+<protocol name="mixed-endian" version="1.0">
+  <defaults endian="big"/>
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="le-uint16" base="uint" bits="16" endian="little"/>
+    <type name="le-uint32" base="uint" bits="32" endian="little"/>
+  </types>
+  <messages>
+    <message name="MixedMsg">
+      <field name="be16" type="uint16"/>
+      <field name="le16" type="le-uint16"/>
+      <field name="be32" type="uint32"/>
+      <field name="le32" type="le-uint32"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

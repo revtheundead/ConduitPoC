@@ -1,0 +1,15 @@
+<bmdl version="1.0">
+<protocol name="invalid-star-trailing" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="BadMsg">
+      <field name="header" type="uint8"/>
+      <field name="data" type="bytes" length="*"/>
+      <field name="trailer" type="uint16"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

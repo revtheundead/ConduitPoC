@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+
+  <frame name="BadFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <!-- Missing <payload/> -->
+  </frame>
+
+  <messages>
+    <message id="1" name="Foo">
+      <field name="x" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

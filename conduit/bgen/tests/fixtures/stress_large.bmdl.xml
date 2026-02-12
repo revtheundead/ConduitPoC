@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<bmdl version="1.0">
+<protocol name="stress-large" version="1.0">
+  <defaults endian="big"/>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="int8" base="int" bits="8"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+
+    <type name="ItemTag" base="uint" bits="8">
+      <enum>
+        <value id="1" name="TagA"/>
+        <value id="2" name="TagB"/>
+        <value id="3" name="TagC"/>
+        <value id="4" name="TagD"/>
+        <value id="5" name="TagE"/>
+        <value id="6" name="TagF"/>
+        <value id="7" name="TagG"/>
+        <value id="8" name="TagH"/>
+        <value id="9" name="TagI"/>
+        <value id="10" name="TagJ"/>
+        <value id="11" name="TagK"/>
+        <value id="12" name="TagL"/>
+        <value id="13" name="TagM"/>
+        <value id="14" name="TagN"/>
+        <value id="15" name="TagO"/>
+        <value id="16" name="TagP"/>
+        <value id="17" name="TagQ"/>
+        <value id="18" name="TagR"/>
+        <value id="19" name="TagS"/>
+        <value id="20" name="TagT"/>
+      </enum>
+    </type>
+
+    <!-- Large struct with 50 fields -->
+    <struct name="BigRecord">
+      <field name="f01" type="uint8"/>
+      <field name="f02" type="uint16"/>
+      <field name="f03" type="uint32"/>
+      <field name="f04" type="int8"/>
+      <field name="f05" type="int16"/>
+      <field name="f06" type="int32"/>
+      <field name="f07" type="uint8"/>
+      <field name="f08" type="uint16"/>
+      <field name="f09" type="uint32"/>
+      <field name="f10" type="uint8"/>
+      <field name="f11" type="uint16"/>
+      <field name="f12" type="uint32"/>
+      <field name="f13" type="int8"/>
+      <field name="f14" type="int16"/>
+      <field name="f15" type="int32"/>
+      <field name="f16" type="uint8"/>
+      <field name="f17" type="uint16"/>
+      <field name="f18" type="uint32"/>
+      <field name="f19" type="uint8"/>
+      <field name="f20" type="uint16"/>
+      <field name="f21" type="uint32"/>
+      <field name="f22" type="int8"/>
+      <field name="f23" type="int16"/>
+      <field name="f24" type="int32"/>
+      <field name="f25" type="uint8"/>
+      <field name="f26" type="uint16"/>
+      <field name="f27" type="uint32"/>
+      <field name="f28" type="uint8"/>
+      <field name="f29" type="uint16"/>
+      <field name="f30" type="uint32"/>
+      <field name="f31" type="int8"/>
+      <field name="f32" type="int16"/>
+      <field name="f33" type="int32"/>
+      <field name="f34" type="uint8"/>
+      <field name="f35" type="uint16"/>
+      <field name="f36" type="uint32"/>
+      <field name="f37" type="uint8"/>
+      <field name="f38" type="uint16"/>
+      <field name="f39" type="uint32"/>
+      <field name="f40" type="int8"/>
+      <field name="f41" type="int16"/>
+      <field name="f42" type="int32"/>
+      <field name="f43" type="uint8"/>
+      <field name="f44" type="uint16"/>
+      <field name="f45" type="uint32"/>
+      <field name="f46" type="uint8"/>
+      <field name="f47" type="uint16"/>
+      <field name="f48" type="uint32"/>
+      <field name="f49" type="int8"/>
+      <field name="f50" type="int16"/>
+    </struct>
+
+    <!-- 20 case structs -->
+    <struct name="CaseA"><field name="val" type="uint32"/></struct>
+    <struct name="CaseB"><field name="val" type="int32"/></struct>
+    <struct name="CaseC"><field name="val" type="uint16"/></struct>
+    <struct name="CaseD"><field name="val" type="int16"/></struct>
+    <struct name="CaseE"><field name="val" type="uint8"/></struct>
+    <struct name="CaseF"><field name="val" type="int8"/></struct>
+    <struct name="CaseG"><field name="val" type="uint32"/></struct>
+    <struct name="CaseH"><field name="val" type="int32"/></struct>
+    <struct name="CaseI"><field name="val" type="uint16"/></struct>
+    <struct name="CaseJ"><field name="val" type="int16"/></struct>
+    <struct name="CaseK"><field name="val" type="uint8"/></struct>
+    <struct name="CaseL"><field name="val" type="int8"/></struct>
+    <struct name="CaseM"><field name="val" type="uint32"/></struct>
+    <struct name="CaseN"><field name="val" type="int32"/></struct>
+    <struct name="CaseO"><field name="val" type="uint16"/></struct>
+    <struct name="CaseP"><field name="val" type="int16"/></struct>
+    <struct name="CaseQ"><field name="val" type="uint8"/></struct>
+    <struct name="CaseR"><field name="val" type="int8"/></struct>
+    <struct name="CaseS"><field name="val" type="uint32"/></struct>
+    <struct name="CaseT"><field name="val" type="int32"/></struct>
+
+    <!-- Nested struct (5 levels deep) -->
+    <struct name="Level5"><field name="val" type="uint8"/></struct>
+    <struct name="Level4"><field name="inner" type="Level5"/><field name="val" type="uint8"/></struct>
+    <struct name="Level3"><field name="inner" type="Level4"/><field name="val" type="uint16"/></struct>
+    <struct name="Level2"><field name="inner" type="Level3"/><field name="val" type="uint32"/></struct>
+  </types>
+
+  <messages>
+    <!-- Message with BigRecord header + 20-case choice -->
+    <message name="StressMsg">
+      <field name="header" type="BigRecord"/>
+      <field name="tag" type="ItemTag"/>
+      <choice name="payload" switch="tag">
+        <case name="a" value="TagA" type="CaseA"/>
+        <case name="b" value="TagB" type="CaseB"/>
+        <case name="c" value="TagC" type="CaseC"/>
+        <case name="d" value="TagD" type="CaseD"/>
+        <case name="e" value="TagE" type="CaseE"/>
+        <case name="f" value="TagF" type="CaseF"/>
+        <case name="g" value="TagG" type="CaseG"/>
+        <case name="h" value="TagH" type="CaseH"/>
+        <case name="i" value="TagI" type="CaseI"/>
+        <case name="j" value="TagJ" type="CaseJ"/>
+        <case name="k" value="TagK" type="CaseK"/>
+        <case name="l" value="TagL" type="CaseL"/>
+        <case name="m" value="TagM" type="CaseM"/>
+        <case name="n" value="TagN" type="CaseN"/>
+        <case name="o" value="TagO" type="CaseO"/>
+        <case name="p" value="TagP" type="CaseP"/>
+        <case name="q" value="TagQ" type="CaseQ"/>
+        <case name="r" value="TagR" type="CaseR"/>
+        <case name="s" value="TagS" type="CaseS"/>
+        <case name="t" value="TagT" type="CaseT"/>
+      </choice>
+    </message>
+
+    <!-- 5-level nested message -->
+    <message name="NestedMsg">
+      <field name="inner" type="Level2"/>
+      <field name="val" type="uint32"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

@@ -1,0 +1,16 @@
+<bmdl version="1.0">
+<protocol name="constraint-relaxation" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8">
+      <constraint min="10" max="100"/>
+    </type>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="val" type="uint8">
+        <constraint min="5" max="200"/>
+      </field>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

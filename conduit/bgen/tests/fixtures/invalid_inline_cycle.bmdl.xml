@@ -1,0 +1,21 @@
+<bmdl version="1.0">
+<protocol name="invalid-inline-cycle" version="1.0">
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <!-- A inlines B, B inlines A: cycle in check_inline_duplicates -->
+    <struct name="Alpha">
+      <field name="a-val" type="uint8"/>
+      <field name="b" type="Beta" inline="true"/>
+    </struct>
+    <struct name="Beta">
+      <field name="b-val" type="uint8"/>
+      <field name="a" type="Alpha" inline="true"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="data" type="Alpha" inline="true"/>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

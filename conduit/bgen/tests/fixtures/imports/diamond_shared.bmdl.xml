@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <!-- Shared library imported from both diamond_a and diamond_b -->
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="SharedData">
+      <field name="value" type="uint16"/>
+    </struct>
+  </types>
+</bmdl>

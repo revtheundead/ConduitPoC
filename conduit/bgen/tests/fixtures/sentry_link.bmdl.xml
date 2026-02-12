@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="sentry-link" version="1.0">
+
+  <doc>
+    SentryLink: A sensor monitoring protocol.
+
+    Four fixed-size message types with a common 6-byte header.
+    Every message is framed with a sync word and total length for
+    stream synchronization and recovery.
+
+    Message sizes (header + body):
+    - Heartbeat:     14 bytes (6 + 8)
+    - SensorReading: 18 bytes (6 + 12)
+    - DeviceConfig:  29 bytes (6 + 23)
+    - Alert:         47 bytes (6 + 41)
+  </doc>
+
+  <defaults>
+    <endian>big</endian>
+    <string-encoding>ascii</string-encoding>
+    <string-padding>null</string-padding>
+    <string-trim>right</string-trim>
+  </defaults>
+
+  <constants>
+    <const name="SYNC" type="uint16" value="0xAA55"/>
+    <const name="MSG_HEARTBEAT" type="uint8" value="1"/>
+    <const name="MSG_SENSOR" type="uint8" value="2"/>
+    <const name="MSG_CONFIG" type="uint8" value="3"/>
+    <const name="MSG_ALERT" type="uint8" value="4"/>
+  </constants>
+
+  <!-- ===========================================================================
+       TYPES
+       =========================================================================== -->
+
+  <types>
+    <!-- Standard integer aliases -->
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="int32" base="int" bits="32"/>
+
+    <!-- Message type enum -->
+    <type name="msg-type" base="uint" bits="8">
+      <enum>
+        <value id="1" name="heartbeat"/>
+        <value id="2" name="sensor"/>
+        <value id="3" name="config"/>
+        <value id="4" name="alert"/>
+      </enum>
+    </type>
+
+    <!-- Device operational status -->
+    <type name="device-status" base="uint" bits="8">
+      <enum>
+        <value id="0" name="online"/>
+        <value id="1" name="standby"/>
+        <value id="2" name="maintenance"/>
+        <value id="3" name="error"/>
+      </enum>
+    </type>
+
+    <!-- Device operating mode (2-bit packed) -->
+    <type name="device-mode" base="uint" bits="2">
+      <enum>
+        <value id="0" name="active"/>
+        <value id="1" name="passive"/>
+        <value id="2" name="calibration"/>
+        <value id="3" name="test"/>
+      </enum>
+    </type>
+
+    <!-- Alert severity (3-bit packed) -->
+    <type name="severity-level" base="uint" bits="3">
+      <enum>
+        <value id="0" name="info"/>
+        <value id="1" name="notice"/>
+        <value id="2" name="warning"/>
+        <value id="3" name="error"/>
+        <value id="4" name="critical"/>
+      </enum>
+    </type>
+
+    <!-- Common header: 6 bytes
+         [sync:16][msg-type:8][length:16][sequence:8] -->
+    <struct name="Header">
+      <field name="sync" type="uint16">
+        <constraint equals="SYNC"/>
+      </field>
+      <field name="msg-type" type="msg-type"/>
+      <field name="length" type="uint16">
+        <doc>Total message length in bytes, including this header</doc>
+      </field>
+      <field name="sequence" type="uint8" auto="increment">
+        <doc>Rolling sequence number (0-255)</doc>
+      </field>
+    </struct>
+
+    <!-- Firmware version: 4 bytes -->
+    <struct name="FirmwareVersion">
+      <field name="major" type="uint8"/>
+      <field name="minor" type="uint8"/>
+      <field name="patch" type="uint16"/>
+    </struct>
+
+    <!-- Sensor quality flags: 1 byte, bit-packed
+         [channel:4][precision:2][saturated:1][valid:1] -->
+    <struct name="SensorFlags">
+      <field name="channel" bits="4">
+        <doc>Sensor channel index (0-15)</doc>
+      </field>
+      <field name="precision" bits="2">
+        <doc>Precision level: 0=low, 3=high</doc>
+      </field>
+      <field name="saturated" bits="1"/>
+      <field name="valid" bits="1"/>
+    </struct>
+
+    <!-- Heartbeat body: 8 bytes
+         [timestamp:32][uptime-hours:16][status:8][cpu-load:8] -->
+    <struct name="HeartbeatBody">
+      <field name="timestamp" type="uint32">
+        <doc>Unix epoch seconds</doc>
+      </field>
+      <field name="uptime-hours" type="uint16"/>
+      <field name="status" type="device-status" initial="online"/>
+      <field name="cpu-load" type="uint8">
+        <doc>CPU usage percentage</doc>
+        <constraint max="100"/>
+      </field>
+    </struct>
+
+    <!-- Sensor reading body: 12 bytes
+         [sensor-id:16][timestamp:32][flags:8][raw-value:32][unit-code:8] -->
+    <struct name="SensorBody">
+      <field name="sensor-id" type="uint16"/>
+      <field name="timestamp" type="uint32"/>
+      <field name="flags" type="SensorFlags"/>
+      <field name="raw-value" type="int32">
+        <doc>Scaled sensor value (raw × 0.01)</doc>
+        <scale>0.01</scale>
+      </field>
+      <field name="unit-code" type="uint8">
+        <doc>Unit: 1=celsius, 2=percent-RH, 3=hPa, 4=lux, 5=volts</doc>
+      </field>
+    </struct>
+
+    <!-- Device config body: 23 bytes
+         [device-name:128][firmware:32][mode:2][log-level:3][auto-report:1][compression:1][reserved:1][sample-rate:16] -->
+    <struct name="ConfigBody">
+      <field name="device-name" type="string" length="16"/>
+      <field name="firmware" type="FirmwareVersion"/>
+      <field name="mode" type="device-mode"/>
+      <field name="log-level" bits="3">
+        <doc>Log verbosity: 0=off, 7=trace</doc>
+      </field>
+      <field name="auto-report" bits="1"/>
+      <field name="compression" bits="1"/>
+      <reserved bits="1"/>
+      <field name="sample-rate" type="uint16">
+        <doc>Sampling rate in Hz</doc>
+      </field>
+    </struct>
+
+    <!-- Alert body: 41 bytes
+         [timestamp:32][source-id:16][severity:3][category:5][alert-code:16][message:256] -->
+    <struct name="AlertBody">
+      <field name="timestamp" type="uint32"/>
+      <field name="source-id" type="uint16"/>
+      <field name="severity" type="severity-level" initial="info"/>
+      <field name="category" bits="5">
+        <doc>Alert category (0-31)</doc>
+      </field>
+      <field name="alert-code" type="uint16"/>
+      <field name="message" type="string" length="32"/>
+    </struct>
+  </types>
+
+  <!-- ===========================================================================
+       MESSAGES
+       =========================================================================== -->
+
+  <messages>
+    <message name="Frame" role="entry-point">
+      <doc>
+        SentryLink message frame.
+        The header is inlined so msg-type and length are directly
+        accessible for dispatch and framing.
+      </doc>
+
+      <field name="header" type="Header" inline="true"/>
+
+      <choice name="body" switch="msg-type" length-from="length - 6">
+        <case name="heartbeat" value="MSG_HEARTBEAT" type="HeartbeatBody" direction="receive"/>
+        <case name="sensor" value="MSG_SENSOR" type="SensorBody" direction="receive"/>
+        <case name="config" value="MSG_CONFIG" type="ConfigBody" direction="send"/>
+        <case name="alert" value="MSG_ALERT" type="AlertBody" direction="receive"/>
+      </choice>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

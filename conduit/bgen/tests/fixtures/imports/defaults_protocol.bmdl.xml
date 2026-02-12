@@ -1,0 +1,16 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <import href="defaults_test_lib.bmdl.xml"/>
+  <import href="defaults_explicit_lib.bmdl.xml"/>
+  <protocol name="defaults-test" version="1.0">
+    <defaults>
+      <endian>little</endian>
+    </defaults>
+    <messages>
+      <message name="DefaultsMsg" role="entry-point">
+        <field name="sensor" type="SensorData"/>
+        <field name="explicit_data" type="ExplicitStruct"/>
+      </message>
+    </messages>
+  </protocol>
+</bmdl>

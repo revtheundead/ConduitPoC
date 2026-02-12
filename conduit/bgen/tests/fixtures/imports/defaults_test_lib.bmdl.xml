@@ -1,0 +1,9 @@
+<bmdl version="1.0">
+  <types>
+    <type name="sensor_val" base="uint" bits="16"/>
+    <struct name="SensorData">
+      <field name="reading" type="sensor_val"/>
+      <field name="status" bits="8"/>
+    </struct>
+  </types>
+</bmdl>

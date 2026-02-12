@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-constraint-range" version="1.0">
+
+  <types>
+    <type name="uint4" base="uint" bits="4"/>
+  </types>
+
+  <messages>
+    <message name="BadMessage">
+      <!-- 1000 exceeds 4-bit unsigned range [0, 15] -->
+      <field name="value" type="uint4">
+        <constraint equals="1000"/>
+      </field>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

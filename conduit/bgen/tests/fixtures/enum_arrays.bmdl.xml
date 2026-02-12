@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="enum-arrays" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <!-- Enum type for array elements -->
+    <type name="command-code" base="uint" bits="8">
+      <enum>
+        <value name="nop" id="0"/>
+        <value name="read" id="1"/>
+        <value name="write" id="2"/>
+        <value name="reset" id="3"/>
+      </enum>
+    </type>
+
+    <!-- BCD type for array elements -->
+    <type name="bcd-digit" base="uint" bits="8" wire-encoding="bcd"/>
+  </types>
+
+  <messages>
+    <message name="EnumArrayMsg">
+      <field name="count" type="uint8"/>
+
+      <!-- Fixed-size array of enums -->
+      <array name="commands" type="command-code" count="4"/>
+
+      <!-- Variable-size array of enums -->
+      <array name="dynamic-commands" type="command-code" count-from="count"/>
+
+      <!-- Array of BCD values -->
+      <array name="bcd-values" type="bcd-digit" count="3"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

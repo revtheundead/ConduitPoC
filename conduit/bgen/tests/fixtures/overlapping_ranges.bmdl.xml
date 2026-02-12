@@ -1,0 +1,23 @@
+<bmdl version="1.0">
+<protocol name="overlap-ranges" version="1.0">
+  <constants>
+    <const name="RANGE_LO" type="uint8" value="5"/>
+    <const name="RANGE_HI" type="uint8" value="15"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="BodyA"><field name="x" type="uint16"/></struct>
+    <struct name="BodyB"><field name="y" type="uint16"/></struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="tag" type="uint8"/>
+      <choice name="body" switch="tag">
+        <case name="a" range="RANGE_LO..RANGE_HI" type="BodyA"/>
+        <case name="b" value="10" type="BodyB"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

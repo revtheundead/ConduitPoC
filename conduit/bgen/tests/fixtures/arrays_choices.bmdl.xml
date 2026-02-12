@@ -1,0 +1,57 @@
+<bmdl version="1.0">
+<protocol name="arrays-choices" version="1.0">
+  <constants>
+    <const name="TYPE_A" type="uint8" value="1"/>
+    <const name="TYPE_B" type="uint8" value="2"/>
+    <const name="SUB_X" type="uint8" value="10"/>
+    <const name="SUB_Y" type="uint8" value="20"/>
+  </constants>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <struct name="Point">
+      <field name="x" type="uint16"/>
+      <field name="y" type="uint16"/>
+    </struct>
+    <struct name="SubX">
+      <field name="val" type="uint32"/>
+    </struct>
+    <struct name="SubY">
+      <field name="a" type="uint16"/>
+      <field name="b" type="uint16"/>
+    </struct>
+    <struct name="TypeABody">
+      <field name="sub-type" type="uint8"/>
+      <choice name="sub-body" switch="sub-type">
+        <case name="x" value="SUB_X" type="SubX"/>
+        <case name="y" value="SUB_Y" type="SubY"/>
+      </choice>
+    </struct>
+    <struct name="TypeBBody">
+      <field name="tag" type="uint32"/>
+    </struct>
+    <struct name="FallbackBody">
+      <field name="raw" type="uint32"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="FixedArrayMsg">
+      <array name="points" type="Point" count="3"/>
+    </message>
+    <message name="CountFromArrayMsg">
+      <field name="num-items" type="uint8"/>
+      <array name="items" type="Point" count-from="num-items"/>
+    </message>
+    <message name="ChoiceMsg" role="entry-point">
+      <field name="msg-type" type="uint8"/>
+      <field name="length" type="uint16"/>
+      <choice name="body" switch="msg-type" length-from="length">
+        <case name="a" value="TYPE_A" type="TypeABody"/>
+        <case name="b" value="TYPE_B" type="TypeBBody" direction="receive"/>
+        <otherwise name="fallback" type="FallbackBody"/>
+      </choice>
+    </message>
+  </messages>
+</protocol>
+</bmdl>

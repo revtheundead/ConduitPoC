@@ -1,0 +1,10 @@
+<bmdl version="1.0">
+  <import href="types_lib.bmdl.xml"/>
+  <import href="messages_only_lib.bmdl.xml"/>
+  <import href="constants_only_lib.bmdl.xml"/>
+  <protocol name="minimal-test" version="1.0">
+    <defaults>
+      <endian>little</endian>
+    </defaults>
+  </protocol>
+</bmdl>

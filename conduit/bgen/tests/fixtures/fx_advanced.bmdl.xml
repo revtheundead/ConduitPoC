@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="fx-advanced" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+
+    <!-- Enum for FX block -->
+    <type name="fx-status" base="uint" bits="8">
+      <enum>
+        <value name="idle" id="0"/>
+        <value name="active" id="1"/>
+        <value name="complete" id="2"/>
+      </enum>
+    </type>
+
+    <!-- Nested struct for FX block -->
+    <struct name="FxSubStruct">
+      <field name="a" type="uint8"/>
+      <field name="b" type="uint8"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="FxAdvancedMsg">
+      <field name="header" type="uint8"/>
+
+      <!-- FX block with struct, array, choice, scaled fields -->
+      <fx>
+        <!-- Scaled field in FX -->
+        <field name="scaled-temp" type="int16">
+          <scale>0.01</scale>
+          <offset>-40</offset>
+        </field>
+
+        <!-- Enum field in FX -->
+        <field name="status" type="fx-status"/>
+
+        <!-- String with encoding in FX -->
+        <field name="label" type="string" length="8"/>
+
+        <!-- Nested FX -->
+        <fx>
+          <!-- Struct in nested FX -->
+          <field name="sub" type="FxSubStruct"/>
+
+          <!-- Array in nested FX -->
+          <array name="values" type="uint8" count="4"/>
+        </fx>
+      </fx>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>

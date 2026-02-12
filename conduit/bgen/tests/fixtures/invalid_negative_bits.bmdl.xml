@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="1.0">
+<protocol name="invalid-negative-bits" version="1.0">
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+
+  <messages>
+    <message name="BadMessage">
+      <field name="value" type="uint8" bits="-1"/>
+    </message>
+  </messages>
+
+</protocol>
+</bmdl>
