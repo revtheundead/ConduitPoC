@@ -65,6 +65,20 @@ void HandlerRegistry::install_handler(const MessageHandler& handler) {
     }
 }
 
+void HandlerRegistry::remove_peer(PeerId peer) {
+    std::unique_lock lock(mutex_);
+    // Remove all per-peer typed handlers for this peer
+    for (auto it = per_peer_handlers_.begin(); it != per_peer_handlers_.end(); ) {
+        if (it->first.peer == peer) {
+            it = per_peer_handlers_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    // Remove per-peer catch-all
+    per_peer_catch_all_.erase(peer.value());
+}
+
 DispatchResult HandlerRegistry::dispatch(PeerId peer, uint64_t type_id, const std::any& payload) {
     std::shared_ptr<const ErasedHandler> handler_ptr;
     std::shared_ptr<const CatchAllFn> catch_all_ptr;

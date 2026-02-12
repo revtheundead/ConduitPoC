@@ -123,7 +123,7 @@ The alias is `to_cpp_type_name(choice_name) + "Variant"`.
 
 ## C++ Keyword Avoidance
 
-`name_utils.hpp` defines **`is_cpp_keyword(name)`**, which checks identifiers against all standard C++20 keywords and alternative operator tokens (`and`, `or`, `not`, `bitand`, `bitor`, etc.). It returns `true` if the name would collide with a C++ keyword. The validator calls this during validation to warn when a BMDL name would produce a C++ keyword after conversion (e.g., a field named `or` would warn about colliding with the C++ keyword `or`).
+`name_utils.hpp` defines **`is_cpp_keyword(name)`**, which checks identifiers against all standard C++20 keywords and alternative operator tokens (`and`, `or`, `not`, `bitand`, `bitor`, etc.). It returns `true` if the name would collide with a C++ keyword. The validator calls this during validation and emits an **error** (not a warning) when a BMDL name would produce a C++ keyword after conversion (e.g., a field named `or` triggers a validation error because it collides with the C++ keyword `or`).
 
 ## Type Shadowing
 

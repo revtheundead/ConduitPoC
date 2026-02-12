@@ -33,6 +33,9 @@ public:
     [[nodiscard]] virtual std::span<const uint64_t> leaf_type_ids() const = 0;
     [[nodiscard]] virtual std::string_view type_name(uint64_t type_id) const = 0;
 
+    // Direction introspection (for transceiver-level send blocking)
+    [[nodiscard]] virtual bool is_receive_only(uint64_t /*type_id*/) const { return false; }
+
     virtual void reset() = 0;
 };
 

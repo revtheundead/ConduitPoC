@@ -152,6 +152,8 @@ VoidResult r = xcvr.send<Heartbeat>(msg);
 
 `send()` encodes the message through the peer's session (`encode_wrap`) and transmits the resulting bytes via the transport.
 
+`send()` checks `is_receive_only()` on the session before encoding. If the message type has `direction="receive"`, the call returns a `DirectionViolation` error without transmitting.
+
 ## Lifecycle
 
 ```cpp
@@ -213,9 +215,10 @@ std::cout << "received: " << s.messages_received
 ## Data Flow: Send Path
 
 1. User calls `xcvr.send<T>(peer, msg)`
-2. `send_impl` calls `session.encode_wrap(T::TYPE_ID, std::any(msg))`
-3. The session wraps the leaf message into a complete frame and encodes it
-4. The resulting bytes are sent via `transport.send(peer, bytes)`
+2. `send_impl` checks `session.is_receive_only(T::TYPE_ID)` -- returns `DirectionViolation` if true
+3. `send_impl` calls `session.encode_wrap(T::TYPE_ID, std::any(msg))`
+4. The session wraps the leaf message into a complete frame and encodes it
+5. The resulting bytes are sent via `transport.send(peer, bytes)`
 
 ## Common Pitfalls
 
@@ -224,6 +227,8 @@ std::cout << "received: " << s.messages_received
 > **Pitfall:** Slow handlers block worker threads. If you have one worker thread (default) and a handler takes 5 seconds, no other messages are dispatched during that time. Increase `WorkerConfig::thread_count` for throughput, or offload heavy processing to a separate thread.
 
 > **Pitfall:** `handler_timeout` is warning-only. It does not interrupt or cancel the handler -- it only logs a warning when a handler exceeds the timeout.
+
+> **Pitfall:** Calling `send()` with a receive-only message type (one declared with `direction="receive"` in BMDL) returns `DirectionViolation`. The message is not transmitted. If you need to send and receive the same discriminator value, define separate direction-qualified cases.
 
 ## See Also
 

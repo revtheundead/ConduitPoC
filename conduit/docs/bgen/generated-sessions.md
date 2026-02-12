@@ -178,6 +178,14 @@ Returns a span of all leaf type IDs reachable from this entry-point. The IDs are
 
 Returns the BMDL name for a given type ID, or `"unknown"` if not found. Implemented as a `switch` statement over all known type IDs.
 
+### is_receive_only
+
+```cpp
+[[nodiscard]] bool is_receive_only(uint64_t type_id) const override;
+```
+
+Returns `true` if the leaf type with the given `type_id` has `direction="receive"`. The `Transceiver` calls this before encoding to block sending receive-only message types (returning `DirectionViolation`). The default `ISession` implementation returns `false` for all types. Generated sessions override this when any leaf type has `direction="receive"`.
+
 ### reset
 
 ```cpp

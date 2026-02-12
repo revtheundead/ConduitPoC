@@ -439,9 +439,10 @@ void Transceiver::handle_data_received(PeerId peer,
             auto frames_result = ctx->framer->push_data(data);
             if (!frames_result) {
                 stats_.decode_errors.fetch_add(1, std::memory_order_relaxed);
-                LOG_WARNF("Framing error for peer {}: {}",
+                LOG_WARNF("Framing error for peer {}: {} — resetting framer",
                          peer.value(),
                          frames_result.error().format_short());
+                ctx->framer->reset();
                 return;
             }
 
@@ -577,6 +578,10 @@ void Transceiver::handle_peer_disconnected(PeerId peer) {
         }
     }
 
+    // Clean up any per-peer handlers to prevent unbounded map growth
+    // during repeated connect/disconnect cycles (e.g. TCP server clients).
+    handlers_.remove_peer(peer);
+
     // Notify callbacks outside all locks
     std::vector<StateCallbackEntry> cbs;
     {
@@ -676,11 +681,13 @@ void Transceiver::worker_loop() {
 
         // Back-pressure: resume all transports if queue fill dropped below threshold.
         // Multiple transports may have been paused, so resume all of them.
+        // Use multiplicative hysteresis (80% of threshold) to avoid resume
+        // being impossible when threshold < 0.1.
         double threshold = config_.rx_queue.back_pressure_threshold;
         if (threshold > 0.0 && dispatch_queue_) {
             double fill = static_cast<double>(dispatch_queue_->size()) /
                           static_cast<double>(config_.rx_queue.capacity);
-            if (fill < std::max(0.0, threshold - 0.1)) {
+            if (fill < threshold * 0.8) {
                 std::shared_lock lock(peers_mutex_);
                 for (auto& t : transports_) {
                     t->resume();

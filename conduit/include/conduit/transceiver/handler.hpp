@@ -85,6 +85,10 @@ public:
     // Install all handlers from a MessageHandler as global handlers.
     void install_handler(const MessageHandler& handler);
 
+    // Remove all per-peer handlers and catch-all for a disconnected peer.
+    // Called during peer cleanup to prevent unbounded handler map growth.
+    void remove_peer(PeerId peer);
+
     // Dispatch a decoded message to the matching handler.
     // Returns Handled if a handler was found and invoked successfully,
     // NotFound if no handler matched, or Error if a handler threw.

@@ -465,23 +465,30 @@ void TcpServerTransport::Impl::handle_client_data(
 
 void TcpServerTransport::Impl::remove_client(PeerId peer) {
     socket_t sock = invalid_socket;
+    std::unique_ptr<ClientInfo> removed_client;
     {
         std::lock_guard clients_lock(clients_mutex);
         auto it = clients.find(peer.value());
         if (it != clients.end()) {
+            // Move the client out of the map so we can erase the entry
+            // while still holding send_mutex.  The lock_guard on send_mutex
+            // must be released BEFORE ~ClientInfo destroys the mutex.
+            removed_client = std::move(it->second);
+            clients.erase(it);
+
             // Acquire per-client send_mutex while holding clients_mutex
             // so that any in-progress send() completes and no new send()
             // can start using this client's socket.
-            std::lock_guard send_lock(it->second->send_mutex);
-            sock = it->second->sock;
+            std::lock_guard send_lock(removed_client->send_mutex);
+            sock = removed_client->sock;
             #ifdef _WIN32
             ::shutdown(static_cast<SOCKET>(sock), SD_SEND);
             #else
             ::shutdown(sock, SHUT_WR);
             #endif
             close_socket(sock);
-            clients.erase(it);
         }
+        // send_lock released here, then removed_client destroyed safely
     }
 
     if (sock != invalid_socket) {

@@ -176,9 +176,7 @@ net_log.info("connected to 10.0.0.1:5000");
 net_log.errorf("send failed: {}", err.message());
 ```
 
-`CategoryLogger` delegates to the global `Logger::instance()` with the category set. It supports trace/debug/info/warn/error/fatal and their formatted variants tracef/debugf/infof/warnf/errorf.
-
-> **Note:** `CategoryLogger` does not provide a `fatalf` method. Use `fatal()` with a pre-formatted string, or use the `LOG_FATALF` macro instead.
+`CategoryLogger` delegates to the global `Logger::instance()` with the category set. It supports trace/debug/info/warn/error/fatal and their formatted variants tracef/debugf/infof/warnf/errorf/fatalf.
 
 ## Convenience Function
 
@@ -218,7 +216,7 @@ Colors are controlled per-sink. The `colors` namespace provides constants:
 
 ```cpp
 namespace conduit::logging::colors {
-    bool supportsColor() noexcept;  // runtime check
+    bool supportsColor(bool use_stderr = false) noexcept;  // runtime check
 
     // Reset / style
     constexpr string_view Reset, Bold, Dim;

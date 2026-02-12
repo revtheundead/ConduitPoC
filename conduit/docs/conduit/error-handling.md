@@ -34,6 +34,7 @@ All error codes are grouped into ranges by category:
 | 202 | `EncodingFailed` | General encode failure |
 | 203 | `BufferOverrun` | Write exceeded buffer capacity |
 | 204 | `StringTooLong` | String exceeds the field's max-length |
+| 205 | `DirectionViolation` | Attempted to send a receive-only message type |
 
 ### Connection Errors (300--399)
 
