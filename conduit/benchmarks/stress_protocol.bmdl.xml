@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Stress Benchmark Protocol (v2 frame-based)
+
+  Three message types of increasing complexity for codec and transport
+  stress benchmarks:
+    - Ping (id=1):               ~12 bytes fixed, simple
+    - TelemetryReport (id=2):    ~55 bytes fixed, medium
+    - SurveillanceRecord (id=3): ~100-300 bytes variable, complex
+      - 16-bit FSPEC bitmap with 14 optional data items
+      - Choice on report-class
+      - FX chain, repetitive arrays, scaled fields, etc.
+-->
+<bmdl version="2.0">
+
+  <defaults>
+    <endian>big</endian>
+    <string-encoding>ascii</string-encoding>
+    <string-padding>null</string-padding>
+    <string-trim>right</string-trim>
+    <namespace>stress</namespace>
+  </defaults>
+
+  <constants>
+    <const name="RPT_PERIODIC" type="uint8" value="1"/>
+    <const name="RPT_EVENT" type="uint8" value="2"/>
+    <const name="RPT_ON_DEMAND" type="uint8" value="3"/>
+  </constants>
+
+  <!-- ===========================================================================
+       TYPES
+       =========================================================================== -->
+
+  <types>
+    <!-- Standard integer aliases -->
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+    <type name="int16" base="int" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+
+    <!-- Enums -->
+    <type name="priority-level" base="uint" bits="8">
+      <enum>
+        <value id="0" name="low"/>
+        <value id="1" name="normal"/>
+        <value id="2" name="high"/>
+        <value id="3" name="critical"/>
+      </enum>
+    </type>
+
+    <type name="sensor-type" base="uint" bits="8">
+      <enum>
+        <value id="1" name="temperature"/>
+        <value id="2" name="pressure"/>
+        <value id="3" name="humidity"/>
+        <value id="4" name="acceleration"/>
+        <value id="5" name="magnetic"/>
+      </enum>
+    </type>
+
+    <type name="report-class" base="uint" bits="8">
+      <enum>
+        <value id="1" name="periodic"/>
+        <value id="2" name="event-driven"/>
+        <value id="3" name="on-demand"/>
+      </enum>
+    </type>
+
+    <!-- Scaled types -->
+    <type name="temperature" base="int" bits="16">
+      <scale>0.01</scale>
+      <offset>-40.0</offset>
+    </type>
+
+    <type name="pressure-hpa" base="uint" bits="16">
+      <scale>0.1</scale>
+    </type>
+
+    <type name="wgs84" base="int" bits="32">
+      <scale>8.381903171539307e-8</scale>
+    </type>
+
+    <type name="altitude-fl" base="int" bits="16">
+      <scale>0.25</scale>
+    </type>
+
+    <type name="angle-deg" base="uint" bits="16">
+      <scale>0.0054931640625</scale>
+    </type>
+
+    <!-- Flags -->
+    <type name="status-flags" base="uint" bits="8">
+      <flags>
+        <flag bit="0" name="active"/>
+        <flag bit="1" name="calibrated"/>
+        <flag bit="2" name="low-battery"/>
+        <flag bit="3" name="gps-lock"/>
+        <flag bit="4" name="recording"/>
+      </flags>
+    </type>
+
+    <!-- =====================================================================
+         Structs
+         ===================================================================== -->
+
+    <!-- Coordinate: 10 bytes -->
+    <struct name="Coordinate">
+      <field name="x" type="int32"/>
+      <field name="y" type="int32"/>
+      <field name="z" type="int16"/>
+    </struct>
+
+    <!-- Velocity: 6 bytes -->
+    <struct name="Velocity">
+      <field name="vx" type="int16"/>
+      <field name="vy" type="int16"/>
+      <field name="vz" type="int16"/>
+    </struct>
+
+    <!-- GeoPosition: 10 bytes -->
+    <struct name="GeoPosition">
+      <field name="latitude" type="wgs84"/>
+      <field name="longitude" type="wgs84"/>
+      <field name="altitude" type="altitude-fl"/>
+    </struct>
+
+    <!-- TrackQuality: 2 bytes (bit-packed) -->
+    <struct name="TrackQuality">
+      <field name="confidence" bits="4"/>
+      <field name="freshness" bits="4"/>
+      <field name="source" bits="3"/>
+      <reserved bits="5"/>
+    </struct>
+
+    <!-- ExtendedStatus: 1-2 bytes (FX chain) -->
+    <struct name="ExtendedStatus">
+      <field name="mode" bits="3"/>
+      <field name="reliability" bits="4"/>
+      <fx>
+        <field name="secondary-mode" bits="3"/>
+        <field name="aux-flags" bits="4"/>
+      </fx>
+    </struct>
+
+    <!-- PeriodicPayload: 6 bytes -->
+    <struct name="PeriodicPayload">
+      <field name="interval-ms" type="uint16"/>
+      <field name="counter" type="uint32"/>
+    </struct>
+
+    <!-- EventPayload: 35 bytes -->
+    <struct name="EventPayload">
+      <field name="event-code" type="uint16"/>
+      <field name="severity" type="priority-level"/>
+      <field name="description" type="string" length="32"/>
+    </struct>
+
+    <!-- OnDemandPayload: 12 bytes -->
+    <struct name="OnDemandPayload">
+      <field name="request-id" type="uint32"/>
+      <field name="params" bytes="8"/>
+    </struct>
+
+    <!-- ReadingsItem: repetitive subfield for bitmap -->
+    <struct name="ReadingsItem">
+      <field name="rep" type="uint8"/>
+      <array name="entries" count-from="rep">
+        <field name="channel" type="uint8"/>
+        <field name="value" type="int16"/>
+        <field name="quality" type="uint8"/>
+      </array>
+    </struct>
+
+  </types>
+
+  <!-- ===========================================================================
+       FRAME
+       =========================================================================== -->
+
+  <frame name="StressFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <!-- ===========================================================================
+       MESSAGES
+       =========================================================================== -->
+
+  <messages>
+    <!-- Ping (id=1): Simple, ~12 bytes fixed -->
+    <message id="1" name="Ping">
+      <field name="sequence" type="uint32"/>
+      <field name="timestamp" type="uint32"/>
+      <field name="priority" type="priority-level"/>
+      <field name="flags" type="status-flags"/>
+      <field name="tag" type="uint16"/>
+    </message>
+
+    <!-- TelemetryReport (id=2): Medium, ~55 bytes fixed -->
+    <message id="2" name="TelemetryReport">
+      <field name="sequence" type="uint32"/>
+      <field name="timestamp" type="uint32"/>
+      <field name="source-id" type="uint16"/>
+      <field name="sensor" type="sensor-type"/>
+      <field name="position" type="Coordinate"/>
+      <field name="velocity" type="Velocity"/>
+      <field name="temperature" type="temperature"/>
+      <field name="pressure" type="pressure-hpa"/>
+      <field name="heading" type="angle-deg"/>
+      <field name="status" type="status-flags"/>
+      <field name="label" type="string" length="16"/>
+    </message>
+
+    <!-- SurveillanceRecord (id=3): Complex, ~100-300 bytes variable -->
+    <message id="3" name="SurveillanceRecord">
+      <field name="track-id" type="uint16"/>
+      <field name="timestamp" type="uint32"/>
+      <field name="report-class" type="report-class"/>
+
+      <!-- 16-bit FSPEC bitmap: ext at bits 0 and 8, 14 data items -->
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- Octet 1 (bits 7-1, bit 0 = ext) -->
+        <field name="source-id" bit="7" type="uint16"/>
+        <field name="geo-position" bit="6" type="GeoPosition"/>
+        <field name="cartesian" bit="5" type="Coordinate"/>
+        <field name="velocity" bit="4" type="Velocity"/>
+        <field name="heading" bit="3" type="angle-deg"/>
+        <field name="altitude-rate" bit="2" type="altitude-fl"/>
+        <field name="quality" bit="1" type="TrackQuality"/>
+
+        <!-- Octet 2 (bits 15-9, bit 8 = ext) -->
+        <field name="status" bit="15" type="ExtendedStatus"/>
+        <field name="label" bit="14" type="string" length="8"/>
+        <field name="temperature" bit="13" type="temperature"/>
+        <field name="pressure" bit="12" type="pressure-hpa"/>
+        <field name="sensor" bit="11" type="sensor-type"/>
+        <field name="readings" bit="10" type="ReadingsItem"/>
+        <field name="raw-data" bit="9" bytes="16"/>
+      </struct>
+
+      <!-- Choice: payload type depends on report-class -->
+      <choice name="payload" switch="report-class">
+        <case name="periodic" value="RPT_PERIODIC" type="PeriodicPayload"/>
+        <case name="event-driven" value="RPT_EVENT" type="EventPayload"/>
+        <case name="on-demand" value="RPT_ON_DEMAND" type="OnDemandPayload"/>
+      </choice>
+    </message>
+  </messages>
+
+</bmdl>

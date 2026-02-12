@@ -24,10 +24,19 @@ bgen_generate(
     NAMESPACE sentry_link
 )
 
+bgen_generate(
+    TARGET    bench_stress_protocol
+    INPUT     ${CMAKE_CURRENT_SOURCE_DIR}/stress_protocol.bmdl.xml
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/stress
+    NAMESPACE stress
+)
+
 add_executable(conduit_benchmarks
     bench_codec.cpp
     bench_throughput.cpp
     bench_memory.cpp
+    bench_stress_codec.cpp
+    bench_stress_transport.cpp
 )
 
 target_link_libraries(conduit_benchmarks PRIVATE
@@ -35,5 +44,6 @@ target_link_libraries(conduit_benchmarks PRIVATE
     conduit_warnings
     bench_asterix
     bench_sentry_link
+    bench_stress_protocol
     Catch2::Catch2WithMain
 )
