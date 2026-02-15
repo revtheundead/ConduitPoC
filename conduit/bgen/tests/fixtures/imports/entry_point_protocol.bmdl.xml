@@ -1,5 +1,6 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>entry_point_lib_test</namespace>
+  </defaults>
   <import href="entry_point_lib.bmdl.xml"/>
-  <protocol name="entry-point-lib-test" version="1.0">
-  </protocol>
 </bmdl>

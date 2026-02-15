@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <import href="types_lib.bmdl.xml"/>
   <types>
     <type name="big_val" base="uint" bits="16" endian="big"/>

@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <!-- Library file: no <protocol>, just shared types and constants -->
   <constants>
     <const name="LIB_VERSION" type="uint8" value="42"/>

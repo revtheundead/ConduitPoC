@@ -575,6 +575,420 @@ TEST_CASE("Transceiver: high-volume injection does not lose messages",
 // T2b: Multiple rapid sends from transceiver
 // ============================================================================
 
+// ============================================================================
+// Batch send tests
+// ============================================================================
+
+struct BatchTestMsg {
+    static constexpr uint64_t TYPE_ID = 2001;
+    static constexpr std::string_view TYPE_NAME = "BatchTestMsg";
+    int value = 0;
+
+    VoidResult encode(io::BitWriter& w) const {
+        w.write_u32(static_cast<uint32_t>(value));
+        if (w.has_error()) return std::unexpected(w.error());
+        return {};
+    }
+
+    static Result<BatchTestMsg> decode(io::BitReader& r) {
+        CONDUIT_TRY_ASSIGN(auto, val, r.read_u32());
+        BatchTestMsg msg;
+        msg.value = static_cast<int>(val);
+        return msg;
+    }
+};
+
+static_assert(traits::Message<BatchTestMsg>);
+
+class MockBatchSession : public traits::ISession {
+public:
+    Result<std::vector<traits::DecodedMessage>>
+    decode_frame(std::span<const uint8_t> data) override {
+        io::BitReader r(data);
+        std::vector<traits::DecodedMessage> msgs;
+        while (r.remaining_bytes() >= 4) {
+            auto msg = BatchTestMsg::decode(r);
+            if (!msg) break;
+            traits::DecodedMessage dm;
+            dm.type_id = BatchTestMsg::TYPE_ID;
+            dm.type_name = BatchTestMsg::TYPE_NAME;
+            dm.payload = *msg;
+            msgs.push_back(std::move(dm));
+        }
+        return msgs;
+    }
+
+    Result<std::vector<uint8_t>>
+    encode_wrap(uint64_t type_id, const std::any& payload) override {
+        if (type_id != BatchTestMsg::TYPE_ID)
+            return std::unexpected(CONDUIT_ERROR(ErrorCode::UnknownTypeId, "Unknown type"));
+        auto& msg = std::any_cast<const BatchTestMsg&>(payload);
+        io::BitWriter w;
+        msg.encode(w);
+        return w.finish();
+    }
+
+    Result<std::vector<uint8_t>>
+    encode_batch(uint64_t type_id, std::span<const std::any> payloads) override {
+        if (type_id != BatchTestMsg::TYPE_ID)
+            return std::unexpected(CONDUIT_ERROR(ErrorCode::UnknownTypeId, "Unknown type"));
+        io::BitWriter w;
+        for (const auto& p : payloads) {
+            auto* msg = std::any_cast<BatchTestMsg>(&p);
+            if (!msg)
+                return std::unexpected(CONDUIT_ERROR(ErrorCode::InvalidArgument, "type mismatch"));
+            msg->encode(w);
+        }
+        return w.finish();
+    }
+
+    std::span<const uint8_t> sync_pattern() const override { return {}; }
+    size_t min_frame_header_size() const override { return 4; }
+    size_t extract_frame_length(std::span<const uint8_t>) const override { return 4; }
+    std::span<const uint64_t> leaf_type_ids() const override { return ids_; }
+    std::string_view type_name(uint64_t) const override { return "BatchTestMsg"; }
+    void reset() override {}
+
+private:
+    std::vector<uint64_t> ids_ = {BatchTestMsg::TYPE_ID};
+};
+
+TEST_CASE("Transceiver: send_batch encodes multiple messages in one frame",
+          "[transceiver][batch]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockBatchSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    std::vector<BatchTestMsg> msgs = {{.value = 10}, {.value = 20}, {.value = 30}};
+    auto result = xcvr.send_batch<BatchTestMsg>(peer, std::span{msgs});
+    REQUIRE(result.has_value());
+
+    xcvr.stop();
+
+    std::lock_guard lock(transport->sent_mutex);
+    REQUIRE(transport->sent_data.size() == 1);
+    // 3 messages * 4 bytes each = 12 bytes in a single transport send
+    CHECK(transport->sent_data[0].size() == 12);
+}
+
+TEST_CASE("Transceiver: send_batch rejected for non-batch session",
+          "[transceiver][batch]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockSession>();  // No encode_batch override
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    std::vector<TestMsg> msgs = {{.payload = 1}};
+    auto result = xcvr.send_batch<TestMsg>(peer, std::span{msgs});
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == ErrorCode::BatchNotSupported);
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// Direction-aware session: reports certain types as receive-only
+// ============================================================================
+
+struct RecvOnlyMsg {
+    static constexpr uint64_t TYPE_ID = 3001;
+    static constexpr std::string_view TYPE_NAME = "RecvOnlyMsg";
+    int value = 0;
+
+    VoidResult encode(io::BitWriter& w) const {
+        w.write_u32(static_cast<uint32_t>(value));
+        if (w.has_error()) return std::unexpected(w.error());
+        return {};
+    }
+
+    static Result<RecvOnlyMsg> decode(io::BitReader& r) {
+        CONDUIT_TRY_ASSIGN(auto, val, r.read_u32());
+        RecvOnlyMsg msg;
+        msg.value = static_cast<int>(val);
+        return msg;
+    }
+};
+
+static_assert(traits::Message<RecvOnlyMsg>);
+
+class DirectionMockSession : public MockSession {
+public:
+    bool is_receive_only(uint64_t type_id) const override {
+        return type_id == RecvOnlyMsg::TYPE_ID;
+    }
+
+    std::string_view type_name(uint64_t type_id) const override {
+        if (type_id == RecvOnlyMsg::TYPE_ID) return "RecvOnlyMsg";
+        return MockSession::type_name(type_id);
+    }
+};
+
+// ============================================================================
+// T1: DirectionViolation — send blocks receive-only types
+// ============================================================================
+
+TEST_CASE("Transceiver: send receive-only type returns DirectionViolation",
+          "[transceiver][direction]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<DirectionMockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    RecvOnlyMsg msg;
+    msg.value = 99;
+    auto result = xcvr.send<RecvOnlyMsg>(peer, msg);
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == ErrorCode::DirectionViolation);
+
+    xcvr.stop();
+}
+
+TEST_CASE("Transceiver: send_batch receive-only type returns DirectionViolation",
+          "[transceiver][direction][batch]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<DirectionMockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    std::vector<RecvOnlyMsg> msgs = {{.value = 1}};
+    auto result = xcvr.send_batch<RecvOnlyMsg>(peer, std::span{msgs});
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == ErrorCode::DirectionViolation);
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// T3: UnknownTypeId at transceiver level
+// ============================================================================
+
+TEST_CASE("Transceiver: send unknown type_id returns UnknownTypeId",
+          "[transceiver]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    // RecvOnlyMsg has TYPE_ID=3001 which MockSession's encode_wrap doesn't know
+    RecvOnlyMsg msg;
+    msg.value = 42;
+    auto result = xcvr.send<RecvOnlyMsg>(peer, msg);
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == ErrorCode::UnknownTypeId);
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// T4: remove_handler and remove_state_change
+// ============================================================================
+
+TEST_CASE("Transceiver: remove_handler stops delivery", "[transceiver][handler]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    std::atomic<int> received{0};
+    xcvr.on<TestMsg>(peer, std::function<void(const TestMsg&)>(
+        [&](const TestMsg&) { received.fetch_add(1); }));
+
+    REQUIRE(xcvr.start().has_value());
+
+    // Inject a frame — handler should fire
+    std::vector<uint8_t> frame = {0x00, 0x00, 0x00, 0x01};
+    transport->inject_data(peer, frame);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    CHECK(received.load() == 1);
+
+    // Remove the handler
+    bool removed = xcvr.remove_handler<TestMsg>(peer);
+    CHECK(removed);
+
+    // Inject another frame — handler should NOT fire
+    transport->inject_data(peer, frame);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    CHECK(received.load() == 1);
+
+    xcvr.stop();
+}
+
+TEST_CASE("Transceiver: remove_state_change stops callbacks", "[transceiver][handler]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    std::atomic<int> state_changes{0};
+    auto cb_id = xcvr.on_state_change([&](PeerId, net::ConnectionState) {
+        state_changes.fetch_add(1);
+    });
+
+    REQUIRE(xcvr.start().has_value());
+
+    // Fire a state change
+    transport->callbacks.on_state_changed(peer, net::ConnectionState::Connected);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(state_changes.load() >= 1);
+
+    int before = state_changes.load();
+
+    // Remove the callback
+    bool removed = xcvr.remove_state_change(cb_id);
+    CHECK(removed);
+
+    // Fire another state change — should not increment
+    transport->callbacks.on_state_changed(peer, net::ConnectionState::Disconnected);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK(state_changes.load() == before);
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// T5: peer_ids and stats accessors
+// ============================================================================
+
+TEST_CASE("Transceiver: peer_ids returns all peer IDs", "[transceiver]") {
+    Transceiver xcvr;
+    auto t1 = std::make_shared<MockTransport>(); t1->stream = false;
+    auto t2 = std::make_shared<MockTransport>(); t2->stream = false;
+
+    auto p1 = xcvr.add_peer("alpha", std::make_unique<MockSession>(), t1);
+    auto p2 = xcvr.add_peer("beta", std::make_unique<MockSession>(), t2);
+    REQUIRE(p1.has_value());
+    REQUIRE(p2.has_value());
+
+    auto ids = xcvr.peer_ids();
+    REQUIRE(ids.size() == 2);
+
+    // Both IDs should be present (order unspecified)
+    bool has_p1 = std::find(ids.begin(), ids.end(), *p1) != ids.end();
+    bool has_p2 = std::find(ids.begin(), ids.end(), *p2) != ids.end();
+    CHECK(has_p1);
+    CHECK(has_p2);
+}
+
+TEST_CASE("Transceiver: stats tracks bytes sent", "[transceiver][stats]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    CHECK(xcvr.stats().bytes_sent.load() == 0);
+
+    TestMsg msg;
+    msg.payload = 42;
+    auto r = xcvr.send<TestMsg>(peer, msg);
+    REQUIRE(r.has_value());
+
+    CHECK(xcvr.stats().bytes_sent.load() == 4);  // TestMsg = 4 bytes
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// T6: Empty batch send returns error
+// ============================================================================
+
+TEST_CASE("Transceiver: send_batch with empty span returns error",
+          "[transceiver][batch]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = false;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<MockBatchSession>();
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    std::vector<BatchTestMsg> empty;
+    auto result = xcvr.send_batch<BatchTestMsg>(peer, std::span{empty});
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == ErrorCode::InvalidArgument);
+
+    xcvr.stop();
+}
+
+// ============================================================================
+// T12: ISession::reset() verification via tracking session
+// ============================================================================
+
+TEST_CASE("Transceiver: session reset increments on each reconnect", "[transceiver][reset]") {
+    auto transport = std::make_shared<MockTransport>();
+    transport->stream = true;
+
+    Transceiver xcvr;
+    auto session = std::make_unique<TrackingSession>();
+    auto* tracking = session.get();
+
+    auto peer_result = xcvr.add_peer("test", std::move(session), transport);
+    REQUIRE(peer_result.has_value());
+    PeerId peer = *peer_result;
+
+    REQUIRE(xcvr.start().has_value());
+
+    // Simulate 3 reconnect cycles
+    for (int i = 0; i < 3; ++i) {
+        transport->callbacks.on_state_changed(peer, net::ConnectionState::Connected);
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        transport->callbacks.on_state_changed(peer, net::ConnectionState::Disconnected);
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    }
+
+    // Each Connected event triggers a reset
+    CHECK(tracking->reset_count.load() >= 3);
+
+    xcvr.stop();
+}
+
 TEST_CASE("Transceiver: rapid sends all reach transport",
           "[transceiver][stress]") {
     auto transport = std::make_shared<MockTransport>();

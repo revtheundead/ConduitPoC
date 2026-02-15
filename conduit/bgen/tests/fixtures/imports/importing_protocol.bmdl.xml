@@ -1,11 +1,12 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>importing_test</namespace>
+  </defaults>
   <import href="types_lib.bmdl.xml"/>
-  <protocol name="importing-test" version="1.0">
-    <messages>
+  <messages>
       <message name="TestMsg">
         <field name="header" type="SharedHeader"/>
         <field name="data" type="uint32"/>
       </message>
     </messages>
-  </protocol>
 </bmdl>

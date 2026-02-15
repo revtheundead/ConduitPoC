@@ -41,20 +41,14 @@ Examples:
 --namespace my-protocol       # namespace my_protocol { ... }  (hyphen → underscore)
 ```
 
-When `--namespace` is not specified, the namespace is derived using a priority chain:
-
-1. **`<defaults><namespace>`** -- if the BMDL file defines `<defaults><namespace>my_ns</namespace></defaults>`, that value is used
-2. **Protocol `name` attribute** -- otherwise, the protocol's `name` attribute is used with hyphens converted to underscores
+When `--namespace` is not specified, the namespace is derived from `<defaults><namespace>`:
 
 ```xml
-<!-- Priority 1: namespace from <defaults> -->
 <defaults><namespace>my_protocol</namespace></defaults>
 <!-- generates: namespace my_protocol { ... } -->
-
-<!-- Priority 2: protocol name fallback -->
-<protocol name="my-protocol" ...>
-<!-- generates: namespace my_protocol { ... } -->
 ```
+
+Hyphens in namespace values are automatically converted to underscores.
 
 ## Exit Codes
 
@@ -74,10 +68,10 @@ All diagnostic output is written to stderr.
 Errors from the parse, resolve, and validate stages include source location information:
 
 ```
-file.bmdl.xml:offset(42): error: unknown type reference 'foo'
+file.bmdl.xml:12:5: error: unknown type reference 'foo'
 ```
 
-The format is `<file>:offset(<byte-offset>): error: <message>`.
+The format is `<file>:<line>:<column>: error: <message>`. If line information is unavailable (e.g., for errors detected outside of XML parsing), the fallback format `<file>:offset(<byte-offset>)` is used.
 
 ### Logger Messages
 
@@ -100,13 +94,13 @@ With `--verbose`, bgen additionally reports progress through each pipeline stage
 
 ```
 bgen: parsing my-protocol.bmdl.xml
-bgen: protocol 'my-protocol' v1.0
+bgen: protocol 'my-protocol' v2.0
 bgen: 12 types, 5 structs, 8 messages, 2 constants
 bgen: resolving types...
 bgen: validating...
 bgen: computing wire sizes...
 bgen: analyzing sessions...
-bgen: entry-point 'Frame' -> 6 leaf types
+bgen: session 'MyFrame' -> 6 leaf types
 bgen: generating code in namespace 'my_protocol'...
 bgen: generated 7 files in output/
 ```

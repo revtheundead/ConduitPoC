@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="bitmap-fx" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bitmap_fx</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -26,5 +28,4 @@
       <field name="items" type="BitmapItems"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

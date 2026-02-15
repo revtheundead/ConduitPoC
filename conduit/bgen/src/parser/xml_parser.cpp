@@ -500,17 +500,10 @@ public:
         auto lp_attr = node.attribute("length-prefix");
         if (lp_attr) f.length_prefix = lp_attr.value();
         auto lip_attr = node.attribute("length-includes-prefix");
-        if (lip_attr) f.length_includes_prefix = std::string_view(lip_attr.value()) == "true";
-
-        // Validate mutual exclusivity of length specifications
-        {
-            int length_specs = 0;
-            if (f.length || f.length_star) ++length_specs;
-            if (f.length_from) ++length_specs;
-            if (f.length_prefix.has_value()) ++length_specs;
-            if (length_specs > 1) {
-                error(node, "field '" + f.name + "' has conflicting length specifications "
-                      "(use only one of: length, length-from, length-prefix)");
+        if (lip_attr) {
+            f.length_includes_prefix = std::string_view(lip_attr.value()) == "true";
+            if (f.length_includes_prefix && !f.length_prefix.has_value()) {
+                error(node, "field '" + f.name + "' has length-includes-prefix without length-prefix");
             }
         }
 
@@ -525,6 +518,25 @@ public:
         if (term_attr) f.terminated = term_attr.value();
         f.max_length = parse_int_attr(node, "max-length");
         f.char_bits = parse_int_attr(node, "char-bits");
+
+        // Validate mutual exclusivity of length specifications
+        // (must be after terminated is parsed)
+        // Note: length + terminated is valid (fixed-size read with terminator trim).
+        // Only dynamic-length specs conflict with each other and with terminated.
+        {
+            int length_specs = 0;
+            if (f.length || f.length_star) ++length_specs;
+            if (f.length_from) ++length_specs;
+            if (f.length_prefix.has_value()) ++length_specs;
+            if (length_specs > 1) {
+                error(node, "field '" + f.name + "' has conflicting length specifications "
+                      "(use only one of: length, length-from, length-prefix)");
+            }
+            if (f.terminated && (f.length_from || f.length_prefix.has_value() || f.length_star)) {
+                error(node, "field '" + f.name + "' has conflicting length specifications "
+                      "(terminated cannot be combined with length-from, length-prefix, or open-ended length)");
+            }
+        }
 
         // Endian/format
         auto [endian, endian_explicit] = parse_endian(node);
@@ -604,7 +616,7 @@ public:
                 if (v == "none") {
                     // Explicitly no extension bit
                 } else {
-                    auto ext_val = parse_int_attr(bitmap_node, "ext");
+                    auto ext_val = parse_nonneg_int_attr(bitmap_node, "ext");
                     if (ext_val) {
                         sd.bitmap_ext = *ext_val;
                     } else {
@@ -921,11 +933,6 @@ public:
             error(node, "<message> element missing required 'name' attribute");
         }
 
-        auto role_attr = node.attribute("role");
-        if (role_attr && std::string_view(role_attr.value()) == "entry-point") {
-            md.is_entry_point = true;
-        }
-
         auto id_attr = node.attribute("id");
         if (id_attr) md.id = id_attr.value();
 
@@ -935,7 +942,7 @@ public:
         md.doc = get_doc(node);
         md.annotations = parse_annotations(node);
 
-        check_unknown_attrs(node, {"name", "role", "id", "direction"});
+        check_unknown_attrs(node, {"name", "id", "direction"});
 
         return md;
     }
@@ -1143,6 +1150,10 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         ctx.error(root, "<bmdl> missing required 'version' attribute");
     } else {
         bmdl.bmdl_version = version_attr.value();
+        if (bmdl.bmdl_version != "2.0") {
+            ctx.warn(root, "unsupported BMDL version '" + bmdl.bmdl_version +
+                     "'; only version '2.0' is supported");
+        }
     }
     bmdl.loc = ctx.loc(root);
     ctx.check_unknown_attrs(root, {"version"});
@@ -1236,8 +1247,8 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
                 ctx.warn(child, "unrecognized element <" + std::string(cname) + "> inside <protocol>, ignored");
             }
         }
-    } else if (has_root_frame) {
-        // v2 flat file: <frame> at root level → this is a protocol file
+    } else if (root.child("defaults")) {
+        // v2 flat file: <defaults> at root level → this is a protocol file
         bmdl.has_protocol = true;
 
         // Parse defaults if present at root
@@ -1249,7 +1260,7 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         // Protocol name from namespace or frame name
         if (bmdl.defaults.namespace_) {
             bmdl.protocol_name = *bmdl.defaults.namespace_;
-        } else {
+        } else if (has_root_frame) {
             // Use first frame name as fallback
             auto first_frame = root.child("frame");
             if (first_frame) {
@@ -1286,7 +1297,7 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         for (auto child : root.children()) {
             std::string_view cname = child.name();
             if (cname != "import" && cname != "constants" &&
-                cname != "types" && cname != "messages") {
+                cname != "types" && cname != "messages" && cname != "frame") {
                 ctx.warn(child, "unrecognized element <" + std::string(cname) + "> in library file, ignored");
             }
         }

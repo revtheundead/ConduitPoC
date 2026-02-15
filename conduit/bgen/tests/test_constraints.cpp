@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "constraints/messages.hpp"
+#include "optional_constrained/messages.hpp"
 
 // ============================================================================
 // Section: Immediate constraints
@@ -279,6 +280,100 @@ TEST_CASE("encode_bytes succeeds at constraint boundaries", "[constraints][encod
         auto result = msg.encode_bytes();
         CHECK(result.has_value());
     }
+}
+
+// ============================================================================
+// Section: Optional constrained fields
+// ============================================================================
+
+TEST_CASE("optional constrained - roundtrip with valid present values", "[constraints][optional]") {
+    conduit::io::BitWriter w;
+    w.write_u8(0x03);  // flags: both quality and priority present
+    w.write_u8(50);    // quality = 50 (valid: 0-100)
+    w.write_u8(5);     // priority = 5 (valid: 1-10, deferred)
+    w.write_u16(0x1234, conduit::io::Endian::Big); // data
+    auto finish_result = w.finish();
+    REQUIRE(finish_result.has_value());
+    auto data = std::move(*finish_result);
+
+    auto decoded = optional_constrained::OptConstMsg::decode_bytes(data);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->has_quality());
+    CHECK(decoded->quality() == 50);
+    CHECK(decoded->has_priority());
+    CHECK(decoded->priority() == 5);
+    CHECK(decoded->data() == 0x1234);
+}
+
+TEST_CASE("optional constrained - decode with invalid present value fails", "[constraints][optional]") {
+    conduit::io::BitWriter w;
+    w.write_u8(0x01);  // flags: quality present only
+    w.write_u8(101);   // quality = 101 (exceeds max 100)
+    w.write_u16(0x0000, conduit::io::Endian::Big); // data
+    auto finish_result = w.finish();
+    REQUIRE(finish_result.has_value());
+    auto data = std::move(*finish_result);
+
+    auto decoded = optional_constrained::OptConstMsg::decode_bytes(data);
+    REQUIRE_FALSE(decoded.has_value());
+    CHECK(decoded.error().code() == conduit::ErrorCode::ConstraintViolation);
+}
+
+TEST_CASE("optional constrained - decode with absent optional no error", "[constraints][optional]") {
+    conduit::io::BitWriter w;
+    w.write_u8(0x00);  // flags: neither present
+    w.write_u16(0xABCD, conduit::io::Endian::Big); // data
+    auto finish_result = w.finish();
+    REQUIRE(finish_result.has_value());
+    auto data = std::move(*finish_result);
+
+    auto decoded = optional_constrained::OptConstMsg::decode_bytes(data);
+    REQUIRE(decoded.has_value());
+    CHECK_FALSE(decoded->has_quality());
+    CHECK_FALSE(decoded->has_priority());
+    CHECK(decoded->data() == 0xABCD);
+}
+
+TEST_CASE("optional constrained - setter rejects invalid value", "[constraints][optional][encode]") {
+    optional_constrained::OptConstMsg msg;
+    msg.set_flags(0x01); // quality present
+
+    auto set_result = msg.set_quality(101); // exceeds max 100
+    REQUIRE_FALSE(set_result.has_value());
+    CHECK(set_result.error().code() == conduit::ErrorCode::EncodeConstraintViolation);
+}
+
+TEST_CASE("optional constrained - deferred validate with invalid present value", "[constraints][optional][deferred]") {
+    conduit::io::BitWriter w;
+    w.write_u8(0x02);  // flags: priority present only
+    w.write_u8(0);     // priority = 0 (below min 1, but deferred)
+    w.write_u16(0x0000, conduit::io::Endian::Big); // data
+    auto finish_result = w.finish();
+    REQUIRE(finish_result.has_value());
+    auto data = std::move(*finish_result);
+
+    auto decoded = optional_constrained::OptConstMsg::decode_bytes(data);
+    REQUIRE(decoded.has_value()); // decode succeeds (deferred)
+    CHECK(decoded->priority() == 0);
+
+    auto result = decoded->validate();
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code() == conduit::ErrorCode::ConstraintViolationDeferred);
+}
+
+TEST_CASE("optional constrained - deferred validate with absent optional passes", "[constraints][optional][deferred]") {
+    conduit::io::BitWriter w;
+    w.write_u8(0x00);  // flags: neither present
+    w.write_u16(0x0000, conduit::io::Endian::Big); // data
+    auto finish_result = w.finish();
+    REQUIRE(finish_result.has_value());
+    auto data = std::move(*finish_result);
+
+    auto decoded = optional_constrained::OptConstMsg::decode_bytes(data);
+    REQUIRE(decoded.has_value());
+
+    auto result = decoded->validate();
+    CHECK(result.has_value());
 }
 
 TEST_CASE("ConstraintMsg percent at boundary 0 and 100", "[edge][constraints]") {

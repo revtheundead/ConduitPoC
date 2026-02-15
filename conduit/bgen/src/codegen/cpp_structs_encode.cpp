@@ -14,7 +14,46 @@ void StructEmitter::emit_encode(const std::vector<model::StructChild>& children)
     ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
     ctx_.indent();
     reset_alignment();
+
+    // Check for auto-length fields; if present, record struct start position
+    bool has_auto_length = false;
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                has_auto_length = true;
+                break;
+            }
+        }
+    }
+    if (has_auto_length) {
+        ctx_.line("auto struct_start_pos_ = w.size_bytes();");
+    }
+    pending_auto_length_.reset();
+
     emit_encode_children(children);
+
+    // Auto-length backpatch: write actual struct size into placeholder
+    if (pending_auto_length_) {
+        std::string size_expr = "w.size_bytes() - struct_start_pos_";
+        if (pending_auto_length_->offset != 0) {
+            size_expr = "(" + size_expr + " + (" + std::to_string(pending_auto_length_->offset) + "))";
+        }
+        std::string cast_type = storage_type_for_bits(pending_auto_length_->bits, false);
+        std::string patch_call;
+        if (pending_auto_length_->bits <= 8) {
+            patch_call = "w.patch_u8(length_byte_pos_, static_cast<" + cast_type + ">(" + size_expr + "))";
+        } else if (pending_auto_length_->bits <= 16) {
+            patch_call = "w.patch_u16(length_byte_pos_, static_cast<" + cast_type + ">(" + size_expr + "), "
+                         + endian_str(pending_auto_length_->endian) + ")";
+        } else {
+            patch_call = "w.patch_u32(length_byte_pos_, static_cast<" + cast_type + ">(" + size_expr + "), "
+                         + endian_str(pending_auto_length_->endian) + ")";
+        }
+        ctx_.line("if (!" + patch_call + ")");
+        ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"failed to patch auto-length\"));");
+        pending_auto_length_.reset();
+    }
+
     ctx_.line("if (w.has_error()) return std::unexpected(w.error());");
     ctx_.line("return {};");
     ctx_.dedent();
@@ -173,6 +212,15 @@ void StructEmitter::emit_encode_constraint_check(const model::Constraint& c, con
 void StructEmitter::emit_encode_field(const model::Field& f) {
     std::string member = to_member_name(f.name);
     auto fti = resolve_field_type(f, index_);
+
+    // Auto-length: write zero placeholder for later backpatch
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
+        ctx_.line("auto length_byte_pos_ = w.size_bytes();");
+        emit_write_stmt(ctx_, "0", fti, f.endian, is_byte_aligned());
+        advance_bits(fti.bits);
+        pending_auto_length_ = AutoLengthInfo{fti.bits, f.endian, f.auto_expr->offset};
+        return;
+    }
 
     // A8: Constraint check before encoding
     if (f.constraint && !fti.is_struct && !fti.is_enum) {
@@ -416,6 +464,10 @@ void StructEmitter::emit_encode_fx_array(const model::ArrayDef& a) {
                     if (!def->enum_values.empty()) {
                         elem_is_enum = true;
                         enum_type_name = to_cpp_type_name(def->name);
+                        elem_fti.bits = def->bits;
+                        elem_fti.is_signed = (def->base == model::PrimitiveBase::Int);
+                        elem_fti.wire_encoding = def->wire_encoding;
+                        elem_endian = def->endian;
                     } else if (def->bits > 0) {
                         elem_is_primitive = true;
                         elem_fti.bits = def->bits;
@@ -457,9 +509,109 @@ void StructEmitter::emit_encode_fx_array(const model::ArrayDef& a) {
 }
 
 void StructEmitter::emit_encode_choice(const model::ChoiceDef& c, bool is_optional) {
-    // Choice encoding: use variant visit, propagate encode errors
+    // Choice encoding: validate variant/discriminator match, then visit
     std::string member = to_member_name(c.name);
     std::string ref = is_optional ? ("*" + member) : member;
+
+    // Validate discriminator matches the active variant alternative.
+    // Only when switch expression is a local FieldRef (not outer-scope).
+    if (c.switch_expr && c.switch_expr->op == model::ExprOp::FieldRef) {
+        std::string root = c.switch_expr->name;
+        auto dot = root.find('.');
+        if (dot != std::string::npos) root = root.substr(0, dot);
+
+        if (outer_scope_params_.count(root) == 0) {
+            std::string switch_val = emit_expr_code(*c.switch_expr, {});
+            // Dereference optional switch field
+            if (optional_field_names_.count(to_member_name(root))) {
+                switch_val = "*(" + switch_val + ")";
+            }
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("auto _sw = " + switch_val + ";");
+            ctx_.line("auto _idx = (" + ref + ").index();");
+
+            for (size_t i = 0; i < c.cases.size(); i++) {
+                const auto& cs = c.cases[i];
+                std::string prefix = (i == 0) ? "if" : "} else if";
+                ctx_.line(prefix + " (_idx == " + std::to_string(i) + ") {");
+                ctx_.indent();
+
+                std::string cond;
+                if (cs.value) {
+                    std::string val = *cs.value;
+                    auto const_it = index_.constants.find(val);
+                    if (const_it == index_.constants.end()) {
+                        bool is_numeric = !val.empty() && (std::isdigit(static_cast<unsigned char>(val[0])) ||
+                                          val[0] == '-' || (val.size() > 2 && val[0] == '0' && val[1] == 'x'));
+                        if (!is_numeric) {
+                            val = resolve_enum_value(val);
+                        }
+                    }
+                    cond = "_sw != static_cast<decltype(_sw)>(" + val + ")";
+                } else if (cs.range) {
+                    auto dot_pos = cs.range->find("..");
+                    if (dot_pos != std::string::npos) {
+                        std::string lo = cs.range->substr(0, dot_pos);
+                        std::string hi = cs.range->substr(dot_pos + 2);
+                        cond = "_sw < static_cast<decltype(_sw)>(" + lo + ") || "
+                               "_sw > static_cast<decltype(_sw)>(" + hi + ")";
+                    } else {
+                        cond = "_sw != static_cast<decltype(_sw)>(" + *cs.range + ")";
+                    }
+                }
+                if (!cond.empty()) {
+                    ctx_.line("if (" + cond + ")");
+                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                    ctx_.line("        \"choice '" + c.name + "': variant does not match discriminator\"));");
+                }
+                ctx_.dedent();
+            }
+
+            // Otherwise: switch value must NOT match any known case
+            if (c.otherwise) {
+                std::string prefix = c.cases.empty() ? "if" : "} else if";
+                ctx_.line(prefix + " (_idx == " + std::to_string(c.cases.size()) + ") {");
+                ctx_.indent();
+                std::string bad;
+                for (const auto& cs : c.cases) {
+                    if (cs.value) {
+                        std::string val = *cs.value;
+                        auto const_it = index_.constants.find(val);
+                        if (const_it == index_.constants.end()) {
+                            bool is_numeric = !val.empty() && (std::isdigit(static_cast<unsigned char>(val[0])) ||
+                                              val[0] == '-' || (val.size() > 2 && val[0] == '0' && val[1] == 'x'));
+                            if (!is_numeric) {
+                                val = resolve_enum_value(val);
+                            }
+                        }
+                        if (!bad.empty()) bad += " || ";
+                        bad += "_sw == static_cast<decltype(_sw)>(" + val + ")";
+                    } else if (cs.range) {
+                        auto dot_pos = cs.range->find("..");
+                        if (dot_pos != std::string::npos) {
+                            std::string lo = cs.range->substr(0, dot_pos);
+                            std::string hi = cs.range->substr(dot_pos + 2);
+                            if (!bad.empty()) bad += " || ";
+                            bad += "(_sw >= static_cast<decltype(_sw)>(" + lo + ") && "
+                                   "_sw <= static_cast<decltype(_sw)>(" + hi + "))";
+                        }
+                    }
+                }
+                if (!bad.empty()) {
+                    ctx_.line("if (" + bad + ")");
+                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                    ctx_.line("        \"choice '" + c.name + "': variant does not match discriminator\"));");
+                }
+                ctx_.dedent();
+            }
+
+            ctx_.line("}");
+            ctx_.dedent();
+            ctx_.line("}");
+        }
+    }
+
     ctx_.line("{");
     ctx_.indent();
     ctx_.line("auto _enc_r = std::visit([&w](const auto& v) -> conduit::VoidResult { return v.encode(w); }, " + ref + ");");

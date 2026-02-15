@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-auto-type" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_auto_type</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -9,5 +11,4 @@
       <field name="counter" type="uint8" auto="decrement"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

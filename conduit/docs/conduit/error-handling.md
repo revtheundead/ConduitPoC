@@ -59,6 +59,7 @@ All error codes are grouped into ranges by category:
 | 404 | `InvalidConfig` | Configuration validation failed |
 | 405 | `MultiplePeers` | `sole_peer()` called but multiple peers exist |
 | 406 | `UnsupportedMessageType` | Session cannot encode the given type ID |
+| 407 | `BatchNotSupported` | Session does not support batch encoding (non-array payload) |
 
 ### Internal Errors (900--999)
 
@@ -76,7 +77,7 @@ All error codes are grouped into ranges by category:
 enum class ErrorSeverity { Debug, Info, Warning, Error, Critical, Fatal };
 ```
 
-Each `Error` derives its severity from its code. Decode/encode errors are typically `Error` severity; connection errors vary.
+Each `Error` derives its severity from its code. Decode/encode errors (100--299) are `Warning` severity; connection/transceiver errors (300--499) are `Error`; internal errors (900+) are `Critical`. Exception: `Timeout` (904) is `Error` severity despite being in the 900 range, since timeouts are recoverable operational errors rather than internal failures.
 
 ## Error Class
 

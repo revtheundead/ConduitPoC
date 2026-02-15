@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
-<bmdl version="1.0">
-<protocol name="stress-large" version="1.0">
-  <defaults endian="big"/>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>stress_large</namespace>
+    <endian>big</endian>
+  </defaults>
 
   <types>
     <type name="uint8" base="uint" bits="8"/>
@@ -154,6 +156,4 @@
       <field name="val" type="uint32"/>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

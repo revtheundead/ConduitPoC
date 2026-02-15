@@ -62,6 +62,8 @@ Generated:
 
 Enum value names follow the [naming conventions](naming-conventions.md) -- hyphens become underscores.
 
+> **Note:** Only enum types get a `to_string()` function. Flags, Scaled, Constrained, and String wrapper types do not generate `to_string()`. To convert these to string, use `std::to_string(t.raw())` or `std::to_string(t.value())` as appropriate.
+
 ## Flags Types
 
 Types with `<flags>` children become wrapper classes:

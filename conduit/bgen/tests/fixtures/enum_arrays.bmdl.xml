@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="enum-arrays" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>enum_arrays</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -34,6 +35,4 @@
       <array name="bcd-values" type="bcd-digit" count="3"/>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-float-bits" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_float_bits</namespace>
+  </defaults>
   <types>
     <type name="bad-float" base="float" bits="16"/>
   </types>
@@ -8,5 +10,4 @@
       <field name="val" type="bad-float"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

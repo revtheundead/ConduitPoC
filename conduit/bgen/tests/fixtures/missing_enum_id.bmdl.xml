@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="missing-enum-id" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>missing_enum_id</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="status" base="uint" bits="8">
@@ -14,5 +16,4 @@
       <field name="s" type="status"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

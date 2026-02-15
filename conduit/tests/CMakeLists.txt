@@ -15,6 +15,7 @@ include(Catch)
 set(CONDUIT_TEST_SOURCES
     test_listener.cpp
     test_error.cpp
+    test_endian.cpp
     test_bit_reader.cpp
     test_bit_writer.cpp
     test_bounded_queue.cpp
@@ -30,6 +31,7 @@ set(CONDUIT_TEST_SOURCES
     test_tcp_transport_extended.cpp
     test_logger.cpp
     test_string_encoding.cpp
+    test_message_log.cpp
 )
 
 set(CONDUIT_TEST_LIBS
@@ -65,7 +67,6 @@ if(CONDUIT_BUILD_BGEN)
 
     list(APPEND CONDUIT_TEST_SOURCES
         test_transceiver_config.cpp
-        test_integration_session_protocol.cpp
         test_integration_sentry_link.cpp
         test_stream_framer_generated.cpp
         test_integration_direction.cpp

@@ -25,6 +25,9 @@ public:
 
     virtual void pause() {}   // back-pressure: stop reading
     virtual void resume() {}  // back-pressure: resume reading
+
+    // Human-readable transport type for logging.
+    [[nodiscard]] virtual std::string_view transport_type() const noexcept { return "unknown"; }
 };
 
 }
@@ -37,7 +40,8 @@ Each transport owns its I/O thread(s). The `Transceiver` calls `start()` / `stop
 ```cpp
 struct TransportCallbacks {
     std::function<void(PeerId, std::span<const uint8_t>)> on_data_received;
-    std::function<PeerId()> on_peer_connected;
+    // remote_endpoint: "ip:port" for TCP/UDP, device path for serial
+    std::function<PeerId(std::string remote_endpoint)> on_peer_connected;
     std::function<void(PeerId)> on_peer_disconnected;
     std::function<void(PeerId, net::ConnectionState)> on_state_changed;
 };
@@ -62,6 +66,23 @@ constexpr std::string_view to_string(ConnectionState state) noexcept;
 // "Disconnected", "Connecting", "Connected", "Reconnecting", "Failed"
 ```
 
+## TCP Networking Concepts
+
+Every TCP connection has two endpoints, each identified by an IP address and port number. When a **client** connects to a **server**, the server's port is the well-known port you configured (e.g., 5000), but the client's port is an **ephemeral port** -- a temporary port number assigned by the operating system (typically in the range 49152--65535). The client does not choose this port; the OS picks one automatically.
+
+This means when you see a log entry like:
+
+```
+SEND peer=clients/1 remote=127.0.0.1:60630 proto=asterix transport=tcp-server ...
+```
+
+The `60630` is the ephemeral port the OS assigned to the client's end of the connection. It changes every time the client reconnects. The server's own listen port (e.g., 5000) does not appear in the `remote=` field because that is the local side of the server's connection.
+
+**Which to use?**
+
+- **TCP Client (`TcpClientConfig`)** -- Your application initiates the connection. You configure the remote server's `host` and `port`. Your local port is chosen by the OS. Use this when you know the address of the server you want to talk to.
+- **TCP Server (`TcpServerConfig`)** -- Your application listens for incoming connections. You configure the `port` to listen on. Clients connect to you. Use this when other devices or applications need to connect to your application.
+
 ## TCP Client
 
 Single-peer, stream-oriented transport with automatic reconnection.
@@ -72,7 +93,7 @@ Single-peer, stream-oriented transport with automatic reconnection.
 struct TcpClientConfig {
     std::string host;
     uint16_t port = 0;
-    ReconnectPolicy reconnect;               // see below
+    ReconnectPolicy reconnect{};             // see below; defaults to enabled
     size_t recv_buffer_size = 65536;
     std::chrono::milliseconds connect_timeout{10000};
 };
@@ -80,11 +101,15 @@ struct TcpClientConfig {
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `host` | (required) | Hostname or IP address |
-| `port` | (required) | TCP port number |
+| `host` | (required) | Hostname or IP address of the server to connect to |
+| `port` | (required) | TCP port on the server |
 | `reconnect` | enabled, 1s initial, 30s max | Reconnection policy |
 | `recv_buffer_size` | 65536 | Size of the receive buffer |
 | `connect_timeout` | 10s | Timeout for initial connection |
+
+The client does not have a configurable local port -- the OS assigns an ephemeral port for the client's end of the connection. This is standard TCP behavior and is appropriate for virtually all use cases.
+
+In message logs, `remote=` shows the server's `host:port` (e.g., `remote=10.0.1.5:5000`).
 
 Properties: `is_stream_oriented() = true`, `is_multi_peer() = false`.
 
@@ -112,6 +137,8 @@ struct TcpServerConfig {
 
 The `TcpServerTransport` class provides `local_port()` to query the actual bound port (useful with port 0).
 
+In message logs, `remote=` shows the connecting client's IP and ephemeral port (e.g., `remote=192.168.1.5:60630`). The ephemeral port is assigned by the client's OS and changes on each reconnection -- it identifies a specific TCP connection, not a stable client identity. Use the peer name (e.g., `peer=clients/1`) to track clients across reconnections.
+
 Properties: `is_stream_oriented() = true`, `is_multi_peer() = true`.
 
 ## UDP
@@ -133,9 +160,11 @@ struct UdpConfig {
 };
 ```
 
-**Single-peer mode:** Set `remote_address` and `remote_port`. The socket is "connected" to one destination. `is_multi_peer() = false`.
+**Single-peer mode:** Set `remote_address` and `remote_port`. The socket is "connected" to one destination. `is_multi_peer() = false`. In message logs, `remote=` shows the configured `remote_address:remote_port`.
 
-**Multi-peer mode:** Leave `remote_address` empty. Inbound datagrams from different source addresses create distinct peers. `is_multi_peer() = true`.
+**Multi-peer mode:** Leave `remote_address` empty. Inbound datagrams from different source addresses create distinct peers. `is_multi_peer() = true`. In message logs, `remote=` shows the sender's IP and port.
+
+Unlike TCP, UDP does expose local port configuration via `bind_port`. Set it to a specific value when the remote side needs a known port to send to, or leave it as 0 for an OS-assigned ephemeral port.
 
 Properties: `is_stream_oriented() = false`.
 
@@ -164,6 +193,8 @@ enum class Parity      { None, Odd, Even };
 enum class StopBits    { One, Two };
 enum class FlowControl { None, Hardware, Software };
 ```
+
+In message logs, `remote=` shows the device path (e.g., `remote=COM3` or `remote=/dev/ttyUSB0`).
 
 Properties: `is_stream_oriented() = true`, `is_multi_peer() = false`.
 
@@ -224,6 +255,20 @@ Set `enabled = false` to disable reconnection entirely. Set `max_attempts = 0` f
 | High-throughput LAN protocol | UDP | Lower latency, no head-of-line blocking |
 | Protocols with sync words/length headers | TCP or Serial | Stream framing handles reassembly |
 | Protocols where each packet = one message | UDP | No framing overhead |
+
+## Remote Endpoint in Logs
+
+Each transport reports a `remote=` field in message logs identifying the other side of the connection:
+
+| Transport | `remote=` Shows | Example | Stable? |
+|-----------|-----------------|---------|---------|
+| TCP Client | Configured server address | `remote=10.0.1.5:5000` | Yes (from config) |
+| TCP Server | Client's IP + ephemeral port | `remote=192.168.1.5:60630` | No (changes per connection) |
+| UDP (single) | Configured remote address | `remote=10.0.1.5:4000` | Yes (from config) |
+| UDP (multi) | Sender's IP + port | `remote=10.0.1.5:50123` | Depends on sender |
+| Serial | Device path | `remote=COM3` | Yes (from config) |
+
+For TCP server, the ephemeral port identifies a specific TCP connection, not a stable client identity. If a client disconnects and reconnects, it will get a new ephemeral port.
 
 ## See Also
 

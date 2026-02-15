@@ -17,9 +17,9 @@
   I090 is included but not used.
 
   I100 variant structures (standalone types, decoded by application):
-    - Cat253Multipath     (START INDEX TBD)
-    - Cat253Squitter      (START INDEX TBD)
-    - Cat253BitReport     (START INDEX TBD)
+    - Cat253Multipath     (START INDEX 0x0005)
+    - Cat253Squitter      (START INDEX 0x0006)
+    - Cat253BitReport     (START INDEX 0x0023)
 -->
 <bmdl version="2.0">
   <import href="types.bmdl.xml"/>
@@ -84,7 +84,9 @@
     <type name="cat253-mp-level" base="uint" bits="4">
       <doc>Multipath level (LSB = 1 dB, range 0-6 dB)</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -104,14 +106,16 @@
     <type name="cat253-sq-ms-squitter" base="uint" bits="1">
       <doc>Mode S Squitter</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
       </enum>
     </type>
 
     <type name="cat253-sq-m5-squitter" base="uint" bits="1">
       <doc>Mode 5 Squitter</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
       </enum>
     </type>
 
@@ -123,14 +127,18 @@
     <type name="cat253-br-bit-type" base="uint" bits="4">
       <doc>BIT Type</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-success-state" base="uint" bits="4">
       <doc>Success State</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -138,14 +146,18 @@
     <type name="cat253-br-antenna-general" base="uint" bits="4">
       <doc>Antenna General Response</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-antenna-scan-error" base="uint" bits="4">
       <doc>Antenna Scan Error</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -153,7 +165,9 @@
     <type name="cat253-br-power-source-general" base="uint" bits="4">
       <doc>Power Source General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -161,28 +175,36 @@
     <type name="cat253-br-ctrl-unit-general" base="uint" bits="2">
       <doc>Control Unit General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-kb-crypto-comm" base="uint" bits="2">
       <doc>KB Crypto Communication</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-kb-rtc" base="uint" bits="2">
       <doc>KB RTC</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-kb-heat-warning" base="uint" bits="2">
       <doc>KB Heat Warning</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -190,21 +212,27 @@
     <type name="cat253-br-bottom-band-general" base="uint" bits="4">
       <doc>General Bottom Band</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-tb-ctrl-comm" base="uint" bits="2">
       <doc>TB Control Unit Communication</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-tb-config-upload" base="uint" bits="2">
       <doc>TB Config Upload</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -212,28 +240,36 @@
     <type name="cat253-br-vswr-general" base="uint" bits="2">
       <doc>VSWR General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-vswr-sum" base="uint" bits="2">
       <doc>VSWR Sum</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-vswr-diff" base="uint" bits="2">
       <doc>VSWR Difference</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-vswr-omni" base="uint" bits="2">
       <doc>VSWR Omni</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -241,14 +277,18 @@
     <type name="cat253-br-afb-general" base="uint" bits="4">
       <doc>AFB General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-afb-main-synth" base="uint" bits="2">
       <doc>AFB Main Synthesizer</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -256,28 +296,36 @@
     <type name="cat253-br-afb-bit-synth" base="uint" bits="2">
       <doc>AFB BIT Synthesizer</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-afb-total-ch" base="uint" bits="2">
       <doc>AFB Total Channel</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-afb-diff-ch" base="uint" bits="2">
       <doc>AFB Difference Channel</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-afb-omni-ch" base="uint" bits="2">
       <doc>AFB Omni Channel</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -285,21 +333,27 @@
     <type name="cat253-br-rfgyb-general" base="uint" bits="4">
       <doc>RFGYB General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-rfgyb-total-pwr" base="uint" bits="2">
       <doc>RFGYB Total Output Power</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-rfgyb-diff-pwr" base="uint" bits="2">
       <doc>RFGYB Difference Output Power</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -307,21 +361,27 @@
     <type name="cat253-br-rfgyb-omni-pwr" base="uint" bits="2">
       <doc>RFGYB Omni Output Power</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-rfgyb-heat-warning" base="uint" bits="2">
       <doc>RFGYB Heat Warning</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
     <type name="cat253-br-crypto-general" base="uint" bits="4">
       <doc>Crypto General</doc>
       <enum>
-        <value id="0" name="tbd"/>
+        <value id="0" name="ok"/>
+        <value id="1" name="error"/>
+        <value id="2" name="unknown"/>
       </enum>
     </type>
 
@@ -526,8 +586,8 @@
     </struct>
 
     <!-- ===================================================================
-         I100 Variant Structs (standalone, decoded by application using
-         START INDEX from I080)
+         I100 Variant Structs (standalone, decoded by application)
+         Dispatch by I080 start-index: 0x0005=Multipath, 0x0006=Squitter, 0x0023=BitReport
          =================================================================== -->
 
     <!-- =======================================================================
@@ -770,12 +830,20 @@
         </field>
 
         <!-- FRN 12: I253/100 - Transparent Application Data 1 -->
+        <!-- Dispatch by I080 start-index: 5=Multipath, 6=Squitter, 35=BitReport -->
         <struct name="i100" bit="11">
           <doc>I253/100 - Transparent Application Data 1</doc>
-          <field name="len" type="uint8">
-            <doc>Length of I100 including this length byte</doc>
+          <field name="len" type="uint8" auto="length">
+              <doc>Length of I100 including this length byte</doc>
           </field>
-          <field name="data" type="bytes" length-from="len - 1"/>
+          <choice name="payload" switch="i080.start-index">
+            <case name="multipath" value="0x05" type="Cat253Multipath"/>
+            <case name="squitter" value="0x06" type="Cat253Squitter"/>
+            <case name="bit-report" value="0x23" type="Cat253BitReport"/>
+            <otherwise name="unknown">
+              <field name="data" type="bytes" length-from="len - 1"/>
+            </otherwise>
+          </choice>
         </struct>
 
         <!-- FRN 13: SP - Special Purpose Field -->

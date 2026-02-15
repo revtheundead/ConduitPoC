@@ -6,12 +6,11 @@
 //              Uses asterix namespace (client perspective: Downlink=receive, Uplink=send)
 //
 // Usage:
-//   dummy_peer server [--port N]       (default port 5000)
-//   dummy_peer client [host] [port]    (default 127.0.0.1 5000)
+//   dummy_peer server [--port N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]
+//   dummy_peer client [host] [port] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]
 
 #include "random_asterix.hpp"
 #include "random_asterix_alt.hpp"
-#include "message_logger.hpp"
 #include <conduit/transceiver/transceiver_all.hpp>
 #include <atomic>
 #include <chrono>
@@ -50,132 +49,139 @@ static void install_signal_handler() {
 
 // ── Handlers ────────────────────────────────────────────────────────────────
 
-static void register_server_handlers(Transceiver& tx, std::shared_ptr<MessageLogger> recv_log) {
-    // Server receives Cat007UplinkRecord (asterix_alt: receive-only)
-    tx.on<asterix_alt::Cat007UplinkRecord>([recv_log](const asterix_alt::Cat007UplinkRecord& msg) {
+static void register_server_handlers(Transceiver& tx) {
+    tx.on<asterix_alt::Cat007UplinkRecord>([](const asterix_alt::Cat007UplinkRecord&) {
         std::cout << "[RECV] Cat007UplinkRecord\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix_alt::Cat021Record>([recv_log](const asterix_alt::Cat021Record& msg) {
+    tx.on<asterix_alt::Cat021Record>([](const asterix_alt::Cat021Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix_alt::Cat048Record>([recv_log](const asterix_alt::Cat048Record& msg) {
+    tx.on<asterix_alt::Cat048Record>([](const asterix_alt::Cat048Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix_alt::Cat253Record>([recv_log](const asterix_alt::Cat253Record& msg) {
+    tx.on<asterix_alt::Cat253Record>([](const asterix_alt::Cat253Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
 }
 
-static void register_client_handlers(Transceiver& tx, std::shared_ptr<MessageLogger> recv_log) {
-    // Client receives Cat007DownlinkRecord (asterix: receive-only)
-    tx.on<asterix::Cat007DownlinkRecord>([recv_log](const asterix::Cat007DownlinkRecord& msg) {
+static void register_client_handlers(Transceiver& tx) {
+    tx.on<asterix::Cat007DownlinkRecord>([](const asterix::Cat007DownlinkRecord&) {
         std::cout << "[RECV] Cat007DownlinkRecord\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat021Record>([recv_log](const asterix::Cat021Record& msg) {
+    tx.on<asterix::Cat021Record>([](const asterix::Cat021Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat048Record>([recv_log](const asterix::Cat048Record& msg) {
+    tx.on<asterix::Cat048Record>([](const asterix::Cat048Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat253Record>([recv_log](const asterix::Cat253Record& msg) {
+    tx.on<asterix::Cat253Record>([](const asterix::Cat253Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
 }
 
 // ── Send helpers ────────────────────────────────────────────────────────────
 
 // Server sends: Cat007Downlink, Cat021, Cat048, Cat253 (asterix_alt namespace)
-static void send_server_message(Transceiver& tx, std::mt19937& rng, MessageLogger& send_log) {
+static void send_server_message(Transceiver& tx, std::mt19937& rng) {
     std::uniform_int_distribution<int> dist(0, 3);
     conduit::VoidResult result;
     switch (dist(rng)) {
     case 0: {
         auto msg = random_asterix_alt::random_cat007_downlink(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 1: {
         auto msg = random_asterix_alt::random_cat021(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 2: {
         auto msg = random_asterix_alt::random_cat048(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 3: {
         auto msg = random_asterix_alt::random_cat253(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     }
     if (!result) {
-        std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
+        auto code = result.error().code();
+        if (code == conduit::ErrorCode::DirectionViolation)
+            std::cerr << "[SEND BLOCKED] " << result.error().message() << "\n";
+        else if (code == conduit::ErrorCode::EncodeConstraintViolation)
+            std::cerr << "[SEND REJECTED] " << result.error().message() << "\n";
+        else
+            std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
     }
 }
 
 // Client sends: Cat007Uplink, Cat021, Cat048, Cat253 (asterix namespace)
-static void send_client_message(Transceiver& tx, std::mt19937& rng, MessageLogger& send_log) {
+static void send_client_message(Transceiver& tx, std::mt19937& rng) {
     std::uniform_int_distribution<int> dist(0, 3);
     conduit::VoidResult result;
     switch (dist(rng)) {
     case 0: {
         auto msg = random_asterix::random_cat007_uplink(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 1: {
         auto msg = random_asterix::random_cat021(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 2: {
         auto msg = random_asterix::random_cat048(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     case 3: {
         auto msg = random_asterix::random_cat253(rng);
         std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-        send_log.log("SEND", msg);
         result = tx.send(msg);
         break;
     }
     }
     if (!result) {
-        std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
+        auto code = result.error().code();
+        if (code == conduit::ErrorCode::DirectionViolation)
+            std::cerr << "[SEND BLOCKED] " << result.error().message() << "\n";
+        else if (code == conduit::ErrorCode::EncodeConstraintViolation)
+            std::cerr << "[SEND REJECTED] " << result.error().message() << "\n";
+        else
+            std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
     }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+
+static void print_stats(const Transceiver& tx) {
+    auto s = tx.stats().snapshot();
+    std::cout << "[STATS] received=" << s.messages_received << "\n"
+              << " dispatched=" << s.messages_dispatched << "\n"
+              << " dropped=" << s.messages_dropped << "\n"
+              << " decode_errors=" << s.decode_errors << "\n"
+              << " handler_errors=" << s.handler_errors << "\n"
+              << " bytes_rx=" << s.bytes_received << "\n"
+              << " bytes_tx=" << s.bytes_sent << "\n\n";
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
 static void print_usage() {
     std::cerr << "Usage:\n"
-              << "  dummy_peer server [--port N]           (default port 5000)\n"
-              << "  dummy_peer client [host] [port]        (default 127.0.0.1 5000)\n";
+              << "  dummy_peer server [--port N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]\n"
+              << "  dummy_peer client [host] [port] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -197,29 +203,45 @@ int main(int argc, char* argv[]) {
     install_signal_handler();
 
     int interval_ms = 1000;
+    std::string log_dir = "./logs";
+    std::string log_prefix;  // default set per mode below
+
+    // Parse common options from all args
+    for (int i = 2; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--interval-ms" && i + 1 < argc) {
+            interval_ms = std::atoi(argv[++i]);
+        } else if (a == "--log-dir" && i + 1 < argc) {
+            log_dir = argv[++i];
+        } else if (a == "--log-prefix" && i + 1 < argc) {
+            log_prefix = argv[++i];
+        }
+    }
 
     if (is_server) {
         uint16_t port = 5000;
         for (int i = 2; i < argc; ++i) {
             if (std::string(argv[i]) == "--port" && i + 1 < argc) {
                 port = static_cast<uint16_t>(std::atoi(argv[++i]));
-            } else if (std::string(argv[i]) == "--interval-ms" && i + 1 < argc) {
-                interval_ms = std::atoi(argv[++i]);
             }
         }
+        if (log_prefix.empty()) log_prefix = "server";
 
         std::cout << "[dummy_peer] Server mode on port " << port
                   << " (interval=" << interval_ms << "ms)\n";
 
         TransceiverConfig cfg;
+        cfg.message_log.enabled = true;
+        cfg.message_log.mode = MessageLogMode::SeparateDirection;
+        cfg.message_log.output = MessageLogOutput::File;
+        cfg.message_log.directory = log_dir;
+        cfg.message_log.prefix = log_prefix;
         cfg.add_peer("clients",
                      asterix_alt::create_asterix_data_block_session,
                      transport::TcpServerConfig{.bind_address = "0.0.0.0", .port = port});
 
         Transceiver tx(std::move(cfg));
-        auto recv_log = std::make_shared<MessageLogger>("server_received.log");
-        MessageLogger send_log("server_sent.log");
-        register_server_handlers(tx, recv_log);
+        register_server_handlers(tx);
 
         (void)tx.on_state_change([](PeerId peer, conduit::net::ConnectionState state) {
             std::cout << "[STATE] peer=" << peer.value() << " -> "
@@ -238,24 +260,29 @@ int main(int argc, char* argv[]) {
         while (g_running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms));
             if (!g_running) break;
-            send_server_message(tx, rng, send_log);
+            send_server_message(tx, rng);
         }
 
         std::cout << "[dummy_peer] Stopping...\n";
         tx.stop();
+        print_stats(tx);
 
     } else {
         // Client mode (same perspective as poc_app)
         std::string host = "127.0.0.1";
         uint16_t port = 5000;
+        if (log_prefix.empty()) log_prefix = "client";
 
+        // Parse positional args (host, port) — skip flag args
         for (int i = 2; i < argc; ++i) {
             std::string arg = argv[i];
-            if (arg == "--interval-ms" && i + 1 < argc) {
-                interval_ms = std::atoi(argv[++i]);
-            } else if (i == 2) {
+            if (arg.starts_with("--")) {
+                ++i;  // skip flag value
+                continue;
+            }
+            if (host == "127.0.0.1") {
                 host = arg;
-            } else if (i == 3) {
+            } else if (port == 5000) {
                 port = static_cast<uint16_t>(std::atoi(argv[i]));
             }
         }
@@ -264,14 +291,17 @@ int main(int argc, char* argv[]) {
                   << " (interval=" << interval_ms << "ms)\n";
 
         TransceiverConfig cfg;
+        cfg.message_log.enabled = true;
+        cfg.message_log.mode = MessageLogMode::SeparateDirection;
+        cfg.message_log.output = MessageLogOutput::File;
+        cfg.message_log.directory = log_dir;
+        cfg.message_log.prefix = log_prefix;
         cfg.add_peer("server",
                      asterix::create_asterix_data_block_session,
-                     transport::TcpClientConfig{.host = host, .port = port, .reconnect = {}});
+                     transport::TcpClientConfig{.host = host, .port = port});
 
         Transceiver tx(std::move(cfg));
-        auto recv_log = std::make_shared<MessageLogger>("client_received.log");
-        MessageLogger send_log("client_sent.log");
-        register_client_handlers(tx, recv_log);
+        register_client_handlers(tx);
 
         (void)tx.on_state_change([](PeerId peer, conduit::net::ConnectionState state) {
             std::cout << "[STATE] peer=" << peer.value() << " -> "
@@ -290,11 +320,12 @@ int main(int argc, char* argv[]) {
         while (g_running) {
             std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms));
             if (!g_running) break;
-            send_client_message(tx, rng, send_log);
+            send_client_message(tx, rng);
         }
 
         std::cout << "[dummy_peer] Stopping...\n";
         tx.stop();
+        print_stats(tx);
     }
 
     std::cout << "[dummy_peer] Done.\n";

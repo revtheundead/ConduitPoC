@@ -12,7 +12,7 @@ bgen processes a BMDL protocol definition in six stages:
 2. **Resolve Types** -- Build a `TypeIndex` for O(1) lookups, validate all type references
 3. **Validate** -- Check all BMDL spec rules (field sizes, constraint consistency, etc.)
 4. **Compute Wire Sizes** -- Determine fixed vs dynamic wire sizes for all structs/messages
-5. **Analyze Sessions** -- Discover entry-points, leaf types, sync patterns, context fields
+5. **Analyze Sessions** -- Discover frames, leaf types, sync patterns, auto fields
 6. **Generate Code** -- Emit 7 C++ header files into the output directory
 
 Each of the first three stages may accumulate errors within itself; if a stage fails, its errors are reported and bgen exits with a non-zero code. Stages 4-5 always succeed given valid input. Stage 6 can fail only with filesystem errors.
@@ -23,20 +23,29 @@ Given a minimal BMDL file `my-protocol.bmdl.xml`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="my-protocol" version="1.0">
-  <defaults><endian>big</endian></defaults>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>my-protocol</namespace>
+  </defaults>
+
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
   </types>
+
+  <frame name="MyFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
   <messages>
-    <message name="Heartbeat">
+    <message id="1" name="Heartbeat">
       <field name="sequence" type="uint16"/>
       <field name="status" type="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>
 ```
 
@@ -53,8 +62,8 @@ This produces 7 files in `generated/`:
 | `constants.hpp` | Named constants (`inline constexpr`) |
 | `types.hpp` | Type wrappers (enums, flags, scaled, constrained, strings) |
 | `structs.hpp` | Struct classes with encode/decode |
-| `messages.hpp` | Message classes with `TYPE_ID`, `encode_bytes()`, `decode_bytes()`, `wrap()` |
-| `sessions.hpp` | Session classes implementing `ISession` for entry-point dispatch |
+| `messages.hpp` | Message classes with `TYPE_ID`, `encode_bytes()`, `decode_bytes()`; Frame class with `wrap()` |
+| `sessions.hpp` | Session classes implementing `ISession` for frame-based dispatch |
 | `protocol.hpp` | `ProtocolDescriptor` with type registry and session factory |
 | `my-protocol.hpp` | Umbrella header that includes all of the above |
 

@@ -58,6 +58,7 @@ enum class ErrorCode {
     InvalidConfig = 404,
     MultiplePeers = 405,
     UnsupportedMessageType = 406,
+    BatchNotSupported = 407,       // Session does not support batch encoding
 
     // Internal errors (900-999)
     InternalError = 900,

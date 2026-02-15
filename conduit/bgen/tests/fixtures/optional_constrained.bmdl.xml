@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>optional_constrained</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="OptConstMsg">
+      <field name="flags" type="uint8"/>
+      <field name="quality" type="uint8" present-when="flags &amp; 0x01">
+        <constraint min="0" max="100"/>
+      </field>
+      <field name="priority" type="uint8" present-when="flags &amp; 0x02">
+        <constraint min="1" max="10" validate="deferred"/>
+      </field>
+      <field name="data" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>present_when_complex</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <!-- Test present_when on ArrayDef and ChoiceDef -->
+    <struct name="Packet">
+      <field name="flags" type="uint8"/>
+      <field name="count" type="uint8"/>
+
+      <!-- Array with present_when -->
+      <array name="items" type="uint16" count-from="count" present-when="flags &amp; 0x01"/>
+
+      <!-- Choice with present_when -->
+      <choice name="extra" switch="flags &amp; 0xF0" present-when="flags &amp; 0x02">
+        <case value="0x10" name="TypeA">
+          <field name="a-val" type="uint16"/>
+        </case>
+        <case value="0x20" name="TypeB">
+          <field name="b-val" type="uint8"/>
+        </case>
+      </choice>
+
+      <field name="trailer" type="uint8"/>
+    </struct>
+  </types>
+</bmdl>

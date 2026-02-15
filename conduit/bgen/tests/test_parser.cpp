@@ -20,8 +20,7 @@ TEST_CASE("Parse minimal BMDL file", "[parser]") {
     const auto& bmdl = *result;
     CHECK(bmdl.has_protocol);
     CHECK(bmdl.protocol_name == "minimal");
-    CHECK(bmdl.protocol_version == "1.0");
-    CHECK(bmdl.bmdl_version == "1.0");
+    CHECK(bmdl.bmdl_version == "2.0");
     CHECK(bmdl.types.size() == 2);
     CHECK(bmdl.messages.size() == 1);
     CHECK(bmdl.messages[0].name == "SimpleMessage");
@@ -32,50 +31,24 @@ TEST_CASE("Parse choice protocol BMDL file", "[parser]") {
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    CHECK(bmdl.protocol_name == "choice-test");
-    CHECK(bmdl.constants.size() == 3);
-    CHECK(bmdl.types.size() == 4); // uint8, uint16, uint32, msg-type
+    CHECK(bmdl.protocol_name == "choice_test");
+    CHECK(bmdl.constants.size() == 1); // SYNC
+    CHECK(bmdl.types.size() == 3); // uint8, uint16, uint32
 
-    // Find entry-point message
-    bool found_entry = false;
-    for (const auto& msg : bmdl.messages) {
-        if (msg.name == "Frame") {
-            found_entry = true;
-            CHECK(msg.is_entry_point);
-        }
-    }
-    CHECK(found_entry);
 }
 
-TEST_CASE("Parse choice with direction attributes", "[parser]") {
+TEST_CASE("Parse message direction attributes", "[parser]") {
     auto result = bgen::parser::parse_bmdl_file(fixture_path("choice_protocol.bmdl.xml"));
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    // Find the Frame message and its choice
-    for (const auto& msg : bmdl.messages) {
-        if (msg.name == "Frame") {
-            for (const auto& child : msg.children) {
-                if (auto* choice = std::get_if<bgen::model::ChoiceDef>(&child)) {
-                    CHECK(choice->name == "body");
-                    REQUIRE(choice->cases.size() == 2);
-                    // Alpha has no direction (Both)
-                    CHECK(choice->cases[0].direction == bgen::model::Direction::Both);
-                    // Beta has direction="receive"
-                    CHECK(choice->cases[1].direction == bgen::model::Direction::Receive);
-                }
-            }
-        }
-    }
-}
-
-TEST_CASE("Parse nested choice protocol", "[parser]") {
-    auto result = bgen::parser::parse_bmdl_file(fixture_path("nested_choice.bmdl.xml"));
-    REQUIRE(result.has_value());
-
-    const auto& bmdl = *result;
-    CHECK(bmdl.protocol_name == "nested-choice");
-    CHECK(bmdl.constants.size() == 4);
+    REQUIRE(bmdl.messages.size() == 2);
+    // AlphaBody has no direction (Both)
+    CHECK(bmdl.messages[0].name == "AlphaBody");
+    CHECK(bmdl.messages[0].direction == bgen::model::Direction::Both);
+    // BetaBody has direction="receive"
+    CHECK(bmdl.messages[1].name == "BetaBody");
+    CHECK(bmdl.messages[1].direction == bgen::model::Direction::Receive);
 }
 
 TEST_CASE("Parse annotations", "[parser]") {
@@ -83,14 +56,14 @@ TEST_CASE("Parse annotations", "[parser]") {
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    // AlphaBody struct should have a "group" annotation
+    // AlphaBody message should have a "group" annotation
     bool found_alpha = false;
-    for (const auto& sd : bmdl.structs) {
-        if (sd.name == "AlphaBody") {
+    for (const auto& md : bmdl.messages) {
+        if (md.name == "AlphaBody") {
             found_alpha = true;
-            REQUIRE(sd.annotations.size() == 1);
-            CHECK(sd.annotations[0].name == "group");
-            CHECK(sd.annotations[0].value == "control");
+            REQUIRE(md.annotations.size() == 1);
+            CHECK(md.annotations[0].name == "group");
+            CHECK(md.annotations[0].value == "control");
         }
     }
     CHECK(found_alpha);
@@ -101,7 +74,7 @@ TEST_CASE("Parse struct_features defaults and constants", "[parser]") {
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    CHECK(bmdl.protocol_name == "struct-features");
+    CHECK(bmdl.protocol_name == "struct_features");
     CHECK(bmdl.constants.size() == 2); // MAGIC, VERSION
 
     // Verify constants parsed correctly
@@ -224,15 +197,14 @@ TEST_CASE("Parse auto attribute", "[parser]") {
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    for (const auto& msg : bmdl.messages) {
-        if (msg.name == "Packet") {
-            for (const auto& child : msg.children) {
-                if (auto* f = std::get_if<bgen::model::Field>(&child)) {
-                    if (f->name == "seq") {
-                        REQUIRE(f->auto_attr.has_value());
-                        CHECK(*f->auto_attr == "increment");
-                    }
-                }
+    REQUIRE(bmdl.frames.size() == 1);
+    const auto& frame = bmdl.frames[0];
+    CHECK(frame.name == "Packet");
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<bgen::model::Field>(&child)) {
+            if (f->name == "seq") {
+                REQUIRE(f->auto_expr.has_value());
+                CHECK(f->auto_expr->kind == bgen::model::AutoKind::Increment);
             }
         }
     }
@@ -575,12 +547,12 @@ TEST_CASE("Parse initial attribute on field", "[parser]") {
 // ============================================================================
 
 TEST_CASE("Parse inline field attribute", "[parser]") {
-    auto result = bgen::parser::parse_bmdl_file(fixture_path("inline_struct.bmdl.xml"));
+    auto result = bgen::parser::parse_bmdl_file(fixture_path("invalid_inline_dup.bmdl.xml"));
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
     for (const auto& msg : bmdl.messages) {
-        if (msg.name == "Frame") {
+        if (msg.name == "Msg") {
             for (const auto& child : msg.children) {
                 if (auto* f = std::get_if<bgen::model::Field>(&child)) {
                     if (f->name == "hdr") {
@@ -591,22 +563,6 @@ TEST_CASE("Parse inline field attribute", "[parser]") {
             }
         }
     }
-}
-
-// ============================================================================
-// Multi-entry-point parsing
-// ============================================================================
-
-TEST_CASE("Parse multiple entry-point messages", "[parser]") {
-    auto result = bgen::parser::parse_bmdl_file(fixture_path("multi_entry.bmdl.xml"));
-    REQUIRE(result.has_value());
-
-    const auto& bmdl = *result;
-    int entry_count = 0;
-    for (const auto& msg : bmdl.messages) {
-        if (msg.is_entry_point) entry_count++;
-    }
-    CHECK(entry_count == 2);
 }
 
 // ============================================================================

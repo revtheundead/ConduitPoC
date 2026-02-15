@@ -164,7 +164,8 @@ void TcpClientTransport::Impl::io_loop() {
 
     // Obtain PeerId upfront so state notifications work from the start
     if (!peer_id.valid() && callbacks.on_peer_connected) {
-        peer_id = callbacks.on_peer_connected();
+        peer_id = callbacks.on_peer_connected(
+            std::format("{}:{}", config.host, config.port));
     }
 
     while (running) {

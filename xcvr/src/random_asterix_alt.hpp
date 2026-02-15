@@ -289,7 +289,34 @@ inline asterix_alt::Cat253Record random_cat253(std::mt19937& rng) {
     if (rand_bool(rng)) rand_fill_sequences(rng, it.mutable_i050());
     if (rand_bool(rng)) (void)it.mutable_i035();
     if (rand_bool(rng)) (void)it.mutable_i060();
-    if (rand_bool(rng)) (void)it.mutable_i080();
+    // I080 + I100 are linked: I100 choice dispatches on I080's start-index
+    if (rand_bool(rng)) {
+        int variant = std::uniform_int_distribution<int>(0, 2)(rng);
+        constexpr uint16_t start_indices[] = {5, 6, 35};
+
+        auto& i080 = it.mutable_i080();
+        i080.set_start_index(start_indices[variant]);
+        i080.set_count(rand_u8(rng));
+        i080.set_stale(rand_bool(rng) ? 1 : 0);
+        i080.set_sim(rand_bool(rng) ? 1 : 0);
+        i080.set_local_ctrl(rand_bool(rng) ? 1 : 0);
+        i080.set_data_included(1);
+
+        auto& i100 = it.mutable_i100();
+        switch (variant) {
+        case 0:
+            i100.set_payload(asterix_alt::Cat253Multipath{});
+            break;
+        case 1:
+            i100.set_payload(asterix_alt::Cat253Squitter{});
+            break;
+        case 2:
+            i100.set_payload(asterix_alt::Cat253BitReport{});
+            break;
+        }
+    } else if (rand_bool(rng)) {
+        (void)it.mutable_i080();
+    }
     if (rand_bool(rng)) (void)it.mutable_i090();
 
     return rec;

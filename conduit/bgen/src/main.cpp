@@ -246,7 +246,7 @@ int main(int argc, char* argv[]) {
     auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
 
     for (const auto& s : sessions) {
-        bgen::Logger::info("entry-point '" + s.entry_point_name + "' -> "
+        bgen::Logger::info("session '" + s.session_name + "' -> "
                   + std::to_string(s.leaf_types.size()) + " leaf types");
     }
 

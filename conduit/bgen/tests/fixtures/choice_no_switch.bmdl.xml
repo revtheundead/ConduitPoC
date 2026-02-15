@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="no-switch" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>no_switch</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <struct name="BodyA"><field name="x" type="uint8"/></struct>
@@ -11,5 +13,4 @@
       </choice>
     </message>
   </messages>
-</protocol>
 </bmdl>

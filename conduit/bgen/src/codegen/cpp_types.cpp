@@ -493,8 +493,7 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
         } else {
             ctx.line("char ch = static_cast<char>(*bits & ((1 << CHAR_BITS) - 1));");
         }
-        ctx.line("if (ch != 0 && ch != ' ') result.value_ += ch;");
-        ctx.line("else if (!result.value_.empty()) result.value_ += ch;");
+        ctx.line("result.value_ += ch;");
         ctx.dedent();
         ctx.line("}");
         emit_trim_code(ctx, "result.value_", t.trim);
@@ -527,7 +526,10 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
         ctx.line();
         {
             std::string pad_char = "'\\0'";
-            if (t.padding == model::StringPadding::Space) pad_char = "' '";
+            if (t.padding == model::StringPadding::Space) {
+                // EBCDIC space is 0x40; padding is applied after encoding conversion
+                pad_char = (t.encoding == model::StringEncoding::Ebcdic) ? "'\\x40'" : "' '";
+            }
             ctx.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
             ctx.indent();
             if (needs_encoding_conversion(t.encoding)) {

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="invalid-bcds-bits" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_bcds_bits</namespace>
+  </defaults>
   <types>
     <!-- BCD_S requires (bits-1) divisible by 4 and bits >= 5; 8 fails: (8-1)=7 not div by 4 -->
     <type name="bad-bcds" base="int" bits="8" wire-encoding="bcd-s"/>
@@ -10,5 +12,4 @@
       <field name="val" type="bad-bcds"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

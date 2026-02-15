@@ -201,8 +201,8 @@ TEST_CASE("Minimal protocol with only imports", "[imports]") {
     REQUIRE(build_result.has_value());
     auto& protocol = *build_result;
 
-    CHECK(protocol.name == "minimal-test");
-    CHECK(protocol.version == "1.0");
+    CHECK(protocol.name == "minimal_test");
+    CHECK(protocol.version == "2.0");
     // All definitions come from imports
     CHECK(!protocol.structs.empty());
     CHECK(!protocol.messages.empty());
@@ -304,7 +304,6 @@ TEST_CASE("Entry-point in library file discovered", "[imports]") {
     bool found = false;
     for (const auto& m : protocol.messages) {
         if (m.name == "LibEntryMsg") {
-            CHECK(m.is_entry_point);
             found = true;
             break;
         }
@@ -349,23 +348,6 @@ TEST_CASE("Empty library produces warning", "[imports]") {
     CHECK(found_warning);
 }
 
-TEST_CASE("No entry-point warning for multi-file protocol", "[imports]") {
-    auto build_result = bgen::model::build_protocol(import_fixture_path("minimal_protocol.bmdl.xml"));
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    // minimal_protocol imports libraries with messages but no entry-point
-    CHECK(!protocol.messages.empty());
-    bool found_warning = false;
-    for (const auto& w : protocol.warnings) {
-        if (w.first.find("no message with role=\"entry-point\" found") != std::string::npos) {
-            found_warning = true;
-            break;
-        }
-    }
-    CHECK(found_warning);
-}
-
 TEST_CASE("Full pipeline with library entry-point", "[imports]") {
     auto build_result = bgen::model::build_protocol(import_fixture_path("entry_point_protocol.bmdl.xml"));
     REQUIRE(build_result.has_value());
@@ -377,5 +359,5 @@ TEST_CASE("Full pipeline with library entry-point", "[imports]") {
 
     auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
     REQUIRE(!sessions.empty());
-    CHECK(sessions[0].entry_point_name == "LibEntryMsg");
+    CHECK(sessions[0].session_name == "LibEntryFrame");
 }

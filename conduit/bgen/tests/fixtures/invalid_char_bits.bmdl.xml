@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-char-bits" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_char_bits</namespace>
+  </defaults>
   <types>
     <!-- char-bits out of range -->
     <type name="bad-packed" base="string" length="8" char-bits="10"/>
@@ -9,5 +11,4 @@
       <field name="text" type="bad-packed"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

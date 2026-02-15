@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="constraint-range-64bit" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>constraint_range_64bit</namespace>
+  </defaults>
   <types>
     <type name="uint64" base="uint" bits="64"/>
     <type name="int64" base="int" bits="64"/>
@@ -21,6 +22,4 @@
       </field>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

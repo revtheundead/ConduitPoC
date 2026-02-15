@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="expr-features" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>expr_features</namespace>
+  </defaults>
   <constants>
     <const name="HEADER_SIZE" type="uint8" value="4"/>
     <const name="TYPE_A" type="uint8" value="1"/>
@@ -57,5 +59,4 @@
       <field name="payload" type="uint8" length-from="remaining"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

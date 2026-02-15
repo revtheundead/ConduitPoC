@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="invalid-constant-range" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_constant_range</namespace>
+  </defaults>
   <types>
     <type name="uint4" base="uint" bits="4"/>
   </types>
@@ -16,6 +17,4 @@
       <field name="value" type="uint4"/>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

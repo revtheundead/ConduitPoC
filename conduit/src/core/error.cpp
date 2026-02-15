@@ -56,6 +56,7 @@ ErrorSeverity Error::severity() const noexcept {
     if (v >= 200 && v < 300) return ErrorSeverity::Warning;   // Encode
     if (v >= 300 && v < 400) return ErrorSeverity::Error;     // Connection
     if (v >= 400 && v < 500) return ErrorSeverity::Error;     // Transceiver
+    if (code_ == ErrorCode::Timeout) return ErrorSeverity::Error;  // Timeout (special case)
     if (v >= 900)            return ErrorSeverity::Critical;   // Internal
     return ErrorSeverity::Error;
 }
@@ -156,6 +157,7 @@ std::string_view Error::code_to_string(ErrorCode code) noexcept {
         case ErrorCode::InvalidConfig:          return "INVALID_CONFIG";
         case ErrorCode::MultiplePeers:          return "MULTIPLE_PEERS";
         case ErrorCode::UnsupportedMessageType: return "UNSUPPORTED_MESSAGE_TYPE";
+        case ErrorCode::BatchNotSupported:      return "BATCH_NOT_SUPPORTED";
 
         // Internal
         case ErrorCode::InternalError:    return "INTERNAL_ERROR";

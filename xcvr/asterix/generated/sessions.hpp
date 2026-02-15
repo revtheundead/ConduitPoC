@@ -7,6 +7,7 @@
 #include <any>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -20,12 +21,14 @@ public:
         auto frame = AsterixDataBlock::decode_bytes(data);
         if (!frame) return std::unexpected(frame.error());
         std::vector<conduit::traits::DecodedMessage> messages;
+        std::vector<uint8_t> raw_copy(data.begin(), data.end());
         for (const auto& item : frame->payload()) {
-            std::visit([&messages](const auto& msg) {
+            std::visit([&messages, &raw_copy](const auto& msg) {
                 conduit::traits::DecodedMessage dm;
                 dm.type_id = std::decay_t<decltype(msg)>::TYPE_ID;
                 dm.type_name = std::decay_t<decltype(msg)>::TYPE_NAME;
                 dm.payload = msg;
+                dm.raw = raw_copy;
                 messages.push_back(std::move(dm));
             }, item);
         }
@@ -68,6 +71,69 @@ public:
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat253Record"));
             auto frame = AsterixDataBlock::wrap(*msg);
+            return frame.encode_bytes();
+        } else {
+            return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownTypeId,
+                "unknown type_id: " + std::to_string(type_id)));
+        }
+    }
+
+    [[nodiscard]] conduit::Result<std::vector<uint8_t>>
+    encode_batch(uint64_t type_id, std::span<const std::any> payloads) override {
+        if (type_id == 0x526296abfa532d01ULL) {
+            AsterixDataBlock frame;
+            frame.set_cat(Cat007DownlinkRecord::ID_VALUE);
+            frame.payload().reserve(payloads.size());
+            for (const auto& p : payloads) {
+                auto* msg = std::any_cast<Cat007DownlinkRecord>(&p);
+                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat007DownlinkRecord"));
+                frame.payload().push_back(*msg);
+            }
+            return frame.encode_bytes();
+        } else if (type_id == 0x8d0fb175aeb7de98ULL) {
+            AsterixDataBlock frame;
+            frame.set_cat(Cat007UplinkRecord::ID_VALUE);
+            frame.payload().reserve(payloads.size());
+            for (const auto& p : payloads) {
+                auto* msg = std::any_cast<Cat007UplinkRecord>(&p);
+                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat007UplinkRecord"));
+                frame.payload().push_back(*msg);
+            }
+            return frame.encode_bytes();
+        } else if (type_id == 0xd597a1ab87dbb779ULL) {
+            AsterixDataBlock frame;
+            frame.set_cat(Cat021Record::ID_VALUE);
+            frame.payload().reserve(payloads.size());
+            for (const auto& p : payloads) {
+                auto* msg = std::any_cast<Cat021Record>(&p);
+                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat021Record"));
+                frame.payload().push_back(*msg);
+            }
+            return frame.encode_bytes();
+        } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
+            AsterixDataBlock frame;
+            frame.set_cat(Cat048Record::ID_VALUE);
+            frame.payload().reserve(payloads.size());
+            for (const auto& p : payloads) {
+                auto* msg = std::any_cast<Cat048Record>(&p);
+                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat048Record"));
+                frame.payload().push_back(*msg);
+            }
+            return frame.encode_bytes();
+        } else if (type_id == 0x7f7b50444b289e0eULL) {
+            AsterixDataBlock frame;
+            frame.set_cat(Cat253Record::ID_VALUE);
+            frame.payload().reserve(payloads.size());
+            for (const auto& p : payloads) {
+                auto* msg = std::any_cast<Cat253Record>(&p);
+                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat253Record"));
+                frame.payload().push_back(*msg);
+            }
             return frame.encode_bytes();
         } else {
             return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownTypeId,
@@ -119,6 +185,30 @@ public:
             case 0x526296abfa532d01ULL: return true; // Cat007DownlinkRecord
         }
         return false;
+    }
+
+    [[nodiscard]] std::string_view protocol_name() const override {
+        return "asterix";
+    }
+
+    [[nodiscard]] std::string format_message(uint64_t type_id, const std::any& payload) const override {
+        if (type_id == 0x526296abfa532d01ULL) {
+            auto* m = std::any_cast<Cat007DownlinkRecord>(&payload);
+            return m ? m->to_string() : std::string{};
+        } else if (type_id == 0x8d0fb175aeb7de98ULL) {
+            auto* m = std::any_cast<Cat007UplinkRecord>(&payload);
+            return m ? m->to_string() : std::string{};
+        } else if (type_id == 0xd597a1ab87dbb779ULL) {
+            auto* m = std::any_cast<Cat021Record>(&payload);
+            return m ? m->to_string() : std::string{};
+        } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
+            auto* m = std::any_cast<Cat048Record>(&payload);
+            return m ? m->to_string() : std::string{};
+        } else if (type_id == 0x7f7b50444b289e0eULL) {
+            auto* m = std::any_cast<Cat253Record>(&payload);
+            return m ? m->to_string() : std::string{};
+        }
+        return {};
     }
 
     void reset() override {

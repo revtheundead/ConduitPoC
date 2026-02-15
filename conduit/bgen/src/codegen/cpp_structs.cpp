@@ -29,6 +29,10 @@ void emit_frame_field_write(EmitContext& ctx, const model::Field& f,
         // Write zero placeholder for backpatching
         FieldTypeInfo zero_fti = fti;
         emit_write_stmt(ctx, "0", zero_fti, f.endian);
+    } else if (f.constraint && f.constraint->equals) {
+        // Constraint-equals: always write the constraint value (e.g., sync words)
+        std::string cast_val = "static_cast<" + storage_type_for_bits(fti.bits, fti.is_signed) + ">(" + *f.constraint->equals + ")";
+        emit_write_stmt(ctx, cast_val, fti, f.endian);
     } else {
         std::string value = member;
         // Enum fields: cast to underlying storage for write
@@ -53,6 +57,8 @@ void emit_frame_field_read(EmitContext& ctx, const model::Field& f,
     } else {
         ctx.line("result." + member + " = *" + var + ";");
     }
+    // constraint-equals fields (e.g., sync words) are encode-only constraints.
+    // Frame::decode reads the value but does not validate it.
 }
 
 // Emit the length backpatch after payload and footer encoding
@@ -60,7 +66,7 @@ void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
                                  const FieldTypeInfo& fti) {
     std::string length_expr = "w.size_bytes()";
     if (f.auto_expr->offset != 0) {
-        length_expr = "w.size_bytes() + (" + std::to_string(f.auto_expr->offset) + ")";
+        length_expr = "static_cast<size_t>(static_cast<ptrdiff_t>(w.size_bytes()) + (" + std::to_string(f.auto_expr->offset) + "))";
     }
     std::string cast_type = storage_type_for_bits(fti.bits, false);
     std::string patch_call;
@@ -79,7 +85,8 @@ void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
 
 void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
                       const analyzer::TypeIndex& index,
-                      const analyzer::SessionInfo& session) {
+                      const analyzer::SessionInfo& session,
+                      const std::string& ns) {
     std::string class_name = to_cpp_type_name(frame.name);
 
     // Build payload variant type list (all leaf message types)
@@ -139,6 +146,16 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         ctx.line("static " + class_name + " wrap(const " + msg_type + "& msg) {");
         ctx.indent();
         ctx.line(class_name + " frame;");
+        // Set constraint-equals header fields (e.g., sync words)
+        for (const auto& child : frame.header_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint && f->constraint->equals) {
+                    auto fti = resolve_field_type(*f, index);
+                    ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
+                             fti.cpp_type + ">(" + *f->constraint->equals + ");");
+                }
+            }
+        }
         // Set id field from message's ID_VALUE
         if (!session.id_field_name.empty()) {
             ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
@@ -152,6 +169,40 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         ctx.dedent();
         ctx.line("}");
         ctx.line();
+    }
+
+    // Batch wrap() overloads — one per message type (array-payload only)
+    if (session.payload_is_array) {
+        for (const auto& lt : session.leaf_types) {
+            std::string msg_type = to_cpp_type_name(lt.name);
+            ctx.line("static " + class_name + " wrap(std::span<const " + msg_type + "> msgs) {");
+            ctx.indent();
+            ctx.line(class_name + " frame;");
+            // Set constraint-equals header fields (e.g., sync words)
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    if (f->constraint && f->constraint->equals) {
+                        auto fti = resolve_field_type(*f, index);
+                        ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
+                                 fti.cpp_type + ">(" + *f->constraint->equals + ");");
+                    }
+                }
+            }
+            if (!session.id_field_name.empty()) {
+                ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
+            }
+            ctx.line("if (!msgs.empty()) {");
+            ctx.indent();
+            ctx.line("frame.payload_.reserve(msgs.size());");
+            ctx.line("for (const auto& m : msgs)");
+            ctx.line("    frame.payload_.push_back(m);");
+            ctx.dedent();
+            ctx.line("}");
+            ctx.line("return frame;");
+            ctx.dedent();
+            ctx.line("}");
+            ctx.line();
+        }
     }
 
     // encode()
@@ -242,6 +293,27 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         }
     }
 
+    // Collect header/footer field member names for copying into messages
+    std::vector<std::string> header_members;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            header_members.push_back(to_member_name(f->name));
+        }
+    }
+    std::vector<std::string> footer_members;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            footer_members.push_back(to_member_name(f->name));
+        }
+    }
+
+    // Helper: emit statements to copy header frame fields into payload_val_
+    auto emit_copy_header = [&]() {
+        for (const auto& m : header_members) {
+            ctx.line("payload_val_->" + m + " = result." + m + ";");
+        }
+    };
+
     // Dispatch on id value
     if (session.payload_is_array) {
         // Array payload: read until payload bytes are exhausted.
@@ -277,6 +349,7 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             ctx.indent();
             ctx.line("auto payload_val_ = " + msg_type + "::decode(" + reader_name + ");");
             ctx.line("if (!payload_val_) return std::unexpected(payload_val_.error());");
+            emit_copy_header();
             ctx.line("result.payload_.push_back(std::move(*payload_val_));");
             ctx.line("break;");
             ctx.dedent();
@@ -315,6 +388,7 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             ctx.indent();
             ctx.line("auto payload_val_ = " + msg_type + "::decode(r);");
             ctx.line("if (!payload_val_) return std::unexpected(payload_val_.error());");
+            emit_copy_header();
             ctx.line("result.payload_ = std::move(*payload_val_);");
             ctx.line("break;");
             ctx.dedent();
@@ -335,6 +409,31 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         if (auto* f = std::get_if<model::Field>(&child)) {
             auto fti = resolve_field_type(*f, index);
             emit_frame_field_read(ctx, *f, fti, index);
+        }
+    }
+
+    // Copy footer fields into decoded messages
+    if (!footer_members.empty()) {
+        if (session.payload_is_array) {
+            ctx.line("for (auto& item_ : result.payload_) {");
+            ctx.indent();
+            ctx.line("std::visit([&](auto& msg_) {");
+            ctx.indent();
+            for (const auto& m : footer_members) {
+                ctx.line("msg_." + m + " = result." + m + ";");
+            }
+            ctx.dedent();
+            ctx.line("}, item_);");
+            ctx.dedent();
+            ctx.line("}");
+        } else {
+            ctx.line("std::visit([&](auto& msg_) {");
+            ctx.indent();
+            for (const auto& m : footer_members) {
+                ctx.line("msg_." + m + " = result." + m + ";");
+            }
+            ctx.dedent();
+            ctx.line("}, result.payload_);");
         }
     }
 
@@ -359,6 +458,68 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
     ctx.line("return decode(r);");
     ctx.dedent();
     ctx.line("}");
+    ctx.line();
+
+    // to_string()
+    ctx.line("std::string to_string() const {");
+    ctx.indent();
+    ctx.line("std::ostringstream oss;");
+    ctx.line("oss << \"" + class_name + "{\"");
+    ctx.indent();
+
+    bool first = true;
+    auto emit_frame_field_str = [&](const model::Field& f) {
+        auto fti = resolve_field_type(f, index);
+        std::string sep = first ? "" : ", ";
+        std::string member = to_member_name(f.name);
+        first = false;
+
+        if (fti.is_enum) {
+            ctx.line("<< \"" + sep + f.name + "=\" << ::" + ns + "::to_string(" + member + ")");
+        } else if (fti.is_struct) {
+            // Typedef wrapper — use .raw() with unary + for safe uint8_t display
+            ctx.line("<< \"" + sep + f.name + "=\" << +(" + member + ".raw())");
+        } else {
+            // Plain numeric
+            ctx.line("<< \"" + sep + f.name + "=\" << +(" + member + ")");
+        }
+    };
+
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            emit_frame_field_str(*f);
+        }
+    }
+
+    // Payload
+    std::string sep = first ? "" : ", ";
+    if (session.payload_is_array) {
+        ctx.line("<< \"" + sep + "payload=[\"");
+        ctx.line(";");
+        ctx.line("for (size_t i = 0; i < payload_.size(); ++i) {");
+        ctx.indent();
+        ctx.line("if (i > 0) oss << \", \";");
+        ctx.line("oss << std::visit([](const auto& m) { return m.to_string(); }, payload_[i]);");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line("oss << \"]\"");
+    } else {
+        ctx.line("<< \"" + sep + "payload=\" << std::visit([](const auto& m) { return m.to_string(); }, payload_)");
+    }
+    first = false;
+
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            emit_frame_field_str(*f);
+        }
+    }
+
+    ctx.line("<< \"}\";");
+    ctx.dedent();
+    ctx.line("return oss.str();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
 
     // Private section
     ctx.dedent();
@@ -410,23 +571,12 @@ StructEmitter::StructEmitter(EmitContext& ctx, const analyzer::TypeIndex& index,
     }
 }
 
-void StructEmitter::set_case_type_contexts(const std::unordered_map<std::string, std::string>& map) {
-    case_type_to_context_ = map;
-}
-
 void StructEmitter::set_leaf_type_ids(const std::unordered_map<std::string, uint64_t>& map) {
     leaf_type_ids_ = map;
 }
 
 void StructEmitter::set_current_session(const analyzer::SessionInfo* session) {
     current_session_ = session;
-    if (session) {
-        for (const auto& cf : session->context_fields) {
-            context_field_names_.insert(cf.bmdl_name);
-        }
-    } else {
-        context_field_names_.clear();
-    }
 }
 
 bool StructEmitter::is_byte_aligned() const {
@@ -475,12 +625,21 @@ std::string StructEmitter::resolve_enum_value(const std::string& name) const {
 void StructEmitter::emit_variant_aliases(const std::vector<model::StructChild>& children) {
     for (const auto& child : children) {
         if (auto* c = std::get_if<model::ChoiceDef>(&child)) {
-            std::string variant_name = to_cpp_type_name(c->name) + "Variant";
+            std::string base_variant = to_cpp_type_name(c->name) + "Variant";
+            std::string variant_name = base_variant;
+            if (!current_parent_.empty() && emitted_variant_aliases_.count(variant_name)) {
+                variant_name = to_cpp_type_name(current_parent_) + "_" + base_variant;
+            }
+            emitted_variant_aliases_.insert(variant_name);
             std::string cases_str;
             for (size_t i = 0; i < c->cases.size(); i++) {
                 if (i > 0) cases_str += ", ";
                 const auto& cs = c->cases[i];
-                cases_str += to_cpp_type_name(!cs.type_ref.empty() ? cs.type_ref : cs.name);
+                if (!cs.type_ref.empty()) {
+                    cases_str += to_cpp_type_name(cs.type_ref);
+                } else {
+                    cases_str += get_child_class_name(cs.name);
+                }
             }
             if (c->otherwise) {
                 if (!c->otherwise->type_ref.empty()) {
@@ -504,6 +663,8 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
     for (const auto& child : children) {
         if (auto* sd = std::get_if<model::StructDef>(&child)) {
             if (!sd->name.empty()) {
+                // Analyze outer-scope refs: child struct's expressions may reference parent fields
+                analyze_outer_scope(sd->name, sd->children, children);
                 emit_struct(*sd, parent_name);
             }
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
@@ -513,11 +674,18 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
-                    emit_synthetic_struct(cs.name, cs.children, parent_name);
+                    // Analyze outer-scope refs: case children may reference parent struct fields
+                    analyze_outer_scope(cs.name, cs.children, children);
+                    // Always prefix inline case types to prevent cross-message collisions
+                    emit_synthetic_struct(cs.name, cs.children, parent_name, /*always_prefix=*/true);
                 }
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
-                emit_synthetic_struct(cd->name + "Otherwise", cd->otherwise->children, parent_name);
+                std::string otherwise_name = cd->name + "Otherwise";
+                // Analyze outer-scope refs: otherwise children may reference parent struct fields
+                analyze_outer_scope(otherwise_name, cd->otherwise->children, children);
+                // Always prefix otherwise types to prevent cross-message collisions
+                emit_synthetic_struct(otherwise_name, cd->otherwise->children, parent_name, /*always_prefix=*/true);
             }
         }
     }
@@ -525,17 +693,28 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
 
 void StructEmitter::emit_synthetic_struct(const std::string& bmdl_name,
                                            const std::vector<model::StructChild>& children,
-                                           const std::string& parent_name) {
-    std::string name = resolve_child_class_name(bmdl_name, parent_name);
+                                           const std::string& parent_name,
+                                           bool always_prefix) {
+    std::string name = resolve_child_class_name(bmdl_name, parent_name, always_prefix);
     if (name.empty()) return;
 
     if (!emitted_classes_.insert(name).second) return;
 
+    auto prev_parent = current_parent_;
+    current_parent_ = bmdl_name;
+
     emit_child_class_defs(children, bmdl_name);
     emit_variant_aliases(children);
 
-    auto prev_parent = current_parent_;
-    current_parent_ = bmdl_name;
+    // Set outer-scope params if this struct has any
+    auto prev_outer = outer_scope_params_;
+    auto it = struct_decode_params_.find(bmdl_name);
+    if (it != struct_decode_params_.end()) {
+        outer_scope_params_.clear();
+        for (const auto& p : it->second) {
+            outer_scope_params_[p.bmdl_name] = to_accessor_name(p.bmdl_name);
+        }
+    }
 
     ctx_.line("class " + name + " {");
     ctx_.line("public:");
@@ -552,6 +731,7 @@ void StructEmitter::emit_synthetic_struct(const std::string& bmdl_name,
     emit_plain_struct(children, name);
 
     current_parent_ = prev_parent;
+    outer_scope_params_ = prev_outer;
 
     ctx_.dedent();
     ctx_.line("};");
@@ -580,25 +760,24 @@ void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& p
 
     if (!emitted_classes_.insert(name).second) return;
 
-    auto prev_has_context = has_context_;
-    auto prev_context_struct = context_struct_name_;
-    auto prev_context_fields = context_field_names_;
-    auto ctx_it = case_type_to_context_.find(sd.name);
-    if (ctx_it != case_type_to_context_.end()) {
-        has_context_ = true;
-        context_struct_name_ = ctx_it->second;
-        if (current_session_) {
-            for (const auto& cf : current_session_->context_fields) {
-                context_field_names_.insert(cf.bmdl_name);
-            }
-        }
-    }
+    auto prev_parent = current_parent_;
+    current_parent_ = sd.name;
 
     emit_child_class_defs(sd.children, sd.name);
     emit_variant_aliases(sd.children);
 
     if (!sd.doc.empty()) {
         emit_doc_comment(sd.doc);
+    }
+
+    // Set outer-scope params if this struct has any
+    auto prev_outer = outer_scope_params_;
+    auto osp_it = struct_decode_params_.find(sd.name);
+    if (osp_it != struct_decode_params_.end()) {
+        outer_scope_params_.clear();
+        for (const auto& p : osp_it->second) {
+            outer_scope_params_[p.bmdl_name] = to_accessor_name(p.bmdl_name);
+        }
     }
 
     ctx_.line("class " + name + " {");
@@ -613,9 +792,6 @@ void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& p
         ctx_.line();
     }
 
-    auto prev_parent = current_parent_;
-    current_parent_ = sd.name;
-
     if (sd.is_bitmap) {
         emit_bitmap_struct(sd, name);
         optional_field_names_.clear();
@@ -624,9 +800,7 @@ void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& p
     }
 
     current_parent_ = prev_parent;
-    has_context_ = prev_has_context;
-    context_struct_name_ = prev_context_struct;
-    context_field_names_ = prev_context_fields;
+    outer_scope_params_ = prev_outer;
 
     ctx_.dedent();
     ctx_.line("};");
@@ -638,27 +812,13 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     std::string name = to_cpp_type_name(md.name);
 
     auto prev_session = current_session_;
-    auto prev_has_context = has_context_;
-    auto prev_context_struct = context_struct_name_;
-    auto prev_context_fields = context_field_names_;
 
     if (session) {
         current_session_ = session;
-        for (const auto& cf : session->context_fields) {
-            context_field_names_.insert(cf.bmdl_name);
-        }
     }
 
-    auto ctx_it = case_type_to_context_.find(md.name);
-    if (ctx_it != case_type_to_context_.end()) {
-        has_context_ = true;
-        context_struct_name_ = ctx_it->second;
-        if (current_session_) {
-            for (const auto& cf : current_session_->context_fields) {
-                context_field_names_.insert(cf.bmdl_name);
-            }
-        }
-    }
+    auto prev_parent = current_parent_;
+    current_parent_ = md.name;
 
     emit_child_class_defs(md.children, md.name);
     emit_variant_aliases(md.children);
@@ -695,10 +855,28 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     }
     ctx_.line();
 
-    auto prev_parent = current_parent_;
-    current_parent_ = md.name;
+    // Collect frame header/footer fields for frame-based messages
+    std::vector<FrameFieldInfo> header_frame_fields, footer_frame_fields;
+    if (!md.id.empty() && current_session_ && current_session_->is_frame_based && current_session_->frame) {
+        collect_frame_fields(*current_session_->frame, header_frame_fields, footer_frame_fields);
+    }
 
-    emit_plain_struct(md.children, name);
+    // Emit frame header field accessors before struct body
+    if (!header_frame_fields.empty()) {
+        emit_frame_field_accessors(header_frame_fields);
+        ctx_.line();
+    }
+
+    emit_plain_struct(md.children, name, header_frame_fields, footer_frame_fields);
+
+    // Emit frame footer field accessors after struct body
+    if (!footer_frame_fields.empty()) {
+        ctx_.dedent();
+        ctx_.line("public:");
+        ctx_.indent();
+        emit_frame_field_accessors(footer_frame_fields);
+        ctx_.line();
+    }
 
     // Re-enter public section for convenience methods
     ctx_.dedent();
@@ -728,16 +906,8 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     ctx_.dedent();
     ctx_.line("}");
 
-    // Generate wrap() overloads for v1 entry-point messages (v2 frame wrapping is on the frame class)
-    if (session && !session->is_frame_based) {
-        emit_wrap_overloads(md, *session, name);
-    }
-
     current_parent_ = prev_parent;
     current_session_ = prev_session;
-    has_context_ = prev_has_context;
-    context_struct_name_ = prev_context_struct;
-    context_field_names_ = prev_context_fields;
 
     ctx_.dedent();
     ctx_.line("};");
@@ -745,11 +915,50 @@ void StructEmitter::emit_message(const model::MessageDef& md,
 }
 
 // ============================================================================
+// Frame field helpers (push frame header/footer into message classes)
+// ============================================================================
+
+void StructEmitter::collect_frame_fields(const model::FrameDef& frame,
+                                          std::vector<FrameFieldInfo>& header_fields,
+                                          std::vector<FrameFieldInfo>& footer_fields) {
+    auto collect = [&](const std::vector<model::StructChild>& children,
+                       std::vector<FrameFieldInfo>& out) {
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                FrameFieldInfo ffi;
+                ffi.source = f;
+                ffi.fti = resolve_field_type(*f, index_);
+                ffi.fi.name = f->name;
+                ffi.fi.cpp_type = ffi.fti.cpp_type;
+                ffi.fi.is_auto_managed = f->auto_expr.has_value();
+                out.push_back(std::move(ffi));
+            }
+        }
+    };
+    collect(frame.header_fields, header_fields);
+    collect(frame.footer_fields, footer_fields);
+}
+
+void StructEmitter::emit_frame_field_accessors(const std::vector<FrameFieldInfo>& frame_fields) {
+    for (const auto& ffi : frame_fields) {
+        std::string accessor = to_accessor_name(ffi.fi.name);
+        std::string member = to_member_name(ffi.fi.name);
+        ctx_.line(ffi.fi.cpp_type + " " + accessor + "() const { return " + member + "; }");
+        if (ffi.fi.is_auto_managed) {
+            ctx_.line("[[deprecated(\"auto-managed: value is set automatically during frame encoding\")]]");
+        }
+        ctx_.line("void set_" + accessor + "(" + ffi.fi.cpp_type + " v) { " + member + " = v; }");
+    }
+}
+
+// ============================================================================
 // Plain struct
 // ============================================================================
 
 void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& children,
-                                       const std::string& class_name) {
+                                       const std::string& class_name,
+                                       const std::vector<FrameFieldInfo>& header_frame_fields,
+                                       const std::vector<FrameFieldInfo>& footer_frame_fields) {
     std::vector<FieldInfo> fields;
     bool has_fx = false;
 
@@ -773,15 +982,31 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
     ctx_.line("bool operator==(const " + class_name + "&) const = default;");
     ctx_.line();
 
+    populate_optional_field_names(children);
     emit_encode(children);
     emit_decode(children, class_name);
-    emit_to_string(children, fields, class_name);
+    emit_to_string(children, fields, class_name, header_frame_fields, footer_frame_fields);
     emit_deferred_validate(children);
 
     // Private section
     ctx_.dedent();
     ctx_.line("private:");
     ctx_.indent();
+
+    // Friend declaration for the frame class (so it can write frame fields directly)
+    if (!header_frame_fields.empty() || !footer_frame_fields.empty()) {
+        if (current_session_ && current_session_->frame) {
+            ctx_.line("friend class " + to_cpp_type_name(current_session_->frame->name) + ";");
+            ctx_.line();
+        }
+    }
+
+    // Frame header field members (before regular members)
+    for (const auto& ffi : header_frame_fields) {
+        ctx_.line(ffi.fi.cpp_type + " " + to_member_name(ffi.fi.name) + "{};");
+    }
+
+    // Regular members
     for (const auto& fi : fields) {
         std::string decl_type = qualify_type_if_shadowed(fi.name, fi.cpp_type);
         if (fi.is_optional) {
@@ -791,6 +1016,11 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
         } else {
             ctx_.line(decl_type + " " + to_member_name(fi.name) + "{};");
         }
+    }
+
+    // Frame footer field members (after regular members)
+    for (const auto& ffi : footer_frame_fields) {
+        ctx_.line(ffi.fi.cpp_type + " " + to_member_name(ffi.fi.name) + "{};");
     }
 }
 
@@ -884,7 +1114,7 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                 fields.push_back(fi);
             } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
                 fi.name = c.name;
-                fi.cpp_type = to_cpp_type_name(c.name) + "Variant";
+                fi.cpp_type = get_variant_alias_name(c.name);
                 fi.is_variant = true;
                 fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
                 fields.push_back(fi);
@@ -1043,7 +1273,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
                 if (c.bit) {
                     BitmapField bf;
                     bf.name = c.name;
-                    bf.cpp_type = to_cpp_type_name(c.name) + "Variant";
+                    bf.cpp_type = get_variant_alias_name(c.name);
                     bf.bit = *c.bit;
                     bf.is_struct = true;
                     bf.is_choice = true;
@@ -1122,14 +1352,18 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
 
         emit_bitmap_encode_fields(bfields, 0, max_octet);
     } else {
-        ctx_.line("std::array<uint8_t, 1> fspec{};");
+        int num_octets = (max_bit / BITS_PER_BYTE) + 1;
+        ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
         for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / BITS_PER_BYTE;
             int bit_in_byte = bf.bit % BITS_PER_BYTE;
-            ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[0] |= (1 << " +
+            ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[" +
+                      std::to_string(byte_idx) + "] |= (1 << " +
                       std::to_string(bit_in_byte) + ");");
         }
-        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), 1));");
-        emit_bitmap_encode_fields(bfields, 0, 0);
+        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), " +
+                  std::to_string(num_octets) + "));");
+        emit_bitmap_encode_fields(bfields, 0, (max_bit / BITS_PER_BYTE));
     }
 
     ctx_.line("if (w.has_error()) return std::unexpected(w.error());");
@@ -1148,19 +1382,27 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         int num_octets = (max_bit / BITS_PER_BYTE) + 1;
         ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
         ctx_.line("size_t fspec_len = 0;");
-        ctx_.line("while (true) {");
-        ctx_.indent();
-        ctx_.line("auto byte = r.read_u8();");
-        ctx_.line("if (!byte) return std::unexpected(byte.error());");
-        ctx_.line("if (fspec_len < " + std::to_string(num_octets) + ") fspec[fspec_len] = *byte;");
-        ctx_.line("fspec_len++;");
         if (has_ext) {
+            ctx_.line("while (true) {");
+            ctx_.indent();
+            ctx_.line("auto byte = r.read_u8();");
+            ctx_.line("if (!byte) return std::unexpected(byte.error());");
+            ctx_.line("if (fspec_len < " + std::to_string(num_octets) + ") fspec[fspec_len] = *byte;");
+            ctx_.line("fspec_len++;");
             ctx_.line("if (!(*byte & (1 << " + std::to_string(*sd.bitmap_ext) + "))) break;");
+            ctx_.dedent();
+            ctx_.line("}");
         } else {
-            ctx_.line("break; // No FX extension");
+            // Fixed-size FSPEC: read exactly num_octets bytes
+            ctx_.line("for (size_t i = 0; i < " + std::to_string(num_octets) + "; i++) {");
+            ctx_.indent();
+            ctx_.line("auto byte = r.read_u8();");
+            ctx_.line("if (!byte) return std::unexpected(byte.error());");
+            ctx_.line("fspec[i] = *byte;");
+            ctx_.dedent();
+            ctx_.line("}");
+            ctx_.line("fspec_len = " + std::to_string(num_octets) + ";");
         }
-        ctx_.dedent();
-        ctx_.line("}");
     }
     ctx_.line();
 
@@ -1235,7 +1477,24 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.dedent();
             ctx_.line("}");
         } else if (bf.is_struct) {
-            ctx_.line("auto val = " + qual_type + "::decode(r);");
+            // Check for outer-scope params to pass to child struct decode
+            auto osp_it = struct_decode_params_.find(bf.name);
+            if (osp_it != struct_decode_params_.end()) {
+                // Verify required outer-scope fields are present (bitmap fields are optional)
+                for (const auto& p : osp_it->second) {
+                    std::string dep_member = "result." + to_member_name(p.bmdl_name);
+                    ctx_.line("if (!" + dep_member + ") return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,");
+                    ctx_.line("    \"" + bf.name + " requires " + p.bmdl_name + "\"));");
+                }
+                std::string decode_call = qual_type + "::decode(r";
+                for (const auto& p : osp_it->second) {
+                    decode_call += ", (*result." + to_member_name(p.bmdl_name) + ")";
+                }
+                decode_call += ")";
+                ctx_.line("auto val = " + decode_call + ";");
+            } else {
+                ctx_.line("auto val = " + qual_type + "::decode(r);");
+            }
             ctx_.line("if (!val) return std::unexpected(val.error());");
             ctx_.line(member + " = std::move(*val);");
         } else if (bf.has_field_scale) {
@@ -1437,41 +1696,7 @@ std::string generate_structs(const model::Protocol& protocol,
     }
     ctx.line();
 
-    // Emit context structs for entry-point sessions and collect case type mappings
-    std::unordered_map<std::string, std::string> case_type_to_context;
-    for (const auto& si : sessions) {
-        if (si.context_fields.empty()) continue;
-
-        std::string ep_class = to_cpp_type_name(si.entry_point_name);
-        std::string ctx_name = ep_class + "Context";
-
-        ctx.line("struct " + ctx_name + " {");
-        ctx.indent();
-        for (const auto& cf : si.context_fields) {
-            std::string cpp_type;
-            if (!cf.type_ref.empty()) {
-                cpp_type = to_cpp_type_name(cf.type_ref);
-            } else if (cf.bits > 0) {
-                cpp_type = storage_type_for_bits(cf.bits, cf.is_signed);
-            } else {
-                cpp_type = "uint8_t";
-            }
-            std::string field_name = to_accessor_name(cf.bmdl_name);
-            if (field_name == cpp_type) {
-                cpp_type = "::" + ns + "::" + cpp_type;
-            }
-            ctx.line(cpp_type + " " + field_name + "{};");
-        }
-        ctx.dedent();
-        ctx.line("};");
-        ctx.line();
-
-        for (const auto& lt : si.leaf_types) {
-            case_type_to_context[lt.name] = ctx_name;
-        }
-    }
-
-    // Build leaf type_id map from ALL sessions (not just those with context fields)
+    // Build leaf type_id map from ALL sessions
     std::unordered_map<std::string, uint64_t> leaf_type_ids;
     for (const auto& si : sessions) {
         for (const auto& lt : si.leaf_types) {
@@ -1480,7 +1705,6 @@ std::string generate_structs(const model::Protocol& protocol,
     }
 
     StructEmitter emitter(ctx, index, sizes, ns);
-    emitter.set_case_type_contexts(case_type_to_context);
     emitter.set_leaf_type_ids(leaf_type_ids);
 
     for (const auto& s : protocol.structs) {
@@ -1550,16 +1774,6 @@ std::string generate_messages(const model::Protocol& protocol,
     }
     ctx.line();
 
-    // Build case type → context struct mapping
-    std::unordered_map<std::string, std::string> case_type_to_context;
-    for (const auto& si : sessions) {
-        if (si.context_fields.empty()) continue;
-        std::string ctx_name = to_cpp_type_name(si.entry_point_name) + "Context";
-        for (const auto& lt : si.leaf_types) {
-            case_type_to_context[lt.name] = ctx_name;
-        }
-    }
-
     // Build leaf type_id map from ALL sessions
     std::unordered_map<std::string, uint64_t> leaf_type_ids;
     for (const auto& si : sessions) {
@@ -1569,32 +1783,22 @@ std::string generate_messages(const model::Protocol& protocol,
     }
 
     StructEmitter emitter(ctx, index, sizes, ns);
-    emitter.set_case_type_contexts(case_type_to_context);
     emitter.set_leaf_type_ids(leaf_type_ids);
 
-    // Find the frame-based session (if any) — applies to ALL messages in v2
+    // Find the frame-based session (if any) — applies to ALL messages
     const analyzer::SessionInfo* frame_session = nullptr;
     for (const auto& si : sessions) {
         if (si.is_frame_based) { frame_session = &si; break; }
     }
 
     for (const auto& m : protocol.messages) {
-        const analyzer::SessionInfo* session = frame_session;
-        if (!session && m.is_entry_point) {
-            for (const auto& si : sessions) {
-                if (si.entry_point_name == m.name) {
-                    session = &si;
-                    break;
-                }
-            }
-        }
-        emitter.emit_message(m, session);
+        emitter.emit_message(m, frame_session);
     }
 
     // Emit frame classes (v2 frame-based protocols)
     for (const auto& si : sessions) {
         if (si.is_frame_based && si.frame) {
-            emit_frame_class(ctx, *si.frame, index, si);
+            emit_frame_class(ctx, *si.frame, index, si, ns);
         }
     }
 

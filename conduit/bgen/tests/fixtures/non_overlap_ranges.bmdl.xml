@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="non-overlap-ranges" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>non_overlap_ranges</namespace>
+  </defaults>
   <constants>
     <const name="LO_A" type="uint8" value="1"/>
     <const name="HI_A" type="uint8" value="5"/>
@@ -21,5 +23,4 @@
       </choice>
     </message>
   </messages>
-</protocol>
 </bmdl>

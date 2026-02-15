@@ -158,19 +158,6 @@ TEST_CASE("Valid session_protocol passes validation", "[validator]") {
     CHECK(validate_result.has_value());
 }
 
-TEST_CASE("Valid nested choice protocol passes validation", "[validator]") {
-    auto build_result = bgen::model::build_protocol(fixture_path("nested_choice.bmdl.xml"));
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto validate_result = bgen::analyzer::validate(protocol, index);
-    CHECK(validate_result.has_value());
-}
-
 TEST_CASE("Forward reference in present-when rejected", "[validator]") {
     auto build_result = bgen::model::build_protocol(fixture_path("forward_ref.bmdl.xml"));
     REQUIRE(build_result.has_value());
@@ -294,19 +281,6 @@ TEST_CASE("Valid inline struct protocol passes validation", "[validator]") {
 
 TEST_CASE("Valid default and initial protocol passes validation", "[validator]") {
     auto build_result = bgen::model::build_protocol(fixture_path("default_initial.bmdl.xml"));
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto validate_result = bgen::analyzer::validate(protocol, index);
-    CHECK(validate_result.has_value());
-}
-
-TEST_CASE("Valid multi-entry protocol passes validation", "[validator]") {
-    auto build_result = bgen::model::build_protocol(fixture_path("multi_entry.bmdl.xml"));
     REQUIRE(build_result.has_value());
     auto& protocol = *build_result;
 
@@ -822,6 +796,72 @@ TEST_CASE("Auto-increment with constraint equals rejected (V3)", "[validator]") 
     CHECK(found);
 }
 
+TEST_CASE("Auto-config with constraint equals rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_config_constraint.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("auto=\"config\"") != std::string::npos &&
+            e.message.find("constraint equals") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Auto-length with constraint equals rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_length_constraint.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("auto=\"length\"") != std::string::npos &&
+            e.message.find("constraint equals") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Frame field with present-when rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_frame_present_when.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("present-when") != std::string::npos &&
+            e.message.find("frame") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
 // ============================================================================
 // Edge case validator tests (B12)
 // ============================================================================
@@ -1014,19 +1054,6 @@ TEST_CASE("Shift overflow in expression rejected", "[validator][expr]") {
 // ============================================================================
 // Dispatch attribute validation tests
 // ============================================================================
-
-TEST_CASE("Valid batch_dispatch protocol passes validation", "[validator][dispatch]") {
-    auto build_result = bgen::model::build_protocol(fixture_path("batch_dispatch.bmdl.xml"));
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto validate_result = bgen::analyzer::validate(protocol, index);
-    CHECK(validate_result.has_value());
-}
 
 TEST_CASE("Mixed dispatch modes within a single case rejected", "[validator][dispatch]") {
     auto build_result = bgen::model::build_protocol(fixture_path("invalid_mixed_dispatch.bmdl.xml"));
@@ -1292,6 +1319,27 @@ TEST_CASE("Valid frame_array passes validation", "[validator][frame]") {
     CHECK(validate_result.has_value());
 }
 
+TEST_CASE("Frame-message field name collision rejected", "[validator][frame]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("frame_collision.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("conflicts with frame field") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
 TEST_CASE("Negative bits attribute rejected at parse time", "[validator][parse]") {
     auto build_result = bgen::model::build_protocol(fixture_path("invalid_negative_bits.bmdl.xml"));
     REQUIRE_FALSE(build_result.has_value());
@@ -1407,6 +1455,112 @@ TEST_CASE("Auto field reference to nonexistent field rejected", "[validator][fra
     for (const auto& e : errors) {
         if (e.message.find("unknown field") != std::string::npos &&
             e.message.find("nonexistent") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Bitmap array with out-of-range bit rejected", "[validator][bitmap]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_bitmap_array_bit.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("bit 99 out of range") != std::string::npos &&
+            e.message.find("items") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Timestamp auto field on uint passes validation", "[validator][frame][timestamp]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("frame_timestamp.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("Timestamp auto field on signed int rejected", "[validator][frame][timestamp]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_timestamp_signed.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("timestamp") != std::string::npos &&
+            e.message.find("unsigned") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Terminated + length-prefix mutual exclusion rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_terminated_length_prefix.bmdl.xml"));
+    CHECK_FALSE(build_result.has_value());
+}
+
+TEST_CASE("Frame field with terminated rejected", "[validator][frame]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_frame_terminated.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("frame") != std::string::npos &&
+            e.message.find("frame fields must have fixed size") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Inline enum id exceeding field bit range rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_enum_range.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("exceeds") != std::string::npos &&
+            e.message.find("range") != std::string::npos) {
             found = true;
             break;
         }

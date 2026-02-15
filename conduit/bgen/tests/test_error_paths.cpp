@@ -266,7 +266,7 @@ const ErrorCodeExpectation all_error_codes[] = {
     {conduit::ErrorCode::NotImplemented,  "NOT_IMPLEMENTED",  conduit::ErrorSeverity::Critical, false, false, false, false},
     {conduit::ErrorCode::InvalidArgument, "INVALID_ARGUMENT", conduit::ErrorSeverity::Critical, false, false, false, false},
     {conduit::ErrorCode::InvalidState,    "INVALID_STATE",    conduit::ErrorSeverity::Critical, false, false, false, false},
-    {conduit::ErrorCode::Timeout,         "TIMEOUT",          conduit::ErrorSeverity::Critical, false, false, false, false},
+    {conduit::ErrorCode::Timeout,         "TIMEOUT",          conduit::ErrorSeverity::Error, false, false, false, false},
 };
 
 } // anonymous namespace

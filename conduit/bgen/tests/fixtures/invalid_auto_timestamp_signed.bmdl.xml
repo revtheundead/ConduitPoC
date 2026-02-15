@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_test</namespace></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int32" base="int" bits="32"/>
+  </types>
+
+  <frame name="BadFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="ts" type="int32" auto="timestamp"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Foo">
+      <field name="x" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

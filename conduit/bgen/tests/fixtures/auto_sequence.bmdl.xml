@@ -1,23 +1,27 @@
-<bmdl version="1.0">
-<protocol name="auto-seq" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>auto_seq</namespace>
+  </defaults>
+
   <constants>
     <const name="SYNC" type="uint16" value="0xBEEF"/>
-    <const name="MSG_A" type="uint8" value="1"/>
   </constants>
+
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
-    <struct name="BodyA"><field name="data" type="uint16"/></struct>
   </types>
+
+  <frame name="Frame">
+    <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
+    <field name="seq" type="uint16" auto="increment"/>
+    <field name="tag" type="uint8" auto="id"/>
+    <payload/>
+  </frame>
+
   <messages>
-    <message name="Frame" role="entry-point">
-      <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
-      <field name="seq" type="uint16" auto="increment"/>
-      <field name="tag" type="uint8"/>
-      <choice name="body" switch="tag">
-        <case name="a" value="MSG_A" type="BodyA"/>
-      </choice>
+    <message id="1" name="BodyA">
+      <field name="data" type="uint16"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

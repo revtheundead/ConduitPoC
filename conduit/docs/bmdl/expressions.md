@@ -87,6 +87,12 @@ Access fields in named nested structs:
 </message>
 ```
 
+### Outer-Scope References and Generated Code
+
+When an expression references a field from a parent scope, the generated C++ `decode()` method for the inner struct receives the outer field value as an additional parameter. For example, if a nested struct's `length-from` references a parent field `len`, the generated decode signature becomes `decode(BitReader& r, uint16_t len)` instead of `decode(BitReader& r)`. The parent struct's decode code automatically passes the required values.
+
+This is transparent in BMDL — you simply reference the field by name. The code generator handles parameter threading automatically.
+
 ### No Forward References
 
 Referenced fields must be previously decoded. Since wire order = declaration order, you can only reference fields declared before the current position.

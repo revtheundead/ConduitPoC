@@ -3,6 +3,8 @@
 
 #include "cpp_structs_emitter.hpp"
 #include <cassert>
+#include <set>
+#include <stdexcept>
 
 namespace bgen::codegen {
 
@@ -56,24 +58,6 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
             // Convert dotted path to member access
             std::string path = expr.name;
 
-            // Extract the root segment to check context fallback
-            size_t first_dot = path.find('.');
-            std::string root_segment = (first_dot == std::string::npos) ? path : path.substr(0, first_dot);
-
-            // Context fallback: if root segment is not a local field but is in context
-            bool use_context = false;
-            if (has_context_ && !context_field_names_.empty()) {
-                bool is_local = local_field_names_.count(root_segment) > 0 ||
-                                optional_field_names_.count(to_member_name(root_segment)) > 0;
-                if (!is_local && context_field_names_.count(root_segment)) {
-                    use_context = true;
-                }
-            }
-
-            if (use_context) {
-                return "ctx->" + to_accessor_name(root_segment);
-            }
-
             std::string cpp_path = result_var;
             size_t pos = 0;
             bool first_segment = true;
@@ -90,11 +74,20 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
                 }
                 std::string access;
                 if (first_segment) {
+                    // Check outer-scope params first (e.g., params passed to decode)
+                    auto osp_it = outer_scope_params_.find(segment);
+                    if (osp_it != outer_scope_params_.end()) {
+                        cpp_path = osp_it->second;
+                        first_segment = false;
+                        continue;
+                    }
                     access = to_member_name(segment);  // private member, accessible within class
                 } else {
                     access = to_accessor_name(segment) + "()";  // public accessor for cross-class
                 }
-                if (prev_was_optional) {
+                if (cpp_path.empty()) {
+                    cpp_path = access;
+                } else if (prev_was_optional) {
                     cpp_path += "->" + access;
                     prev_was_optional = false;
                 } else {
@@ -172,8 +165,8 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
         case model::ExprOp::LogNot:
             return "(!" + emit_expr_code(*expr.left, result_var) + ")";
     }
-    assert(false && "unhandled ExprOp in emit_expr_code");
-    return "0";
+    throw std::logic_error("unhandled ExprOp in emit_expr_code: " +
+                           std::to_string(static_cast<int>(expr.op)));
 }
 
 // ========================================================================
@@ -191,155 +184,36 @@ std::string StructEmitter::emit_field_cast(const std::string& parent_bmdl_name,
     return "static_cast<" + qual_type + ">(" + value_expr + ")";
 }
 
-void StructEmitter::emit_wrap_overloads(const model::MessageDef& md,
-                                         const analyzer::SessionInfo& session,
-                                         const std::string& frame_class) {
-    for (const auto& lt : session.leaf_types) {
-        std::string leaf_type = to_cpp_type_name(lt.name);
-        ctx_.line();
-        ctx_.line("// Wrap a " + lt.name + " leaf into a " + frame_class + " frame");
-        ctx_.line("static " + frame_class + " wrap(const " + leaf_type + "& leaf) {");
-        ctx_.indent();
-        ctx_.line(frame_class + " frame;");
-
-        // Set constraints on frame (void-cast: wrap uses known-valid constants)
-        for (const auto& [field_name, value] : lt.constraints) {
-            std::string acc = to_accessor_name(field_name);
-            ctx_.line("(void)frame.set_" + acc + "(" +
-                     emit_field_cast(md.name, field_name, value) + ");");
-        }
-
-        if (lt.access_path.empty()) {
-            ctx_.line("// No access path — direct assignment not applicable for wrap");
-        } else {
-            std::vector<std::string> level_vars;
-            std::vector<std::string> level_bmdl;
-            level_vars.push_back("frame");
-            level_bmdl.push_back(md.name);
-
-            size_t last_choice_idx = lt.access_path.size(); // sentinel = no optimization
-            if (!lt.access_path.empty()) {
-                size_t last = lt.access_path.size() - 1;
-                if (!lt.access_path[last].is_array && !lt.access_path[last].is_struct) {
-                    last_choice_idx = last;
-                }
-            }
-
-            for (size_t i = 0; i < lt.access_path.size(); i++) {
-                const auto& entry = lt.access_path[i];
-                std::string var = "level_" + std::to_string(i + 1);
-
-                if (entry.is_struct) {
-                    std::string ref_expr = level_vars.back() + ".mutable_" + to_accessor_name(entry.struct_field) + "()";
-                    ctx_.line("auto& " + var + " = " + ref_expr + ";");
-                    level_vars.push_back(var);
-                    level_bmdl.push_back(entry.struct_field);
-                } else if (entry.is_array) {
-                    std::string elem_type = to_cpp_type_name(entry.element_type);
-                    ctx_.line(elem_type + " " + var + ";");
-                    level_vars.push_back(var);
-                    level_bmdl.push_back(entry.element_type);
-                } else {
-                    std::string parent_var = level_vars.back();
-                    std::string parent_bmdl_name = level_bmdl.back();
-
-                    if (!entry.disc_field.empty()) {
-                        auto dot_pos = entry.disc_field.find('.');
-                        if (dot_pos != std::string::npos) {
-                            std::string outer = entry.disc_field.substr(0, dot_pos);
-                            std::string inner = entry.disc_field.substr(dot_pos + 1);
-                            std::string outer_acc = to_accessor_name(outer);
-                            ctx_.line("(void)" + parent_var + ".set_" + outer_acc + "(" +
-                                      "std::decay_t<decltype(" + parent_var + "." + outer_acc + "())>{});");
-                            ctx_.line("(void)" + parent_var + ".mutable_" + outer_acc + "().set_" +
-                                     to_accessor_name(inner) + "(" + entry.disc_value + ");");
-                        } else {
-                            ctx_.line("(void)" + parent_var + ".set_" + to_accessor_name(entry.disc_field) + "(" +
-                                     emit_field_cast(parent_bmdl_name, entry.disc_field, entry.disc_value) + ");");
-                        }
-                    }
-
-                    if (i == last_choice_idx) {
-                        level_vars.push_back(""); // placeholder
-                        level_bmdl.push_back(entry.variant_type);
-                    } else {
-                        std::string inter_type = to_cpp_type_name(entry.variant_type);
-                        ctx_.line(inter_type + " " + var + ";");
-                        level_vars.push_back(var);
-                        level_bmdl.push_back(entry.variant_type);
-                    }
-                }
-            }
-
-            if (!lt.access_path.empty() && lt.access_path.back().is_array) {
-                ctx_.line(level_vars.back() + " = leaf;");
-            }
-
-            // Chain from innermost back to frame
-            for (int i = static_cast<int>(lt.access_path.size()) - 1; i >= 0; i--) {
-                const auto& entry = lt.access_path[static_cast<size_t>(i)];
-                if (entry.is_struct) continue;
-                std::string parent_var = level_vars[static_cast<size_t>(i)];
-
-                if (entry.is_array) {
-                    std::string child_var = level_vars[static_cast<size_t>(i) + 1];
-                    ctx_.line(parent_var + ".mutable_" + to_accessor_name(entry.array_field) +
-                             "().push_back(std::move(" + child_var + "));");
-                } else if (static_cast<size_t>(i) == last_choice_idx) {
-                    std::string variant_type = to_cpp_type_name(entry.choice_field) + "Variant";
-                    ctx_.line(parent_var + ".set_" + to_accessor_name(entry.choice_field) +
-                             "(" + variant_type + "{leaf});");
-                } else {
-                    std::string child_var = level_vars[static_cast<size_t>(i) + 1];
-                    std::string variant_type = to_cpp_type_name(entry.choice_field) + "Variant";
-                    ctx_.line(parent_var + ".set_" + to_accessor_name(entry.choice_field) +
-                             "(" + variant_type + "{std::move(" + child_var + ")});");
-                }
-
-                if (!entry.is_array && !entry.length_field.empty()) {
-                    std::string length_acc = to_accessor_name(entry.length_field);
-                    std::string choice_acc = to_accessor_name(entry.choice_field);
-                    ctx_.line("{");
-                    ctx_.indent();
-                    ctx_.line("conduit::io::BitWriter lw;");
-                    ctx_.line("std::visit([&lw](const auto& v) { (void)v.encode(lw); }, " +
-                              parent_var + "." + choice_acc + "());");
-                    if (entry.length_expr.empty()) {
-                        ctx_.line(parent_var + ".set_" + length_acc + "(" +
-                                  emit_field_cast(level_bmdl[static_cast<size_t>(i)], entry.length_field, "lw.size_bytes()") + ");");
-                    } else {
-                        ctx_.line(parent_var + ".set_" + length_acc + "(" +
-                                  emit_field_cast(level_bmdl[static_cast<size_t>(i)], entry.length_field,
-                                      "lw.size_bytes() + " + entry.length_expr) + ");");
-                    }
-                    ctx_.dedent();
-                    ctx_.line("}");
-                }
-            }
-        }
-
-        ctx_.line("return frame;");
-        ctx_.dedent();
-        ctx_.line("}");
-    }
-}
-
 // ========================================================================
 // Utility
 // ========================================================================
 
 std::string StructEmitter::resolve_padding_char(const model::Field& f) const {
+    // Determine if padding is space or null
+    bool is_space = false;
     if (f.padding) {
-        if (*f.padding == model::StringPadding::Space) return "' '";
-        if (*f.padding == model::StringPadding::Null) return "'\\0'";
-    }
-    if (!f.type_ref.empty()) {
+        if (*f.padding == model::StringPadding::Space) is_space = true;
+        else if (*f.padding == model::StringPadding::Null) return "'\\0'";
+    } else if (!f.type_ref.empty()) {
         auto it = index_.types.find(f.type_ref);
-        if (it != index_.types.end()) {
-            if (it->second->padding == model::StringPadding::Space) return "' '";
+        if (it != index_.types.end() && it->second->padding == model::StringPadding::Space) {
+            is_space = true;
         }
     }
-    return "'\\0'";
+    if (!is_space) return "'\\0'";
+
+    // For EBCDIC encoding, pad with EBCDIC space (0x40) since padding
+    // is applied after encoding conversion
+    bool is_ebcdic = false;
+    if (f.encoding && *f.encoding == model::StringEncoding::Ebcdic) {
+        is_ebcdic = true;
+    } else if (!f.type_ref.empty()) {
+        auto it = index_.types.find(f.type_ref);
+        if (it != index_.types.end() && it->second->encoding == model::StringEncoding::Ebcdic) {
+            is_ebcdic = true;
+        }
+    }
+    return is_ebcdic ? "'\\x40'" : "' '";
 }
 
 std::string StructEmitter::qualify_type_if_shadowed(const std::string& field_name,
@@ -397,24 +271,151 @@ std::string StructEmitter::resolve_field_cpp_type(const std::string& parent_name
     return result;
 }
 
-std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name, const std::string& parent_name) {
+std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name,
+                                                      const std::string& parent_name,
+                                                      bool always_prefix) {
     std::string name = to_cpp_type_name(bmdl_name);
     if (name.empty()) return {};
-    if (emitted_classes_.count(name) && !parent_name.empty()) {
-        name = to_cpp_type_name(parent_name) + name;
+    if (!parent_name.empty() && (always_prefix || emitted_classes_.count(name))) {
+        name = to_cpp_type_name(parent_name) + "_" + name;
     }
     return name;
 }
 
 std::string StructEmitter::get_child_class_name(const std::string& bmdl_name) {
     std::string name = to_cpp_type_name(bmdl_name);
-    if (!current_parent_.empty() && emitted_classes_.count(name)) {
-        std::string qualified = to_cpp_type_name(current_parent_) + name;
-        if (emitted_classes_.count(qualified)) {
-            return qualified;
-        }
+    if (!current_parent_.empty()) {
+        std::string qualified = to_cpp_type_name(current_parent_) + "_" + name;
+        if (emitted_classes_.count(qualified)) return qualified;
     }
     return name;
+}
+
+std::string StructEmitter::get_variant_alias_name(const std::string& choice_bmdl_name) {
+    std::string base = to_cpp_type_name(choice_bmdl_name) + "Variant";
+    if (!current_parent_.empty()) {
+        std::string qualified = to_cpp_type_name(current_parent_) + "_" + base;
+        if (emitted_variant_aliases_.count(qualified)) return qualified;
+    }
+    return base;
+}
+
+// ========================================================================
+// Outer-scope analysis helpers
+// ========================================================================
+
+void StructEmitter::collect_expr_field_refs(const model::Expr* expr, std::set<std::string>& refs) {
+    if (!expr) return;
+    if (expr->op == model::ExprOp::FieldRef) {
+        auto dot = expr->name.find('.');
+        std::string root = (dot != std::string::npos) ? expr->name.substr(0, dot) : expr->name;
+        refs.insert(root);
+    }
+    collect_expr_field_refs(expr->left.get(), refs);
+    collect_expr_field_refs(expr->right.get(), refs);
+}
+
+void StructEmitter::collect_scope_field_refs(const std::vector<model::StructChild>& children,
+                                              std::set<std::string>& refs) {
+    for (const auto& child : children) {
+        std::visit([&refs](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                collect_expr_field_refs(c.present_when.get(), refs);
+                collect_expr_field_refs(c.length_from.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                collect_expr_field_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                collect_expr_field_refs(c.count_from.get(), refs);
+                collect_expr_field_refs(c.length_from.get(), refs);
+                collect_expr_field_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                collect_expr_field_refs(c.switch_expr.get(), refs);
+                collect_expr_field_refs(c.present_when.get(), refs);
+                collect_expr_field_refs(c.length_from.get(), refs);
+                // Also check case children for outer-scope refs
+                for (const auto& cs : c.cases) {
+                    if (cs.type_ref.empty()) {
+                        collect_scope_field_refs(cs.children, refs);
+                    }
+                }
+                if (c.otherwise && c.otherwise->type_ref.empty()) {
+                    collect_scope_field_refs(c.otherwise->children, refs);
+                }
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                collect_scope_field_refs(c.children, refs);
+            }
+        }, child);
+    }
+}
+
+void StructEmitter::collect_local_names(const std::vector<model::StructChild>& children,
+                                         std::set<std::string>& names) {
+    for (const auto& child : children) {
+        std::visit([&names](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                collect_local_names(c.children, names);
+            }
+        }, child);
+    }
+}
+
+void StructEmitter::analyze_outer_scope(const std::string& child_bmdl_name,
+                                         const std::vector<model::StructChild>& child_children,
+                                         const std::vector<model::StructChild>& parent_children) {
+    // Collect all FieldRef root names used in the child scope
+    std::set<std::string> refs;
+    collect_scope_field_refs(child_children, refs);
+
+    // Subtract locally-defined names
+    std::set<std::string> local;
+    collect_local_names(child_children, local);
+    for (const auto& n : local) {
+        refs.erase(n);
+    }
+
+    if (refs.empty()) return;
+
+    // Resolve remaining names against parent children to get C++ types
+    std::vector<OuterScopeParam> params;
+    for (const auto& ref_name : refs) {
+        for (const auto& parent_child : parent_children) {
+            std::visit([&](const auto& pc) {
+                using T = std::decay_t<decltype(pc)>;
+                if constexpr (std::is_same_v<T, model::Field>) {
+                    if (pc.name == ref_name) {
+                        auto fti = resolve_field_type(pc, index_);
+                        OuterScopeParam p;
+                        p.bmdl_name = ref_name;
+                        p.cpp_type = fti.cpp_type;
+                        p.pass_by_ref = fti.is_struct;
+                        params.push_back(p);
+                    }
+                } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                    if (pc.name == ref_name) {
+                        OuterScopeParam p;
+                        p.bmdl_name = ref_name;
+                        p.cpp_type = to_cpp_type_name(pc.name);
+                        p.pass_by_ref = true;
+                        params.push_back(p);
+                    }
+                }
+            }, parent_child);
+        }
+    }
+
+    if (!params.empty()) {
+        struct_decode_params_[child_bmdl_name] = std::move(params);
+    }
 }
 
 } // namespace bgen::codegen

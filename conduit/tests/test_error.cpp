@@ -40,6 +40,13 @@ TEST_CASE("Error category checks", "[error]") {
         Error err(ErrorCode::NotRunning, "");
         CHECK(err.is_transceiver_error());
     }
+
+    SECTION("BatchNotSupported is transceiver error") {
+        Error err(ErrorCode::BatchNotSupported, "");
+        CHECK(err.is_transceiver_error());
+        CHECK(!err.is_decode_error());
+        CHECK(!err.is_encode_error());
+    }
 }
 
 TEST_CASE("Error severity", "[error]") {
@@ -47,12 +54,15 @@ TEST_CASE("Error severity", "[error]") {
     CHECK(ErrorCode::ConnectionRefused == Error(ErrorCode::ConnectionRefused, "").code());
     CHECK(Error(ErrorCode::ConnectionRefused, "").severity() == ErrorSeverity::Error);
     CHECK(Error(ErrorCode::InternalError, "").severity() == ErrorSeverity::Critical);
+    // Timeout is a special case: 900-range but Error severity (recoverable)
+    CHECK(Error(ErrorCode::Timeout, "").severity() == ErrorSeverity::Error);
 }
 
 TEST_CASE("Error code to string", "[error]") {
     CHECK(Error::code_to_string(ErrorCode::BufferUnderrun) == "BUFFER_UNDERRUN");
     CHECK(Error::code_to_string(ErrorCode::ConnectionRefused) == "CONNECTION_REFUSED");
     CHECK(Error::code_to_string(ErrorCode::NotRunning) == "NOT_RUNNING");
+    CHECK(Error::code_to_string(ErrorCode::BatchNotSupported) == "BATCH_NOT_SUPPORTED");
     CHECK(Error::code_to_string(ErrorCode::InternalError) == "INTERNAL_ERROR");
 }
 

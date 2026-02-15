@@ -1,6 +1,8 @@
-<bmdl version="1.0">
-<protocol name="field-scale" version="1.0">
-  <defaults endian="big"/>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>field_scale</namespace>
+    <endian>big</endian>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -18,5 +20,4 @@
       <field name="plain" type="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

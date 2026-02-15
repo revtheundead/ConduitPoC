@@ -10,6 +10,7 @@
 #include <conduit/traits/session_traits.hpp>
 #include <conduit/transceiver/handler.hpp>
 #include <conduit/transceiver/message_handler.hpp>
+#include <conduit/transceiver/message_log.hpp>
 #include <conduit/transceiver/peer.hpp>
 #include <conduit/transceiver/stream_framer.hpp>
 #include <conduit/transceiver/transport/itransport.hpp>
@@ -130,6 +131,26 @@ public:
         return send<T>(*peer_result, msg);
     }
 
+    // Send multiple messages of the same type in a single frame (batch).
+    // Only works with array-payload protocols. Returns BatchNotSupported otherwise.
+    template<traits::Message T>
+    VoidResult send_batch(PeerId peer, std::span<const T> messages) {
+        std::vector<std::any> payloads;
+        payloads.reserve(messages.size());
+        for (const auto& m : messages)
+            payloads.emplace_back(m);
+        return send_batch_impl(peer, T::TYPE_ID, payloads);
+    }
+
+    // Send batch to sole peer (convenience).
+    template<traits::Message T>
+    VoidResult send_batch(std::span<const T> messages) {
+        auto peer_result = sole_peer();
+        if (!peer_result)
+            return std::unexpected(peer_result.error());
+        return send_batch<T>(*peer_result, messages);
+    }
+
     // ========================================================================
     // Lifecycle
     // ========================================================================
@@ -152,6 +173,7 @@ private:
     struct PeerContext {
         PeerId id;
         std::string name;
+        std::string remote_endpoint;  // "ip:port" for TCP/UDP connections
         std::unique_ptr<traits::ISession> session;
         std::unique_ptr<StreamFramer> framer;
         std::shared_ptr<transport::ITransport> transport;
@@ -165,6 +187,7 @@ private:
         std::string name;
         SessionFactory session_factory;
         std::shared_ptr<transport::ITransport> transport;
+        uint32_t next_child{1};  // Sequential child counter for naming
     };
 
     // Create a transport from a TransportConfig variant
@@ -178,10 +201,13 @@ private:
 
     // Send implementation
     VoidResult send_impl(PeerId peer, uint64_t type_id, const std::any& payload);
+    VoidResult send_batch_impl(PeerId peer, uint64_t type_id,
+                               std::span<const std::any> payloads);
 
     // Transport callbacks (fire on I/O thread)
     void handle_data_received(PeerId peer, std::span<const uint8_t> data);
-    PeerId handle_peer_connected(transport::ITransport* transport);
+    PeerId handle_peer_connected(transport::ITransport* transport,
+                                 std::string remote_endpoint);
     void handle_peer_disconnected(PeerId peer);
     void handle_state_changed(PeerId peer, net::ConnectionState state);
 
@@ -223,6 +249,8 @@ private:
     std::vector<StateCallbackEntry> state_callbacks_;
     std::mutex state_cb_mutex_;
     uint32_t next_callback_id_{1};
+
+    std::unique_ptr<MessageLog> message_log_;
 
     std::unique_ptr<queue::BoundedQueue<InboundMessage>> dispatch_queue_;
     std::vector<std::thread> workers_;

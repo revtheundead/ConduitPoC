@@ -103,8 +103,8 @@ TEST_CASE("Message with inline struct", "[wire_sizer]") {
     auto sp = size_fixture("inline_struct.bmdl.xml");
     REQUIRE(sp.has_value());
 
-    // Header: sync(16) + seq(16) + length(16) = 48 bits = 6 bytes
-    CHECK(sp->sizes.get("Header") == 6);
+    // BodyX: x-data(32) = 32 bits = 4 bytes
+    CHECK(sp->sizes.get("BodyX") == 4);
 }
 
 // ============================================================================

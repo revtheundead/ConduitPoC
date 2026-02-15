@@ -16,7 +16,6 @@
 #include "../src/codegen/name_utils.hpp"
 #include <filesystem>
 #include <string>
-#include <set>
 #include <iostream>
 
 namespace fs = std::filesystem;
@@ -101,8 +100,8 @@ TEST_CASE("Generate code from choice protocol", "[codegen]") {
     CHECK(gc->sessions.find("decode_frame") != std::string::npos);
     CHECK(gc->sessions.find("encode_wrap") != std::string::npos);
 
-    // decode_frame should reference variant type checks via holds_alternative
-    CHECK(gc->sessions.find("holds_alternative") != std::string::npos);
+    // decode_frame should use std::visit for payload dispatch
+    CHECK(gc->sessions.find("std::visit") != std::string::npos);
 
     // encode_wrap should reference leaf types
     CHECK(gc->sessions.find("AlphaBody") != std::string::npos);
@@ -110,7 +109,7 @@ TEST_CASE("Generate code from choice protocol", "[codegen]") {
     // Protocol descriptor should exist
     CHECK(gc->protocol.find("ProtocolDescriptor") != std::string::npos);
     CHECK(gc->protocol.find("create_session") != std::string::npos);
-    CHECK(gc->protocol.find("\"choice-test\"") != std::string::npos);
+    CHECK(gc->protocol.find("\"choice_test\"") != std::string::npos);
 
     // Umbrella should include protocol.hpp
     CHECK(gc->umbrella.find("protocol.hpp") != std::string::npos);
@@ -120,11 +119,8 @@ TEST_CASE("Generated session has proper discriminator checks", "[codegen]") {
     auto gc = generate_from("choice_protocol.bmdl.xml");
     REQUIRE(gc.has_value());
 
-    // decode_frame should NOT stuff *frame into every leaf
-    // It should use discriminator-based if-checks
-    // We check that the old broken pattern is NOT present
-    // Old pattern was: dm.payload = *frame; for every leaf
-    // New pattern: if (frame->message_type() == ...) { ... std::get<...> ... }
+    // v2 frame-based sessions use std::visit on payload variant, not
+    // the old dm.payload = *frame pattern.  Verify the old pattern is absent.
 
     // Count occurrences of "dm.payload = *frame"
     size_t pos = 0;
@@ -133,8 +129,6 @@ TEST_CASE("Generated session has proper discriminator checks", "[codegen]") {
         frame_stuff_count++;
         pos += 10;
     }
-    // Should NOT have multiple occurrences of dm.payload = *frame
-    // (At most 0 for choice protocols, since all leaves go through access_path)
     CHECK(frame_stuff_count == 0);
 }
 
@@ -156,19 +150,6 @@ TEST_CASE("Generated protocol descriptor has type registry", "[codegen]") {
     CHECK(gc->protocol.find("BetaBody") != std::string::npos);
 }
 
-TEST_CASE("Generate code from nested choice protocol", "[codegen]") {
-    auto gc = generate_from("nested_choice.bmdl.xml");
-    REQUIRE(gc.has_value());
-
-    // Session should handle nested choices
-    CHECK(gc->sessions.find("EnvelopeSession") != std::string::npos);
-
-    // Protocol descriptor should list all leaf types
-    CHECK(gc->protocol.find("LeafX") != std::string::npos);
-    CHECK(gc->protocol.find("LeafY") != std::string::npos);
-    CHECK(gc->protocol.find("CategoryB") != std::string::npos);
-}
-
 // ============================================================================
 // Advanced codegen output validation
 // ============================================================================
@@ -183,15 +164,6 @@ TEST_CASE("Inline struct codegen", "[codegen]") {
     // Inline struct should result in sync, seq fields directly in session
     CHECK(gc->sessions.find("sync") != std::string::npos);
     CHECK(gc->sessions.find("encode_wrap") != std::string::npos);
-}
-
-TEST_CASE("Multi-entry codegen", "[codegen]") {
-    auto gc = generate_from("multi_entry.bmdl.xml");
-    REQUIRE(gc.has_value());
-
-    // Two entry-point messages should generate two session classes
-    CHECK(gc->sessions.find("CommandFrameSession") != std::string::npos);
-    CHECK(gc->sessions.find("EventFrameSession") != std::string::npos);
 }
 
 TEST_CASE("Session auto-sequence in generated code", "[codegen]") {
@@ -228,22 +200,13 @@ TEST_CASE("Direction filtering in codegen", "[codegen]") {
     std::string encode_section = gc->sessions.substr(encode_wrap_pos,
         after_encode - encode_wrap_pos);
 
-    // Extract the decode_frame function body (from decode_frame to encode_wrap)
-    std::string decode_section = gc->sessions.substr(decode_frame_pos,
-        encode_wrap_pos - decode_frame_pos);
-
+    // v2 decode_frame uses std::visit (generic lambda) — type names appear in encode_wrap
     // AlphaBody (no direction restriction) should appear in encode_wrap section
     CHECK(encode_section.find("AlphaBody") != std::string::npos);
 
     // BetaBody (direction="receive") should appear in encode_wrap section
     // (direction is documentary — encode succeeds with a runtime warning)
     CHECK(encode_section.find("BetaBody") != std::string::npos);
-
-    // BetaBody should appear in decode_frame section
-    CHECK(decode_section.find("BetaBody") != std::string::npos);
-
-    // AlphaBody should also appear in decode_frame section (it's bidirectional)
-    CHECK(decode_section.find("AlphaBody") != std::string::npos);
 }
 
 TEST_CASE("FX block codegen succeeds", "[codegen]") {
@@ -383,7 +346,7 @@ TEST_CASE("Sentry-link end-to-end codegen", "[codegen]") {
 
     // Protocol descriptor should have all types
     CHECK(protocol_code.find("ProtocolDescriptor") != std::string::npos);
-    CHECK(protocol_code.find("sentry-link") != std::string::npos);
+    CHECK(protocol_code.find("sentry_link") != std::string::npos);
 }
 
 // ============================================================================
@@ -580,134 +543,6 @@ TEST_CASE("Wire encoding codegen CB2/BNR use standard read/write", "[codegen][wi
 }
 
 // ============================================================================
-// Entry-point context codegen output validation
-// ============================================================================
-
-TEST_CASE("Sentry-link context struct in generated structs", "[codegen][context]") {
-    std::string sentry_path = (fs::path(BGEN_TEST_FIXTURES_DIR) / "sentry_link.bmdl.xml").string();
-    if (!fs::exists(sentry_path)) {
-        SKIP("sentry-link protocol not found");
-    }
-
-    auto build_result = bgen::model::build_protocol(sentry_path);
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto sizes = bgen::analyzer::compute_wire_sizes(protocol, index);
-    auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
-
-    std::string ns = "sentry_link";
-    auto structs = bgen::codegen::generate_structs(protocol, index, sizes, sessions, ns);
-
-    // FrameContext struct should be present in structs.hpp
-    CHECK(structs.find("struct FrameContext") != std::string::npos);
-
-    // Should have fields from the inlined Header: sync, msg_type, length, sequence
-    CHECK(structs.find("sync{}") != std::string::npos);
-    // msg_type field with namespace-qualified type to avoid name collision
-    CHECK(structs.find("msg_type{}") != std::string::npos);
-    CHECK(structs.find("length{}") != std::string::npos);
-    CHECK(structs.find("sequence{}") != std::string::npos);
-}
-
-TEST_CASE("Sentry-link case types have context-aware decode", "[codegen][context]") {
-    std::string sentry_path = (fs::path(BGEN_TEST_FIXTURES_DIR) / "sentry_link.bmdl.xml").string();
-    if (!fs::exists(sentry_path)) {
-        SKIP("sentry-link protocol not found");
-    }
-
-    auto build_result = bgen::model::build_protocol(sentry_path);
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto sizes = bgen::analyzer::compute_wire_sizes(protocol, index);
-    auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
-
-    std::string ns = "sentry_link";
-    auto structs = bgen::codegen::generate_structs(protocol, index, sizes, sessions, ns);
-
-    // Case types (HeartbeatBody, SensorBody, ConfigBody, AlertBody) should have
-    // a decode overload that accepts const FrameContext*
-    CHECK(structs.find("const FrameContext*") != std::string::npos);
-}
-
-TEST_CASE("Sentry-link entry-point constructs context in decode", "[codegen][context]") {
-    std::string sentry_path = (fs::path(BGEN_TEST_FIXTURES_DIR) / "sentry_link.bmdl.xml").string();
-    if (!fs::exists(sentry_path)) {
-        SKIP("sentry-link protocol not found");
-    }
-
-    auto build_result = bgen::model::build_protocol(sentry_path);
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto sizes = bgen::analyzer::compute_wire_sizes(protocol, index);
-    auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
-
-    std::string ns = "sentry_link";
-    auto messages = bgen::codegen::generate_messages(protocol, index, sizes, sessions, ns);
-
-    // The entry-point (Frame) decode should construct a FrameContext
-    CHECK(messages.find("FrameContext") != std::string::npos);
-    CHECK(messages.find("ep_ctx") != std::string::npos);
-}
-
-TEST_CASE("Session analyzer collects context fields from inlined header", "[session_analyzer][context]") {
-    std::string sentry_path = (fs::path(BGEN_TEST_FIXTURES_DIR) / "sentry_link.bmdl.xml").string();
-    if (!fs::exists(sentry_path)) {
-        SKIP("sentry-link protocol not found");
-    }
-
-    auto build_result = bgen::model::build_protocol(sentry_path);
-    REQUIRE(build_result.has_value());
-    auto& protocol = *build_result;
-
-    auto resolve_result = bgen::analyzer::resolve_types(protocol);
-    REQUIRE(resolve_result.has_value());
-    auto& index = *resolve_result;
-
-    auto sessions = bgen::analyzer::analyze_sessions(protocol, index);
-    REQUIRE(!sessions.empty());
-
-    const auto& si = sessions[0];
-    CHECK(si.entry_point_name == "Frame");
-    CHECK(!si.context_fields.empty());
-
-    // Should have: sync, msg-type, length, sequence (from inlined Header)
-    std::set<std::string> field_names;
-    for (const auto& cf : si.context_fields) {
-        field_names.insert(cf.bmdl_name);
-    }
-    CHECK(field_names.count("sync") == 1);
-    CHECK(field_names.count("msg-type") == 1);
-    CHECK(field_names.count("length") == 1);
-    CHECK(field_names.count("sequence") == 1);
-
-    // msg-type should be an enum type
-    bool msg_type_is_enum = false;
-    for (const auto& cf : si.context_fields) {
-        if (cf.bmdl_name == "msg-type") {
-            msg_type_is_enum = cf.is_enum;
-            CHECK(!cf.type_ref.empty());
-            break;
-        }
-    }
-    CHECK(msg_type_is_enum);
-}
-
-// ============================================================================
 // Advanced feature codegen tests (bitmap, enum arrays, FX advanced)
 // ============================================================================
 
@@ -776,7 +611,7 @@ TEST_CASE("FX block to_string uses std::to_string for numeric optionals (B3)", "
     // B3 fix: to_string() for optional numeric fields should show the actual
     // value via std::to_string, not just "set"/"none".
     // FxMessage has optional uint16 item1, uint32 item2, uint8 item3
-    // All are simple numeric types → should use std::to_string(*member)
+    // All are simple numeric types -> should use std::to_string(*member)
     CHECK(gc->messages.find("std::to_string(") != std::string::npos);
 
     // Should NOT have bare "set" for numeric optional fields in to_string output
@@ -862,8 +697,8 @@ TEST_CASE("generate_umbrella for hyphenated protocol name", "[codegen][umbrella]
     auto gc = generate_from("sentry_link.bmdl.xml");
     REQUIRE(gc.has_value());
 
-    // Should use the original protocol name (with hyphens), not the C++ namespace
-    CHECK(gc->umbrella.find("sentry-link") != std::string::npos);
+    // Protocol name derived from namespace (sentry_link)
+    CHECK(gc->umbrella.find("sentry_link") != std::string::npos);
 
     // All six includes should still be present
     CHECK(gc->umbrella.find("#include \"constants.hpp\"") != std::string::npos);
@@ -888,7 +723,7 @@ TEST_CASE("generate_protocol contains ProtocolDescriptor with expected members",
     // Protocol metadata: name and version
     CHECK(gc->protocol.find("static constexpr std::string_view name") != std::string::npos);
     CHECK(gc->protocol.find("static constexpr std::string_view version") != std::string::npos);
-    CHECK(gc->protocol.find("\"choice-test\"") != std::string::npos);
+    CHECK(gc->protocol.find("\"choice_test\"") != std::string::npos);
 
     // TypeInfo struct with expected fields
     CHECK(gc->protocol.find("struct TypeInfo") != std::string::npos);
@@ -935,22 +770,6 @@ TEST_CASE("generate_protocol for protocol without sessions", "[codegen][protocol
 
     // No create_session factory when there are no sessions
     CHECK(gc->protocol.find("create_session") == std::string::npos);
-}
-
-TEST_CASE("generate_protocol lists all leaf types from multi-entry", "[codegen][protocol]") {
-    auto gc = generate_from("multi_entry.bmdl.xml");
-    REQUIRE(gc.has_value());
-
-    // Should have ProtocolDescriptor
-    CHECK(gc->protocol.find("struct ProtocolDescriptor") != std::string::npos);
-
-    // Should list leaf types from both entry-points
-    CHECK(gc->protocol.find("Cmd1Body") != std::string::npos);
-    CHECK(gc->protocol.find("Cmd2Body") != std::string::npos);
-    CHECK(gc->protocol.find("Evt1Body") != std::string::npos);
-
-    // Should have create_session (factory for first entry-point)
-    CHECK(gc->protocol.find("create_session()") != std::string::npos);
 }
 
 // ============================================================================
@@ -1192,4 +1011,27 @@ TEST_CASE("SourceLoc shows line:column in error messages", "[parser]") {
         }
     }
     CHECK(has_line_col);
+}
+
+// ============================================================================
+// Section: Outer-scope field access + auto-length (outer_scope fixture)
+// ============================================================================
+
+TEST_CASE("Outer scope: generates parameterized decode for otherwise case", "[codegen][outer_scope]") {
+    auto gc = generate_from("outer_scope.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // The otherwise case's inline struct should have a decode signature
+    // that accepts the outer-scope "len" field as a parameter
+    CHECK(gc->structs.find("uint8 len") != std::string::npos);
+}
+
+TEST_CASE("Outer scope: auto-length backpatch in encode", "[codegen][outer_scope]") {
+    auto gc = generate_from("outer_scope.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Encode should contain auto-length backpatch logic
+    CHECK(gc->structs.find("struct_start_pos_") != std::string::npos);
+    CHECK(gc->structs.find("length_byte_pos_") != std::string::npos);
+    CHECK(gc->structs.find("patch_u8") != std::string::npos);
 }

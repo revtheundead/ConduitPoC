@@ -146,46 +146,6 @@ Two cases may share the same discriminator value when one is `direction="send"` 
 
 **Encode behavior**: Both variants remain in the generated variant type and `encode_wrap()`. Encoding either direction works; a warning is logged for opposite-direction usage.
 
-## Array Dispatch
-
-When a `<case>` contains an `<array>`, the `dispatch` attribute on `<array>` controls how the session delivers decoded elements:
-
-```xml
-<choice name="records" switch="cat" length-from="len - 3">
-  <!-- Batch (default): handler receives the case wrapper type with .items() -->
-  <case name="cat007-records" value="CAT007">
-    <array name="items" count="*" type="Cat007Record"/>
-  </case>
-
-  <!-- Per-record (explicit): handler fires once per Cat048Record -->
-  <case name="cat048-records" value="CAT048">
-    <array name="items" count="*" type="Cat048Record" dispatch="per-record"/>
-  </case>
-</choice>
-```
-
-| Value | Behavior |
-|-------|----------|
-| `batch` | **Default.** The case wrapper type (e.g., `cat007_records`) is the leaf type. `decode_frame()` returns a single `DecodedMessage` whose payload is the wrapper, with the full array accessible via `.items()`. |
-| `per-record` | The array element type (e.g., `Cat048Record`) is the leaf type. `decode_frame()` iterates the array and returns one `DecodedMessage` per element. Array boundaries are lost. |
-
-The `dispatch` attribute is only valid on arrays that are direct children of inline `<case>` elements (cases without a `type` attribute).
-
-### Example: Registering Handlers
-
-```cpp
-// Batch (default): register handler for the case wrapper type
-handler.on<asterix::cat007_records>([](const auto& wrapper) {
-    // wrapper.items() gives the full vector of Cat007Record
-    for (auto& rec : wrapper.items()) { /* ... */ }
-});
-
-// Per-record: register handler for the element type
-handler.on<asterix::Cat048Record>([](const auto& rec) {
-    // Called once per record — no batch grouping
-});
-```
-
 ## Conditional Choices
 
 Choices support `present-when` and `bit` for conditional presence:

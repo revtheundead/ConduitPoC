@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <!-- Base library: deepest level -->
   <types>
     <type name="uint8" base="uint" bits="8"/>

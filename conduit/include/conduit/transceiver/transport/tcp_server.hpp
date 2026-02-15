@@ -42,6 +42,7 @@ public:
     [[nodiscard]] VoidResult send(PeerId peer, std::span<const uint8_t> data) override;
     [[nodiscard]] bool is_stream_oriented() const noexcept override { return true; }
     [[nodiscard]] bool is_multi_peer() const noexcept override { return true; }
+    [[nodiscard]] std::string_view transport_type() const noexcept override { return "tcp-server"; }
 
     /// Returns the actual bound port (useful when configured with port 0).
     [[nodiscard]] uint16_t local_port() const;

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="resolve-unresolved-ref" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>resolve_unresolved_ref</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -10,5 +12,4 @@
       <field name="bad" type="NonExistentType"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

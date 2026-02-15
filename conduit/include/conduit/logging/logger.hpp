@@ -153,8 +153,8 @@ public:
     void write(const LogEntry& entry) override;
     void flush() override;
 
-    void setColorEnabled(bool enabled) { colorize_ = enabled; }
-    void setCompactFormat(bool compact) { compact_ = compact; }
+    void setColorEnabled(bool enabled) { std::lock_guard lock(mutex_); colorize_ = enabled; }
+    void setCompactFormat(bool compact) { std::lock_guard lock(mutex_); compact_ = compact; }
 
 private:
     std::ostream& stream_;

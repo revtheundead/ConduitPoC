@@ -82,7 +82,6 @@ Runtime includes:
 
 Contains all struct classes generated from `<struct>` definitions, including:
 - Forward declarations of all struct classes
-- Context structs for entry-point sessions
 - Nested child classes (inline arrays, inline choice cases)
 - Bitmap structs with FSPEC encode/decode
 
@@ -91,15 +90,16 @@ Includes `types.hpp`, `constants.hpp`, and conduit runtime headers (`conduit/cor
 ### messages.hpp
 
 Contains all message classes generated from `<message>` definitions. Each message class has:
-- `TYPE_ID` and `TYPE_NAME` static members
+- `TYPE_ID`, `TYPE_NAME`, and `ID_VALUE` static members
 - `encode_bytes()` / `decode_bytes()` convenience methods
-- `wrap()` static overloads (for entry-point messages)
+
+When a `<frame>` is present, also contains the Frame class with `PayloadVariant`, `wrap()` overloads, and encode/decode with auto-length backpatching.
 
 Includes `structs.hpp`, `types.hpp`, `constants.hpp`, and conduit runtime headers (`conduit/core/error.hpp`, `conduit/io/bit_reader.hpp`, `conduit/io/bit_writer.hpp`). Uses `<any>` and `<string_view>` (replacing `<string>` from `structs.hpp`). See [Struct & Message Code Generation](generated-structs.md).
 
 ### sessions.hpp
 
-Contains session classes (one per entry-point message) implementing `conduit::traits::ISession`. See [Session Code Generation](generated-sessions.md).
+Contains session classes (one per frame) implementing `conduit::traits::ISession`. See [Session Code Generation](generated-sessions.md).
 
 Includes `messages.hpp`, `conduit/traits/session_traits.hpp`, and standard library headers (`<any>`, `<memory>`, `<span>`, `<string_view>`, `<vector>`). May conditionally include `conduit/logging/logger.hpp` when direction-constrained types exist.
 
@@ -110,7 +110,7 @@ Contains a `ProtocolDescriptor` struct with:
 - A `TypeInfo` struct with `type_id`, `type_name`, and `groups`
 - A `types` array of all leaf types across all sessions
 - `find()` methods for lookup by `type_id` or `type_name`
-- `create_session()` factory (delegates to the first entry-point's factory)
+- `create_session()` factory (delegates to the first session's factory)
 
 Includes `sessions.hpp`, `conduit/traits/session_traits.hpp`, and standard library headers (`<array>`, `<cstdint>`, `<memory>`, `<span>`, `<string_view>`).
 

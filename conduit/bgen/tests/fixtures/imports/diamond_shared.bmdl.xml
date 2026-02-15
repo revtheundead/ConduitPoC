@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <!-- Shared library imported from both diamond_a and diamond_b -->
   <types>
     <type name="uint8" base="uint" bits="8"/>

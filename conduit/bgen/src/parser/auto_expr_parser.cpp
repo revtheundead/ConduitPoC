@@ -95,24 +95,6 @@ AutoExprResult parse_auto_expr(const std::string& input) {
         return result;
     }
 
-    if (sv.starts_with("checksum")) {
-        std::string_view arg;
-        size_t after;
-        if (!try_parse_paren_arg(sv, 8, arg, after)) {
-            return std::unexpected(AutoExprError{"checksum requires an algorithm argument: checksum(algo)"});
-        }
-        if (arg.empty()) {
-            return std::unexpected(AutoExprError{"checksum algorithm cannot be empty"});
-        }
-        auto rest = trim(sv.substr(after));
-        if (!rest.empty()) {
-            return std::unexpected(AutoExprError{"unexpected text after checksum(...): '" + std::string(rest) + "'"});
-        }
-        result.kind = model::AutoKind::Checksum;
-        result.key = std::string(arg);
-        return result;
-    }
-
     // count(field)
     if (sv.starts_with("count")) {
         std::string_view arg;

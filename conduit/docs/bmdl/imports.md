@@ -18,18 +18,19 @@ BMDL files can import types, structs, messages, and constants from other BMDL fi
 
 ## Placement
 
-`<import>` is valid as a direct child of both `<protocol>` and `<bmdl>`. This allows library files (which have no `<protocol>` wrapper) to import other libraries.
+`<import>` is valid as a direct child of `<bmdl>`:
 
 ```xml
 <!-- In a protocol file -->
-<protocol name="my-protocol" version="1.0">
+<bmdl version="2.0">
+  <defaults><namespace>my-protocol</namespace></defaults>
   <import href="stdlib.bmdl.xml"/>
   <import href="common/types.bmdl.xml" ns="common"/>
   ...
-</protocol>
+</bmdl>
 
 <!-- In a library file -->
-<bmdl version="1.0">
+<bmdl version="2.0">
   <import href="stdlib.bmdl.xml"/>
   <types>...</types>
 </bmdl>
@@ -84,11 +85,11 @@ All `<constants>`, `<types>`, and `<messages>` from the imported file are availa
 
 ## Library Files
 
-A BMDL file may omit the `<protocol>` wrapper and contain definition blocks directly under `<bmdl>`:
+A BMDL file without `<defaults>` is a library file, containing definition blocks directly under `<bmdl>`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
+<bmdl version="2.0">
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -113,9 +114,9 @@ Each file is processed at most once, identified by its resolved absolute path. C
 
 ## Protocol Requirement
 
-When the generator resolves all files, exactly one file must serve as the protocol entry point. In v1, this means a `<protocol>` wrapper. In v2, a `<frame>` at the root level of a `<bmdl>` file also satisfies this requirement (no `<protocol>` wrapper needed). The generator reports distinct errors for:
-- No `<protocol>` found -- no entry point for generation
-- Multiple `<protocol>` wrappers found -- ambiguous entry point
+When the generator resolves all files, exactly one file must have a `<defaults>` block, marking it as the protocol entry point. The generator reports distinct errors for:
+- No protocol file found -- expected `<defaults>` or `<frame>` in at least one file
+- Multiple protocol files found -- only one file may define `<defaults>` or `<frame>`
 
 ## Example Project Structure
 
@@ -138,11 +139,11 @@ protocols/
 ## Best Practices
 
 - Use namespaces for third-party or shared libraries to avoid name collisions.
-- Keep library files self-contained (no `<protocol>` wrapper, just `<bmdl>` with definition blocks).
+- Keep library files self-contained (just `<bmdl>` with definition blocks, no `<defaults>`).
 - Extract common types (integer aliases, coordinates, callsigns) into a stdlib file and import it everywhere.
 
 ## Common Pitfalls
 
 - The importing protocol's `<defaults>` **are** applied to library definitions during the build phase. Library types without explicit attributes will inherit the importer's defaults. Use explicit attributes on library types to ensure consistent behavior.
 - Importing without `ns` merges types into the current namespace. If two namespace-free imports define the same type name, it's a validation error.
-- Exactly one file in the import tree must contain a `<protocol>` wrapper. Zero or multiple `<protocol>` wrappers is an error.
+- Exactly one file in the import tree must be a protocol file (has a `<defaults>` block). Zero or multiple protocol files is an error.

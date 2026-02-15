@@ -44,6 +44,7 @@ struct FieldInfo {
     const model::Constraint* constraint = nullptr;  // A9: for setter validation
     std::optional<std::string> default_value;       // A10: for optional default
     std::optional<int> max_length;                   // G2: for setter length validation
+    bool is_auto_managed = false;                    // frame field with auto_expr → deprecated setter
 };
 
 struct BitmapField {

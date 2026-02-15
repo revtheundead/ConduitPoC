@@ -96,13 +96,6 @@ TEST_CASE("Auto expr: config(system-id)", "[auto_expr]") {
     CHECK(r->key == "system-id");
 }
 
-TEST_CASE("Auto expr: checksum(crc16)", "[auto_expr]") {
-    auto r = parse_auto_expr("checksum(crc16)");
-    REQUIRE(r.has_value());
-    CHECK(r->kind == AutoKind::Checksum);
-    CHECK(r->key == "crc16");
-}
-
 TEST_CASE("Auto expr: whitespace around parens", "[auto_expr]") {
     auto r = parse_auto_expr("length( payload )");
     REQUIRE(r.has_value());
@@ -136,11 +129,6 @@ TEST_CASE("Auto expr: config with empty key", "[auto_expr]") {
 
 TEST_CASE("Auto expr: count without parens", "[auto_expr]") {
     auto r = parse_auto_expr("count");
-    REQUIRE(!r.has_value());
-}
-
-TEST_CASE("Auto expr: checksum without parens", "[auto_expr]") {
-    auto r = parse_auto_expr("checksum");
     REQUIRE(!r.has_value());
 }
 

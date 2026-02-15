@@ -68,9 +68,6 @@ bgen_generate_fixture(wire_encodings)
 bgen_generate_fixture(fx_block)
 bgen_generate_fixture(fx_string)
 bgen_generate_fixture(auto_sequence)
-bgen_generate_fixture(multi_entry)
-bgen_generate_fixture(otherwise_protocol)
-bgen_generate_fixture(nested_choice)
 bgen_generate_fixture(default_initial)
 bgen_generate_fixture(string_prefix_incl)
 bgen_generate_fixture(bitmap_advanced)
@@ -83,13 +80,20 @@ bgen_generate_fixture(non_overlap_ranges)
 bgen_generate_fixture(stress_large)
 bgen_generate_fixture(constraint_tighten)
 bgen_generate_fixture(direction_qualified)
-bgen_generate_fixture(batch_dispatch)
 bgen_generate_fixture(frame_basic)
 bgen_generate_fixture(frame_config)
 bgen_generate_fixture(frame_footer)
 bgen_generate_fixture(frame_direction)
 bgen_generate_fixture(frame_array)
 bgen_generate_fixture(fx_ia5_string)
+bgen_generate_fixture(frame_length_offset)
+bgen_generate_fixture(outer_scope)
+bgen_generate_fixture(present_when_complex)
+bgen_generate_fixture(frame_timestamp)
+bgen_generate_fixture(ebcdic_strings)
+bgen_generate_fixture(inline_case_collision)
+bgen_generate_fixture(bitmap_wide_fixed)
+bgen_generate_fixture(optional_constrained)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -126,9 +130,14 @@ add_executable(bgen_tests
     test_expr_edge_cases.cpp
     test_stress_roundtrip.cpp
     test_constraint_tighten.cpp
-    test_batch_dispatch.cpp
     test_to_string.cpp
     test_frame_roundtrip.cpp
+    test_outer_scope_roundtrip.cpp
+    test_frame_length_offset_roundtrip.cpp
+    test_present_when_complex.cpp
+    test_frame_timestamp.cpp
+    test_ebcdic_roundtrip.cpp
+    test_inline_case_collision.cpp
 )
 
 add_dependencies(bgen_tests
@@ -140,21 +149,27 @@ add_dependencies(bgen_tests
     gen_field_scale gen_expr_features gen_mixed_endian
     gen_wire_encodings
     gen_fx_block gen_fx_string
-    gen_auto_sequence gen_multi_entry
-    gen_otherwise_protocol gen_nested_choice
+    gen_auto_sequence
     gen_default_initial gen_string_prefix_incl
     gen_bitmap_advanced gen_fx_advanced
     gen_fx_choice gen_enum_arrays gen_signed_length
     gen_send_only_leaf gen_non_overlap_ranges
     gen_stress_large gen_constraint_tighten
     gen_direction_qualified
-    gen_batch_dispatch
     gen_frame_basic
     gen_frame_config
     gen_frame_footer
     gen_frame_direction
     gen_frame_array
     gen_fx_ia5_string
+    gen_frame_length_offset
+    gen_outer_scope
+    gen_present_when_complex
+    gen_frame_timestamp
+    gen_ebcdic_strings
+    gen_inline_case_collision
+    gen_bitmap_wide_fixed
+    gen_optional_constrained
 )
 
 target_link_libraries(bgen_tests PRIVATE

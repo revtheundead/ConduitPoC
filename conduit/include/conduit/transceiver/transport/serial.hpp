@@ -80,6 +80,7 @@ public:
     [[nodiscard]] VoidResult send(PeerId peer, std::span<const uint8_t> data) override;
     [[nodiscard]] bool is_stream_oriented() const noexcept override { return true; }
     [[nodiscard]] bool is_multi_peer() const noexcept override { return false; }
+    [[nodiscard]] std::string_view transport_type() const noexcept override { return "serial"; }
 
 private:
     struct Impl;

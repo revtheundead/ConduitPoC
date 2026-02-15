@@ -49,7 +49,7 @@ TEST_CASE("TransceiverConfig: materialize TCP client",
 
     TransportCallbacks srv_cb;
     std::atomic<uint32_t> next_id{100};
-    srv_cb.on_peer_connected = [&]() -> PeerId {
+    srv_cb.on_peer_connected = [&](std::string) -> PeerId {
         return PeerId{next_id.fetch_add(1)};
     };
     srv_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
@@ -183,7 +183,7 @@ TEST_CASE("TransceiverConfig: multiple config peers mixed transport",
     auto server = std::make_shared<TcpServerTransport>(srv_cfg);
     TransportCallbacks srv_cb;
     std::atomic<uint32_t> next_id{100};
-    srv_cb.on_peer_connected = [&]() -> PeerId { return PeerId{next_id.fetch_add(1)}; };
+    srv_cb.on_peer_connected = [&](std::string) -> PeerId { return PeerId{next_id.fetch_add(1)}; };
     srv_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
     srv_cb.on_peer_disconnected = [](PeerId) {};
     srv_cb.on_state_changed = [](PeerId, net::ConnectionState) {};

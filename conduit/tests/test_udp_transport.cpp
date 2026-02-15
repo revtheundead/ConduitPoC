@@ -43,7 +43,7 @@ static uint16_t test_base_port() {
 static TransportCallbacks make_null_callbacks() {
     TransportCallbacks cb;
     cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb.on_peer_connected = []() -> PeerId { return PeerId{1}; };
+    cb.on_peer_connected = [](std::string) -> PeerId { return PeerId{1}; };
     cb.on_peer_disconnected = [](PeerId) {};
     cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     return cb;
@@ -75,7 +75,7 @@ TEST_CASE("UDP: single-peer send/receive loopback", "[udp]") {
         std::lock_guard lock(b_mutex);
         b_received.assign(data.begin(), data.end());
     };
-    cb_b.on_peer_connected = [&]() -> PeerId {
+    cb_b.on_peer_connected = [&](std::string) -> PeerId {
         return PeerId{b_next_id.fetch_add(1)};
     };
     cb_b.on_peer_disconnected = [](PeerId) {};
@@ -120,7 +120,7 @@ TEST_CASE("UDP: single-peer send/receive loopback", "[udp]") {
         std::lock_guard lock(a_mutex);
         a_received.assign(data.begin(), data.end());
     };
-    cb_a.on_peer_connected = [&]() -> PeerId { return peer_a; };
+    cb_a.on_peer_connected = [&](std::string) -> PeerId { return peer_a; };
     cb_a.on_peer_disconnected = [](PeerId) {};
     cb_a.on_state_changed = [](PeerId, net::ConnectionState) {};
 
@@ -129,7 +129,7 @@ TEST_CASE("UDP: single-peer send/receive loopback", "[udp]") {
         std::lock_guard lock(b_mutex);
         b_received.assign(data.begin(), data.end());
     };
-    cb_b2.on_peer_connected = [&]() -> PeerId { return peer_b; };
+    cb_b2.on_peer_connected = [&](std::string) -> PeerId { return peer_b; };
     cb_b2.on_peer_disconnected = [](PeerId) {};
     cb_b2.on_state_changed = [](PeerId, net::ConnectionState) {};
 
@@ -197,7 +197,7 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
         received_data.emplace_back(pid.value(),
             std::vector<uint8_t>(data.begin(), data.end()));
     };
-    cb.on_peer_connected = [&]() -> PeerId {
+    cb.on_peer_connected = [&](std::string) -> PeerId {
         auto id = next_id.fetch_add(1);
         std::lock_guard lock(peer_mutex);
         connected_peers.insert(id);
@@ -219,7 +219,7 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
     PeerId c1_peer(1);
     TransportCallbacks c1_cb;
     c1_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    c1_cb.on_peer_connected = [&]() -> PeerId { return c1_peer; };
+    c1_cb.on_peer_connected = [&](std::string) -> PeerId { return c1_peer; };
     c1_cb.on_peer_disconnected = [](PeerId) {};
     c1_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     REQUIRE(c1->start(std::move(c1_cb)).has_value());
@@ -235,7 +235,7 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
     PeerId c2_peer(2);
     TransportCallbacks c2_cb;
     c2_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    c2_cb.on_peer_connected = [&]() -> PeerId { return c2_peer; };
+    c2_cb.on_peer_connected = [&](std::string) -> PeerId { return c2_peer; };
     c2_cb.on_peer_disconnected = [](PeerId) {};
     c2_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     REQUIRE(c2->start(std::move(c2_cb)).has_value());
@@ -281,7 +281,7 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
 
     TransportCallbacks srv_cb;
     srv_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    srv_cb.on_peer_connected = [&]() -> PeerId {
+    srv_cb.on_peer_connected = [&](std::string) -> PeerId {
         auto id = PeerId{next_id.fetch_add(1)};
         std::lock_guard lock(peer_mutex);
         server_peers.push_back(id);
@@ -309,7 +309,7 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
         std::lock_guard lock(c1_mutex);
         c1_received.assign(data.begin(), data.end());
     };
-    c1_cb.on_peer_connected = [&]() -> PeerId { return c1_peer; };
+    c1_cb.on_peer_connected = [&](std::string) -> PeerId { return c1_peer; };
     c1_cb.on_peer_disconnected = [](PeerId) {};
     c1_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     REQUIRE(c1->start(std::move(c1_cb)).has_value());
@@ -331,7 +331,7 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
         std::lock_guard lock(c2_mutex);
         c2_received.assign(data.begin(), data.end());
     };
-    c2_cb.on_peer_connected = [&]() -> PeerId { return c2_peer; };
+    c2_cb.on_peer_connected = [&](std::string) -> PeerId { return c2_peer; };
     c2_cb.on_peer_disconnected = [](PeerId) {};
     c2_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     REQUIRE(c2->start(std::move(c2_cb)).has_value());
@@ -403,13 +403,13 @@ TEST_CASE("UDP: large datagram 1400 bytes", "[udp]") {
         std::lock_guard lock(rx_mutex);
         received.assign(data.begin(), data.end());
     };
-    cb_a.on_peer_connected = [&]() -> PeerId { return pa; };
+    cb_a.on_peer_connected = [&](std::string) -> PeerId { return pa; };
     cb_a.on_peer_disconnected = [](PeerId) {};
     cb_a.on_state_changed = [](PeerId, net::ConnectionState) {};
 
     TransportCallbacks cb_b;
     cb_b.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb_b.on_peer_connected = [&]() -> PeerId { return pb; };
+    cb_b.on_peer_connected = [&](std::string) -> PeerId { return pb; };
     cb_b.on_peer_disconnected = [](PeerId) {};
     cb_b.on_state_changed = [](PeerId, net::ConnectionState) {};
 
@@ -465,13 +465,13 @@ TEST_CASE("UDP: rapid fire 100 datagrams", "[udp]") {
         std::lock_guard lock(rx_mutex);
         received.emplace_back(data.begin(), data.end());
     };
-    cb_a.on_peer_connected = [&]() -> PeerId { return pa; };
+    cb_a.on_peer_connected = [&](std::string) -> PeerId { return pa; };
     cb_a.on_peer_disconnected = [](PeerId) {};
     cb_a.on_state_changed = [](PeerId, net::ConnectionState) {};
 
     TransportCallbacks cb_b;
     cb_b.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb_b.on_peer_connected = [&]() -> PeerId { return pb; };
+    cb_b.on_peer_connected = [&](std::string) -> PeerId { return pb; };
     cb_b.on_peer_disconnected = [](PeerId) {};
     cb_b.on_state_changed = [](PeerId, net::ConnectionState) {};
 
@@ -558,7 +558,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
         cb.on_data_received = [&](PeerId, std::span<const uint8_t>) {
             recv_count.fetch_add(1);
         };
-        cb.on_peer_connected = [&]() -> PeerId { return pa; };
+        cb.on_peer_connected = [&](std::string) -> PeerId { return pa; };
         cb.on_peer_disconnected = [](PeerId) {};
         cb.on_state_changed = [](PeerId, net::ConnectionState) {};
         return cb;
@@ -567,7 +567,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     auto make_cb_b = [&]() {
         TransportCallbacks cb;
         cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-        cb.on_peer_connected = [&]() -> PeerId { return pb; };
+        cb.on_peer_connected = [&](std::string) -> PeerId { return pb; };
         cb.on_peer_disconnected = [](PeerId) {};
         cb.on_state_changed = [](PeerId, net::ConnectionState) {};
         return cb;
@@ -614,7 +614,7 @@ TEST_CASE("UDP: on_state_changed fires Connected in single-peer mode", "[udp]") 
 
     TransportCallbacks cb;
     cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb.on_peer_connected = []() -> PeerId { return PeerId{1}; };
+    cb.on_peer_connected = [](std::string) -> PeerId { return PeerId{1}; };
     cb.on_peer_disconnected = [](PeerId) {};
     cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
         std::lock_guard lock(mtx);
@@ -678,7 +678,7 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
 
     TransportCallbacks cb;
     cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb.on_peer_connected = [&]() -> PeerId {
+    cb.on_peer_connected = [&](std::string) -> PeerId {
         auto id = next_id.fetch_add(1);
         std::lock_guard lock(peer_mutex);
         connected_peers.insert(id);
@@ -702,7 +702,7 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
         PeerId c_peer(static_cast<uint32_t>(i + 50));
         TransportCallbacks c_cb;
         c_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-        c_cb.on_peer_connected = [c_peer]() -> PeerId { return c_peer; };
+        c_cb.on_peer_connected = [c_peer](std::string) -> PeerId { return c_peer; };
         c_cb.on_peer_disconnected = [](PeerId) {};
         c_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
         REQUIRE(c->start(std::move(c_cb)).has_value());
@@ -745,7 +745,7 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
 
     TransportCallbacks cb;
     cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    cb.on_peer_connected = [&]() -> PeerId {
+    cb.on_peer_connected = [&](std::string) -> PeerId {
         auto id = next_id.fetch_add(1);
         std::lock_guard lock(peer_mutex);
         connected_peers.insert(id);
@@ -770,7 +770,7 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
     PeerId c_peer(50);
     TransportCallbacks c_cb;
     c_cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
-    c_cb.on_peer_connected = [c_peer]() -> PeerId { return c_peer; };
+    c_cb.on_peer_connected = [c_peer](std::string) -> PeerId { return c_peer; };
     c_cb.on_peer_disconnected = [](PeerId) {};
     c_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
     REQUIRE(c->start(std::move(c_cb)).has_value());

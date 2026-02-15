@@ -5,7 +5,6 @@
 // - Bitmap structs (with various field types)
 // - Plain structs with inner struct fields (recursive to_string)
 // - Messages with nested struct fields
-// - Vectors of struct elements
 
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/io/bit_reader.hpp>
@@ -15,7 +14,6 @@
 #include "bitmap_advanced/messages.hpp"
 #include "bitmap_fx/messages.hpp"
 #include "struct_features/messages.hpp"
-#include "batch_dispatch/messages.hpp"
 
 // ============================================================================
 // Bitmap struct to_string
@@ -140,35 +138,6 @@ TEST_CASE("Message to_string: bitmap with struct items", "[to_string][message]")
     CHECK(s.find("sac=10") != std::string::npos);
     CHECK(s.find("sic=20") != std::string::npos);
     CHECK(s.find("value=999") != std::string::npos);
-}
-
-// ============================================================================
-// Vector of structs to_string
-// ============================================================================
-
-TEST_CASE("Vector of structs to_string: iterates elements", "[to_string][vector]") {
-    batch_test::records recs;
-    batch_test::Record r1;
-    r1.set_id(10);
-    r1.set_value(100);
-    batch_test::Record r2;
-    r2.set_id(20);
-    r2.set_value(200);
-    recs.mutable_items().push_back(r1);
-    recs.mutable_items().push_back(r2);
-    auto s = recs.to_string();
-    CHECK(s.find("records{") != std::string::npos);
-    CHECK(s.find("items=[") != std::string::npos);
-    // Each element should show its to_string, not just count
-    CHECK(s.find("Record{id=10, value=100}") != std::string::npos);
-    CHECK(s.find("Record{id=20, value=200}") != std::string::npos);
-}
-
-TEST_CASE("Vector of structs to_string: empty", "[to_string][vector]") {
-    batch_test::records recs;
-    auto s = recs.to_string();
-    CHECK(s.find("records{") != std::string::npos);
-    CHECK(s.find("items=[]") != std::string::npos);
 }
 
 // ============================================================================

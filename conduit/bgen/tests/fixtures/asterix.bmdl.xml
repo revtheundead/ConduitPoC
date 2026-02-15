@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="asterix" version="1.0">
-
+<bmdl version="2.0">
   <doc>
     ASTERIX (All Purpose Structured Eurocontrol Surveillance Information Exchange)
 
@@ -17,6 +15,7 @@
   </doc>
 
   <defaults>
+    <namespace>asterix</namespace>
     <endian>big</endian>
     <string-encoding>ia5</string-encoding>
     <string-padding>space</string-padding>
@@ -754,7 +753,7 @@
       AsterixFrame: Sequence of data blocks (top-level entry point).
       An ASTERIX transmission typically contains one or more data blocks.
     -->
-    <message name="AsterixFrame" role="entry-point">
+    <message name="AsterixFrame">
       <doc>
         ASTERIX Frame (Top-Level)
         One or more data blocks, each containing records of a single category.
@@ -762,6 +761,4 @@
       <array name="blocks" count="*" type="DataBlock"/>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

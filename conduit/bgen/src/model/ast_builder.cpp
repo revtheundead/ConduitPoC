@@ -76,12 +76,12 @@ BuildResult build_protocol(const std::string& root_path) {
 
     if (protocol_count == 0) {
         return std::unexpected(std::vector<BuildError>{
-            BuildError{"no <protocol> found in any file — no entry point for generation", SourceLoc{root_path, 0}}
+            BuildError{"no protocol file found — expected <defaults> or <frame> in at least one file", SourceLoc{root_path, 0}}
         });
     }
     if (protocol_count > 1) {
         return std::unexpected(std::vector<BuildError>{
-            BuildError{"multiple <protocol> wrappers found — ambiguous entry point", SourceLoc{root_path, 0}}
+            BuildError{"multiple protocol files found — only one file may define <defaults> or <frame>", SourceLoc{root_path, 0}}
         });
     }
 
@@ -150,25 +150,6 @@ BuildResult build_protocol(const std::string& root_path) {
         // Collect warnings
         for (auto& w : f.warnings) {
             proto.warnings.push_back(std::move(w));
-        }
-    }
-
-    // Warn if messages exist but none is marked as entry-point, and there are
-    // library imports — indicates the user likely forgot to designate one.
-    // Skip the warning for frame-based protocols (frames replace entry-points)
-    // and for single-file protocols since many standalone test/utility protocols
-    // legitimately have no entry-point.
-    if (files.size() > 1 && proto.frames.empty()) {
-        bool has_entry_point = false;
-        for (const auto& m : proto.messages) {
-            if (m.is_entry_point) { has_entry_point = true; break; }
-        }
-        if (!has_entry_point && !proto.messages.empty()) {
-            proto.warnings.push_back({
-                "no message with role=\"entry-point\" found — "
-                "session generation will produce no output",
-                proto.loc
-            });
         }
     }
 

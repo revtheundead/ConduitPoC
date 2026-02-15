@@ -1,32 +1,32 @@
-<bmdl version="1.0">
-<protocol name="inline-struct" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>inline_struct</namespace>
+  </defaults>
+
   <constants>
     <const name="SYNC" type="uint16" value="0xCAFE"/>
-    <const name="MSG_X" type="uint8" value="1"/>
-    <const name="MSG_Y" type="uint8" value="2"/>
   </constants>
+
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
     <type name="uint32" base="uint" bits="32"/>
-    <!-- Header struct that will be inlined into the entry-point -->
-    <struct name="Header">
-      <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
-      <field name="seq" type="uint16" auto="increment"/>
-      <field name="length" type="uint16"/>
-    </struct>
-    <struct name="BodyX"><field name="x-data" type="uint32"/></struct>
-    <struct name="BodyY"><field name="y-data" type="uint16"/></struct>
   </types>
+
+  <frame name="Frame">
+    <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
+    <field name="seq" type="uint16" auto="increment"/>
+    <field name="length" type="uint16" auto="length"/>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <payload/>
+  </frame>
+
   <messages>
-    <message name="Frame" role="entry-point">
-      <field name="hdr" type="Header" inline="true"/>
-      <field name="msg-type" type="uint8"/>
-      <choice name="payload" switch="msg-type">
-        <case name="x" value="MSG_X" type="BodyX"/>
-        <case name="y" value="MSG_Y" type="BodyY"/>
-      </choice>
+    <message id="1" name="BodyX">
+      <field name="x-data" type="uint32"/>
+    </message>
+    <message id="2" name="BodyY">
+      <field name="y-data" type="uint16"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

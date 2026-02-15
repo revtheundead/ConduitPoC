@@ -91,7 +91,7 @@ Named conditional structs are optional. On decode, the struct is only read when 
 
 Messages are top-level entry points with standalone serialization semantics. Unlike standalone structs (which encode/decode within a bit stream), messages support encoding directly to bytes and decoding from bytes.
 
-### v2 Messages (with Frame)
+### Messages with Frame
 
 When a `<frame>` is present, every message requires an `id` attribute and optionally a `direction` attribute:
 
@@ -142,51 +142,12 @@ The `id` attribute is **required** on all messages when a frame exists. The fram
 
 #### Generated Constants
 
-Each v2 message class includes:
+Each message class includes:
 - `TYPE_ID` -- 64-bit FNV-1a hash of the message name (for session dispatch)
 - `TYPE_NAME` -- string view of the message name
 - `ID_VALUE` -- the `id` attribute value, typed to match the frame's `auto="id"` field
 
-### v1 Messages (Legacy)
-
-Without a frame, messages use `role="entry-point"` with `<choice>` dispatch:
-
-```xml
-<messages>
-  <message name="Heartbeat">
-    <field name="timestamp" type="uint64"/>
-    <field name="sequence" type="uint32"/>
-    <field name="status" type="uint8"/>
-  </message>
-</messages>
-```
-
 Messages can also be referenced as types in fields, arrays, and other constructs, just like structs.
-
-## Entry-Point Messages (v1)
-
-The `role="entry-point"` attribute marks wire-level entry points for [session](sessions.md) generation:
-
-```xml
-<message name="Frame" role="entry-point">
-  <field name="header" type="Header" inline="true"/>
-  <choice name="body" switch="type" length-from="length - 5">
-    <case name="heartbeat" value="heartbeat" type="HeartbeatBody"/>
-    <case name="sensor" value="sensor" type="SensorBody"/>
-    <otherwise name="unknown">
-      <field name="data" type="bytes" length="*"/>
-    </otherwise>
-  </choice>
-</message>
-```
-
-Rules:
-- `role` is optional. When omitted from all messages and no frame is present, no session metadata is produced.
-- Multiple messages may have `role="entry-point"`, each producing an independent session.
-- `role` is only valid on `<message>`, not `<struct>` or any other element.
-- In v2 (with `<frame>`), `role="entry-point"` is not needed -- the frame automatically provides session metadata.
-
-See [Sessions](sessions.md) for full details.
 
 ## Inline Fields
 
@@ -222,10 +183,8 @@ Variable-size situations include: variable-length strings, variable-count arrays
 
 - Keep structs small and focused. Extract reusable sub-structures into `<types>` for clarity.
 - Use `inline="true"` on a field referencing a named struct to flatten its fields into the parent scope -- useful for logical grouping without creating a nested type in the API.
-- Use `role="entry-point"` on the outermost frame message, not on inner body types.
 
 ## Common Pitfalls
 
 - Only `<message>` elements produce standalone byte-level encode/decode. Structs defined in `<types>` encode/decode within a bit stream only.
-- Messages can be used as types (referenced by fields/arrays), but structs cannot have `role="entry-point"`.
 - All structs require a `name` attribute. Use `inline="true"` on the referencing field to flatten fields into the parent. If the inlined struct has a field with the same name as an existing parent field, the generator reports an error.

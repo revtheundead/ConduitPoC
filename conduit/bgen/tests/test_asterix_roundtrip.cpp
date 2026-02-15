@@ -384,16 +384,16 @@ TEST_CASE("Cat048Record multiple FSPEC items roundtrip", "[roundtrip][asterix]")
     polar.set_theta(180.0);
     items.set_i040(polar);
 
-    // I070 - Mode 3/A (Cat048 inline type collides with Cat001 → itemsi070)
-    asterix::itemsi070 mode3a;
+    // I070 - Mode 3/A (Cat048 inline type collides with Cat001 → items_i070)
+    asterix::items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(0x567);
     items.set_i070(mode3a);
 
-    // I090 - Flight Level (Cat048 inline type collides with Cat001 → itemsi090)
-    asterix::itemsi090 fl;
+    // I090 - Flight Level (Cat048 inline type collides with Cat001 → items_i090)
+    asterix::items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(100.0); // FL100
@@ -745,7 +745,7 @@ TEST_CASE("DataBlock Cat048 multiple records roundtrip", "[roundtrip][asterix]")
     asterix::DataBlock db;
     db.set_cat(asterix::CAT048);
 
-    asterix::cat048 cat_records;
+    asterix::DataBlock_cat048 cat_records;
 
     // Record 1
     {
@@ -785,7 +785,7 @@ TEST_CASE("DataBlock Cat048 multiple records roundtrip", "[roundtrip][asterix]")
     REQUIRE(decoded.has_value());
     CHECK(decoded->cat() == asterix::CAT048);
 
-    auto& cat = std::get<asterix::cat048>(decoded->records());
+    auto& cat = std::get<asterix::DataBlock_cat048>(decoded->records());
     REQUIRE(cat.items().size() == 2);
     CHECK(cat.items()[0].items().i010().sac() == 1);
     CHECK(cat.items()[0].items().i010().sic() == 10);
@@ -820,7 +820,17 @@ TEST_CASE("AsterixFrame wrap Cat048Record roundtrip", "[roundtrip][asterix]") {
     trd.set_rab(0);
     items.set_i020(trd);
 
-    auto frame = asterix::AsterixFrame::wrap(rec);
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT048);
+    asterix::DataBlock_cat048 cat_recs;
+    cat_recs.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cat_recs});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame frame;
+    frame.mutable_blocks().push_back(db);
+
     REQUIRE(frame.blocks().size() == 1);
     CHECK(frame.blocks()[0].cat() == asterix::CAT048);
     CHECK(frame.blocks()[0].len() > 3);
@@ -833,7 +843,7 @@ TEST_CASE("AsterixFrame wrap Cat048Record roundtrip", "[roundtrip][asterix]") {
     REQUIRE(decoded->blocks().size() == 1);
     CHECK(decoded->blocks()[0].cat() == asterix::CAT048);
 
-    auto& cat = std::get<asterix::cat048>(decoded->blocks()[0].records());
+    auto& cat = std::get<asterix::DataBlock_cat048>(decoded->blocks()[0].records());
     REQUIRE(cat.items().size() == 1);
     CHECK(cat.items()[0].items().i010().sac() == 0xAA);
     CHECK(cat.items()[0].items().i010().sic() == 0xBB);

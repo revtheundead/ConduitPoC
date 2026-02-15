@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bmdl version="2.0">
 
-<defaults>
-  <namespace>invalid_auto_ref</namespace>
-</defaults>
+  <defaults>
+    <namespace>invalid_auto_ref</namespace>
+  </defaults>
 
-<types>
+  <types>
   <type name="uint8" base="uint" bits="8"/>
   <type name="uint16" base="uint" bits="16"/>
-</types>
+  </types>
 
 <frame name="BadFrame">
   <field name="msg-type" type="uint8" auto="id"/>

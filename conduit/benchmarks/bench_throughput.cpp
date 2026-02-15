@@ -17,6 +17,7 @@
 #include <sentry_link/sessions.hpp>
 
 #include <random>
+#include <variant>
 #include <vector>
 
 static constexpr size_t BATCH_SIZE = 10000;
@@ -53,14 +54,14 @@ asterix::Cat048Record make_cat048() {
     pos.set_theta(90.0);
     it.set_i040(pos);
 
-    asterix::itemsi070 mode3a;
+    asterix::items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(07700);
     it.set_i070(mode3a);
 
-    asterix::itemsi090 fl;
+    asterix::items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0);
@@ -93,6 +94,20 @@ asterix::Cat048Record make_cat048() {
     it.set_i170(ts);
 
     return rec;
+}
+
+asterix::AsterixFrame wrap_cat048(const asterix::Cat048Record& rec) {
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT048);
+    asterix::DataBlock_cat048 cat_recs;
+    cat_recs.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cat_recs});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame frame;
+    frame.mutable_blocks().push_back(db);
+    return frame;
 }
 
 sentry_link::HeartbeatBody make_heartbeat() {
@@ -146,7 +161,7 @@ TEST_CASE("Throughput: batch encode", "[benchmark][throughput][encode]") {
         meter.measure([&] {
             size_t total_bytes = 0;
             for (size_t i = 0; i < BATCH_SIZE; ++i) {
-                auto frame = asterix::AsterixFrame::wrap(cat048);
+                auto frame = wrap_cat048(cat048);
                 auto bytes = frame.encode_bytes().value();
                 total_bytes += bytes.size();
             }
@@ -208,7 +223,7 @@ TEST_CASE("Throughput: batch decode", "[benchmark][throughput][decode]") {
         auto alert  = make_alert();
         auto sensor = make_sensor();
         for (size_t i = 0; i < BATCH_SIZE; ++i) {
-            cat048_frames[i]    = asterix::AsterixFrame::wrap(cat048).encode_bytes().value();
+            cat048_frames[i]    = wrap_cat048(cat048).encode_bytes().value();
             heartbeat_frames[i] = sentry_link::Frame::wrap(hb).encode_bytes().value();
             alert_frames[i]     = sentry_link::Frame::wrap(alert).encode_bytes().value();
             sensor_frames[i]    = sentry_link::Frame::wrap(sensor).encode_bytes().value();
@@ -266,7 +281,7 @@ TEST_CASE("Throughput: batch decode", "[benchmark][throughput][decode]") {
 
 TEST_CASE("Throughput: mixed workload", "[benchmark][throughput][mixed]") {
     // Pre-encode all message types
-    auto cat048_bytes    = asterix::AsterixFrame::wrap(make_cat048()).encode_bytes().value();
+    auto cat048_bytes    = wrap_cat048(make_cat048()).encode_bytes().value();
     auto heartbeat_bytes = sentry_link::Frame::wrap(make_heartbeat()).encode_bytes().value();
     auto alert_bytes     = sentry_link::Frame::wrap(make_alert()).encode_bytes().value();
     auto sensor_bytes    = sentry_link::Frame::wrap(make_sensor()).encode_bytes().value();

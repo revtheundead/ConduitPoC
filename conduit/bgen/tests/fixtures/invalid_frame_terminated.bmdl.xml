@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>bad_frame_term</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <frame name="BadFrame">
+    <field name="header-str" type="string" length="8" terminated="null"/>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+  <messages>
+    <message id="1" name="Dummy">
+      <field name="val" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

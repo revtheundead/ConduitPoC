@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="overlap-same-dir" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>overlap_same_dir</namespace>
+  </defaults>
   <constants>
     <const name="TAG_A" type="uint8" value="1"/>
     <const name="TAG_B" type="uint8" value="1"/>
@@ -19,5 +21,4 @@
       </choice>
     </message>
   </messages>
-</protocol>
 </bmdl>

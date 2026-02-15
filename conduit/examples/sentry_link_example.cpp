@@ -384,7 +384,8 @@ int main() {
     log("MAIN", "Protocol: %s v%s", "sentry-link", "1.0");
     log("MAIN", "Sync word: 0x%04X", sl::SYNC);
     log("MAIN", "Message types: Heartbeat(%u) Sensor(%u) Config(%u) Alert(%u)",
-        sl::MSG_HEARTBEAT, sl::MSG_SENSOR, sl::MSG_CONFIG, sl::MSG_ALERT);
+        sl::HeartbeatBody::ID_VALUE, sl::SensorBody::ID_VALUE,
+        sl::ConfigBody::ID_VALUE, sl::AlertBody::ID_VALUE);
     log("MAIN", "");
 
     ServerStats server_stats;
@@ -429,7 +430,7 @@ int main() {
                 }
             }
         },
-        .on_peer_connected = [&]() -> PeerId {
+        .on_peer_connected = [&](std::string) -> PeerId {
             auto id = PeerId(100);
             connected_peer_id = id;
             client_connected = true;
@@ -487,7 +488,7 @@ int main() {
                 }
             }
         },
-        .on_peer_connected = [&]() -> PeerId {
+        .on_peer_connected = [&](std::string) -> PeerId {
             auto id = PeerId(200);
             client_peer_id = id;
             log("CLIENT", "Connected (peer %u)", id.value());

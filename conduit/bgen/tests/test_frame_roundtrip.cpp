@@ -495,6 +495,87 @@ TEST_CASE("frame_array: session decode_frame", "[frame][session][array]") {
     CHECK(decoded->at(0).type_id == frame_array::Record::TYPE_ID);
 }
 
+// ============================================================================
+// frame_array: Batch API tests
+// ============================================================================
+
+TEST_CASE("frame_array: batch wrap roundtrip", "[frame][roundtrip][array][batch]") {
+    std::vector<frame_array::Record> records;
+    for (uint8_t i = 0; i < 5; i++) {
+        frame_array::Record rec;
+        rec.set_key(i);
+        rec.set_value(i * 100);
+        records.push_back(rec);
+    }
+    auto frame = frame_array::ArrayFrame::wrap(std::span{records});
+    CHECK(frame.msg_type() == 1);
+
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+    REQUIRE(bytes->size() == 18);  // 3 header + 5*3 payload
+
+    auto decoded = frame_array::ArrayFrame::decode_bytes(*bytes);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->payload().size() == 5);
+    for (uint8_t i = 0; i < 5; i++) {
+        auto* p = std::get_if<frame_array::Record>(&decoded->payload()[i]);
+        REQUIRE(p != nullptr);
+        CHECK(p->key() == i);
+        CHECK(p->value() == i * 100);
+    }
+}
+
+TEST_CASE("frame_array: batch wrap empty", "[frame][roundtrip][array][batch]") {
+    std::vector<frame_array::Record> empty;
+    auto frame = frame_array::ArrayFrame::wrap(std::span{empty});
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+    REQUIRE(bytes->size() == 3);  // header only
+}
+
+TEST_CASE("frame_array: session encode_batch", "[frame][session][array][batch]") {
+    auto session = frame_array::create_array_frame_session();
+    REQUIRE(session != nullptr);
+
+    std::vector<std::any> payloads;
+    for (uint8_t i = 0; i < 3; i++) {
+        frame_array::Record rec;
+        rec.set_key(i);
+        rec.set_value(i * 50);
+        payloads.emplace_back(rec);
+    }
+
+    auto encoded = session->encode_batch(frame_array::Record::TYPE_ID, payloads);
+    REQUIRE(encoded.has_value());
+
+    auto decoded = session->decode_frame(*encoded);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->size() == 3);
+    for (uint8_t i = 0; i < 3; i++) {
+        CHECK(decoded->at(i).type_id == frame_array::Record::TYPE_ID);
+        auto* p = std::any_cast<frame_array::Record>(&decoded->at(i).payload);
+        REQUIRE(p != nullptr);
+        CHECK(p->key() == i);
+        CHECK(p->value() == i * 50);
+    }
+}
+
+TEST_CASE("frame_array: session encode_batch type mismatch", "[frame][session][array][batch]") {
+    auto session = frame_array::create_array_frame_session();
+    std::vector<std::any> payloads = { std::any(42) };
+    auto result = session->encode_batch(frame_array::Record::TYPE_ID, payloads);
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == conduit::ErrorCode::InvalidArgument);
+}
+
+TEST_CASE("frame_basic: session encode_batch rejected (non-array)", "[frame][session][batch]") {
+    auto session = frame_basic::create_simple_frame_session();
+    std::vector<std::any> payloads = { std::any(frame_basic::Heartbeat{}) };
+    auto result = session->encode_batch(frame_basic::Heartbeat::TYPE_ID, payloads);
+    REQUIRE(!result.has_value());
+    CHECK(result.error().code() == conduit::ErrorCode::BatchNotSupported);
+}
+
 TEST_CASE("frame_array: empty payload roundtrip", "[frame][roundtrip][array]") {
     frame_array::ArrayFrame frame;
     frame.set_msg_type(1);
@@ -509,4 +590,128 @@ TEST_CASE("frame_array: empty payload roundtrip", "[frame][roundtrip][array]") {
     auto decoded = frame_array::ArrayFrame::decode_bytes(*bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->payload().empty());
+}
+
+// ============================================================================
+// Frame fields pushed into message classes
+// ============================================================================
+
+TEST_CASE("frame_basic: message carries frame header fields", "[frame][frame-fields]") {
+    frame_basic::Heartbeat msg;
+    msg.set_timestamp(12345);
+
+    auto frame = frame_basic::SimpleFrame::wrap(msg);
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+
+    auto decoded = frame_basic::SimpleFrame::decode_bytes(*bytes);
+    REQUIRE(decoded.has_value());
+
+    auto* payload = std::get_if<frame_basic::Heartbeat>(&decoded->payload());
+    REQUIRE(payload != nullptr);
+
+    // Frame header fields are populated on the message
+    CHECK(payload->msg_type() == 1);
+    CHECK(payload->length() == 5);
+    // Regular message field still works
+    CHECK(payload->timestamp() == 12345);
+}
+
+TEST_CASE("frame_basic: default message has zero frame fields", "[frame][frame-fields]") {
+    frame_basic::Heartbeat msg;
+    CHECK(msg.msg_type() == 0);
+    CHECK(msg.length() == 0);
+}
+
+TEST_CASE("frame_footer: message carries header and footer fields", "[frame][frame-fields][footer]") {
+    frame_footer::Data msg;
+    msg.set_value(0xABCD);
+
+    auto frame = frame_footer::FooterFrame::wrap(msg);
+    frame.set_checksum(0x42);
+
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+
+    auto decoded = frame_footer::FooterFrame::decode_bytes(*bytes);
+    REQUIRE(decoded.has_value());
+
+    auto* p = std::get_if<frame_footer::Data>(&decoded->payload());
+    REQUIRE(p != nullptr);
+
+    // Header frame fields
+    CHECK(p->msg_type() == 1);
+    CHECK(p->length() == 6);
+    // Footer frame field
+    CHECK(p->checksum() == 0x42);
+    // Message field
+    CHECK(p->value() == 0xABCD);
+}
+
+TEST_CASE("frame_array: records carry frame header fields", "[frame][frame-fields][array]") {
+    std::vector<frame_array::Record> records;
+    for (uint8_t i = 0; i < 3; i++) {
+        frame_array::Record rec;
+        rec.set_key(i);
+        rec.set_value(i * 100);
+        records.push_back(rec);
+    }
+    auto frame = frame_array::ArrayFrame::wrap(std::span{records});
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+
+    auto decoded = frame_array::ArrayFrame::decode_bytes(*bytes);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->payload().size() == 3);
+
+    for (size_t i = 0; i < 3; i++) {
+        auto* p = std::get_if<frame_array::Record>(&decoded->payload()[i]);
+        REQUIRE(p != nullptr);
+        // Each record carries the same frame header values
+        CHECK(p->msg_type() == 1);
+        CHECK(p->length() == 12);  // 3 header + 3*3 payload
+        // Own payload fields
+        CHECK(p->key() == static_cast<uint8_t>(i));
+        CHECK(p->value() == static_cast<uint16_t>(i * 100));
+    }
+}
+
+TEST_CASE("frame_basic: to_string includes frame fields", "[frame][frame-fields][to_string]") {
+    frame_basic::Heartbeat msg;
+    msg.set_timestamp(42);
+
+    auto frame = frame_basic::SimpleFrame::wrap(msg);
+    auto bytes = frame.encode_bytes();
+    REQUIRE(bytes.has_value());
+
+    auto decoded = frame_basic::SimpleFrame::decode_bytes(*bytes);
+    REQUIRE(decoded.has_value());
+    auto* p = std::get_if<frame_basic::Heartbeat>(&decoded->payload());
+    REQUIRE(p != nullptr);
+
+    auto str = p->to_string();
+    CHECK(str.find("msg-type=1") != std::string::npos);
+    CHECK(str.find("length=5") != std::string::npos);
+    CHECK(str.find("timestamp=42") != std::string::npos);
+}
+
+TEST_CASE("frame_basic: session decode populates frame fields", "[frame][frame-fields][session]") {
+    auto session = frame_basic::create_simple_frame_session();
+
+    frame_basic::Status msg;
+    msg.set_code(42);
+    msg.set_detail(9999);
+    auto encoded = session->encode_wrap(frame_basic::Status::TYPE_ID, msg);
+    REQUIRE(encoded.has_value());
+
+    auto decoded = session->decode_frame(*encoded);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->size() == 1);
+
+    auto* payload = std::any_cast<frame_basic::Status>(&decoded->at(0).payload);
+    REQUIRE(payload != nullptr);
+    CHECK(payload->msg_type() == 2);
+    CHECK(payload->length() == 6);
+    CHECK(payload->code() == 42);
+    CHECK(payload->detail() == 9999);
 }

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="overlap-both-send" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>overlap_both_send</namespace>
+  </defaults>
   <constants>
     <const name="TAG_X" type="uint8" value="1"/>
   </constants>
@@ -18,5 +20,4 @@
       </choice>
     </message>
   </messages>
-</protocol>
 </bmdl>

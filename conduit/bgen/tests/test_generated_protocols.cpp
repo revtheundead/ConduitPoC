@@ -682,7 +682,7 @@ TEST_CASE("ASTERIX DataBlock Cat001 roundtrip", "[asterix][datablock]") {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT001);
 
-    asterix::cat001 cat_records;
+    asterix::DataBlock_cat001 cat_records;
     asterix::Cat001Record rec;
     auto& items = rec.mutable_items();
     asterix::DataSourceId dsid;
@@ -707,7 +707,7 @@ TEST_CASE("ASTERIX DataBlock Cat001 roundtrip", "[asterix][datablock]") {
     auto decoded = asterix::DataBlock::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->cat() == asterix::CAT001);
-    auto& cat1 = std::get<asterix::cat001>(decoded->records());
+    auto& cat1 = std::get<asterix::DataBlock_cat001>(decoded->records());
     REQUIRE(cat1.items().size() == 1);
     CHECK(cat1.items()[0].items().i010().sac() == 5);
     CHECK(cat1.items()[0].items().i010().sic() == 10);
@@ -721,7 +721,7 @@ TEST_CASE("ASTERIX DataBlock Cat253 roundtrip", "[asterix][datablock]") {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT253);
 
-    asterix::cat253 cat_records;
+    asterix::DataBlock_cat253 cat_records;
     asterix::Cat253Record rec;
     auto& items = rec.mutable_items();
     asterix::DataSourceId dsid;
@@ -745,7 +745,7 @@ TEST_CASE("ASTERIX DataBlock Cat253 roundtrip", "[asterix][datablock]") {
     auto decoded = asterix::DataBlock::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->cat() == asterix::CAT253);
-    auto& cat = std::get<asterix::cat253>(decoded->records());
+    auto& cat = std::get<asterix::DataBlock_cat253>(decoded->records());
     REQUIRE(cat.items().size() == 1);
     CHECK(cat.items()[0].items().i010().sac() == 0x10);
     CHECK(cat.items()[0].items().i030() == 42);
@@ -772,7 +772,7 @@ TEST_CASE("ASTERIX DataBlock unknown category uses otherwise", "[asterix][databl
     auto decoded = asterix::DataBlock::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->cat() == 99);
-    auto& other = std::get<asterix::recordsOtherwise>(decoded->records());
+    auto& other = std::get<asterix::DataBlock_recordsOtherwise>(decoded->records());
     REQUIRE(other.data().size() == 5);
     CHECK(other.data()[0] == 0x01);
     CHECK(other.data()[4] == 0x05);
@@ -789,7 +789,7 @@ TEST_CASE("ASTERIX AsterixFrame multiple DataBlocks roundtrip", "[asterix][frame
     {
         asterix::DataBlock db;
         db.set_cat(asterix::CAT001);
-        asterix::cat001 cat_recs;
+        asterix::DataBlock_cat001 cat_recs;
         asterix::Cat001Record rec;
         rec.mutable_items().set_i161(100);
         cat_recs.mutable_items().push_back(rec);
@@ -807,7 +807,7 @@ TEST_CASE("ASTERIX AsterixFrame multiple DataBlocks roundtrip", "[asterix][frame
     {
         asterix::DataBlock db;
         db.set_cat(asterix::CAT253);
-        asterix::cat253 cat_recs;
+        asterix::DataBlock_cat253 cat_recs;
         asterix::Cat253Record rec;
         rec.mutable_items().set_i050(static_cast<asterix::uint8>(7));
         cat_recs.mutable_items().push_back(rec);
@@ -830,10 +830,10 @@ TEST_CASE("ASTERIX AsterixFrame multiple DataBlocks roundtrip", "[asterix][frame
     CHECK(decoded->blocks()[0].cat() == asterix::CAT001);
     CHECK(decoded->blocks()[1].cat() == asterix::CAT253);
 
-    auto& cat1 = std::get<asterix::cat001>(decoded->blocks()[0].records());
+    auto& cat1 = std::get<asterix::DataBlock_cat001>(decoded->blocks()[0].records());
     CHECK(cat1.items()[0].items().i161() == 100);
 
-    auto& cat253 = std::get<asterix::cat253>(decoded->blocks()[1].records());
+    auto& cat253 = std::get<asterix::DataBlock_cat253>(decoded->blocks()[1].records());
     CHECK(cat253.items()[0].items().i050() == 7);
 }
 
@@ -858,12 +858,21 @@ TEST_CASE("ASTERIX wrap Cat253Record auto-sets DataBlock len", "[asterix][wrap]"
     fmt_a.set_payload(payload);
     items.set_i100(asterix::i100Variant{fmt_a});
 
-    auto frame = asterix::AsterixFrame::wrap(rec);
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT253);
+    asterix::DataBlock_cat253 cat_recs;
+    cat_recs.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cat_recs});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame frame;
+    frame.mutable_blocks().push_back(db);
+
     REQUIRE(frame.blocks().size() == 1);
-    auto& db = frame.blocks()[0];
-    CHECK(db.cat() == asterix::CAT253);
+    CHECK(frame.blocks()[0].cat() == asterix::CAT253);
     // len must be > 3 (header) for the frame to decode
-    CHECK(db.len() > 3);
+    CHECK(frame.blocks()[0].len() > 3);
 
     // Verify round-trip
     auto enc_result = frame.encode_bytes();
@@ -874,7 +883,7 @@ TEST_CASE("ASTERIX wrap Cat253Record auto-sets DataBlock len", "[asterix][wrap]"
     REQUIRE(decoded->blocks().size() == 1);
     CHECK(decoded->blocks()[0].cat() == asterix::CAT253);
 
-    auto& cat = std::get<asterix::cat253>(decoded->blocks()[0].records());
+    auto& cat = std::get<asterix::DataBlock_cat253>(decoded->blocks()[0].records());
     REQUIRE(cat.items().size() == 1);
     CHECK(cat.items()[0].items().has_i100());
     auto& i100 = std::get<asterix::Cat253I100FormatA>(cat.items()[0].items().i100());
@@ -903,14 +912,24 @@ TEST_CASE("ASTERIX wrap Cat253Record FormatD position data round-trips", "[aster
     fmt_d.set_heading(9000 * 0.0054931640625);  // degrees
     items.set_i100(asterix::i100Variant{fmt_d});
 
-    auto frame = asterix::AsterixFrame::wrap(rec);
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT253);
+    asterix::DataBlock_cat253 cat_recs;
+    cat_recs.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cat_recs});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame frame;
+    frame.mutable_blocks().push_back(db);
+
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     auto decoded = asterix::AsterixFrame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
 
-    auto& cat = std::get<asterix::cat253>(decoded->blocks()[0].records());
+    auto& cat = std::get<asterix::DataBlock_cat253>(decoded->blocks()[0].records());
     auto& d = std::get<asterix::Cat253I100FormatD>(cat.items()[0].items().i100());
     CHECK(d.latitude().raw() == 123456789);
     CHECK(d.longitude().raw() == -987654321);
@@ -1073,7 +1092,7 @@ TEST_CASE("ASTERIX DataBlock wire format header bytes", "[asterix][wire]") {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT048);
 
-    asterix::cat048 cat_recs;
+    asterix::DataBlock_cat048 cat_recs;
     asterix::Cat048Record rec;
     // Empty record - just FSPEC byte 0x00
     cat_recs.mutable_items().push_back(rec);
@@ -1340,40 +1359,37 @@ TEST_CASE("SentryLink AlertBody all severity levels", "[sentry_link][alert][enum
 }
 
 // ============================================================================
-// SentryLink: Frame with HeartbeatBody (length-bounded choice)
+// SentryLink: Frame with HeartbeatBody
 // ============================================================================
 
 TEST_CASE("SentryLink Frame heartbeat roundtrip", "[sentry_link][frame]") {
-    sentry_link::Frame frame;
-    REQUIRE(frame.set_sync(sentry_link::SYNC).has_value());
-    frame.set_msg_type(sentry_link::msg_type::heartbeat);
-    frame.set_length(14); // 6 header + 8 body
-    frame.set_sequence(0);
-
     sentry_link::HeartbeatBody hb;
     hb.set_timestamp(1700000000);
     hb.set_uptime_hours(500);
     hb.set_status(sentry_link::device_status::standby);
     REQUIRE(hb.set_cpu_load(50).has_value());
-    frame.set_body(sentry_link::bodyVariant{hb});
+
+    auto frame = sentry_link::Frame::wrap(hb);
+    frame.set_sync(sentry_link::SYNC);
+    frame.set_sequence(0);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     CHECK(bytes.size() == 14);
     CHECK(bytes[0] == 0xAA); CHECK(bytes[1] == 0x55);
-    CHECK(bytes[2] == static_cast<uint8_t>(sentry_link::msg_type::heartbeat));
+    CHECK(bytes[2] == sentry_link::HeartbeatBody::ID_VALUE);
 
     auto decoded = sentry_link::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->sync() == sentry_link::SYNC);
-    CHECK(decoded->msg_type() == sentry_link::msg_type::heartbeat);
+    CHECK(decoded->msg_type() == sentry_link::HeartbeatBody::ID_VALUE);
     CHECK(decoded->length() == 14);
-    auto& body = std::get<sentry_link::HeartbeatBody>(decoded->body());
-    CHECK(body.timestamp() == 1700000000);
-    CHECK(body.uptime_hours() == 500);
-    CHECK(body.status() == sentry_link::device_status::standby);
-    CHECK(body.cpu_load() == 50);
+    auto& payload = std::get<sentry_link::HeartbeatBody>(decoded->payload());
+    CHECK(payload.timestamp() == 1700000000);
+    CHECK(payload.uptime_hours() == 500);
+    CHECK(payload.status() == sentry_link::device_status::standby);
+    CHECK(payload.cpu_load() == 50);
 }
 
 // ============================================================================
@@ -1381,12 +1397,6 @@ TEST_CASE("SentryLink Frame heartbeat roundtrip", "[sentry_link][frame]") {
 // ============================================================================
 
 TEST_CASE("SentryLink Frame sensor roundtrip", "[sentry_link][frame]") {
-    sentry_link::Frame frame;
-    REQUIRE(frame.set_sync(sentry_link::SYNC).has_value());
-    frame.set_msg_type(sentry_link::msg_type::sensor);
-    frame.set_length(18); // 6 + 12
-    frame.set_sequence(42);
-
     sentry_link::SensorBody sb;
     sb.set_sensor_id(0x0042);
     sb.set_timestamp(1700000200);
@@ -1398,23 +1408,26 @@ TEST_CASE("SentryLink Frame sensor roundtrip", "[sentry_link][frame]") {
     sb.set_flags(flags);
     sb.set_raw_value(23456);
     sb.set_unit_code(2); // percent-RH
-    frame.set_body(sentry_link::bodyVariant{sb});
+
+    auto frame = sentry_link::Frame::wrap(sb);
+    frame.set_sync(sentry_link::SYNC);
+    frame.set_sequence(42);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     CHECK(bytes.size() == 18);
     CHECK(bytes[0] == 0xAA); CHECK(bytes[1] == 0x55);
-    CHECK(bytes[2] == static_cast<uint8_t>(sentry_link::msg_type::sensor));
+    CHECK(bytes[2] == sentry_link::SensorBody::ID_VALUE);
 
     auto decoded = sentry_link::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->sequence() == 42);
-    auto& body = std::get<sentry_link::SensorBody>(decoded->body());
-    CHECK(body.sensor_id() == 0x0042);
-    CHECK(body.raw_value() == 23456);
-    CHECK(body.flags().channel() == 3);
-    CHECK(body.flags().valid() == 1);
+    auto& payload = std::get<sentry_link::SensorBody>(decoded->payload());
+    CHECK(payload.sensor_id() == 0x0042);
+    CHECK(payload.raw_value() == 23456);
+    CHECK(payload.flags().channel() == 3);
+    CHECK(payload.flags().valid() == 1);
 }
 
 // ============================================================================
@@ -1422,12 +1435,6 @@ TEST_CASE("SentryLink Frame sensor roundtrip", "[sentry_link][frame]") {
 // ============================================================================
 
 TEST_CASE("SentryLink Frame alert roundtrip", "[sentry_link][frame]") {
-    sentry_link::Frame frame;
-    REQUIRE(frame.set_sync(sentry_link::SYNC).has_value());
-    frame.set_msg_type(sentry_link::msg_type::alert);
-    frame.set_length(47); // 6 + 41
-    frame.set_sequence(99);
-
     sentry_link::AlertBody alert;
     alert.set_timestamp(1700005000);
     alert.set_source_id(7);
@@ -1435,23 +1442,26 @@ TEST_CASE("SentryLink Frame alert roundtrip", "[sentry_link][frame]") {
     alert.set_category(3);
     alert.set_alert_code(0xABCD);
     alert.set_message("LOW BATTERY");
-    frame.set_body(sentry_link::bodyVariant{alert});
+
+    auto frame = sentry_link::Frame::wrap(alert);
+    frame.set_sync(sentry_link::SYNC);
+    frame.set_sequence(99);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     CHECK(bytes.size() == 47);
     CHECK(bytes[0] == 0xAA); CHECK(bytes[1] == 0x55);
-    CHECK(bytes[2] == static_cast<uint8_t>(sentry_link::msg_type::alert));
+    CHECK(bytes[2] == sentry_link::AlertBody::ID_VALUE);
 
     auto decoded = sentry_link::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    auto& body = std::get<sentry_link::AlertBody>(decoded->body());
-    CHECK(body.timestamp() == 1700005000);
-    CHECK(body.source_id() == 7);
-    CHECK(body.severity() == sentry_link::severity_level::warning);
-    CHECK(body.alert_code() == 0xABCD);
-    CHECK(strip_nulls(body.message()) == "LOW BATTERY");
+    auto& payload = std::get<sentry_link::AlertBody>(decoded->payload());
+    CHECK(payload.timestamp() == 1700005000);
+    CHECK(payload.source_id() == 7);
+    CHECK(payload.severity() == sentry_link::severity_level::warning);
+    CHECK(payload.alert_code() == 0xABCD);
+    CHECK(strip_nulls(payload.message()) == "LOW BATTERY");
 }
 
 // ============================================================================
@@ -1471,25 +1481,24 @@ TEST_CASE("SentryLink wrap ConfigBody auto-sets fields", "[sentry_link][wrap]") 
     cfg.set_sample_rate(4000);
 
     auto frame = sentry_link::Frame::wrap(cfg);
-    CHECK(frame.sync() == sentry_link::SYNC);
-    CHECK(frame.msg_type() == sentry_link::msg_type::config);
-    // length should be header(6) + ConfigBody(23) = 29
-    CHECK(frame.length() == 29);
+    frame.set_sync(sentry_link::SYNC);
+    CHECK(frame.msg_type() == sentry_link::ConfigBody::ID_VALUE);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
+    // length should be header(6) + ConfigBody(23) = 29
     CHECK(bytes.size() == 29);
 
     auto decoded = sentry_link::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->length() == 29);
-    auto& body = std::get<sentry_link::ConfigBody>(decoded->body());
-    CHECK(strip_nulls(body.device_name()) == "Probe-7");
-    CHECK(body.firmware().major() == 1);
-    CHECK(body.firmware().patch() == 3);
-    CHECK(body.mode() == sentry_link::device_mode::active);
-    CHECK(body.sample_rate() == 4000);
+    auto& payload = std::get<sentry_link::ConfigBody>(decoded->payload());
+    CHECK(strip_nulls(payload.device_name()) == "Probe-7");
+    CHECK(payload.firmware().major() == 1);
+    CHECK(payload.firmware().patch() == 3);
+    CHECK(payload.mode() == sentry_link::device_mode::active);
+    CHECK(payload.sample_rate() == 4000);
 }
 
 // ============================================================================
@@ -1505,6 +1514,7 @@ TEST_CASE("SentryLink Frame sync word wire format", "[sentry_link][wire]") {
     cfg.set_sample_rate(0);
 
     auto frame = sentry_link::Frame::wrap(cfg);
+    frame.set_sync(sentry_link::SYNC);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -1515,12 +1525,12 @@ TEST_CASE("SentryLink Frame sync word wire format", "[sentry_link][wire]") {
 }
 
 // ============================================================================
-// SentryLink: Frame decode with wrong sync fails
+// SentryLink: Frame decode with wrong sync still parses (constraint not enforced at frame level)
 // ============================================================================
 
-TEST_CASE("SentryLink Frame wrong sync decode fails", "[sentry_link][errors]") {
+TEST_CASE("SentryLink Frame wrong sync decode reads sync field", "[sentry_link][frame]") {
     conduit::io::BitWriter w;
-    w.write_u16(0xDEAD);  // wrong sync
+    w.write_u16(0xDEAD);  // wrong sync (constraint-equals is encode-only)
     w.write_u8(1);         // msg_type heartbeat
     w.write_u16(14);       // length
     w.write_u8(0);         // sequence
@@ -1532,8 +1542,10 @@ TEST_CASE("SentryLink Frame wrong sync decode fails", "[sentry_link][errors]") {
     REQUIRE(finish_result.has_value());
     auto bytes = std::move(*finish_result);
 
+    // constraint-equals is encode-only; Frame::decode reads but does not validate
     auto decoded = sentry_link::Frame::decode_bytes(bytes);
-    CHECK_FALSE(decoded.has_value());
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->sync() == 0xDEAD);
 }
 
 // ============================================================================
@@ -1547,13 +1559,13 @@ TEST_CASE("SentryLink Frame decode truncated buffer fails", "[sentry_link][error
 }
 
 // ============================================================================
-// SentryLink: Frame decode with invalid enum value fails
+// SentryLink: Frame decode with unknown message ID fails
 // ============================================================================
 
-TEST_CASE("SentryLink Frame invalid msg_type enum fails", "[sentry_link][errors][enum]") {
+TEST_CASE("SentryLink Frame invalid msg_type fails", "[sentry_link][errors]") {
     conduit::io::BitWriter w;
     w.write_u16(0xAA55);  // correct sync
-    w.write_u8(99);        // invalid msg_type
+    w.write_u8(99);        // invalid msg_type (no message with id=99)
     w.write_u16(14);
     w.write_u8(0);
     // 8 bytes of dummy body
@@ -1636,12 +1648,13 @@ TEST_CASE("SentryLink Frame msg-type discriminator on wire", "[sentry_link][wire
     cfg.set_sample_rate(0);
 
     auto frame = sentry_link::Frame::wrap(cfg);
+    frame.set_sync(sentry_link::SYNC);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     // msg-type is at offset 2 (after 2-byte sync)
     REQUIRE(bytes.size() > 2);
-    CHECK(bytes[2] == sentry_link::MSG_CONFIG);
+    CHECK(bytes[2] == sentry_link::ConfigBody::ID_VALUE);
 }
 
 // ============================================================================
@@ -1661,6 +1674,7 @@ TEST_CASE("SentryLink Frame length field on wire", "[sentry_link][wire]") {
     cfg.set_sample_rate(16000);
 
     auto frame = sentry_link::Frame::wrap(cfg);
+    frame.set_sync(sentry_link::SYNC);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);

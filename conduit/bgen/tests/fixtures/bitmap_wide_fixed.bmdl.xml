@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bitmap_wide_fixed</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+
+    <!-- Non-FX bitmap with fields spanning 3 FSPEC bytes (bits 0, 8, 16) -->
+    <struct name="WideBitmap" presence="bitmap">
+      <bitmap bits="24"/>
+
+      <field name="alpha" type="uint8" bit="0"/>
+      <field name="beta" type="uint16" bit="8"/>
+      <field name="gamma" type="uint32" bit="16"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="WideBitmapMsg">
+      <field name="header" type="uint8"/>
+      <field name="bitmap-data" type="WideBitmap"/>
+    </message>
+  </messages>
+</bmdl>

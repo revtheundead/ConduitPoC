@@ -55,7 +55,7 @@ struct ServerHelper {
 
     VoidResult start() {
         TransportCallbacks cb;
-        cb.on_peer_connected = [this]() -> PeerId {
+        cb.on_peer_connected = [this](std::string) -> PeerId {
             auto id = PeerId{next_id.fetch_add(1)};
             std::lock_guard lock(peers_mutex);
             connected_peers.push_back(id);
@@ -104,7 +104,7 @@ struct ClientHelper {
             std::lock_guard lock(rx_mutex);
             received.insert(received.end(), data.begin(), data.end());
         };
-        cb.on_peer_connected = [this]() -> PeerId { return peer_id; };
+        cb.on_peer_connected = [this](std::string) -> PeerId { return peer_id; };
         cb.on_peer_disconnected = [](PeerId) {};
         cb.on_state_changed = [this](PeerId, net::ConnectionState s) {
             std::lock_guard lock(state_mutex);
@@ -143,10 +143,14 @@ TEST_CASE("TCP: max_clients enforcement", "[tcp]") {
 
     wait_until([&] { std::lock_guard lock(srv.peers_mutex); return srv.connected_peers.size() >= 2; });
 
+    // Stop server BEFORE clients to prevent race: stopping a client frees a
+    // slot in the server's clients map, which could let the 3rd pending
+    // connection be accepted from the TCP backlog.
+    srv.server->stop();
+
     c1.client->stop();
     c2.client->stop();
     c3.client->stop();
-    srv.server->stop();
 
     std::lock_guard lock(srv.peers_mutex);
     CHECK(srv.connected_peers.size() == 2);

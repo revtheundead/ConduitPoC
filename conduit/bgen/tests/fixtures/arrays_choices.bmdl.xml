@@ -1,5 +1,8 @@
-<bmdl version="1.0">
-<protocol name="arrays-choices" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>arrays_choices</namespace>
+  </defaults>
+
   <constants>
     <const name="TYPE_A" type="uint8" value="1"/>
     <const name="TYPE_B" type="uint8" value="2"/>
@@ -43,7 +46,7 @@
       <field name="num-items" type="uint8"/>
       <array name="items" type="Point" count-from="num-items"/>
     </message>
-    <message name="ChoiceMsg" role="entry-point">
+    <message name="ChoiceMsg">
       <field name="msg-type" type="uint8"/>
       <field name="length" type="uint16"/>
       <choice name="body" switch="msg-type" length-from="length">
@@ -53,5 +56,4 @@
       </choice>
     </message>
   </messages>
-</protocol>
 </bmdl>

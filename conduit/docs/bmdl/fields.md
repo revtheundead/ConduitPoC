@@ -194,7 +194,7 @@ The `auto` attribute marks fields for automatic management by frames and session
 <field name="length" type="uint16" auto="length - 3"/>
 <field name="system-id" type="uint8" auto="config(system-id)"/>
 
-<!-- Session fields (valid inside <message> or entry-point) -->
+<!-- Session fields (valid inside <message>) -->
 <field name="sequence" type="uint8" auto="increment"/>
 ```
 
@@ -210,8 +210,7 @@ The `auto` attribute marks fields for automatic management by frames and session
 | `auto="count(field)"` | Frame | Count of items in an array field. |
 | `auto="config(key)"` | Frame | Value from session configuration. |
 | `auto="increment"` | Session | Auto-incrementing counter, wrapping at type maximum. |
-| `auto="timestamp"` | Session | Current timestamp (reserved for future use). |
-| `auto="checksum(algo)"` | Frame | Checksum computed over frame data (reserved for future use). |
+| `auto="timestamp"` | Session | Milliseconds since Unix epoch (system clock), masked to field bit width. Unsigned integer only. |
 
 ### Frame Auto Fields
 
@@ -222,6 +221,7 @@ The `auto` attribute marks fields for automatic management by frames and session
 ### Session Auto Fields
 
 - `auto="increment"` -- Only valid on unsigned integer fields. The session maintains an internal counter starting at 0, incrementing after each encode-wrap, wrapping at the type's maximum value.
+- `auto="timestamp"` -- Only valid on unsigned integer fields. The session sets the field to milliseconds since Unix epoch using the system clock, masked to the field's bit width.
 
 See [Sessions](sessions.md) for details.
 

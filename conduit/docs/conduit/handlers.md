@@ -147,7 +147,7 @@ This is an internal detail -- you create typed handlers via `on<T>()` and the `M
 
 > **Pitfall:** Exceptions thrown from handlers are caught and logged, but the message is considered handled (not retried). Design handlers to handle their own errors.
 
-> **Pitfall:** When a `<case>` contains an `<array>` with `dispatch="per-record"`, the handler fires **once per element**, not once per array. Records from the same frame arrive as independent handler invocations with no batch grouping. With `dispatch="batch"` (the default), the handler receives the case wrapper type containing the full array via `.items()`. See [Array Dispatch](../bmdl/choices.md#array-dispatch) for the BMDL syntax and [Per-Record vs Batch Delivery](sessions-and-codegen.md#per-record-vs-batch-delivery) for session-level details.
+> **Pitfall:** For array-payload frames (`<payload count="*"/>`), `decode_frame()` emits one `DecodedMessage` per payload element. Handlers fire once per element, not once per frame.
 
 ## See Also
 

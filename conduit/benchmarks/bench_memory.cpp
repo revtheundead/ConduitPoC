@@ -19,6 +19,7 @@
 #include <sentry_link/sessions.hpp>
 
 #include <cstdio>
+#include <variant>
 
 // ============================================================================
 // Message factories
@@ -52,14 +53,14 @@ asterix::Cat048Record make_cat048() {
     pos.set_theta(90.0);
     it.set_i040(pos);
 
-    asterix::itemsi070 mode3a;
+    asterix::items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(07700);
     it.set_i070(mode3a);
 
-    asterix::itemsi090 fl;
+    asterix::items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0);
@@ -94,6 +95,20 @@ asterix::Cat048Record make_cat048() {
     return rec;
 }
 
+asterix::AsterixFrame wrap_cat048(const asterix::Cat048Record& rec) {
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT048);
+    asterix::DataBlock_cat048 cat_recs;
+    cat_recs.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cat_recs});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame frame;
+    frame.mutable_blocks().push_back(db);
+    return frame;
+}
+
 sentry_link::HeartbeatBody make_heartbeat() {
     sentry_link::HeartbeatBody hb;
     hb.set_timestamp(1700000000);
@@ -121,12 +136,10 @@ sentry_link::AlertBody make_alert() {
 // ============================================================================
 
 TEST_CASE("Memory: type sizes", "[memory][sizeof]") {
-    auto asterix_session = asterix::create_asterix_frame_session();
     auto sentry_session  = sentry_link::create_frame_session();
 
     std::fprintf(stdout, "\nMemory: type sizes\n");
     std::fprintf(stdout, "-------------------------------------------\n");
-    std::fprintf(stdout, "  sizeof AsterixFrameSession     = %zu bytes\n", sizeof(*asterix_session));
     std::fprintf(stdout, "  sizeof FrameSession            = %zu bytes\n", sizeof(*sentry_session));
     std::fprintf(stdout, "  sizeof BitWriter               = %zu bytes\n", sizeof(conduit::io::BitWriter));
     std::fprintf(stdout, "  sizeof BitReader               = %zu bytes\n", sizeof(conduit::io::BitReader));
@@ -152,7 +165,7 @@ TEST_CASE("Memory: type sizes", "[memory][sizeof]") {
 // ============================================================================
 
 TEST_CASE("Memory: wire sizes", "[memory][wire]") {
-    auto cat048_bytes    = asterix::AsterixFrame::wrap(make_cat048()).encode_bytes().value();
+    auto cat048_bytes    = wrap_cat048(make_cat048()).encode_bytes().value();
     auto heartbeat_bytes = sentry_link::Frame::wrap(make_heartbeat()).encode_bytes().value();
     auto alert_bytes     = sentry_link::Frame::wrap(make_alert()).encode_bytes().value();
 
@@ -183,7 +196,7 @@ TEST_CASE("Memory: encode allocation overhead", "[benchmark][memory]") {
     auto hb     = make_heartbeat();
 
     BENCHMARK("CAT048 encode (with alloc)") {
-        auto frame = asterix::AsterixFrame::wrap(cat048);
+        auto frame = wrap_cat048(cat048);
         return frame.encode_bytes().value();
     };
 

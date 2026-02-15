@@ -90,9 +90,9 @@ The conversion functions are **`storage_type_for_bits(bits, is_signed)`** and **
 
 ## Session and Factory Names
 
-Entry-point names are converted for session class and factory function names:
+Frame names are converted for session class and factory function names:
 
-| BMDL Entry-Point | Session Class | Factory Function |
+| BMDL Frame Name | Session Class | Factory Function |
 |------------------|--------------|-----------------|
 | `Frame` | `FrameSession` | `create_frame_session()` |
 | `MyFrame` | `MyFrameSession` | `create_my_frame_session()` |

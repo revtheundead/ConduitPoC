@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-constraint-type-mismatch" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_constraint_type_mismatch</namespace>
+  </defaults>
   <constants>
     <const name="STR_CONST" type="label-str" value="hello"/>
   </constants>
@@ -15,5 +17,4 @@
       </field>
     </message>
   </messages>
-</protocol>
 </bmdl>

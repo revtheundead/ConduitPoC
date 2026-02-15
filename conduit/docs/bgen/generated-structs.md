@@ -2,9 +2,9 @@
 
 [Back to index](index.md)
 
-bgen generates `structs.hpp` and `messages.hpp` containing C++ classes for every `<struct>` and `<message>` in the BMDL protocol. Structs and messages use the same internal emission logic, with messages adding `TYPE_ID`, convenience methods, and (for v1) `wrap()` overloads.
+bgen generates `structs.hpp` and `messages.hpp` containing C++ classes for every `<struct>` and `<message>` in the BMDL protocol. Structs and messages use the same internal emission logic, with messages adding `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`, and convenience methods.
 
-In v2 (frame-based protocols), `messages.hpp` also contains the Frame class with `PayloadVariant`, `wrap()` overloads, and encode/decode with auto-length backpatching. See [Frame Class](#frame-class-v2) below.
+`messages.hpp` also contains the Frame class with `PayloadVariant`, `wrap()` overloads, and encode/decode with auto-length backpatching. See [Frame Class](#frame-class) below.
 
 ## Class Structure
 
@@ -95,13 +95,7 @@ Writes all fields in declaration order. For each field:
 static conduit::Result<MyStruct> decode(conduit::io::BitReader& r);
 ```
 
-Reads all fields in declaration order into a new instance. Returns the decoded struct or an error. For context-aware case types, an additional overload is generated:
-
-```cpp
-static conduit::Result<MyStruct> decode(conduit::io::BitReader& r, const MyContextStruct& ctx);
-```
-
-This overload receives entry-point context fields for resolving expressions that reference parent fields.
+Reads all fields in declaration order into a new instance. Returns the decoded struct or an error.
 
 ### validate (Deferred Constraints)
 
@@ -142,7 +136,7 @@ There are no per-case convenience accessors. Use `std::holds_alternative<T>()` a
 
 If the choice is optional (has a `bit` or `present-when` attribute), it gets optional accessors instead (`has_payload()`, `clear_payload()`, etc.).
 
-Inline cases (cases with `<field>` children instead of a `type` attribute) generate synthetic child classes before the parent class.
+Inline cases (cases with `<field>` children instead of a `type` attribute) generate synthetic child classes before the parent class. Inline case types are always prefixed with the parent class name to prevent cross-message collisions: `<case name="Data">` inside message `Request` generates class `Request_Data`.
 
 ## Arrays
 
@@ -166,7 +160,7 @@ Inline array elements (arrays with `<field>` children instead of a `type` attrib
 
 Structs with `presence="bitmap"` use FSPEC-based encoding. Fields are assigned to bitmap bits and are all `std::optional`:
 
-- **Without `ext`**: A single FSPEC byte is written. All fields must fit within bits 0-7.
+- **Without `ext`**: A fixed-size FSPEC of `ceil(bitmap_bits / 8)` bytes is always written and read. The size is determined at code-generation time from the `bits` attribute on `<bitmap>`. For example, `<bitmap bits="16"/>` produces a 2-byte FSPEC.
 - **With `ext`**: Multi-byte FSPEC. The FSPEC array size is `(max_bit / 8) + 1` based on the highest bit position used across all fields (not the `bits` attribute). The extension bit position (specified by `ext` on `<bitmap>`) is set in each FSPEC byte except the last, allowing the decoder to read as many FSPEC bytes as needed.
 - Bit ordering: `fspec[byte] |= (1 << bit_within_byte)` -- bit 0 is LSB of first byte
 - All bitmap fields use optional accessors (`has_X()`, `set_X()`, `clear_X()`, etc.)
@@ -199,13 +193,37 @@ static constexpr std::string_view TYPE_NAME = "Heartbeat";
 
 Leaf struct types that appear in sessions also get `TYPE_ID` and `TYPE_NAME`.
 
-In v2 frame-based protocols, messages with an `id` attribute additionally get:
+Messages with an `id` attribute (frame-based protocols) additionally get:
 
 ```cpp
 static constexpr uint8_t ID_VALUE = 1;  // type matches the frame's auto="id" field
 ```
 
 The `ID_VALUE` type matches the frame's ID field C++ type (e.g., `uint8_t`, `uint16_t`). This constant is used by `Frame::wrap()` to auto-set the ID field and by `Frame::decode()` for dispatch.
+
+### Frame Field Accessors
+
+In frame-based protocols, each message class also carries accessors for the frame's header and footer fields. These are populated automatically during `Frame::decode()` so that decoded messages carry full frame context:
+
+```cpp
+// Frame header fields (populated during Frame::decode)
+uint8_t msg_type() const;
+uint16_t length() const;
+
+// Frame footer fields (if any)
+uint16_t checksum() const;
+```
+
+**Auto-managed fields** (those with `auto="id"`, `auto="length"`, etc.) have their setters marked `[[deprecated]]` to warn that values are overwritten during frame encoding:
+
+```cpp
+[[deprecated("auto-managed: value is set automatically during frame encoding")]]
+void set_msg_type(uint8_t v);
+```
+
+Non-auto-managed frame fields have normal setters that users can freely call.
+
+The Frame class is declared as a `friend` of each message class so it can write frame field values directly during decode. Frame fields appear in `to_string()` output (header fields first, footer fields last).
 
 ### Convenience Methods
 
@@ -217,46 +235,7 @@ static conduit::Result<MyMessage> decode_bytes(std::span<const uint8_t> data, si
 `encode_bytes()` creates a `BitWriter`, encodes, and returns the byte vector.
 `decode_bytes()` creates a `BitReader` and decodes. The optional `max_bytes` parameter rejects oversized input.
 
-### wrap() Overloads (Entry-Point Messages)
-
-Entry-point messages get `wrap()` static methods for each reachable leaf type:
-
-```cpp
-static MyFrame wrap(const HeartbeatMsg& leaf);
-static MyFrame wrap(const DataMsg& leaf);
-```
-
-Each `wrap()` overload:
-1. Creates a frame instance
-2. Sets all constraint fields (discriminators, fixed values) along the access path
-3. Sets the leaf payload into the correct choice variant
-4. Sets length fields if the choice has `length-from`
-5. Returns the fully populated frame
-
-Known-valid constant setters use `(void)` cast to suppress `[[nodiscard]]` warnings.
-
-## Context Structs
-
-When entry-point analysis finds context fields (concrete fields from the entry-point available to inner decode methods), a context struct is generated in `structs.hpp` before any struct classes:
-
-```cpp
-struct FrameContext {
-    uint8_t msg_type{};
-    uint16_t length{};
-};
-```
-
-The context struct name is `to_cpp_type_name(entry_point_name) + "Context"`. Field names use `to_accessor_name` (no trailing underscore), unlike regular struct members. All fields are value-initialized with `{}`.
-
-Every leaf type reachable from the entry-point is mapped to this context struct. Case types that need context get an additional `decode` overload:
-
-```cpp
-static Result<CaseType> decode(BitReader& r, const FrameContext& ctx);
-```
-
-Context field types are qualified with `::namespace::TypeName` when the field name would shadow the type name (avoiding GCC `-Wchanges-meaning` errors).
-
-## Frame Class (v2)
+## Frame Class
 
 When a `<frame>` is present, bgen generates a Frame class in `messages.hpp` (after all message classes). The frame handles wire-level transport: ID dispatch, length backpatching, and message wrapping.
 
@@ -300,23 +279,25 @@ public:
 ### encode() Internals
 
 1. Writes header fields sequentially
-2. For `auto="length"`: saves byte position and writes zero placeholder
+2. For `auto="length"`: saves byte position and writes zero placeholder. The length field must be <= 32 bits (limited by `patch_u8`/`patch_u16`/`patch_u32` backpatching).
 3. Writes payload via `std::visit`
 4. Writes footer fields (if any)
 5. Backpatches the length field using `w.patch_u8()`, `w.patch_u16()`, or `w.patch_u32()` (selected based on the length field's bit width) with the computed frame size
 
 ### decode() Internals
 
-1. Reads header fields sequentially
+1. Reads header fields sequentially (constraint-equals fields are read but not validated — they are encode-only constraints)
 2. Switches on the ID field value to dispatch to the correct message's `decode()`
 3. Reads footer fields (if any)
 4. Returns the frame with the decoded payload variant
 
 ### wrap() Overloads
 
-Each `wrap()` overload creates a frame, sets the ID field to the message's `ID_VALUE`, and stores the message in the payload variant. Length is computed automatically during `encode()` via backpatching. Config fields (from `auto="config(key)"`) are set by the session during `encode_wrap()`, not by `wrap()` itself.
+Each `wrap()` overload creates a frame, sets the ID field to the message's `ID_VALUE`, sets constraint-equals fields (e.g., sync words) to their constant values, and stores the message in the payload variant. Length is computed automatically during `encode()` via backpatching. Config fields (from `auto="config(key)"`) are set by the session during `encode_wrap()`, not by `wrap()` itself.
 
-Note: v2 messages do **not** get v1-style `wrap()` overloads on the message class itself. Only the Frame class has `wrap()` overloads. Individual messages can still be encoded/decoded standalone via `encode_bytes()` / `decode_bytes()` (without the frame envelope).
+The `encode_batch()` session method also initializes constraint-equals fields when constructing frames directly (without `wrap()`).
+
+Note: Individual message classes do **not** have `wrap()` overloads -- only the Frame class has `wrap()` overloads. Messages can still be encoded/decoded standalone via `encode_bytes()` / `decode_bytes()` (without the frame envelope).
 
 ## See Also
 

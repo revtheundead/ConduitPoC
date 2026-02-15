@@ -44,7 +44,7 @@ enum class ValidateTiming { Immediate, Deferred };
 enum class Direction { Both, Send, Receive };
 enum class Dispatch { Batch, PerRecord };
 enum class WireEncoding { Default, CB2, BNR, BNR_S, BCD, BCD_S };
-enum class AutoKind { Id, Length, Count, Increment, Config, Timestamp, Checksum };
+enum class AutoKind { Id, Length, Count, Increment, Config, Timestamp };
 
 // ============================================================================
 // Auto expression (parsed form of auto="..." attribute)
@@ -53,7 +53,7 @@ enum class AutoKind { Id, Length, Count, Increment, Config, Timestamp, Checksum 
 struct AutoExpr {
     AutoKind kind = AutoKind::Id;
     std::string field_ref;   // length(field), count(field)
-    std::string key;         // config(key), checksum(algo)
+    std::string key;         // config(key)
     int offset = 0;          // length - 3 => offset=-3
 };
 
@@ -383,9 +383,8 @@ struct ConstDef {
 struct MessageDef {
     std::string name;
     std::vector<StructChild> children;
-    bool is_entry_point = false;
 
-    std::string id;  // v2: required when frame exists, empty for v1 compat
+    std::string id;  // required when frame exists
     Direction direction = Direction::Both;
 
     std::vector<Annotation> annotations;

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-remaining" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_remaining</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -14,5 +16,4 @@
       <field name="inner" type="Inner"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

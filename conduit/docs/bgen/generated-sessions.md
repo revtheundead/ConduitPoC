@@ -2,9 +2,9 @@
 
 [Back to index](index.md)
 
-bgen generates `sessions.hpp` containing session classes that implement `conduit::traits::ISession`. There are two code paths:
+bgen generates `sessions.hpp` containing session classes that implement `conduit::traits::ISession`.
 
-## Frame-based Sessions (v2)
+## Session Class
 
 When a `<frame>` is present, bgen generates a session class based on the frame:
 
@@ -14,15 +14,7 @@ class SimpleFrameSession : public conduit::traits::ISession { ... };
 inline std::unique_ptr<conduit::traits::ISession> create_simple_frame_session();
 ```
 
-The session class name is formed by `to_cpp_type_name(frame_name) + "Session"`. The factory function name uses `to_lower_snake_case`.
-
-### decode_frame (v2)
-
-The v2 session calls `FrameClass::decode_bytes(data)` to decode the entire frame, then uses `std::visit` on the payload variant to create `DecodedMessage` structs for each message type. This is much simpler than the v1 trie walk because the frame handles all dispatch internally.
-
-### encode_wrap (v2)
-
-Switches on `type_id`, `std::any_cast`s the payload to the correct message type, calls `FrameClass::wrap(msg)` to create the frame, sets any `auto="config(key)"` fields from the Config struct, sets any `auto="increment"` fields, and calls `frame.encode_bytes()`.
+The session class name is formed by `to_cpp_type_name(frame_name) + "Session"`. Since `to_cpp_type_name` only replaces hyphens with underscores (preserving original casing), a BMDL frame named `Frame` produces `FrameSession`, while `data-frame` produces `data_frameSession`. The factory function name uses `to_lower_snake_case`, so `Frame` becomes `create_frame_session()` and `MyFrame` becomes `create_my_frame_session()`.
 
 ### Config Parameter
 
@@ -36,18 +28,6 @@ auto session = create_simple_frame_session(config);
 
 If there are no `auto="config(key)"` fields, no `Config` struct is generated, and the constructor/factory take no parameters.
 
-## Entry-point Sessions (v1)
-
-For each entry-point message, bgen generates:
-
-```
-class FrameSession : public conduit::traits::ISession { ... };
-
-inline std::unique_ptr<conduit::traits::ISession> create_frame_session();
-```
-
-The session class name is formed by `to_cpp_type_name(entry_point_name) + "Session"`. Since `to_cpp_type_name` only replaces hyphens with underscores (preserving original casing), a BMDL entry-point named `Frame` produces `FrameSession`, while `data-frame` produces `data_frameSession`. The factory function name uses `to_lower_snake_case`, so `Frame` becomes `create_frame_session()` and `MyFrame` becomes `create_my_frame_session()`.
-
 ## ISession Interface Methods
 
 ### decode_frame
@@ -57,56 +37,17 @@ The session class name is formed by `to_cpp_type_name(entry_point_name) + "Sessi
 decode_frame(std::span<const uint8_t> data) override;
 ```
 
-Decodes a raw byte buffer into the entry-point type, then walks the decoded structure to extract all leaf types. Returns a vector of `DecodedMessage` structs, each containing:
+Calls `FrameClass::decode_bytes(data)` to decode the entire frame, then uses `std::visit` on the payload variant to create `DecodedMessage` structs. Returns a vector of `DecodedMessage` structs, each containing:
 
 - `type_id` (`uint64_t`) -- FNV-1a hash of the leaf type name
-- `type_name` (`std::string_view`) -- The BMDL name (e.g., `"Cat048Record"`)
+- `type_name` (`std::string_view`) -- The BMDL name (e.g., `"Heartbeat"`)
 - `payload` (`std::any`) -- The decoded leaf value, holding the concrete C++ type (use `std::any_cast` to extract)
 
-The `DecodedMessage` struct also has a `raw` (`std::vector<uint8_t>`) field for raw bytes forwarding, but the generated `decode_frame` does not populate it -- that is left to the application or transceiver layer.
+The `DecodedMessage` struct also has a `raw` (`std::vector<uint8_t>`) field containing a copy of the raw encoded bytes for the frame. The generated `decode_frame` populates this automatically from the input data.
 
-The walk logic uses a trie structure to efficiently share common access path prefixes. For each leaf type, the session navigates through struct fields, choice variants (`std::holds_alternative` + `std::get`), and array iterations to reach the leaf value.
+For `<payload count="*"/>` frames, `decode_frame` iterates over the frame's payload vector and emits one `DecodedMessage` per payload element.
 
-#### Array Dispatch
-
-When the entry-point structure reaches arrays inside inline `<case>` blocks, the `dispatch` attribute on `<array>` controls the leaf type and delivery behavior.
-
-**Batch (default):** With `dispatch="batch"` or no `dispatch` attribute, the case wrapper type is the leaf. `decode_frame()` emits **one `DecodedMessage`** per case match, with the wrapper holding the full array via `.items()`:
-
-```
-AsterixFrame
-  └─ blocks[0]: DataBlock (cat=7, len=...)
-       └─ records: cat007_downlink (dispatch="batch")
-            └─ cat007_downlink wrapper  →  DecodedMessage #1
-                 └─ .items() = [Record, Record, Record, Record, Record]
-```
-
-```cpp
-handler.on<asterix::cat007_downlink>([](const auto& wrapper) {
-    // Called once — wrapper.items() gives the full record vector
-});
-```
-
-**Per-record:** With `dispatch="per-record"`, the array element type is the leaf. `decode_frame()` iterates the array and emits **one `DecodedMessage` per element**:
-
-```
-AsterixFrame
-  └─ blocks[0]: DataBlock (cat=7, len=...)
-       └─ records: cat007_downlink (dispatch="per-record")
-            └─ items[0]: Cat007DownlinkRecord  →  DecodedMessage #1
-            └─ items[1]: Cat007DownlinkRecord  →  DecodedMessage #2
-            └─ items[2]: Cat007DownlinkRecord  →  DecodedMessage #3
-```
-
-```cpp
-handler.on<asterix::Cat007DownlinkRecord>([](const auto& rec) {
-    // Called once per record — array boundary is lost
-});
-```
-
-See [Array Dispatch](../bmdl/choices.md#array-dispatch) for the BMDL syntax and [Per-Record vs Batch Delivery](../conduit/sessions-and-codegen.md#per-record-vs-batch-delivery) for runtime details.
-
-Direction-constrained types generate a log warning when decoded against their declared direction (e.g., decoding a send-only message).
+Direction-constrained types (`direction="send"`) generate a log warning when decoded.
 
 ### encode_wrap
 
@@ -115,18 +56,40 @@ Direction-constrained types generate a log warning when decoded against their de
 encode_wrap(uint64_t type_id, const std::any& payload) override;
 ```
 
-Takes a `type_id` and an `std::any`-wrapped leaf payload, wraps it into the entry-point frame structure, encodes, and returns raw bytes.
+Takes a `type_id` and an `std::any`-wrapped leaf payload, wraps it into a frame, encodes, and returns raw bytes.
 
 For each known leaf type:
-1. Matches on `type_id`
+1. Switches on `type_id`
 2. Extracts the concrete type from `std::any` via `std::any_cast`
-3. Calls `EntryPoint::wrap(leaf)` to build the frame
-4. Sets auto-increment fields on the frame (session-stateful)
-5. Encodes the frame
+3. Calls `FrameClass::wrap(msg)` to create the frame (auto-sets the ID field)
+4. Sets `auto="config(key)"` fields from the Config struct
+5. Sets `auto="increment"` fields (session-stateful counter)
+6. Sets `auto="timestamp"` fields (current system time in milliseconds)
+7. Calls `frame.encode_bytes()`
 
 Returns `UnknownTypeId` for unrecognized type IDs, and `InvalidArgument` if the `std::any` payload doesn't match the expected type.
 
-Direction-constrained types generate a log warning when encoding against their declared direction (e.g., encoding a receive-only message).
+Direction-constrained types (`direction="receive"`) generate a log warning when encoded.
+
+### encode_batch (array payload)
+
+```cpp
+[[nodiscard]] conduit::Result<std::vector<uint8_t>>
+encode_batch(uint64_t type_id, std::span<const std::any> payloads) override;
+```
+
+Only generated for frame-based sessions with `<payload count="*"/>`. Packs multiple messages of the same type into a single frame:
+
+1. Matches on `type_id`
+2. Creates a frame and sets the ID field
+3. Iterates `payloads`, `std::any_cast`s each to the expected message type
+4. Pushes each message into the frame's payload vector
+5. Sets config, auto-increment, and auto-timestamp fields
+6. Calls `frame.encode_bytes()`
+
+Returns `InvalidArgument` if any payload fails the `std::any_cast`, or `UnknownTypeId` for unrecognized type IDs.
+
+Non-array sessions do not override this method and inherit the default `BatchNotSupported` rejection from `ISession`.
 
 ### sync_pattern
 
@@ -134,7 +97,7 @@ Direction-constrained types generate a log warning when encoding against their d
 [[nodiscard]] std::span<const uint8_t> sync_pattern() const override;
 ```
 
-Returns the byte pattern used for stream synchronization. The sync pattern is derived from constraint-equals values on the leading fixed fields of the entry-point (e.g., a sync word constant). Returns an empty span if no sync pattern exists.
+Returns the byte pattern used for stream synchronization. The sync pattern is derived from the first `constraint equals` field in the frame header (e.g., a sync word constant). Returns an empty span if no sync pattern exists.
 
 The sync bytes are stored as a `static constexpr uint8_t[]` array, written in wire order respecting the field's endianness.
 
@@ -168,7 +131,7 @@ Returns 0 if the header is too small.
 [[nodiscard]] std::span<const uint64_t> leaf_type_ids() const override;
 ```
 
-Returns a span of all leaf type IDs reachable from this entry-point. The IDs are stored as a `static constexpr uint64_t[]` array with comments showing each type's BMDL name.
+Returns a span of all leaf type IDs in this session. The IDs are stored as a `static constexpr uint64_t[]` array with comments showing each type's BMDL name.
 
 ### type_name
 
@@ -192,7 +155,7 @@ Returns `true` if the leaf type with the given `type_id` has `direction="receive
 void reset() override;
 ```
 
-Resets session state. If any leaf type has auto-increment fields, this resets the sequence counter to 0.
+Resets session state. If any leaf type has auto-increment fields, this resets the sequence counter to 0. Auto-timestamp fields are unaffected by reset (they are stateless).
 
 ## Auto-Increment Counter
 
@@ -206,6 +169,12 @@ The counter type is determined by the maximum bit width across all auto-incremen
 
 A public `sequence_counter()` accessor is provided for reading the current counter value.
 
+## Auto-Timestamp Fields
+
+Sessions populate auto-timestamp fields (`auto="timestamp"` in BMDL) with the current time during `encode_wrap` and `encode_batch`. The value is milliseconds since Unix epoch from `std::chrono::system_clock`, masked to the field's bit width (e.g., a 32-bit timestamp wraps every ~49 days).
+
+Unlike auto-increment, timestamp is stateless -- there is no session state to track or reset. Each encode operation reads the current time independently. When timestamp fields are present, the generated `sessions.hpp` includes `<chrono>`.
+
 ## Factory Function
 
 ```cpp
@@ -214,7 +183,7 @@ inline std::unique_ptr<conduit::traits::ISession> create_frame_session() {
 }
 ```
 
-The factory function name converts the entry-point name from PascalCase/kebab-case to snake_case: `MyFrame` becomes `create_my_frame_session()`.
+The factory function name converts the frame name from PascalCase/kebab-case to snake_case: `MyFrame` becomes `create_my_frame_session()`.
 
 ## Type ID Computation
 
@@ -231,25 +200,21 @@ The hash is computed at compile time (`constexpr`). During session analysis, bge
 
 ## Direction Filtering
 
-BMDL choice cases can specify `direction="send"` or `direction="receive"`:
+BMDL messages can specify `direction="send"` or `direction="receive"`:
 
-- **Send-only types**: Included in `leaf_type_ids()`, `encode_wrap()`, and `decode_frame()`. A warning is logged when decoded.
-- **Receive-only types**: Included in `leaf_type_ids()`, `decode_frame()`, and `encode_wrap()`. A warning is logged when encoded.
+- **Send-only types**: Skipped in the frame's `decode()` switch (their ID returns `UnknownDiscriminator` on decode). Included in `encode_wrap()`. A warning is logged if the `decode_frame` path is reached.
+- **Receive-only types**: Included in `decode_frame()`. A warning is logged when encoded via `encode_wrap()`.
 - **Both (default)**: No warnings, fully bidirectional.
 
-All leaf types participate in all session methods regardless of direction. Direction only controls whether a warning is logged for opposite-direction usage. The logger include is only added when direction-constrained types exist.
+All leaf types participate in `leaf_type_ids()` and `type_name()` regardless of direction. The logger include is only added when direction-constrained types exist.
 
-### Direction-Qualified Overlapping Cases
+### Direction-Qualified Overlapping IDs
 
-When two cases share the same discriminator value with complementary directions (`send` vs. `receive`), the generated struct-level `decode()` skips the send-only case and routes to the receive variant. This happens at the choice decode level, not the session level -- the session trie then naturally finds only the receive type when walking the decoded structure.
-
-Non-colliding send-only cases (those with a unique discriminator value) are still emitted in the decode path normally. The skip only applies when a receive or both case exists for the same resolved integer value.
-
-Both variants remain in the C++ variant type and in `encode_wrap()`, so encoding either direction is always possible.
+When two messages share the same `id` with complementary directions (`send` vs. `receive`), the frame's `decode()` switch dispatches to the `receive` variant. The `encode_wrap()` path uses the `send` variant. Both variants remain in the `PayloadVariant` type.
 
 ## Protocol Descriptor Integration
 
-The `ProtocolDescriptor` in `protocol.hpp` provides a `create_session()` method that delegates to the first entry-point's factory function. It also aggregates all leaf types across all sessions into a unified type registry with optional group annotations.
+The `ProtocolDescriptor` in `protocol.hpp` provides a `create_session()` method that delegates to the first session's factory function. It also aggregates all leaf types across all sessions into a unified type registry with optional group annotations.
 
 ## See Also
 

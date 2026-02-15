@@ -19,7 +19,7 @@ namespace conduit::transceiver::transport {
 struct TcpClientConfig {
     std::string host;
     uint16_t port = 0;
-    ReconnectPolicy reconnect;
+    ReconnectPolicy reconnect{};
     size_t recv_buffer_size = 65536;
     std::chrono::milliseconds connect_timeout{10000};
 };
@@ -45,6 +45,7 @@ public:
     [[nodiscard]] VoidResult send(PeerId peer, std::span<const uint8_t> data) override;
     [[nodiscard]] bool is_stream_oriented() const noexcept override { return true; }
     [[nodiscard]] bool is_multi_peer() const noexcept override { return false; }
+    [[nodiscard]] std::string_view transport_type() const noexcept override { return "tcp-client"; }
 
 private:
     struct Impl;

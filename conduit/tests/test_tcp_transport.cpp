@@ -40,7 +40,7 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     PeerId client_peer_on_server;
 
     TransportCallbacks server_cb;
-    server_cb.on_peer_connected = [&]() -> PeerId {
+    server_cb.on_peer_connected = [&](std::string) -> PeerId {
         client_peer_on_server = PeerId{next_id.fetch_add(1)};
         return client_peer_on_server;
     };
@@ -77,7 +77,7 @@ TEST_CASE("TCP loopback: server + client bidirectional",
         std::lock_guard lock(client_rx_mutex);
         client_received.insert(client_received.end(), data.begin(), data.end());
     };
-    client_cb.on_peer_connected = [&]() -> PeerId { return client_peer; };
+    client_cb.on_peer_connected = [&](std::string) -> PeerId { return client_peer; };
     client_cb.on_peer_disconnected = [](PeerId) {};
     client_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
 

@@ -3,10 +3,9 @@
 // Connects to a peer, sends random Cat007Uplink/Cat021/Cat048/Cat253 messages,
 // and logs all received messages to stdout.
 //
-// Usage: poc_app [host] [port] [--interval-ms N]
+// Usage: poc_app [host] [port] [--interval-ms N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]
 
 #include "random_asterix.hpp"
-#include "message_logger.hpp"
 #include <conduit/transceiver/transceiver_all.hpp>
 #include <atomic>
 #include <chrono>
@@ -48,11 +47,17 @@ int main(int argc, char* argv[]) {
     std::string host = "127.0.0.1";
     uint16_t port = 5000;
     int interval_ms = 1000;
+    std::string log_dir = "./logs";
+    std::string log_prefix = "poc";
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--interval-ms" && i + 1 < argc) {
             interval_ms = std::atoi(argv[++i]);
+        } else if (arg == "--log-dir" && i + 1 < argc) {
+            log_dir = argv[++i];
+        } else if (arg == "--log-prefix" && i + 1 < argc) {
+            log_prefix = argv[++i];
         } else if (port == 5000 && i >= 2) {
             port = static_cast<uint16_t>(std::atoi(argv[i]));
         } else if (host == "127.0.0.1" && i == 1) {
@@ -67,35 +72,29 @@ int main(int argc, char* argv[]) {
 
     // Build transceiver config
     TransceiverConfig cfg;
+    cfg.message_log.enabled = true;
+    cfg.message_log.mode = MessageLogMode::SeparateDirection;
+    cfg.message_log.output = MessageLogOutput::File;
+    cfg.message_log.directory = log_dir;
+    cfg.message_log.prefix = log_prefix;
     cfg.add_peer("server",
                  asterix::create_asterix_data_block_session,
-                 transport::TcpClientConfig{.host = host, .port = port, .reconnect = {}});
+                 transport::TcpClientConfig{.host = host, .port = port});
 
     Transceiver tx(std::move(cfg));
 
-    // File loggers for sent/received messages
-    auto send_log = std::make_shared<MessageLogger>("poc_sent.log");
-    auto recv_log = std::make_shared<MessageLogger>("poc_received.log");
-
-    // Register receive handlers.
-    // Note: The frame decoder always decodes CAT 7 as Cat007DownlinkRecord
-    // since uplink/downlink share the same wire format. Direction is
-    // application-level context. As the client, incoming CAT 7 = downlink.
-    tx.on<asterix::Cat007DownlinkRecord>([recv_log](const asterix::Cat007DownlinkRecord& msg) {
+    // Simple stdout handlers for received messages
+    tx.on<asterix::Cat007DownlinkRecord>([](const asterix::Cat007DownlinkRecord&) {
         std::cout << "[RECV] Cat007DownlinkRecord\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat021Record>([recv_log](const asterix::Cat021Record& msg) {
+    tx.on<asterix::Cat021Record>([](const asterix::Cat021Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat048Record>([recv_log](const asterix::Cat048Record& msg) {
+    tx.on<asterix::Cat048Record>([](const asterix::Cat048Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
-    tx.on<asterix::Cat253Record>([recv_log](const asterix::Cat253Record& msg) {
+    tx.on<asterix::Cat253Record>([](const asterix::Cat253Record& msg) {
         std::cout << "[RECV] " << msg.TYPE_NAME << "\n";
-        recv_log->log("RECV", msg);
     });
 
     // Connection state logging
@@ -127,40 +126,52 @@ int main(int argc, char* argv[]) {
         case 0: {
             auto msg = random_asterix::random_cat007_uplink(rng);
             std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-            send_log->log("SEND", msg);
             send_result = tx.send(msg);
             break;
         }
         case 1: {
             auto msg = random_asterix::random_cat021(rng);
             std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-            send_log->log("SEND", msg);
             send_result = tx.send(msg);
             break;
         }
         case 2: {
             auto msg = random_asterix::random_cat048(rng);
             std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-            send_log->log("SEND", msg);
             send_result = tx.send(msg);
             break;
         }
         case 3: {
             auto msg = random_asterix::random_cat253(rng);
             std::cout << "[SEND] " << msg.TYPE_NAME << "\n";
-            send_log->log("SEND", msg);
             send_result = tx.send(msg);
             break;
         }
         }
 
         if (!send_result) {
-            std::cerr << "[SEND ERROR] " << send_result.error().message() << "\n";
+            auto code = send_result.error().code();
+            if (code == conduit::ErrorCode::DirectionViolation)
+                std::cerr << "[SEND BLOCKED] " << send_result.error().message() << "\n";
+            else if (code == conduit::ErrorCode::EncodeConstraintViolation)
+                std::cerr << "[SEND REJECTED] " << send_result.error().message() << "\n";
+            else
+                std::cerr << "[SEND ERROR] " << send_result.error().message() << "\n";
         }
     }
 
     std::cout << "[poc_app] Stopping...\n";
     tx.stop();
+
+    auto s = tx.stats().snapshot();
+    std::cout << "[STATS] received=" << s.messages_received << "\n"
+              << " dispatched=" << s.messages_dispatched << "\n"
+              << " dropped=" << s.messages_dropped << "\n"
+              << " decode_errors=" << s.decode_errors << "\n"
+              << " handler_errors=" << s.handler_errors << "\n"
+              << " bytes_rx=" << s.bytes_received << "\n"
+              << " bytes_tx=" << s.bytes_sent << "\n\n";
+
     std::cout << "[poc_app] Done.\n";
     return 0;
 }

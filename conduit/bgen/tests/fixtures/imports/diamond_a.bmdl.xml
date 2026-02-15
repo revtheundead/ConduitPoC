@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <import href="diamond_shared.bmdl.xml"/>
   <types>
     <type name="uint32" base="uint" bits="32"/>

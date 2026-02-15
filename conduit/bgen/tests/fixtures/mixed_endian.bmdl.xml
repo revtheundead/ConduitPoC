@@ -1,6 +1,8 @@
-<bmdl version="1.0">
-<protocol name="mixed-endian" version="1.0">
-  <defaults endian="big"/>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>mixed_endian</namespace>
+    <endian>big</endian>
+  </defaults>
   <types>
     <type name="uint16" base="uint" bits="16"/>
     <type name="uint32" base="uint" bits="32"/>
@@ -15,5 +17,4 @@
       <field name="le32" type="le-uint32"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

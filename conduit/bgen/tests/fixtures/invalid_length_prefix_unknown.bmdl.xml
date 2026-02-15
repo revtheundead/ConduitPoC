@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-length-prefix-unknown" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_length_prefix_unknown</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -9,5 +11,4 @@
       <field name="data" bytes="0" length-prefix="no-such-type"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-shift-overflow" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_shift_overflow</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -10,5 +12,4 @@
       <field name="data" type="uint8" length-from="len &lt;&lt; 65"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

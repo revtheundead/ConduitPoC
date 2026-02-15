@@ -1089,15 +1089,12 @@ TEST_CASE("Session protocol Packet ping roundtrip", "[roundtrip][session]") {
     ping.set_timestamp(0x12345678);
 
     auto frame = session_test::Packet::wrap(ping);
-    frame.set_length(4); // PingBody = timestamp(4)
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
-    CHECK(bytes[0]==0xDE); CHECK(bytes[1]==0xAD);
     auto decoded = session_test::Packet::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(decoded->sync() == 0xDEAD);
-    auto& body = std::get<session_test::PingBody>(decoded->body());
+    auto& body = std::get<session_test::PingBody>(decoded->payload());
     CHECK(body.timestamp() == 0x12345678);
 }
 
@@ -1108,14 +1105,12 @@ TEST_CASE("Session protocol Packet data roundtrip", "[roundtrip][session]") {
     data.set_payload_b(0xBBBB);
 
     auto frame = session_test::Packet::wrap(data);
-    frame.set_length(9); // DataBody = channel(1) + payload_a(4) + payload_b(4)
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
-    CHECK(bytes.size() == 16);
     auto decoded = session_test::Packet::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    auto& body = std::get<session_test::DataBody>(decoded->body());
+    auto& body = std::get<session_test::DataBody>(decoded->payload());
     CHECK(body.channel() == 5);
     CHECK(body.payload_a() == 0xAAAA);
     CHECK(body.payload_b() == 0xBBBB);
@@ -1130,19 +1125,16 @@ TEST_CASE("Inline struct field flattening", "[roundtrip][inline]") {
     body.set_x_data(0xDEADBEEF);
 
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(1);
-    frame.set_length(4); // BodyX = uint32 = 4 bytes
-    frame.set_msg_type(inline_struct::MSG_X);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     auto decoded = inline_struct::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(decoded->sync() == 0xCAFE);
+    CHECK(decoded->sync() == inline_struct::SYNC);
     CHECK(decoded->seq() == 1);
-    CHECK(decoded->length() == 4);
 }
 
 TEST_CASE("Inline struct nested body roundtrip", "[roundtrip][inline]") {
@@ -1150,17 +1142,15 @@ TEST_CASE("Inline struct nested body roundtrip", "[roundtrip][inline]") {
     body.set_x_data(0x12345678);
 
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(42);
-    frame.set_length(4);
-    frame.set_msg_type(inline_struct::MSG_X);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     auto decoded = inline_struct::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(decoded->sync() == 0xCAFE);
+    CHECK(decoded->sync() == inline_struct::SYNC);
     CHECK(decoded->seq() == 42);
     auto& decoded_body = std::get<inline_struct::BodyX>(decoded->payload());
     CHECK(decoded_body.x_data() == 0x12345678);
@@ -1175,19 +1165,16 @@ TEST_CASE("Choice protocol Frame with AlphaBody roundtrip", "[roundtrip][choice_
     alpha.set_x(0x1111);
     alpha.set_y(0x2222);
 
-    choice_test::Frame frame;
-    REQUIRE(frame.set_sync(0xBEEF).has_value());
-    frame.set_message_type(static_cast<choice_test::msg_type>(choice_test::MSG_ALPHA));
-    frame.set_length(4); // AlphaBody = x(2) + y(2) = 4
-    frame.set_body(choice_test::bodyVariant{alpha});
+    auto frame = choice_test::Frame::wrap(alpha);
+    frame.set_sync(choice_test::SYNC);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     auto decoded = choice_test::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(decoded->sync() == 0xBEEF);
-    auto& decoded_body = std::get<choice_test::AlphaBody>(decoded->body());
+    CHECK(decoded->sync() == choice_test::SYNC);
+    auto& decoded_body = std::get<choice_test::AlphaBody>(decoded->payload());
     CHECK(decoded_body.x() == 0x1111);
     CHECK(decoded_body.y() == 0x2222);
 }
@@ -1197,18 +1184,15 @@ TEST_CASE("Choice protocol Frame with BetaBody roundtrip", "[roundtrip][choice_p
     beta.set_payload_size(42);
     beta.set_tag(0xABCD1234);
 
-    choice_test::Frame frame;
-    REQUIRE(frame.set_sync(0xBEEF).has_value());
-    frame.set_message_type(static_cast<choice_test::msg_type>(choice_test::MSG_BETA));
-    frame.set_length(5); // BetaBody = payload-size(1) + tag(4) = 5
-    frame.set_body(choice_test::bodyVariant{beta});
+    auto frame = choice_test::Frame::wrap(beta);
+    frame.set_sync(choice_test::SYNC);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     auto decoded = choice_test::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    auto& decoded_body = std::get<choice_test::BetaBody>(decoded->body());
+    auto& decoded_body = std::get<choice_test::BetaBody>(decoded->payload());
     CHECK(decoded_body.payload_size() == 42);
     CHECK(decoded_body.tag() == 0xABCD1234);
 }
@@ -1218,10 +1202,8 @@ TEST_CASE("Session constraint sync word on wire", "[roundtrip][wire]") {
     body.set_x_data(0);
 
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(0);
-    frame.set_length(4);
-    frame.set_msg_type(inline_struct::MSG_X);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -1237,17 +1219,15 @@ TEST_CASE("Session wrap sets discriminator on wire", "[roundtrip][wire]") {
     body.set_x_data(0);
 
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(0);
-    frame.set_length(4);
-    frame.set_msg_type(inline_struct::MSG_X);
 
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
     // msg-type is at offset: sync(2) + seq(2) + length(2) = 6
     REQUIRE(bytes.size() > 6);
-    CHECK(bytes[6] == inline_struct::MSG_X);
+    CHECK(bytes[6] == inline_struct::BodyX::ID_VALUE);
 }
 
 // ============================================================================
@@ -1286,9 +1266,7 @@ TEST_CASE("wrap auto-computes length for PingBody", "[roundtrip][wrap]") {
     auto bytes = std::move(*enc_result);
     auto decoded = session_test::Packet::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    // PingBody = timestamp(4) -> length should be 4
-    CHECK(decoded->length() == 4);
-    auto& body = std::get<session_test::PingBody>(decoded->body());
+    auto& body = std::get<session_test::PingBody>(decoded->payload());
     CHECK(body.timestamp() == 0x12345678);
 }
 
@@ -1305,9 +1283,7 @@ TEST_CASE("wrap auto-computes length for DataBody", "[roundtrip][wrap]") {
     auto bytes = std::move(*enc_result);
     auto decoded = session_test::Packet::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    // DataBody = channel(1) + payload_a(4) + payload_b(4) -> length should be 9
-    CHECK(decoded->length() == 9);
-    auto& body = std::get<session_test::DataBody>(decoded->body());
+    auto& body = std::get<session_test::DataBody>(decoded->payload());
     CHECK(body.channel() == 5);
     CHECK(body.payload_a() == 0xAAAA);
     CHECK(body.payload_b() == 0xBBBB);

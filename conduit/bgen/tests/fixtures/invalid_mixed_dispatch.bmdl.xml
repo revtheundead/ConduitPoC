@@ -5,9 +5,10 @@
   The validator should reject this because all arrays within a case must
   agree on dispatch mode.
 -->
-<bmdl version="1.0">
-<protocol name="mixed-dispatch-test" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>mixed_dispatch_test</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -35,6 +36,4 @@
       </choice>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

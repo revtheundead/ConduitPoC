@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="recursive-struct" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>recursive_struct</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <struct name="Alpha">
@@ -16,5 +18,4 @@
       <field name="data" type="Alpha"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "bitmap_advanced/messages.hpp"
+#include "bitmap_wide_fixed/messages.hpp"
 
 // ============================================================================
 // Bitmap: all items present
@@ -316,4 +317,100 @@ TEST_CASE("Bitmap decode truncated field data fails", "[bitmap][errors]") {
 
     auto decoded = bitmap_advanced::BitmapAdvancedMsg::decode_bytes(bytes);
     CHECK_FALSE(decoded.has_value());
+}
+
+// ============================================================================
+// Wide fixed bitmap (non-FX, 3-byte FSPEC with bits at 0, 8, 16)
+// ============================================================================
+
+TEST_CASE("Wide fixed bitmap: all fields present roundtrip", "[roundtrip][bitmap][wide]") {
+    bitmap_wide_fixed::WideBitmap bm;
+    bm.set_alpha(0xAA);
+    bm.set_beta(0x1234);
+    bm.set_gamma(0xDEADBEEF);
+
+    bitmap_wide_fixed::WideBitmapMsg msg;
+    msg.set_header(0x42);
+    msg.mutable_bitmap_data() = bm;
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    auto decoded = bitmap_wide_fixed::WideBitmapMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+
+    CHECK(decoded->header() == 0x42);
+    auto& d = decoded->bitmap_data();
+    REQUIRE(d.has_alpha());
+    CHECK(d.alpha() == 0xAA);
+    REQUIRE(d.has_beta());
+    CHECK(d.beta() == 0x1234);
+    REQUIRE(d.has_gamma());
+    CHECK(d.gamma() == 0xDEADBEEF);
+}
+
+TEST_CASE("Wide fixed bitmap: partial fields (bits 0 and 16 only)", "[roundtrip][bitmap][wide]") {
+    bitmap_wide_fixed::WideBitmap bm;
+    bm.set_alpha(0x55);
+    bm.set_gamma(0x12345678);
+
+    bitmap_wide_fixed::WideBitmapMsg msg;
+    msg.set_header(0x01);
+    msg.mutable_bitmap_data() = bm;
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    auto decoded = bitmap_wide_fixed::WideBitmapMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+
+    auto& d = decoded->bitmap_data();
+    REQUIRE(d.has_alpha());
+    CHECK(d.alpha() == 0x55);
+    CHECK_FALSE(d.has_beta());
+    REQUIRE(d.has_gamma());
+    CHECK(d.gamma() == 0x12345678);
+}
+
+TEST_CASE("Wide fixed bitmap: no fields present", "[roundtrip][bitmap][wide]") {
+    bitmap_wide_fixed::WideBitmapMsg msg;
+    msg.set_header(0xFF);
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    // header(1) + fspec(3 bytes, all zeros) = 4 bytes
+    REQUIRE(bytes.size() == 4);
+    CHECK(bytes[1] == 0x00);
+    CHECK(bytes[2] == 0x00);
+    CHECK(bytes[3] == 0x00);
+
+    auto decoded = bitmap_wide_fixed::WideBitmapMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->header() == 0xFF);
+    auto& d = decoded->bitmap_data();
+    CHECK_FALSE(d.has_alpha());
+    CHECK_FALSE(d.has_beta());
+    CHECK_FALSE(d.has_gamma());
+}
+
+TEST_CASE("Wide fixed bitmap: wire format verification", "[roundtrip][bitmap][wide][wire]") {
+    bitmap_wide_fixed::WideBitmap bm;
+    bm.set_alpha(0x01);    // bit 0 in byte 0
+    bm.set_gamma(0x00000001); // bit 16 in byte 2
+
+    bitmap_wide_fixed::WideBitmapMsg msg;
+    msg.set_header(0x00);
+    msg.mutable_bitmap_data() = bm;
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    // header(1) + fspec(3) + alpha(1) + gamma(4) = 9 bytes
+    REQUIRE(bytes.size() == 9);
+    CHECK((bytes[1] & 0x01) != 0); // bit 0 set in fspec byte 0
+    CHECK(bytes[2] == 0x00);       // fspec byte 1: no bits set
+    CHECK((bytes[3] & 0x01) != 0); // bit 0 set in fspec byte 2 (bit 16)
 }

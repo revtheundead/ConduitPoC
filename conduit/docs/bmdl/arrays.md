@@ -125,25 +125,6 @@ Inside a bitmap struct:
 <array name="tracks" bit="5" count-from="track-count" type="TrackRecord"/>
 ```
 
-## Dispatch (Session Delivery)
-
-When an `<array>` appears inside an inline `<case>`, the `dispatch` attribute controls how the session delivers decoded elements to handlers:
-
-```xml
-<case name="cat007-records" value="CAT007">
-  <array name="items" count="*" type="Cat007Record" dispatch="per-record"/>
-</case>
-```
-
-| Value | Behavior |
-|-------|----------|
-| `batch` | **Default.** The case wrapper type is delivered as a single message. Access the array via `.items()`. |
-| `per-record` | Each array element is delivered as a separate message. Array boundaries are lost. |
-
-The `dispatch` attribute is only valid on arrays that are direct children of inline `<case>` or `<otherwise>` elements (i.e., inside a `<choice>`). All arrays within a single case must use the same dispatch mode.
-
-See [Array Dispatch](choices.md#array-dispatch) for full details and handler registration examples.
-
 ## Best Practices
 
 - Use `count-from` with a previously-decoded count field for self-describing protocols.

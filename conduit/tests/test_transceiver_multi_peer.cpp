@@ -291,8 +291,8 @@ TEST_CASE("Transceiver multi-peer: add_peer with session factory",
     // Simulate two peers connecting
     PeerId dyn1, dyn2;
     if (transport->callbacks.on_peer_connected) {
-        dyn1 = transport->callbacks.on_peer_connected();
-        dyn2 = transport->callbacks.on_peer_connected();
+        dyn1 = transport->callbacks.on_peer_connected("10.0.0.1:5001");
+        dyn2 = transport->callbacks.on_peer_connected("10.0.0.2:5002");
     }
 
     CHECK(dyn1.valid());

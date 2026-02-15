@@ -14,6 +14,7 @@
 
 #include "fx_block/messages.hpp"
 #include "fx_advanced/messages.hpp"
+#include "fx_choice/messages.hpp"
 
 // ============================================================================
 // FX truncation: partial item data
@@ -230,4 +231,81 @@ TEST_CASE("FxAdvanced wire format: both extents larger than outer only", "[fx][n
     auto both_bytes = std::move(*enc_result_both);
 
     CHECK(both_bytes.size() > outer_bytes.size());
+}
+
+// ============================================================================
+// FX Choice: fx_choice fixture — choice inside FX block
+// ============================================================================
+
+TEST_CASE("FxChoice: CaseA roundtrip", "[fx][choice][roundtrip]") {
+    fx_choice::FxChoiceMsg msg;
+    msg.set_header(0x42);
+    msg.set_item1(1000);
+    msg.set_tag(fx_choice::tag_type::case_a);
+    fx_choice::CaseABody body;
+    body.set_x(0xABCD);
+    msg.set_payload(body);
+    msg.set_item3(99);
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    auto decoded = fx_choice::FxChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->header() == 0x42);
+    REQUIRE(decoded->has_item1());
+    CHECK(decoded->item1() == 1000);
+    REQUIRE(decoded->has_tag());
+    CHECK(decoded->tag() == fx_choice::tag_type::case_a);
+    REQUIRE(decoded->has_payload());
+    auto* case_a = std::get_if<fx_choice::CaseABody>(&decoded->payload());
+    REQUIRE(case_a != nullptr);
+    CHECK(case_a->x() == 0xABCD);
+    REQUIRE(decoded->has_item3());
+    CHECK(decoded->item3() == 99);
+}
+
+TEST_CASE("FxChoice: CaseB roundtrip", "[fx][choice][roundtrip]") {
+    fx_choice::FxChoiceMsg msg;
+    msg.set_header(0x55);
+    msg.set_item1(2000);
+    msg.set_tag(fx_choice::tag_type::case_b);
+    fx_choice::CaseBBody body;
+    body.set_y(0xDEADBEEF);
+    msg.set_payload(body);
+    msg.set_item3(7);
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    auto decoded = fx_choice::FxChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->header() == 0x55);
+    REQUIRE(decoded->has_tag());
+    CHECK(decoded->tag() == fx_choice::tag_type::case_b);
+    REQUIRE(decoded->has_payload());
+    auto* case_b = std::get_if<fx_choice::CaseBBody>(&decoded->payload());
+    REQUIRE(case_b != nullptr);
+    CHECK(case_b->y() == 0xDEADBEEF);
+    REQUIRE(decoded->has_item3());
+    CHECK(decoded->item3() == 7);
+}
+
+TEST_CASE("FxChoice: no FX items roundtrip", "[fx][choice][roundtrip]") {
+    fx_choice::FxChoiceMsg msg;
+    msg.set_header(0x00);
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    auto decoded = fx_choice::FxChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->header() == 0x00);
+    CHECK_FALSE(decoded->has_item1());
+    CHECK_FALSE(decoded->has_tag());
+    CHECK_FALSE(decoded->has_payload());
+    CHECK_FALSE(decoded->has_item3());
 }

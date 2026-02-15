@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_bitmap_array_bit</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <!-- Bitmap with array using out-of-range bit value — should fail validation -->
+    <struct name="BadBitmap" presence="bitmap">
+      <bitmap bits="8"/>
+      <field name="foo" type="uint8" bit="7"/>
+      <array name="items" type="uint8" count="2" bit="99"/>
+    </struct>
+  </types>
+</bmdl>

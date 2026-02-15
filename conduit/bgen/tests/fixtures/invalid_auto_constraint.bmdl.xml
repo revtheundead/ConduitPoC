@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-auto-constraint" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_auto_constraint</namespace>
+  </defaults>
   <types>
     <type name="uint16" base="uint" bits="16"/>
   </types>
@@ -11,5 +13,4 @@
       </field>
     </message>
   </messages>
-</protocol>
 </bmdl>

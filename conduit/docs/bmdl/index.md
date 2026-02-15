@@ -60,7 +60,7 @@ This defines a protocol with a `<frame>` that handles wire-level transport (mess
 | [Strings](strings.md) | String handling: encoding, padding, trim, terminated, packed characters |
 | [Fields](fields.md) | Field definitions, all attributes, presence, defaults, initial values |
 | [Constraints](constraints.md) | Constraint system: equals, min/max, immediate/deferred validation |
-| [Structs & Messages](structs-and-messages.md) | Structs, messages, nesting, inlining, entry-points |
+| [Structs & Messages](structs-and-messages.md) | Structs, messages, nesting, inlining, direction |
 | [Arrays](arrays.md) | Array definitions, count patterns, length-bounded arrays |
 | [Choices](choices.md) | Discriminated unions, cases, otherwise, direction |
 | [Bitmap](bitmap.md) | Bitmap-controlled structs, FSPEC, extension bits |
@@ -68,7 +68,7 @@ This defines a protocol with a `<frame>` that handles wire-level transport (mess
 | [Wire Encodings](wire-encodings.md) | BCD, BCD_S, BNR, BNR_S, CB2 encoding details |
 | [Expressions](expressions.md) | Expression grammar, operators, field references, `remaining` |
 | [Imports](imports.md) | Import system, namespaces, library files, defaults propagation |
-| [Sessions](sessions.md) | Entry-points, leaf type discovery, sync patterns, auto-increment |
+| [Sessions](sessions.md) | Frames, leaf type discovery, sync patterns, auto-increment, auto-timestamp |
 
 ## Supported Protocol Patterns
 

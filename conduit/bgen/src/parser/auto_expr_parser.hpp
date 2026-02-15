@@ -17,7 +17,7 @@ using AutoExprResult = std::expected<model::AutoExpr, AutoExprError>;
 
 // Parse an auto="..." attribute value into an AutoExpr.
 // Supports: id, length, length(field), length +/- N, length(field) +/- N,
-//           count(field), increment, config(key), timestamp, checksum(algo)
+//           count(field), increment, config(key), timestamp
 AutoExprResult parse_auto_expr(const std::string& input);
 
 } // namespace bgen::parser

@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="struct-features" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>struct_features</namespace>
+  </defaults>
   <constants>
     <const name="MAGIC" type="uint16" value="0xCAFE"/>
     <const name="VERSION" type="uint8" value="3"/>
@@ -32,5 +34,4 @@
       <field name="extra-value" type="uint16" present-when="has-extra != 0"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

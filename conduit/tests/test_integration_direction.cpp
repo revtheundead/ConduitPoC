@@ -6,7 +6,6 @@
 #include <conduit/io/bit_writer.hpp>
 #include <direction_qualified/sessions.hpp>
 #include <direction_qualified/messages.hpp>
-#include <direction_qualified/constants.hpp>
 #include <any>
 #include <cstdint>
 #include <vector>
@@ -49,7 +48,7 @@ TEST_CASE("direction: decode raw bytes with shared discriminator yields receive 
           "[integration][direction]") {
     // Build raw bytes: tag=1 (TAG_SHARED) + uint32 DownlinkPayload
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);
     w.write_u32(0xDEADFACE);
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
@@ -71,7 +70,7 @@ TEST_CASE("direction: send-only type is absent from decoded messages",
           "[integration][direction]") {
     // Build raw bytes with tag=1 (shared discriminator)
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);
     w.write_u32(0x00000000);
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());

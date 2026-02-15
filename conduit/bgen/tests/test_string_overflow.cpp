@@ -179,6 +179,27 @@ TEST_CASE("space-padded string exact length roundtrips perfectly",
     CHECK(decoded->label().value().size() == 16);
 }
 
+// ============================================================================
+// Section: Field-level max-length setter validation
+// ============================================================================
+
+TEST_CASE("field max-length setter rejects string exceeding limit",
+          "[string][overflow][setter]") {
+    string_features::MaxLenMsg msg;
+    msg.set_id(0);
+    auto result = msg.set_data(std::string(17, 'A'));
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code() == conduit::ErrorCode::StringTooLong);
+}
+
+TEST_CASE("field max-length setter accepts string at limit",
+          "[string][overflow][setter]") {
+    string_features::MaxLenMsg msg;
+    msg.set_id(0);
+    auto result = msg.set_data(std::string(16, 'A'));
+    CHECK(result.has_value());
+}
+
 TEST_CASE("bounded string exact length roundtrips perfectly",
           "[roundtrip][string][overflow]") {
     string_features::StringMsg msg;

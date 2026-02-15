@@ -119,6 +119,7 @@ set(CONDUIT_SOURCES
     src/transceiver/peer.cpp
     src/transceiver/handler.cpp
     src/transceiver/stream_framer.cpp
+    src/transceiver/message_log.cpp
     src/transceiver/transceiver.cpp
     src/transceiver/transport/tcp_client.cpp
     src/transceiver/transport/tcp_server.cpp

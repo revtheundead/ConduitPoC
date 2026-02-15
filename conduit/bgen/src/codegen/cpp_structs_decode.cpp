@@ -21,7 +21,19 @@ void StructEmitter::emit_decode(const std::vector<model::StructChild>& children,
     local_field_names_.clear();
     populate_local_field_names(children);
 
-    ctx_.line("static conduit::Result<" + class_name + "> decode(conduit::io::BitReader& r) {");
+    // Build decode signature with outer-scope params if any
+    std::string decode_params = "conduit::io::BitReader& r";
+    auto osp_it = struct_decode_params_.find(current_parent_);
+    if (osp_it != struct_decode_params_.end()) {
+        for (const auto& p : osp_it->second) {
+            if (p.pass_by_ref) {
+                decode_params += ", const " + p.cpp_type + "& " + to_accessor_name(p.bmdl_name);
+            } else {
+                decode_params += ", " + p.cpp_type + " " + to_accessor_name(p.bmdl_name);
+            }
+        }
+    }
+    ctx_.line("static conduit::Result<" + class_name + "> decode(" + decode_params + ") {");
     ctx_.indent();
     ctx_.line(class_name + " result;");
     reset_alignment();
@@ -30,27 +42,14 @@ void StructEmitter::emit_decode(const std::vector<model::StructChild>& children,
     ctx_.dedent();
     ctx_.line("}");
     ctx_.line();
-
-    // Emit context-aware decode overload for case types
-    if (has_context_ && !context_struct_name_.empty()) {
-        ctx_.line("static conduit::Result<" + class_name + "> decode(conduit::io::BitReader& r, const " +
-                 context_struct_name_ + "* ctx) {");
-        ctx_.indent();
-        ctx_.line("(void)ctx;");
-        ctx_.line(class_name + " result;");
-        reset_alignment();
-        emit_decode_children(children, "result");
-        ctx_.line("return result;");
-        ctx_.dedent();
-        ctx_.line("}");
-        ctx_.line();
-    }
 }
 
 // G7: Generate to_string() method
 void StructEmitter::emit_to_string(const std::vector<model::StructChild>& children,
                                     const std::vector<FieldInfo>& fields,
-                                    const std::string& class_name) {
+                                    const std::string& class_name,
+                                    const std::vector<FrameFieldInfo>& header_frame_fields,
+                                    const std::vector<FrameFieldInfo>& footer_frame_fields) {
     ctx_.line("std::string to_string() const {");
     ctx_.indent();
     ctx_.line("std::ostringstream oss;");
@@ -58,6 +57,29 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
     ctx_.indent();
 
     bool first = true;
+
+    // Emit frame field to_string entry (shared lambda for header and footer)
+    auto emit_frame_field_str = [&](const FrameFieldInfo& ffi) {
+        std::string sep = first ? "" : ", ";
+        std::string member = to_member_name(ffi.fi.name);
+        first = false;
+
+        if (ffi.fti.is_enum) {
+            ctx_.line("<< \"" + sep + ffi.fi.name + "=\" << ::" + ns_ + "::to_string(" + member + ")");
+        } else if (ffi.fti.is_struct) {
+            // Typedef wrapper — use .raw() with unary + for safe uint8_t display
+            ctx_.line("<< \"" + sep + ffi.fi.name + "=\" << +(" + member + ".raw())");
+        } else {
+            // Plain numeric
+            ctx_.line("<< \"" + sep + ffi.fi.name + "=\" << +(" + member + ")");
+        }
+    };
+
+    // Prepend frame header fields
+    for (const auto& ffi : header_frame_fields) {
+        emit_frame_field_str(ffi);
+    }
+
     for (const auto& fi : fields) {
         std::string sep = first ? "" : ", ";
         first = false;
@@ -157,6 +179,9 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
             } else if (is_inner_struct || (is_struct_type && !is_typedef_wrapper)) {
                 ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member +
                          ".has_value() ? (*" + member + ").to_string() : std::string(\"<none>\"))");
+            } else if (fi.is_variant) {
+                ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member +
+                         ".has_value() ? std::visit([](const auto& v) { return v.to_string(); }, *" + member + ") : std::string(\"<none>\"))");
             } else {
                 ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member +
                          ".has_value() ? \"set\" : \"<none>\")");
@@ -166,7 +191,7 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
         } else if (is_bytes) {
             ctx_.line("<< \"" + sep + fi.name + "=[bytes]\"");
         } else if (fi.is_variant) {
-            ctx_.line("<< \"" + sep + fi.name + "=[variant]\"");
+            ctx_.line("<< \"" + sep + fi.name + "=\" << std::visit([](const auto& v) { return v.to_string(); }, " + member + ")");
         } else if (is_enum) {
             ctx_.line("<< \"" + sep + fi.name + "=\" << ::" + ns_ + "::to_string(" + member + ")");
         } else if (is_inner_struct) {
@@ -179,7 +204,7 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
             else if (is_string_wrapper)
                 ctx_.line("<< \"" + sep + fi.name + "=\" << " + member + ".value()");
             else if (is_typedef_wrapper)
-                ctx_.line("<< \"" + sep + fi.name + "=\" << " + member + ".raw()");
+                ctx_.line("<< \"" + sep + fi.name + "=\" << +(" + member + ".raw())");
             else
                 ctx_.line("<< \"" + sep + fi.name + "=\" << " + member + ".to_string()");
         } else if (is_simple_numeric) {
@@ -214,6 +239,12 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
             ctx_.line("<< \"" + sep + fi.name + "=[...]\"");
         }
     }
+
+    // Append frame footer fields
+    for (const auto& ffi : footer_frame_fields) {
+        emit_frame_field_str(ffi);
+    }
+
     ctx_.line("<< \"}\";");
     ctx_.dedent();
     ctx_.line("return oss.str();");
@@ -247,7 +278,7 @@ void StructEmitter::emit_bitmap_to_string(const std::vector<BitmapField>& bfield
         } else if (bf.is_bytes) {
             ctx_.line("oss << \"" + bf.name + "=[bytes]\";");
         } else if (bf.is_choice) {
-            ctx_.line("oss << \"" + bf.name + "=[variant]\";");
+            ctx_.line("oss << \"" + bf.name + "=\" << std::visit([](const auto& v) { return v.to_string(); }, *" + member + ");");
         } else if (bf.is_struct) {
             // Detect wrapper types via source_field type_ref
             bool is_typedef_wrapper = false;
@@ -276,7 +307,7 @@ void StructEmitter::emit_bitmap_to_string(const std::vector<BitmapField>& bfield
             } else if (is_string_wrapper) {
                 ctx_.line("oss << \"" + bf.name + "=\" << (*" + member + ").value();");
             } else if (is_typedef_wrapper) {
-                ctx_.line("oss << \"" + bf.name + "=\" << (*" + member + ").raw();");
+                ctx_.line("oss << \"" + bf.name + "=\" << +((*" + member + ").raw());");
             } else {
                 ctx_.line("oss << \"" + bf.name + "=\" << (*" + member + ").to_string();");
             }
@@ -319,13 +350,15 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
         std::string name;
         model::Constraint constraint;
         bool is_signed = true;
+        bool is_optional = false;
     };
     std::vector<DeferredField> deferred;
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->constraint && f->constraint->validate == model::ValidateTiming::Deferred) {
                 auto fti = resolve_field_type(*f, index_);
-                deferred.push_back({f->name, *f->constraint, fti.is_signed});
+                bool opt = f->present_when || f->bit;
+                deferred.push_back({f->name, *f->constraint, fti.is_signed, opt});
             }
         }
     }
@@ -335,8 +368,14 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
     ctx_.indent();
     for (const auto& df : deferred) {
         std::string member = to_member_name(df.name);
+        // For optional fields, skip validation if absent
+        if (df.is_optional) {
+            ctx_.line("if (" + member + ".has_value()) {");
+            ctx_.indent();
+        }
+        std::string val = df.is_optional ? ("*" + member) : member;
         if (df.constraint.equals) {
-            ctx_.line("if (" + member + " != static_cast<decltype(" + member + ")>(" +
+            ctx_.line("if (" + val + " != static_cast<decltype(" + val + ")>(" +
                      *df.constraint.equals + ")) {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
@@ -345,7 +384,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
             ctx_.line("}");
         }
         if (df.constraint.max) {
-            ctx_.line("if (" + member + " > " + *df.constraint.max + ") {");
+            ctx_.line("if (" + val + " > " + *df.constraint.max + ") {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
             ctx_.line("    \"" + df.name + " exceeds max " + *df.constraint.max + "\"));");
@@ -354,10 +393,14 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
         }
         // Skip min=0 for unsigned types (always true, triggers -Wtype-limits)
         if (df.constraint.min && (*df.constraint.min != "0" || df.is_signed)) {
-            ctx_.line("if (" + member + " < " + *df.constraint.min + ") {");
+            ctx_.line("if (" + val + " < " + *df.constraint.min + ") {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
             ctx_.line("    \"" + df.name + " below min " + *df.constraint.min + "\"));");
+            ctx_.dedent();
+            ctx_.line("}");
+        }
+        if (df.is_optional) {
             ctx_.dedent();
             ctx_.line("}");
         }
@@ -478,13 +521,26 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                 if (!c.name.empty()) {
                     std::string member = result_var + "." + to_member_name(c.name);
                     std::string type = get_child_class_name(c.name);
+                    // Build decode call with outer-scope params if any
+                    std::string decode_call = type + "::decode(r";
+                    auto sit = struct_decode_params_.find(c.name);
+                    if (sit != struct_decode_params_.end()) {
+                        for (const auto& p : sit->second) {
+                            std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                            if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                                arg = "(*" + arg + ")";
+                            }
+                            decode_call += ", " + arg;
+                        }
+                    }
+                    decode_call += ")";
                     if (c.present_when) {
                         std::string cond = emit_expr_code(*c.present_when, result_var);
                         ctx_.line("if (" + cond + ") {");
                         ctx_.indent();
                         ctx_.line("{");
                         ctx_.indent();
-                        ctx_.line("auto val = " + type + "::decode(r);");
+                        ctx_.line("auto val = " + decode_call + ";");
                         ctx_.line("if (!val) return std::unexpected(val.error());");
                         ctx_.line(member + " = std::move(*val);");
                         ctx_.dedent();
@@ -496,7 +552,7 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                     } else {
                         ctx_.line("{");
                         ctx_.indent();
-                        ctx_.line("auto val = " + type + "::decode(r);");
+                        ctx_.line("auto val = " + decode_call + ";");
                         ctx_.line("if (!val) return std::unexpected(val.error());");
                         ctx_.line(member + " = std::move(*val);");
                         ctx_.dedent();
@@ -506,10 +562,28 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                     }
                 }
             } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
-                emit_decode_array(c, result_var);
+                if (c.present_when) {
+                    std::string cond = emit_expr_code(*c.present_when, result_var);
+                    ctx_.line("if (" + cond + ") {");
+                    ctx_.indent();
+                    emit_decode_array(c, result_var);
+                    ctx_.dedent();
+                    ctx_.line("}");
+                } else {
+                    emit_decode_array(c, result_var);
+                }
                 advance_bits_variable();
             } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
-                emit_decode_choice(c, result_var);
+                if (c.present_when) {
+                    std::string cond = emit_expr_code(*c.present_when, result_var);
+                    ctx_.line("if (" + cond + ") {");
+                    ctx_.indent();
+                    emit_decode_choice(c, result_var);
+                    ctx_.dedent();
+                    ctx_.line("}");
+                } else {
+                    emit_decode_choice(c, result_var);
+                }
                 advance_bits_variable();
             } else if constexpr (std::is_same_v<T, model::FxBlock>) {
                 emit_decode_fx(c, result_var);
@@ -701,8 +775,8 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 ctx_.line("{");
                 ctx_.indent();
                 std::string expr = emit_expr_code(*f.length_from, result_var);
-                ctx_.line("auto len = static_cast<size_t>(" + expr + ");");
-                ctx_.line("auto val = r.read_string(len);");
+                ctx_.line("auto nbytes_ = static_cast<size_t>(" + expr + ");");
+                ctx_.line("auto val = r.read_string(nbytes_);");
                 ctx_.line("if (!val) return std::unexpected(val.error()" + field_ctx + ");");
                 if (field_needs_encoding(f)) {
                     ctx_.line(member + " = conduit::string::to_ascii(*val, " + field_encoding_enum(f) + ");");
@@ -792,8 +866,8 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 std::string expr = emit_expr_code(*f.length_from, result_var);
                 ctx_.line("{");
                 ctx_.indent();
-                ctx_.line("auto len = static_cast<size_t>(" + expr + ");");
-                ctx_.line("auto span = r.read_bytes(len);");
+                ctx_.line("auto nbytes_ = static_cast<size_t>(" + expr + ");");
+                ctx_.line("auto span = r.read_bytes(nbytes_);");
                 ctx_.line("if (!span) return std::unexpected(span.error()" + field_ctx + ");");
                 ctx_.line(member + ".assign(span->begin(), span->end());");
                 ctx_.dedent();
@@ -876,6 +950,12 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
     std::string elem_type = !a.type_ref.empty() ? to_cpp_type_name(a.type_ref)
                                                   : get_child_class_name(a.name + "Element");
     std::string array_ctx = ".with_context(\"array '" + a.name + "'\")";
+
+    // Optional arrays (present_when / bit): emplace the optional and dereference for vector ops
+    if (a.present_when || a.bit) {
+        ctx_.line(member + ".emplace();");
+        member = "(*" + member + ")";
+    }
 
     // Check if element type is primitive (simple alias), enum, or struct
     bool elem_is_primitive = false;
@@ -1094,24 +1174,27 @@ void StructEmitter::emit_decode_fx_array(const model::ArrayDef& a, const std::st
     }
 }
 
-// Helper: generate decode call for a case type, passing context if available
+// Helper: generate decode call for a case type, with outer-scope params if any
 std::string StructEmitter::emit_case_decode_call(const std::string& case_type,
                                                    const std::string& reader_var,
-                                                   const std::string& ctx_var) {
-    // Check if this case type has a context-aware decode overload
-    if (!ctx_var.empty()) {
-        bool has_ctx_overload = false;
-        for (const auto& [bmdl_name, ctx_struct] : case_type_to_context_) {
-            if (to_cpp_type_name(bmdl_name) == case_type) {
-                has_ctx_overload = true;
-                break;
+                                                   const std::string& /*ctx_var*/,
+                                                   const std::string& result_var,
+                                                   const std::string& case_bmdl_name) {
+    std::string call = case_type + "::decode(" + reader_var;
+    if (!case_bmdl_name.empty()) {
+        auto it = struct_decode_params_.find(case_bmdl_name);
+        if (it != struct_decode_params_.end()) {
+            for (const auto& p : it->second) {
+                std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                    arg = "(*" + arg + ")";
+                }
+                call += ", " + arg;
             }
         }
-        if (has_ctx_overload) {
-            return case_type + "::decode(" + reader_var + ", " + ctx_var + ")";
-        }
     }
-    return case_type + "::decode(" + reader_var + ")";
+    call += ")";
+    return call;
 }
 
 void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::string& result_var) {
@@ -1124,23 +1207,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         switch_expr = emit_expr_code(*c.switch_expr, result_var);
     }
 
-    // Determine if we need to construct/forward context for case type decode calls
-    bool needs_context = false;
     std::string ctx_ptr_var;
-    if (current_session_ && !current_session_->context_fields.empty()) {
-        for (const auto& cs : c.cases) {
-            std::string bmdl_name = !cs.type_ref.empty() ? cs.type_ref : cs.name;
-            if (case_type_to_context_.count(bmdl_name)) {
-                needs_context = true;
-                break;
-            }
-        }
-        if (!needs_context && c.otherwise) {
-            if (!c.otherwise->type_ref.empty() && case_type_to_context_.count(c.otherwise->type_ref)) {
-                needs_context = true;
-            }
-        }
-    }
 
     // Create sub-reader if length-bounded
     bool bounded = c.length_from != nullptr || c.length.has_value();
@@ -1161,24 +1228,6 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
     }
 
     std::string reader_var = bounded ? "cr" : "r";
-
-    // Construct or forward context if needed
-    if (needs_context) {
-        if (has_context_) {
-            ctx_ptr_var = "ctx";
-        } else {
-            std::string ctx_name = to_cpp_type_name(current_session_->entry_point_name) + "Context";
-            ctx_.line("{");
-            ctx_.indent();
-            ctx_.line(ctx_name + " ep_ctx;");
-            for (const auto& cf : current_session_->context_fields) {
-                std::string acc = to_accessor_name(cf.bmdl_name);
-                std::string mem = to_member_name(cf.bmdl_name);
-                ctx_.line("ep_ctx." + acc + " = " + result_var + "." + mem + ";");
-            }
-            ctx_ptr_var = "&ep_ctx";
-        }
-    }
 
     ctx_.line("{");
     ctx_.indent();
@@ -1269,8 +1318,9 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.indent();
 
         std::string case_type = !cs.type_ref.empty() ? to_cpp_type_name(cs.type_ref)
-                                                      : to_cpp_type_name(cs.name);
-        ctx_.line("auto val = " + emit_case_decode_call(case_type, reader_var, ctx_ptr_var) + ";");
+                                                      : get_child_class_name(cs.name);
+        std::string case_bmdl = cs.type_ref.empty() ? cs.name : cs.type_ref;
+        ctx_.line("auto val = " + emit_case_decode_call(case_type, reader_var, ctx_ptr_var, result_var, case_bmdl) + ";");
         ctx_.line("if (!val) return std::unexpected(val.error()" + choice_ctx + ");");
         ctx_.line(member + " = std::move(*val);");
         ctx_.dedent();
@@ -1281,12 +1331,13 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.indent();
         if (!c.otherwise->type_ref.empty()) {
             std::string type = to_cpp_type_name(c.otherwise->type_ref);
-            ctx_.line("auto val = " + emit_case_decode_call(type, reader_var, ctx_ptr_var) + ";");
+            ctx_.line("auto val = " + emit_case_decode_call(type, reader_var, ctx_ptr_var, result_var, c.otherwise->type_ref) + ";");
             ctx_.line("if (!val) return std::unexpected(val.error()" + choice_ctx + ");");
             ctx_.line(member + " = std::move(*val);");
         } else if (!c.otherwise->children.empty()) {
             std::string otherwise_type = get_child_class_name(c.name + "Otherwise");
-            ctx_.line("auto val = " + emit_case_decode_call(otherwise_type, reader_var, ctx_ptr_var) + ";");
+            std::string otherwise_bmdl = c.name + "Otherwise";
+            ctx_.line("auto val = " + emit_case_decode_call(otherwise_type, reader_var, ctx_ptr_var, result_var, otherwise_bmdl) + ";");
             ctx_.line("if (!val) return std::unexpected(val.error()" + choice_ctx + ");");
             ctx_.line(member + " = std::move(*val);");
         } else {
@@ -1305,12 +1356,6 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
     ctx_.line("}");
     ctx_.dedent();
     ctx_.line("}");
-
-    // Close context construction block (entry-point level only)
-    if (needs_context && !has_context_) {
-        ctx_.dedent();
-        ctx_.line("}");
-    }
 
     if (bounded) {
         ctx_.line("if (!cr.at_end()) {");
@@ -1437,9 +1482,22 @@ void StructEmitter::emit_decode_fx_children(const std::vector<model::StructChild
                 if (!c.name.empty()) {
                     std::string member = result_var + "." + to_member_name(c.name);
                     std::string type = get_child_class_name(c.name);
+                    // Build decode call with outer-scope params if any
+                    std::string decode_call = type + "::decode(r";
+                    auto sit = struct_decode_params_.find(c.name);
+                    if (sit != struct_decode_params_.end()) {
+                        for (const auto& p : sit->second) {
+                            std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                            if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                                arg = "(*" + arg + ")";
+                            }
+                            decode_call += ", " + arg;
+                        }
+                    }
+                    decode_call += ")";
                     ctx_.line("{");
                     ctx_.indent();
-                    ctx_.line("auto val = " + type + "::decode(r);");
+                    ctx_.line("auto val = " + decode_call + ";");
                     ctx_.line("if (!val) return std::unexpected(val.error());");
                     ctx_.line(member + " = std::move(*val);");
                     ctx_.dedent();

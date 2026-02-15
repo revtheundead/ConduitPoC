@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-char-bits-uint" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_char_bits_uint</namespace>
+  </defaults>
   <types>
     <type name="uint16" base="uint" bits="16"/>
   </types>
@@ -9,5 +11,4 @@
       <field name="value" type="uint16" char-bits="6"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

@@ -419,10 +419,15 @@ void TcpServerTransport::Impl::handle_accept() {
         }
     }
 
+    // Format remote endpoint for peer identification
+    char addr_buf[INET_ADDRSTRLEN]{};
+    inet_ntop(AF_INET, &client_addr.sin_addr, addr_buf, sizeof(addr_buf));
+    std::string endpoint = std::format("{}:{}", addr_buf, ntohs(client_addr.sin_port));
+
     // Ask transceiver for a PeerId
     PeerId peer_id;
     if (callbacks.on_peer_connected) {
-        peer_id = callbacks.on_peer_connected();
+        peer_id = callbacks.on_peer_connected(std::move(endpoint));
     }
 
     if (!peer_id.valid()) {

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>bad_enum_range</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint4" base="uint" bits="4"/>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="BadMsg">
+      <field name="tag" type="uint4">
+        <enum>
+          <value name="ok" id="15"/>
+          <value name="overflow" id="16"/>
+        </enum>
+      </field>
+      <field name="pad" type="uint4"/>
+      <field name="data" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

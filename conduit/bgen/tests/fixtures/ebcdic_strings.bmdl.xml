@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>ebcdic_test</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="EbcdicMsg">
+      <field name="id" type="uint8"/>
+      <field name="label" type="string" length="8" encoding="ebcdic" padding="space" trim="right"/>
+      <field name="trailer" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

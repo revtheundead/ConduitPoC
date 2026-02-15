@@ -37,12 +37,26 @@ public:
     [[nodiscard]] virtual bool is_receive_only(uint64_t /*type_id*/) const { return false; }
 
     virtual void reset() = 0;
+
+    // Message logging support (optional)
+    [[nodiscard]] virtual std::string format_message(uint64_t type_id,
+                                                      const std::any& payload) const { return {}; }
+    [[nodiscard]] virtual std::string_view protocol_name() const { return "unknown"; }
 };
 
 }
 ```
 
 Users do not implement `ISession` -- bgen generates implementations. You only interact with sessions through factory functions and the `Transceiver`.
+
+`ISession` also provides `encode_batch()` for array-payload protocols:
+
+```cpp
+// Default implementation returns BatchNotSupported.
+// Array-payload sessions override this to pack multiple messages into one frame.
+[[nodiscard]] virtual Result<std::vector<uint8_t>>
+    encode_batch(uint64_t type_id, std::span<const std::any> payloads);
+```
 
 ## DecodedMessage
 
@@ -53,9 +67,11 @@ struct DecodedMessage {
     uint64_t type_id;              // Compile-time FNV-1a hash (matches T::TYPE_ID)
     std::string_view type_name;    // e.g., "Cat048Record"
     std::any payload;              // The typed message object
-    std::vector<uint8_t> raw;      // Copy of raw wire bytes
+    std::vector<uint8_t> raw;      // Copy of raw wire bytes (entire frame)
 };
 ```
+
+The `raw` field contains a copy of the entire frame byte buffer passed to `decode_frame()`. For array-payload frames with multiple messages, each `DecodedMessage` receives the same frame bytes. This is useful for forwarding/relay scenarios where the original wire bytes must be preserved.
 
 The `Transceiver` unwraps the `std::any` payload using `std::any_cast<const T&>` when dispatching to typed handlers. You rarely interact with `DecodedMessage` directly.
 
@@ -91,8 +107,6 @@ The `Message` concept constrains the template parameter on `Transceiver::send<T>
 
 bgen generates a factory function for each session in the protocol.
 
-### Frame-based (v2)
-
 When a `<frame>` is present, the factory is named from the frame:
 
 ```cpp
@@ -116,22 +130,6 @@ config.system_id = 42;
 auto session = my_protocol::create_my_frame_session(config);
 ```
 
-### Entry-point (v1)
-
-For v1 protocols with `role="entry-point"` messages, the factory is named from the entry-point:
-
-```cpp
-std::unique_ptr<conduit::traits::ISession>
-    create_<lower_snake_case(entry_point_name)>_session();
-```
-
-For example, an entry-point named `Frame` in the `asterix` namespace produces:
-
-```cpp
-std::unique_ptr<conduit::traits::ISession>
-    asterix::create_frame_session();
-```
-
 ## Wiring to the Transceiver
 
 Pass the factory to `TransceiverConfig::add_peer()`:
@@ -152,9 +150,7 @@ For multi-peer transports (TCP server), each connecting client gets its own sess
 
 ## Direct Encode/Decode (No Transceiver)
 
-### Frame-based (v2)
-
-With v2 protocols, use the Frame class directly:
+Use the Frame class directly for frame-level encode/decode:
 
 ```cpp
 // Wrap and encode a message
@@ -172,41 +168,29 @@ if (decoded) {
 }
 ```
 
-Individual messages also support standalone encode/decode (without the frame envelope):
+For array-payload frames (`<payload count="*"/>`), a batch `wrap()` overload accepts a span of messages:
 
 ```cpp
+// Batch wrap: multiple records in one frame
+std::vector<my_protocol::Record> records = { ... };
+auto frame = my_protocol::MyFrame::wrap(std::span{records});
+auto bytes = frame.encode_bytes();
+```
+
+Individual messages also support standalone encode/decode without the frame envelope, using `encode_bytes()` / `decode_bytes()` convenience methods, or using `BitReader`/`BitWriter` directly:
+
+```cpp
+// Standalone message encode/decode (no frame)
 auto bytes = hb.encode_bytes();  // Result<std::vector<uint8_t>>
 auto msg = my_protocol::Heartbeat::decode_bytes(payload_data);
-```
 
-### Entry-point (v1)
-
-Generated message classes provide standalone convenience methods:
-
-```cpp
-// Encode a message to bytes
-my_protocol::Heartbeat hb;
-hb.set_sequence(42);
-auto bytes = hb.encode_bytes();  // Result<std::vector<uint8_t>>
-
-// Decode bytes to a message
-auto msg = my_protocol::Heartbeat::decode_bytes(raw_data);
-if (msg) {
-    std::cout << msg->sequence() << "\n";
-}
-```
-
-You can also use `BitReader`/`BitWriter` directly:
-
-```cpp
-// Manual encode
+// Or using BitReader/BitWriter directly
 conduit::io::BitWriter writer;
 CONDUIT_TRY(hb.encode(writer));
-auto bytes = writer.finish();
+auto raw = writer.finish();
 
-// Manual decode
 conduit::io::BitReader reader(data);
-auto msg = my_protocol::Heartbeat::decode(reader);
+auto decoded = my_protocol::Heartbeat::decode(reader);
 ```
 
 ## Manual Session-Level Usage
@@ -245,47 +229,19 @@ for (auto& frame : *frames) {
 
 > **Pitfall:** `std::any_cast` throws `std::bad_any_cast` if the type does not match. Use `dm.type_name` or `dm.type_id` to check the type before casting.
 
-## Per-Record vs Batch Delivery
+## Direct Message Decode
 
-The `dispatch` attribute on `<array>` elements inside inline `<case>` blocks controls how `decode_frame()` delivers array contents. See [Array Dispatch](../bmdl/choices.md#array-dispatch) for the BMDL syntax.
-
-### Batch Delivery (Default)
-
-With `dispatch="batch"` (or no `dispatch` attribute), the case wrapper type is the leaf. `decode_frame()` returns **one `DecodedMessage`** containing the wrapper, with the full array accessible via `.items()`:
+For full structural access, decode the frame directly and use `std::visit` or `std::holds_alternative`:
 
 ```cpp
-// Handler receives the case wrapper type (e.g., cat007_downlink)
-handler.on<asterix::cat007_downlink>([](const auto& wrapper) {
-    for (auto& rec : wrapper.items()) {
-        // Process each Cat007DownlinkRecord with full DataBlock context
-    }
-});
-```
-
-### Per-Record Delivery
-
-With `dispatch="per-record"`, the array element type is the leaf. `decode_frame()` iterates the array and returns **one `DecodedMessage` per element**:
-
-```cpp
-// Handler fires once per record, not once per DataBlock
-handler.on<asterix::Cat007DownlinkRecord>([](const auto& rec) {
-    // Process individual record — array boundary is lost
-});
-```
-
-### Direct Message Decode
-
-For full structural access regardless of the `dispatch` setting, decode the frame directly:
-
-```cpp
-auto frame = asterix::AsterixFrame::decode_bytes(raw_bytes);
-for (auto& block : frame->blocks()) {
-    if (std::holds_alternative<asterix::cat007_downlink>(block.records())) {
-        auto& cat007 = std::get<asterix::cat007_downlink>(block.records());
-        for (auto& rec : cat007.items()) {
-            // Process record with full DataBlock context
+auto frame = my_protocol::MyFrame::decode_bytes(raw_bytes);
+if (frame) {
+    std::visit([](const auto& msg) {
+        using T = std::decay_t<decltype(msg)>;
+        if constexpr (std::is_same_v<T, my_protocol::Heartbeat>) {
+            // Process Heartbeat
         }
-    }
+    }, frame->payload());
 }
 ```
 

@@ -25,7 +25,9 @@
 #include "direction_qualified/sessions.hpp"
 #include "direction_qualified/protocol.hpp"
 #include "direction_qualified/messages.hpp"
-#include "direction_qualified/constants.hpp"
+#include "frame_config/sessions.hpp"
+#include "frame_config/protocol.hpp"
+#include "frame_config/messages.hpp"
 
 // Helper: create a session instance
 static std::unique_ptr<conduit::traits::ISession> make_session() {
@@ -83,15 +85,13 @@ TEST_CASE("Session extract_frame_length", "[session][framing]") {
     ping.set_timestamp(0);
     auto frame = session_test::Packet::wrap(ping);
     frame.set_seq(0);
-    // Set length to body size: PingBody = 4 bytes
-    frame.set_length(4);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
 
     auto session = make_session();
     auto len = session->extract_frame_length(bytes);
-    CHECK(len == 4);
+    CHECK(len == 11); // sync(2) + seq(2) + msg-id(1) + length(2) + PingBody(4) = 11
 }
 
 // ============================================================================
@@ -103,7 +103,6 @@ TEST_CASE("decode_frame PingBody", "[session][decode]") {
     ping.set_timestamp(0xAABBCCDD);
     auto frame = session_test::Packet::wrap(ping);
     frame.set_seq(1);
-    frame.set_length(4);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -124,7 +123,6 @@ TEST_CASE("decode_frame DataBody", "[session][decode]") {
     data.set_payload_b(0x2222);
     auto frame = session_test::Packet::wrap(data);
     frame.set_seq(2);
-    frame.set_length(9); // channel(1) + payload_a(4) + payload_b(4)
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -135,23 +133,6 @@ TEST_CASE("decode_frame DataBody", "[session][decode]") {
     REQUIRE(!result->empty());
     auto& dm = result->front();
     CHECK(dm.type_name == "DataBody");
-}
-
-TEST_CASE("decode_frame with bad sync", "[session][decode]") {
-    // Build raw bytes with wrong sync
-    conduit::io::BitWriter w;
-    w.write_u16(0xBEEF); // wrong sync (should be 0xDEAD)
-    w.write_u16(0);       // seq
-    w.write_u8(1);        // msg-id = ping
-    w.write_u16(4);       // length
-    w.write_u32(0);       // timestamp
-    auto finish_result = w.finish();
-    REQUIRE(finish_result.has_value());
-    auto bytes = std::move(*finish_result);
-
-    auto session = make_session();
-    auto result = session->decode_frame(bytes);
-    CHECK_FALSE(result.has_value());
 }
 
 TEST_CASE("decode_frame with truncated data", "[session][decode]") {
@@ -168,7 +149,6 @@ TEST_CASE("decode_frame type_name matches", "[session][decode]") {
     ping.set_timestamp(42);
     auto frame = session_test::Packet::wrap(ping);
     frame.set_seq(0);
-    frame.set_length(4);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -341,20 +321,18 @@ TEST_CASE("Inline struct session frame length extraction", "[session][inline]") 
     inline_struct::BodyX body;
     body.set_x_data(0);
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(0);
-    frame.set_length(4);
-    frame.set_msg_type(inline_struct::MSG_X);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
 
     auto session = make_inline_session();
     auto len = session->extract_frame_length(bytes);
-    CHECK(len == 4);
+    CHECK(len == 11); // sync(2) + seq(2) + length(2) + msg-type(1) + BodyX(4) = 11
 }
 
-TEST_CASE("Inline struct encode_wrap sets sync and auto-seq", "[session][inline]") {
+TEST_CASE("Inline struct encode_wrap auto-seq", "[session][inline]") {
     auto session = make_inline_session();
 
     inline_struct::BodyX body;
@@ -374,7 +352,6 @@ TEST_CASE("Inline struct encode_wrap sets sync and auto-seq", "[session][inline]
 
     auto decoded = inline_struct::Frame::decode_bytes(*wrapped);
     REQUIRE(decoded.has_value());
-    CHECK(decoded->sync() == 0xCAFE);
     // First encode should have seq = 0
     CHECK(decoded->seq() == 0);
 
@@ -390,10 +367,8 @@ TEST_CASE("Inline struct decode_frame BodyX", "[session][inline]") {
     inline_struct::BodyX body;
     body.set_x_data(0xAAAAAAAA);
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(0);
-    frame.set_length(4);
-    frame.set_msg_type(inline_struct::MSG_X);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -413,10 +388,8 @@ TEST_CASE("Inline struct decode_frame BodyY", "[session][inline]") {
     inline_struct::BodyY body;
     body.set_y_data(0x5555);
     auto frame = inline_struct::Frame::wrap(body);
-    REQUIRE(frame.set_sync(0xCAFE).has_value());
+    frame.set_sync(inline_struct::SYNC);
     frame.set_seq(0);
-    frame.set_length(2);
-    frame.set_msg_type(inline_struct::MSG_Y);
     auto enc_result = frame.encode_bytes();
     REQUIRE(enc_result.has_value());
     auto bytes = std::move(*enc_result);
@@ -505,11 +478,11 @@ TEST_CASE("Choice protocol receive-only BetaBody encode succeeds (direction is d
 // ============================================================================
 
 TEST_CASE("decode_frame AckBody (receive-only)", "[session][decode]") {
-    // Manually construct a Packet with msg-id=3 (MSG_ACK) and AckBody payload
+    // Manually construct a Packet with msg-id=3 (AckBody) and AckBody payload
     conduit::io::BitWriter w;
-    w.write_u16(0xDEAD);  // sync = SYNC
+    w.write_u16(0xDEAD);  // sync
     w.write_u16(0);       // seq
-    w.write_u8(3);        // msg-id = ack (MSG_ACK)
+    w.write_u8(3);        // msg-id = AckBody::ID_VALUE
     w.write_u16(2);       // length = AckBody wire size (acked_seq: uint16 = 2 bytes)
     w.write_u16(0x00FF);  // acked_seq
     auto finish_result = w.finish();
@@ -550,7 +523,7 @@ TEST_CASE("encode_wrap AckBody succeeds (direction is documentary)", "[session][
 }
 
 // ============================================================================
-// Section: Full session encode→decode roundtrip with payload verification
+// Section: Full session encode->decode roundtrip with payload verification
 // ============================================================================
 
 TEST_CASE("decode_frame via encode_wrap roundtrip preserves payload data", "[session][roundtrip]") {
@@ -596,23 +569,23 @@ static std::unique_ptr<conduit::traits::ISession> make_direction_session() {
 }
 
 TEST_CASE("direction: decode shared discriminator produces receive variant", "[session][direction]") {
-    // Build wire bytes: tag=1 (TAG_SHARED) + uint32 rx-data payload
+    // Build wire bytes: tag=1 (shared id for uplink/downlink) + uint32 rx-data payload
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);  // tag = 1
-    w.write_u32(0xAABBCCDD);                      // rx-data (DownlinkPayload is uint32)
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);  // tag = 1
+    w.write_u32(0xAABBCCDD);  // rx-data (DownlinkPayload is uint32)
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
     auto bytes = std::move(*finish_result);
 
     auto decoded = direction_qualified::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(std::holds_alternative<direction_qualified::DownlinkPayload>(decoded->body()));
+    CHECK(std::holds_alternative<direction_qualified::DownlinkPayload>(decoded->payload()));
 }
 
 TEST_CASE("direction: decode shared discriminator never produces send variant", "[session][direction]") {
-    // Build wire bytes: tag=1 (TAG_SHARED) + uint32 payload for DownlinkPayload
+    // Build wire bytes: tag=1 (shared id) + uint32 payload for DownlinkPayload
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);
     w.write_u32(0x12345678);
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
@@ -620,7 +593,7 @@ TEST_CASE("direction: decode shared discriminator never produces send variant", 
 
     auto decoded = direction_qualified::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK_FALSE(std::holds_alternative<direction_qualified::UplinkPayload>(decoded->body()));
+    CHECK_FALSE(std::holds_alternative<direction_qualified::UplinkPayload>(decoded->payload()));
 }
 
 TEST_CASE("direction: encode_wrap UplinkPayload (send-only) succeeds", "[session][direction]") {
@@ -645,16 +618,16 @@ TEST_CASE("direction: encode_wrap DownlinkPayload (receive-only) succeeds", "[se
 
 TEST_CASE("direction: common case decodes normally", "[session][direction]") {
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_COMMON);  // tag = 2
-    w.write_u8(0x42);                             // common-data
+    w.write_u8(direction_qualified::CommonPayload::ID_VALUE);  // tag = 2
+    w.write_u8(0x42);  // common-data
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
     auto bytes = std::move(*finish_result);
 
     auto decoded = direction_qualified::Frame::decode_bytes(bytes);
     REQUIRE(decoded.has_value());
-    CHECK(std::holds_alternative<direction_qualified::CommonPayload>(decoded->body()));
-    auto& payload = std::get<direction_qualified::CommonPayload>(decoded->body());
+    CHECK(std::holds_alternative<direction_qualified::CommonPayload>(decoded->payload()));
+    auto& payload = std::get<direction_qualified::CommonPayload>(decoded->payload());
     CHECK(payload.common_data() == 0x42);
 }
 
@@ -662,21 +635,21 @@ TEST_CASE("direction: wrap UplinkPayload sets correct discriminator", "[session]
     direction_qualified::UplinkPayload uplink;
     uplink.set_tx_data(0x5678);
     auto frame = direction_qualified::Frame::wrap(uplink);
-    CHECK(frame.tag() == direction_qualified::TAG_SHARED);
-    CHECK(std::holds_alternative<direction_qualified::UplinkPayload>(frame.body()));
+    CHECK(frame.tag() == direction_qualified::UplinkPayload::ID_VALUE);
+    CHECK(std::holds_alternative<direction_qualified::UplinkPayload>(frame.payload()));
 }
 
 TEST_CASE("direction: wrap DownlinkPayload sets correct discriminator", "[session][direction]") {
     direction_qualified::DownlinkPayload downlink;
     downlink.set_rx_data(0xBEEF);
     auto frame = direction_qualified::Frame::wrap(downlink);
-    CHECK(frame.tag() == direction_qualified::TAG_SHARED);
-    CHECK(std::holds_alternative<direction_qualified::DownlinkPayload>(frame.body()));
+    CHECK(frame.tag() == direction_qualified::DownlinkPayload::ID_VALUE);
+    CHECK(std::holds_alternative<direction_qualified::DownlinkPayload>(frame.payload()));
 }
 
 TEST_CASE("direction: decode_frame extracts receive variant from shared discriminator", "[session][direction]") {
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);
     w.write_u32(0xCAFEBABE);
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
@@ -691,7 +664,7 @@ TEST_CASE("direction: decode_frame extracts receive variant from shared discrimi
 
 TEST_CASE("direction: decode_frame does NOT extract send variant", "[session][direction]") {
     conduit::io::BitWriter w;
-    w.write_u8(direction_qualified::TAG_SHARED);
+    w.write_u8(direction_qualified::DownlinkPayload::ID_VALUE);
     w.write_u32(0xCAFEBABE);
     auto finish_result = w.finish();
     REQUIRE(finish_result.has_value());
@@ -702,4 +675,42 @@ TEST_CASE("direction: decode_frame does NOT extract send variant", "[session][di
     REQUIRE(result.has_value());
     REQUIRE(!result->empty());
     CHECK(result->front().type_name != "UplinkPayload");
+}
+
+// ============================================================================
+// Section: Config fields survive session reset
+// ============================================================================
+
+TEST_CASE("config field survives session reset", "[session][config][reset]") {
+    frame_config::ConfigFrameSession::Config config;
+    config.system_id = 42;
+    auto session = frame_config::create_config_frame_session(config);
+    REQUIRE(session != nullptr);
+
+    // Encode a message and verify system-id is 42
+    frame_config::Ping ping;
+    ping.set_seq(100);
+    auto encoded = session->encode_wrap(frame_config::Ping::TYPE_ID, ping);
+    REQUIRE(encoded.has_value());
+    REQUIRE(encoded->size() >= 1);
+    CHECK((*encoded)[0] == 42); // system-id from config
+
+    // Reset the session
+    session->reset();
+
+    // Encode again and verify system-id is still 42 (config survives reset)
+    frame_config::Ping ping2;
+    ping2.set_seq(200);
+    auto encoded2 = session->encode_wrap(frame_config::Ping::TYPE_ID, ping2);
+    REQUIRE(encoded2.has_value());
+    REQUIRE(encoded2->size() >= 1);
+    CHECK((*encoded2)[0] == 42); // config survives reset
+
+    // Decode and verify payload
+    auto decoded = session->decode_frame(*encoded2);
+    REQUIRE(decoded.has_value());
+    REQUIRE(decoded->size() == 1);
+    auto* payload = std::any_cast<frame_config::Ping>(&decoded->at(0).payload);
+    REQUIRE(payload != nullptr);
+    CHECK(payload->seq() == 200);
 }

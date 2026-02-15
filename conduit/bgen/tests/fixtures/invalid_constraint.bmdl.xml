@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="invalid-constraint" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_constraint</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -14,6 +15,4 @@
       </field>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

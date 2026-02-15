@@ -1,9 +1,10 @@
-<bmdl version="1.0">
-<protocol name="bytes-overflow" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bytes_overflow</namespace>
+  </defaults>
   <messages>
     <message name="OverflowMsg">
       <field name="data" bytes="300000000" bits="1"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

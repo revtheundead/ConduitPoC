@@ -1,32 +1,28 @@
-<bmdl version="1.0">
-<protocol name="direction-qualified" version="1.0">
-  <constants>
-    <const name="TAG_SHARED" type="uint8" value="1"/>
-    <const name="TAG_COMMON" type="uint8" value="2"/>
-  </constants>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>direction_qualified</namespace>
+  </defaults>
+
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
     <type name="uint32" base="uint" bits="32"/>
-    <struct name="UplinkPayload">
-      <field name="tx-data" type="uint16"/>
-    </struct>
-    <struct name="DownlinkPayload">
-      <field name="rx-data" type="uint32"/>
-    </struct>
-    <struct name="CommonPayload">
-      <field name="common-data" type="uint8"/>
-    </struct>
   </types>
+
+  <frame name="Frame">
+    <field name="tag" type="uint8" auto="id"/>
+    <payload/>
+  </frame>
+
   <messages>
-    <message name="Frame" role="entry-point">
-      <field name="tag" type="uint8"/>
-      <choice name="body" switch="tag">
-        <case name="uplink" value="TAG_SHARED" type="UplinkPayload" direction="send"/>
-        <case name="downlink" value="TAG_SHARED" type="DownlinkPayload" direction="receive"/>
-        <case name="common" value="TAG_COMMON" type="CommonPayload"/>
-      </choice>
+    <message id="1" name="UplinkPayload" direction="send">
+      <field name="tx-data" type="uint16"/>
+    </message>
+    <message id="1" name="DownlinkPayload" direction="receive">
+      <field name="rx-data" type="uint32"/>
+    </message>
+    <message id="2" name="CommonPayload">
+      <field name="common-data" type="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

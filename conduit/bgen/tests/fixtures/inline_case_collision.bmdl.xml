@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>inline_case_collision</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+
+  <messages>
+    <!-- Two messages both define inline cases named "TypeA" with different fields.
+         Without parent-prefixed naming, this would cause a redefinition error. -->
+
+    <message name="MsgAlpha">
+      <field name="tag" type="uint8"/>
+      <choice name="payload" switch="tag">
+        <case value="1" name="TypeA">
+          <field name="alpha-val" type="uint32"/>
+        </case>
+        <case value="2" name="TypeB">
+          <field name="alpha-flag" type="uint8"/>
+        </case>
+      </choice>
+    </message>
+
+    <message name="MsgBeta">
+      <field name="tag" type="uint8"/>
+      <choice name="payload" switch="tag">
+        <case value="1" name="TypeA">
+          <field name="beta-x" type="uint16"/>
+          <field name="beta-y" type="uint16"/>
+        </case>
+        <case value="2" name="TypeB">
+          <field name="beta-code" type="uint16"/>
+        </case>
+      </choice>
+    </message>
+  </messages>
+</bmdl>

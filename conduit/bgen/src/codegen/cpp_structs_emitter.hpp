@@ -10,6 +10,7 @@
 #include "../analyzer/type_resolver.hpp"
 #include "../analyzer/wire_sizer.hpp"
 #include "../analyzer/session_analyzer.hpp"
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -17,13 +18,17 @@
 
 namespace bgen::codegen {
 
+// Info about a frame header/footer field to be pushed into message classes
+struct FrameFieldInfo {
+    FieldInfo fi;                      // name, cpp_type, is_auto_managed
+    FieldTypeInfo fti;                 // is_enum, is_struct (typedef wrapper), bits
+    const model::Field* source;        // for display format in to_string
+};
+
 class StructEmitter {
 public:
     StructEmitter(EmitContext& ctx, const analyzer::TypeIndex& index,
                   const analyzer::WireSizeInfo& sizes, const std::string& ns);
-
-    // Set the mapping from case type BMDL names to their context struct names
-    void set_case_type_contexts(const std::unordered_map<std::string, std::string>& map);
 
     // Set the mapping from leaf type BMDL names to their computed type_ids
     void set_leaf_type_ids(const std::unordered_map<std::string, uint64_t>& map);
@@ -59,7 +64,8 @@ public:
     // Emit a synthetic struct class from a name and children reference
     void emit_synthetic_struct(const std::string& bmdl_name,
                                const std::vector<model::StructChild>& children,
-                               const std::string& parent_name = {});
+                               const std::string& parent_name = {},
+                               bool always_prefix = false);
 
     void emit_doc_comment(const std::string& doc);
 
@@ -72,8 +78,16 @@ public:
     // Plain struct (non-bitmap) — in cpp_structs.cpp
     // ========================================================================
 
+    void collect_frame_fields(const model::FrameDef& frame,
+                             std::vector<FrameFieldInfo>& header_fields,
+                             std::vector<FrameFieldInfo>& footer_fields);
+
+    void emit_frame_field_accessors(const std::vector<FrameFieldInfo>& frame_fields);
+
     void emit_plain_struct(const std::vector<model::StructChild>& children,
-                          const std::string& class_name);
+                          const std::string& class_name,
+                          const std::vector<FrameFieldInfo>& header_frame_fields = {},
+                          const std::vector<FrameFieldInfo>& footer_frame_fields = {});
 
     void collect_fields(const std::vector<model::StructChild>& children,
                        std::vector<FieldInfo>& fields, bool& has_fx,
@@ -129,7 +143,9 @@ public:
                     const std::string& class_name);
     void emit_to_string(const std::vector<model::StructChild>& children,
                         const std::vector<FieldInfo>& fields,
-                        const std::string& class_name);
+                        const std::string& class_name,
+                        const std::vector<FrameFieldInfo>& header_frame_fields = {},
+                        const std::vector<FrameFieldInfo>& footer_frame_fields = {});
     void emit_bitmap_to_string(const std::vector<BitmapField>& bfields,
                                const std::string& class_name);
     void emit_deferred_validate(const std::vector<model::StructChild>& children);
@@ -144,7 +160,9 @@ public:
     void emit_decode_fx_array(const model::ArrayDef& a, const std::string& result_var);
     std::string emit_case_decode_call(const std::string& case_type,
                                        const std::string& reader_var,
-                                       const std::string& ctx_var);
+                                       const std::string& ctx_var,
+                                       const std::string& result_var = {},
+                                       const std::string& case_bmdl_name = {});
     void emit_decode_choice(const model::ChoiceDef& c, const std::string& result_var);
     void emit_decode_fx(const model::FxBlock& fx, const std::string& result_var);
     void emit_decode_fx_children(const std::vector<model::StructChild>& children,
@@ -160,9 +178,6 @@ public:
     std::string emit_field_cast(const std::string& parent_bmdl_name,
                                  const std::string& field_bmdl_name,
                                  const std::string& value_expr);
-    void emit_wrap_overloads(const model::MessageDef& md,
-                             const analyzer::SessionInfo& session,
-                             const std::string& frame_class);
 
     // ========================================================================
     // Utility — in cpp_structs_expr.cpp
@@ -173,8 +188,31 @@ public:
                                          const std::string& cpp_type) const;
     std::string resolve_field_cpp_type(const std::string& parent_name,
                                         const std::string& field_name) const;
-    std::string resolve_child_class_name(const std::string& bmdl_name, const std::string& parent_name);
+    std::string resolve_child_class_name(const std::string& bmdl_name, const std::string& parent_name,
+                                          bool always_prefix = false);
     std::string get_child_class_name(const std::string& bmdl_name);
+    std::string get_variant_alias_name(const std::string& choice_bmdl_name);
+
+    // ========================================================================
+    // Outer-scope analysis helpers — in cpp_structs_expr.cpp
+    // ========================================================================
+
+    // Collect all FieldRef root names from an expression tree
+    static void collect_expr_field_refs(const model::Expr* expr, std::set<std::string>& refs);
+
+    // Collect FieldRef root names from all direct-child expressions
+    // (choice switch, length-from, present-when, and field expressions — NOT recursing into case children)
+    static void collect_scope_field_refs(const std::vector<model::StructChild>& children,
+                                         std::set<std::string>& refs);
+
+    // Collect locally-defined field names in a children list
+    static void collect_local_names(const std::vector<model::StructChild>& children,
+                                     std::set<std::string>& names);
+
+    // Analyze outer-scope params for a child scope and store in struct_decode_params_
+    void analyze_outer_scope(const std::string& child_bmdl_name,
+                              const std::vector<model::StructChild>& child_children,
+                              const std::vector<model::StructChild>& parent_children);
 
     // ========================================================================
     // Member data
@@ -187,6 +225,8 @@ public:
 
     // Set of already-emitted class names to avoid duplicate definitions
     std::unordered_set<std::string> emitted_classes_;
+    // Set of already-emitted variant alias names to detect collisions
+    std::unordered_set<std::string> emitted_variant_aliases_;
     // Current parent context for resolving child names
     std::string current_parent_;
     // Set of optional field member names for the current struct being decoded.
@@ -195,22 +235,33 @@ public:
     std::unordered_set<std::string> local_field_names_;
     // P1: O(1) enum value name → qualified C++ name lookup
     std::unordered_map<std::string, std::string> enum_value_lookup_;
-    // Case type BMDL name → context struct name (for entry-point context feature)
-    std::unordered_map<std::string, std::string> case_type_to_context_;
     // Leaf type BMDL name → computed type_id (for emitting TYPE_ID on leaf structs)
     std::unordered_map<std::string, uint64_t> leaf_type_ids_;
     // Current entry-point session info
     const analyzer::SessionInfo* current_session_ = nullptr;
-    // Whether the struct currently being emitted has context
-    bool has_context_ = false;
-    // Name of the context struct for the current case type
-    std::string context_struct_name_;
-    // Set of context field BMDL names available via ctx pointer
-    std::unordered_set<std::string> context_field_names_;
     // FX nesting depth counter for generating unique variable names
     int fx_depth_ = 0;
     // Bit alignment tracker: cumulative bits mod 8 from struct start.
     int bit_mod8_ = 0;
+
+    // Outer-scope field BMDL name → C++ param variable name for current struct being emitted
+    std::unordered_map<std::string, std::string> outer_scope_params_;
+
+    // Struct/case BMDL name → list of outer-scope decode parameters
+    struct OuterScopeParam {
+        std::string bmdl_name;   // BMDL field name (e.g., "i080", "len")
+        std::string cpp_type;    // C++ type (e.g., "Cat253I080", "uint8_t")
+        bool pass_by_ref;        // true for struct types, false for primitives
+    };
+    std::unordered_map<std::string, std::vector<OuterScopeParam>> struct_decode_params_;
+
+    // Auto-length backpatch tracking for current struct encode
+    struct AutoLengthInfo {
+        int bits;
+        model::Endian endian;
+        int offset;
+    };
+    std::optional<AutoLengthInfo> pending_auto_length_;
 };
 
 } // namespace bgen::codegen

@@ -21,7 +21,8 @@ namespace conduit::transceiver::transport {
 
 struct TransportCallbacks {
     std::function<void(PeerId, std::span<const uint8_t>)> on_data_received;
-    std::function<PeerId()> on_peer_connected;
+    // remote_endpoint: "ip:port" for TCP/UDP, empty for serial/single-peer
+    std::function<PeerId(std::string remote_endpoint)> on_peer_connected;
     std::function<void(PeerId)> on_peer_disconnected;
     std::function<void(PeerId, net::ConnectionState)> on_state_changed;
 };
@@ -59,6 +60,9 @@ public:
     // Default is no-op (appropriate for UDP and serial).
     virtual void pause() {}
     virtual void resume() {}
+
+    // Human-readable transport type for logging.
+    [[nodiscard]] virtual std::string_view transport_type() const noexcept { return "unknown"; }
 };
 
 } // namespace conduit::transceiver::transport

@@ -15,6 +15,8 @@
 #include <sentry_link/messages.hpp>
 #include <sentry_link/sessions.hpp>
 
+#include <variant>
+
 // ============================================================================
 // Message builders — realistic field values
 // ============================================================================
@@ -106,14 +108,14 @@ asterix::Cat048Record make_cat048_typical() {
     pos.set_theta(90.0);
     it.set_i040(pos);
 
-    asterix::itemsi070 mode3a;
+    asterix::items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(07700);
     it.set_i070(mode3a);
 
-    asterix::itemsi090 fl;
+    asterix::items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0);
@@ -272,10 +274,42 @@ sentry_link::ConfigBody make_config() {
     return cb;
 }
 
-// Encode a message through AsterixFrame::wrap + encode_bytes
+// Build an AsterixFrame from a single record
+asterix::AsterixFrame wrap_asterix(const asterix::Cat001Record& rec) {
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT001);
+    asterix::DataBlock_cat001 cr; cr.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cr});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame f; f.mutable_blocks().push_back(db); return f;
+}
+asterix::AsterixFrame wrap_asterix(const asterix::Cat048Record& rec) {
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT048);
+    asterix::DataBlock_cat048 cr; cr.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cr});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame f; f.mutable_blocks().push_back(db); return f;
+}
+asterix::AsterixFrame wrap_asterix(const asterix::Cat253Record& rec) {
+    asterix::DataBlock db;
+    db.set_cat(asterix::CAT253);
+    asterix::DataBlock_cat253 cr; cr.mutable_items().push_back(rec);
+    db.set_records(asterix::recordsVariant{cr});
+    conduit::io::BitWriter lw;
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
+    db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
+    asterix::AsterixFrame f; f.mutable_blocks().push_back(db); return f;
+}
+
+// Encode a message through wrap + encode_bytes
 template<typename T>
 std::vector<uint8_t> encode_asterix(const T& msg) {
-    auto frame = asterix::AsterixFrame::wrap(msg);
+    auto frame = wrap_asterix(msg);
     return frame.encode_bytes().value();
 }
 

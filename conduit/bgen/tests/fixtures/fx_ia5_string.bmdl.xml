@@ -1,6 +1,6 @@
-<bmdl version="1.0">
-<protocol name="fx-ia5-string" version="1.0">
+<bmdl version="2.0">
   <defaults>
+    <namespace>fx_ia5_string</namespace>
     <string-encoding>ia5</string-encoding>
   </defaults>
   <types>
@@ -16,5 +16,4 @@
       </fx>
     </message>
   </messages>
-</protocol>
 </bmdl>

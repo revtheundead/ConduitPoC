@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="dup-fields" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>dup_fields</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -9,5 +11,4 @@
       <field name="x" type="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

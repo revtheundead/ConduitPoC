@@ -101,13 +101,16 @@ private:
     }
 
     // Check that an expression only references previously-declared fields
+    // If parent_scope is provided, refs can also resolve against parent scope fields
     void check_no_forward_refs(const model::Expr* expr, const std::set<std::string>& declared,
-                               const std::string& context) {
+                               const std::string& context,
+                               const std::set<std::string>* parent_scope = nullptr) {
         if (!expr) return;
         std::vector<std::pair<std::string, model::SourceLoc>> refs;
         collect_field_refs(expr, refs);
         for (const auto& [name, loc] : refs) {
-            if (!declared.count(name)) {
+            if (!declared.count(name) &&
+                !(parent_scope && parent_scope->count(name))) {
                 error(loc, context + ": forward reference to undeclared field '" + name + "'");
             }
         }
@@ -475,6 +478,23 @@ private:
                                       " in " + s.name);
                             }
                         }
+                    } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                        if (c.bit) {
+                            // V15: Check bit value is within valid range
+                            if (*c.bit < 0 || *c.bit >= bitmap_bits) {
+                                error(c.loc, "array '" + c.name + "' bit " + std::to_string(*c.bit) +
+                                      " out of range [0, " + std::to_string(bitmap_bits - 1) +
+                                      "] in " + s.name);
+                            }
+                            if (!used_bits.insert(*c.bit).second) {
+                                error(c.loc, "duplicate bitmap bit " + std::to_string(*c.bit) +
+                                      " in " + s.name);
+                            }
+                            if (s.bitmap_ext && *c.bit == *s.bitmap_ext) {
+                                error(c.loc, "array '" + c.name + "' uses extension bit position " +
+                                      std::to_string(*s.bitmap_ext) + " in " + s.name);
+                            }
+                        }
                     }
                 }, child);
             }
@@ -494,7 +514,7 @@ private:
                 Logger::warn(m.loc.to_string() + ": message '" + m.name + "' has no fields");
             }
             // Messages are top-level bounded containers (wire size known)
-            validate_children(m.children, false, m.name, false, false, true);
+            validate_children(m.children, false, m.name, false, false, true, nullptr);
         }
     }
 
@@ -505,7 +525,8 @@ private:
     void validate_children(const std::vector<model::StructChild>& children,
                           bool in_bitmap, const std::string& parent_name,
                           bool in_array = false, bool in_choice = false,
-                          bool in_bounded_container = false) {
+                          bool in_bounded_container = false,
+                          const std::set<std::string>* parent_scope = nullptr) {
         std::set<std::string> field_names;
         int fx_count = 0;
         bool seen_star_field = false;
@@ -522,9 +543,9 @@ private:
                     }
                     // Forward reference checks on field expressions
                     check_no_forward_refs(c.present_when.get(), field_names,
-                                        "field '" + c.name + "' present-when");
+                                        "field '" + c.name + "' present-when", parent_scope);
                     check_no_forward_refs(c.length_from.get(), field_names,
-                                        "field '" + c.name + "' length-from");
+                                        "field '" + c.name + "' length-from", parent_scope);
                     // Expression safety checks
                     check_expr_safety(c.present_when.get(), "field '" + c.name + "' present-when");
                     check_expr_safety(c.length_from.get(), "field '" + c.name + "' length-from");
@@ -558,7 +579,7 @@ private:
                 } else if constexpr (std::is_same_v<T, model::StructDef>) {
                     // Forward reference check on present-when
                     check_no_forward_refs(c.present_when.get(), field_names,
-                                        "struct '" + c.name + "' present-when");
+                                        "struct '" + c.name + "' present-when", parent_scope);
                     // Expression safety check
                     check_expr_safety(c.present_when.get(), "struct '" + c.name + "' present-when");
                     check_constant_refs(c.present_when.get(), "struct '" + c.name + "' present-when");
@@ -575,9 +596,11 @@ private:
                     if (c.bit && !in_bitmap) {
                         error(c.loc, "'" + c.name + "': 'bit' only valid inside presence=\"bitmap\" struct");
                     }
+                    // Pass current field_names as parent scope to child struct
                     validate_children(c.children, c.is_bitmap,
                                      c.name.empty() ? parent_name : c.name,
-                                     in_array, in_choice, in_bounded_container);
+                                     in_array, in_choice, in_bounded_container,
+                                     &field_names);
                 } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
                     // Check that no data elements follow a length="*" or count="*" field
                     if (seen_star_field) {
@@ -586,11 +609,11 @@ private:
                     }
                     // Forward reference checks on array expressions
                     check_no_forward_refs(c.count_from.get(), field_names,
-                                        "array '" + c.name + "' count-from");
+                                        "array '" + c.name + "' count-from", parent_scope);
                     check_no_forward_refs(c.length_from.get(), field_names,
-                                        "array '" + c.name + "' length-from");
+                                        "array '" + c.name + "' length-from", parent_scope);
                     check_no_forward_refs(c.present_when.get(), field_names,
-                                        "array '" + c.name + "' present-when");
+                                        "array '" + c.name + "' present-when", parent_scope);
                     // Expression safety checks
                     check_expr_safety(c.count_from.get(), "array '" + c.name + "' count-from");
                     check_expr_safety(c.length_from.get(), "array '" + c.name + "' length-from");
@@ -626,11 +649,11 @@ private:
                 } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
                     // Forward reference checks on choice expressions
                     check_no_forward_refs(c.switch_expr.get(), field_names,
-                                        "choice '" + c.name + "' switch");
+                                        "choice '" + c.name + "' switch", parent_scope);
                     check_no_forward_refs(c.present_when.get(), field_names,
-                                        "choice '" + c.name + "' present-when");
+                                        "choice '" + c.name + "' present-when", parent_scope);
                     check_no_forward_refs(c.length_from.get(), field_names,
-                                        "choice '" + c.name + "' length-from");
+                                        "choice '" + c.name + "' length-from", parent_scope);
                     // Expression safety checks
                     check_expr_safety(c.switch_expr.get(), "choice '" + c.name + "' switch");
                     check_expr_safety(c.present_when.get(), "choice '" + c.name + "' present-when");
@@ -638,7 +661,7 @@ private:
                     check_constant_refs(c.switch_expr.get(), "choice '" + c.name + "' switch");
                     check_constant_refs(c.present_when.get(), "choice '" + c.name + "' present-when");
                     check_constant_refs(c.length_from.get(), "choice '" + c.name + "' length-from");
-                    validate_choice(c, parent_name, in_bounded_container);
+                    validate_choice(c, parent_name, in_bounded_container, &field_names);
                     check_case_value_range(c, children);
                     if (!c.name.empty()) {
                         if (!field_names.insert(c.name).second) {
@@ -682,8 +705,9 @@ private:
         if (a.to <= 0) {
             error(a.loc, "<align> 'to' must be positive in " + parent_name);
         } else if ((a.to & (a.to - 1)) != 0) {
-            // Warn if not a power of 2 (optional warning as per spec)
             error(a.loc, "<align> 'to' (" + std::to_string(a.to) + ") is not a power of 2 in " + parent_name);
+        } else if (a.to > 8) {
+            error(a.loc, "<align> 'to' (" + std::to_string(a.to) + ") exceeds maximum of 8 bytes in " + parent_name);
         }
     }
 
@@ -761,14 +785,44 @@ private:
                         }
                         break;
                     }
+                    case model::AutoKind::Length: {
+                        // auto="length" valid in both frame and struct context
+                        // Verify integer type (signed or unsigned), <= 32 bits
+                        auto base = resolve_base(f);
+                        if (base != model::PrimitiveBase::Uint && base != model::PrimitiveBase::Int) {
+                            error(f.loc, "field '" + f.name + "': auto=\"length\" requires integer type");
+                        }
+                        int auto_bits = 0;
+                        if (f.bits) auto_bits = *f.bits;
+                        else if (f.bytes_attr) auto_bits = *f.bytes_attr * 8;
+                        else if (!f.type_ref.empty()) {
+                            auto it = index_.types.find(f.type_ref);
+                            if (it != index_.types.end()) auto_bits = it->second->bits;
+                        }
+                        if (auto_bits > 32) {
+                            error(f.loc, "field '" + f.name + "': auto=\"length\" maximum supported is 32 bits");
+                        }
+                        if (f.constraint && f.constraint->equals) {
+                            error(f.loc, "field '" + f.name +
+                                  "': auto=\"length\" fields cannot have constraint equals");
+                        }
+                        break;
+                    }
                     case model::AutoKind::Id:
-                    case model::AutoKind::Length:
                     case model::AutoKind::Count:
                     case model::AutoKind::Config:
-                    case model::AutoKind::Timestamp:
-                    case model::AutoKind::Checksum:
                         // These are valid in frame context; frame-level validation handles rules
                         break;
+                    case model::AutoKind::Timestamp: {
+                        auto base = resolve_base(f);
+                        if (base != model::PrimitiveBase::Uint) {
+                            error(f.loc, "field '" + f.name + "': auto=\"timestamp\" only valid on unsigned integer fields");
+                        }
+                        if (f.constraint && f.constraint->equals) {
+                            error(f.loc, "field '" + f.name + "': auto-timestamp fields cannot have constraint equals");
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -965,6 +1019,11 @@ private:
                 if (ev.id < 0) {
                     error(ev.loc, "enum id must be non-negative in field '" + f.name + "'");
                 }
+                if (field_bits > 0 && field_bits < 64 && ev.id >= (1LL << field_bits)) {
+                    error(ev.loc, "enum id " + std::to_string(ev.id) +
+                          " exceeds " + std::to_string(field_bits) +
+                          "-bit range in field '" + f.name + "'");
+                }
             }
         }
 
@@ -1076,7 +1135,8 @@ private:
     }
 
     void validate_choice(const model::ChoiceDef& c, const std::string& parent_name,
-                        bool in_bounded_container = false) {
+                        bool in_bounded_container = false,
+                        const std::set<std::string>* parent_field_names = nullptr) {
         if (c.name.empty()) {
             error(c.loc, "choice has empty name in " + parent_name);
         }
@@ -1121,13 +1181,13 @@ private:
 
             bool choice_bounded = c.length_from != nullptr || c.length;
             validate_children(cs.children, false, c.name + "." + cs.name, false, true,
-                            choice_bounded || in_bounded_container);
+                            choice_bounded || in_bounded_container, parent_field_names);
         }
 
         if (c.otherwise) {
             bool choice_bounded = c.length_from != nullptr || c.length;
             validate_children(c.otherwise->children, false, c.name + ".otherwise", false, true,
-                            choice_bounded || in_bounded_container);
+                            choice_bounded || in_bounded_container, parent_field_names);
         }
 
         // C6: Choice case overlap detection
@@ -1328,6 +1388,26 @@ private:
                                   "' references struct/message type '" + f->type_ref +
                                   "'; only scalar types are allowed in frame headers/footers");
                         }
+                        if (f->present_when) {
+                            error(f->loc, "frame " + section + " field '" + f->name +
+                                  "' may not use present-when; frame fields must be unconditional");
+                        }
+                        if (f->terminated) {
+                            error(f->loc, "frame " + section + " field '" + f->name +
+                                  "' may not use terminated; frame fields must have fixed size");
+                        }
+                        if (f->length_prefix) {
+                            error(f->loc, "frame " + section + " field '" + f->name +
+                                  "' may not use length-prefix; frame fields must have fixed size");
+                        }
+                        if (f->length_from) {
+                            error(f->loc, "frame " + section + " field '" + f->name +
+                                  "' may not use length-from; frame fields must have fixed size");
+                        }
+                        if (f->length_star) {
+                            error(f->loc, "frame " + section + " field '" + f->name +
+                                  "' may not use open-ended length; frame fields must have fixed size");
+                        }
                     }
                 }
             };
@@ -1375,9 +1455,17 @@ private:
                                               "' is " + std::to_string(length_field_bits) +
                                               " bits; maximum supported is 32 bits");
                                     }
+                                    if (f->constraint && f->constraint->equals) {
+                                        error(f->loc, "field '" + f->name +
+                                              "': auto=\"length\" fields cannot have constraint equals");
+                                    }
                                     break;
                                 }
                                 case model::AutoKind::Config: {
+                                    if (f->constraint && f->constraint->equals) {
+                                        error(f->loc, "field '" + f->name +
+                                              "': auto=\"config\" fields cannot have constraint equals");
+                                    }
                                     auto [_, inserted] = config_keys.insert(f->auto_expr->key);
                                     if (!inserted) {
                                         error(f->loc, "duplicate config key '" + f->auto_expr->key +
@@ -1465,6 +1553,31 @@ private:
                             }
                         } catch (...) {
                             // Non-numeric id (e.g., constant ref) — skip range check
+                        }
+                    }
+                }
+            }
+
+            // Rule: message field names must not collide with frame field names
+            {
+                std::set<std::string> frame_names;
+                for (const auto& child : frame.header_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        frame_names.insert(f->name);
+                    }
+                }
+                for (const auto& child : frame.footer_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        frame_names.insert(f->name);
+                    }
+                }
+                for (const auto& m : proto_.messages) {
+                    for (const auto& child : m.children) {
+                        if (auto* f = std::get_if<model::Field>(&child)) {
+                            if (frame_names.count(f->name)) {
+                                error(f->loc, "message '" + m.name + "' field '" + f->name +
+                                      "' conflicts with frame field of the same name");
+                            }
                         }
                     }
                 }

@@ -41,8 +41,8 @@ TEST_CASE("sentry_link: send ConfigBody preserves all fields",
     REQUIRE(frame.has_value());
     CHECK(frame->sync() == 0xAA55);
 
-    REQUIRE(std::holds_alternative<sentry_link::ConfigBody>(frame->body()));
-    auto& body = std::get<sentry_link::ConfigBody>(frame->body());
+    REQUIRE(std::holds_alternative<sentry_link::ConfigBody>(frame->payload()));
+    auto& body = std::get<sentry_link::ConfigBody>(frame->payload());
     // String may be null-padded, check prefix
     CHECK(body.device_name().substr(0, 7) == "TestDev");
     CHECK(body.firmware().major() == 1);

@@ -204,14 +204,6 @@ std::string generate_protocol(const model::Protocol& protocol,
                 ctx.dedent();
                 ctx.line("}");
             }
-        } else {
-            // v1: entry-point based factory
-            std::string factory_func = "create_" + to_lower_snake_case(first_session.entry_point_name) + "_session";
-            ctx.line("static std::unique_ptr<conduit::traits::ISession> create_session() {");
-            ctx.indent();
-            ctx.line("return " + factory_func + "();");
-            ctx.dedent();
-            ctx.line("}");
         }
     }
 

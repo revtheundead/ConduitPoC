@@ -457,7 +457,6 @@ void dump_protocol(const Protocol& protocol, std::ostream& out) {
         out << indent(1) << "--- messages (" << protocol.messages.size() << ") ---\n";
         for (const auto& m : protocol.messages) {
             out << indent(1) << "message \"" << m.name << "\"";
-            if (m.is_entry_point) out << " [entry-point]";
             out << "\n";
 
             dump_children(m.children, out, 2);

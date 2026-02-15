@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <constants>
     <const name="CONST_A" type="uint8" value="10"/>
     <const name="CONST_B" type="uint8" value="20"/>

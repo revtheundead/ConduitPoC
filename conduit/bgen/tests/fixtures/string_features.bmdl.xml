@@ -1,6 +1,11 @@
-<bmdl version="1.0">
-<protocol name="string-features" version="1.0">
-  <defaults endian="big" string-encoding="ascii" string-padding="null" string-trim="right"/>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>string_features</namespace>
+    <endian>big</endian>
+    <string-encoding>ascii</string-encoding>
+    <string-padding>null</string-padding>
+    <string-trim>right</string-trim>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint16" base="uint" bits="16"/>
@@ -32,6 +37,12 @@
       <field name="crlf-term" type="string" terminated="crlf"/>
     </message>
 
+    <!-- Test field-level max-length validation -->
+    <message name="MaxLenMsg">
+      <field name="id" type="uint8"/>
+      <field name="data" type="string" length="32" max-length="16"/>
+    </message>
+
     <!-- Test inline string attributes on fields -->
     <message name="InlineStringMsg">
       <field name="id" type="uint8"/>
@@ -39,5 +50,4 @@
       <field name="prefix-str" type="uint8" length-prefix="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

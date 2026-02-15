@@ -15,18 +15,18 @@ StreamFramer::StreamFramer(traits::ISession& session, size_t max_buffer_size)
 
 Result<std::vector<std::vector<uint8_t>>>
 StreamFramer::push_data(std::span<const uint8_t> data) {
-    // Compact the buffer first to prevent physical growth past max_buffer_size_
-    if (offset_ > 0) {
-        buffer_.erase(buffer_.begin(), buffer_.begin() + static_cast<ptrdiff_t>(offset_));
-        offset_ = 0;
-    }
-
-    // Now check for overflow against the compacted buffer
+    // Check if data fits; only compact if needed to avoid O(n) shift on every call
     if (buffer_.size() + data.size() > max_buffer_size_) {
-        reset();
-        return std::unexpected(
-            CONDUIT_ERROR(ErrorCode::BufferOverrun,
-                          "StreamFramer buffer exceeds max size"));
+        if (offset_ > 0) {
+            buffer_.erase(buffer_.begin(), buffer_.begin() + static_cast<ptrdiff_t>(offset_));
+            offset_ = 0;
+        }
+        if (buffer_.size() + data.size() > max_buffer_size_) {
+            reset();
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::BufferOverrun,
+                              "StreamFramer buffer exceeds max size"));
+        }
     }
 
     buffer_.insert(buffer_.end(), data.begin(), data.end());

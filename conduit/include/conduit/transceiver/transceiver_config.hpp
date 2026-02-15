@@ -20,6 +20,53 @@
 namespace conduit::transceiver {
 
 // ============================================================================
+// Message Logging Configuration
+// ============================================================================
+
+enum class MessageLogMode {
+    Combined,          // Single file for all messages
+    SeparateDirection, // One file for sends, one for receives
+    PerPeer,           // One file per peer (both directions)
+    PerPeerDirection   // Separate send/recv files per peer
+};
+
+enum class MessageLogOutput { File, Stdout, Both };
+
+struct MessageLogConfig {
+    bool enabled = false;
+    MessageLogMode mode = MessageLogMode::Combined;
+    MessageLogOutput output = MessageLogOutput::File;
+    std::string directory = ".";       // Where log files are created
+    std::string prefix = "conduit";    // File name prefix (used when filename is empty)
+
+    // Log filename pattern. Supports placeholders:
+    //   {peer}      — peer name (e.g., "radar-1")
+    //   {direction} — "sent" or "received"
+    //
+    // When empty, defaults are derived from prefix + mode:
+    //   Combined:          "{prefix}_messages.log"
+    //   SeparateDirection: "{prefix}_{direction}.log"
+    //   PerPeer:           "{prefix}_{peer}.log"
+    //   PerPeerDirection:  "{prefix}_{peer}_{direction}.log"
+    //
+    // Examples:
+    //   "my_log.log"               — single file (Combined)
+    //   "app_{direction}.log"      — "app_sent.log", "app_received.log"
+    //   "{peer}_{direction}.log"   — "radar1_sent.log", "radar1_received.log"
+    std::string filename;
+
+    // Per-direction filename overrides. When set, these take priority over
+    // 'filename' for the corresponding direction. Supports {peer} placeholder.
+    // Useful with SeparateDirection or PerPeerDirection modes:
+    //   sent_filename = "outbound.log";      received_filename = "inbound.log";
+    //   sent_filename = "{peer}_out.log";     received_filename = "{peer}_in.log";
+    std::string sent_filename;
+    std::string received_filename;
+
+    bool include_message_content = true; // Include to_string() output (has perf cost)
+};
+
+// ============================================================================
 // Queue Configuration
 // ============================================================================
 
@@ -88,6 +135,8 @@ struct TransceiverConfig {
     // Graceful shutdown: max time to wait for workers to drain.
     // 0 = wait indefinitely (current behavior).
     std::chrono::milliseconds shutdown_timeout{0};
+
+    MessageLogConfig message_log;
 
     TransceiverConfig& add_peer(std::string name,
                                 SessionFactory session_factory,

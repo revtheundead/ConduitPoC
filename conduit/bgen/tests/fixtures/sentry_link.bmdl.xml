@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="sentry-link" version="1.0">
+<bmdl version="2.0">
 
   <doc>
     SentryLink: A sensor monitoring protocol.
@@ -21,14 +20,11 @@
     <string-encoding>ascii</string-encoding>
     <string-padding>null</string-padding>
     <string-trim>right</string-trim>
+    <namespace>sentry_link</namespace>
   </defaults>
 
   <constants>
     <const name="SYNC" type="uint16" value="0xAA55"/>
-    <const name="MSG_HEARTBEAT" type="uint8" value="1"/>
-    <const name="MSG_SENSOR" type="uint8" value="2"/>
-    <const name="MSG_CONFIG" type="uint8" value="3"/>
-    <const name="MSG_ALERT" type="uint8" value="4"/>
   </constants>
 
   <!-- ===========================================================================
@@ -41,16 +37,6 @@
     <type name="uint16" base="uint" bits="16"/>
     <type name="uint32" base="uint" bits="32"/>
     <type name="int32" base="int" bits="32"/>
-
-    <!-- Message type enum -->
-    <type name="msg-type" base="uint" bits="8">
-      <enum>
-        <value id="1" name="heartbeat"/>
-        <value id="2" name="sensor"/>
-        <value id="3" name="config"/>
-        <value id="4" name="alert"/>
-      </enum>
-    </type>
 
     <!-- Device operational status -->
     <type name="device-status" base="uint" bits="8">
@@ -83,21 +69,6 @@
       </enum>
     </type>
 
-    <!-- Common header: 6 bytes
-         [sync:16][msg-type:8][length:16][sequence:8] -->
-    <struct name="Header">
-      <field name="sync" type="uint16">
-        <constraint equals="SYNC"/>
-      </field>
-      <field name="msg-type" type="msg-type"/>
-      <field name="length" type="uint16">
-        <doc>Total message length in bytes, including this header</doc>
-      </field>
-      <field name="sequence" type="uint8" auto="increment">
-        <doc>Rolling sequence number (0-255)</doc>
-      </field>
-    </struct>
-
     <!-- Firmware version: 4 bytes -->
     <struct name="FirmwareVersion">
       <field name="major" type="uint8"/>
@@ -117,10 +88,35 @@
       <field name="saturated" bits="1"/>
       <field name="valid" bits="1"/>
     </struct>
+  </types>
 
-    <!-- Heartbeat body: 8 bytes
-         [timestamp:32][uptime-hours:16][status:8][cpu-load:8] -->
-    <struct name="HeartbeatBody">
+  <!-- ===========================================================================
+       FRAME
+       =========================================================================== -->
+
+  <frame name="Frame">
+    <doc>
+      SentryLink message frame.
+      The header fields are defined directly on the frame for
+      dispatch and framing.
+    </doc>
+    <field name="sync" type="uint16"><constraint equals="SYNC"/></field>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length">
+      <doc>Total message length in bytes, including this header</doc>
+    </field>
+    <field name="sequence" type="uint8" auto="increment">
+      <doc>Rolling sequence number (0-255)</doc>
+    </field>
+    <payload/>
+  </frame>
+
+  <!-- ===========================================================================
+       MESSAGES
+       =========================================================================== -->
+
+  <messages>
+    <message id="1" name="HeartbeatBody" direction="receive">
       <field name="timestamp" type="uint32">
         <doc>Unix epoch seconds</doc>
       </field>
@@ -130,11 +126,9 @@
         <doc>CPU usage percentage</doc>
         <constraint max="100"/>
       </field>
-    </struct>
+    </message>
 
-    <!-- Sensor reading body: 12 bytes
-         [sensor-id:16][timestamp:32][flags:8][raw-value:32][unit-code:8] -->
-    <struct name="SensorBody">
+    <message id="2" name="SensorBody" direction="receive">
       <field name="sensor-id" type="uint16"/>
       <field name="timestamp" type="uint32"/>
       <field name="flags" type="SensorFlags"/>
@@ -145,11 +139,9 @@
       <field name="unit-code" type="uint8">
         <doc>Unit: 1=celsius, 2=percent-RH, 3=hPa, 4=lux, 5=volts</doc>
       </field>
-    </struct>
+    </message>
 
-    <!-- Device config body: 23 bytes
-         [device-name:128][firmware:32][mode:2][log-level:3][auto-report:1][compression:1][reserved:1][sample-rate:16] -->
-    <struct name="ConfigBody">
+    <message id="3" name="ConfigBody" direction="send">
       <field name="device-name" type="string" length="16"/>
       <field name="firmware" type="FirmwareVersion"/>
       <field name="mode" type="device-mode"/>
@@ -162,11 +154,9 @@
       <field name="sample-rate" type="uint16">
         <doc>Sampling rate in Hz</doc>
       </field>
-    </struct>
+    </message>
 
-    <!-- Alert body: 41 bytes
-         [timestamp:32][source-id:16][severity:3][category:5][alert-code:16][message:256] -->
-    <struct name="AlertBody">
+    <message id="4" name="AlertBody" direction="receive">
       <field name="timestamp" type="uint32"/>
       <field name="source-id" type="uint16"/>
       <field name="severity" type="severity-level" initial="info"/>
@@ -175,31 +165,7 @@
       </field>
       <field name="alert-code" type="uint16"/>
       <field name="message" type="string" length="32"/>
-    </struct>
-  </types>
-
-  <!-- ===========================================================================
-       MESSAGES
-       =========================================================================== -->
-
-  <messages>
-    <message name="Frame" role="entry-point">
-      <doc>
-        SentryLink message frame.
-        The header is inlined so msg-type and length are directly
-        accessible for dispatch and framing.
-      </doc>
-
-      <field name="header" type="Header" inline="true"/>
-
-      <choice name="body" switch="msg-type" length-from="length - 6">
-        <case name="heartbeat" value="MSG_HEARTBEAT" type="HeartbeatBody" direction="receive"/>
-        <case name="sensor" value="MSG_SENSOR" type="SensorBody" direction="receive"/>
-        <case name="config" value="MSG_CONFIG" type="ConfigBody" direction="send"/>
-        <case name="alert" value="MSG_ALERT" type="AlertBody" direction="receive"/>
-      </choice>
     </message>
   </messages>
 
-</protocol>
 </bmdl>

@@ -1,12 +1,13 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>cross_ref_test</namespace>
+  </defaults>
   <import href="types_only_lib.bmdl.xml"/>
   <import href="messages_only_lib.bmdl.xml"/>
-  <protocol name="cross-ref-test" version="1.0">
-    <messages>
-      <message name="CrossRefMsg" role="entry-point">
+  <messages>
+      <message name="CrossRefMsg">
         <field name="coords" type="TypesOnlyStruct"/>
         <field name="value" type="uint32"/>
       </message>
     </messages>
-  </protocol>
 </bmdl>

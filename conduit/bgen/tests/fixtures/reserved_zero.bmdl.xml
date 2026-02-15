@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="reserved-zero" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>reserved_zero</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -9,5 +11,4 @@
       <reserved bits="0"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

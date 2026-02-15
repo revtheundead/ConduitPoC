@@ -1,12 +1,13 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>diamond_test</namespace>
+  </defaults>
   <import href="diamond_a.bmdl.xml"/>
   <import href="diamond_b.bmdl.xml"/>
-  <protocol name="diamond-test" version="1.0">
-    <messages>
+  <messages>
       <message name="DiamondMsg">
         <field name="branch-a" type="BranchA"/>
         <field name="branch-b" type="BranchB"/>
       </message>
     </messages>
-  </protocol>
 </bmdl>

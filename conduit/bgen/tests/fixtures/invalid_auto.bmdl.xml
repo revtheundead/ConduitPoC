@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-auto" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_auto</namespace>
+  </defaults>
   <types>
     <type name="int16" base="int" bits="16"/>
   </types>
@@ -9,5 +11,4 @@
       <field name="counter" type="int16" auto="increment"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

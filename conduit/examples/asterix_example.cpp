@@ -25,8 +25,6 @@
 //   - The receiver verifies each decoded message field-by-field
 // ============================================================================
 
-#include <asterix/sessions.hpp>
-#include <asterix/constants.hpp>
 #include <asterix/messages.hpp>
 
 #include <conduit/transceiver/transceiver.hpp>
@@ -201,8 +199,8 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i040(polar);
 
     // FRN 5: Mode 3/A Code
-    // Cat048's i070 is named itemsi070 to disambiguate from Cat001's i070
-    asterix::itemsi070 mode3a;
+    // Cat048's i070 is named items_i070 to disambiguate from Cat001's i070
+    asterix::items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
@@ -210,8 +208,8 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i070(mode3a);
 
     // FRN 6: Flight Level (14-bit signed, scale=0.25)
-    // Cat048's i090 is named itemsi090 to disambiguate from Cat001's i090
-    asterix::itemsi090 fl;
+    // Cat048's i090 is named items_i090 to disambiguate from Cat001's i090
+    asterix::items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(380.0);                              // FL380

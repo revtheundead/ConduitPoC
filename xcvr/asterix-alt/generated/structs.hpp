@@ -2157,7 +2157,7 @@ private:
     std::vector<dopplerElement> doppler_{};
 };
 
-class Cat007I120sub {
+class Cat007I120_sub {
 public:
     bool has_cal() const { return cal_.has_value(); }
     const Cat007I120Cal& cal() const { return cal_.value(); }
@@ -2171,7 +2171,7 @@ public:
     void set_rds(const Cat007I120Rds& v) { rds_ = v; }
     void clear_rds() { rds_.reset(); }
 
-    bool operator==(const Cat007I120sub&) const = default;
+    bool operator==(const Cat007I120_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -2192,8 +2192,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat007I120sub> decode(conduit::io::BitReader& r) {
-        Cat007I120sub result;
+    static conduit::Result<Cat007I120_sub> decode(conduit::io::BitReader& r) {
+        Cat007I120_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -2222,7 +2222,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat007I120sub{";
+        oss << "Cat007I120_sub{";
         bool first = true;
         if (cal_.has_value()) {
             if (!first) oss << ", ";
@@ -2248,9 +2248,9 @@ private:
 // Bits 7 (CAL) and 6 (RDS) control presence of subfields.
 class Cat007I120 {
 public:
-    const Cat007I120sub& sub() const { return sub_; }
-    Cat007I120sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat007I120sub& v) { sub_ = v; }
+    const Cat007I120_sub& sub() const { return sub_; }
+    Cat007I120_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat007I120_sub& v) { sub_ = v; }
 
     bool operator==(const Cat007I120&) const = default;
 
@@ -2263,7 +2263,7 @@ public:
     static conduit::Result<Cat007I120> decode(conduit::io::BitReader& r) {
         Cat007I120 result;
         {
-            auto val = Cat007I120sub::decode(r);
+            auto val = Cat007I120_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -2279,10 +2279,10 @@ public:
     }
 
 private:
-    Cat007I120sub sub_{};
+    Cat007I120_sub sub_{};
 };
 
-class Cat007I130sub {
+class Cat007I130_sub {
 public:
     bool has_srl() const { return srl_.has_value(); }
     const uint8& srl() const { return srl_.value(); }
@@ -2326,7 +2326,7 @@ public:
     void set_apd(const int8& v) { apd_ = v; }
     void clear_apd() { apd_.reset(); }
 
-    bool operator==(const Cat007I130sub&) const = default;
+    bool operator==(const Cat007I130_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -2372,8 +2372,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat007I130sub> decode(conduit::io::BitReader& r) {
-        Cat007I130sub result;
+    static conduit::Result<Cat007I130_sub> decode(conduit::io::BitReader& r) {
+        Cat007I130_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -2427,7 +2427,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat007I130sub{";
+        oss << "Cat007I130_sub{";
         bool first = true;
         if (srl_.has_value()) {
             if (!first) oss << ", ";
@@ -2483,9 +2483,9 @@ private:
 // with up to 7 one-octet subfields.
 class Cat007I130 {
 public:
-    const Cat007I130sub& sub() const { return sub_; }
-    Cat007I130sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat007I130sub& v) { sub_ = v; }
+    const Cat007I130_sub& sub() const { return sub_; }
+    Cat007I130_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat007I130_sub& v) { sub_ = v; }
 
     bool operator==(const Cat007I130&) const = default;
 
@@ -2498,7 +2498,7 @@ public:
     static conduit::Result<Cat007I130> decode(conduit::io::BitReader& r) {
         Cat007I130 result;
         {
-            auto val = Cat007I130sub::decode(r);
+            auto val = Cat007I130_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -2514,7 +2514,7 @@ public:
     }
 
 private:
-    Cat007I130sub sub_{};
+    Cat007I130_sub sub_{};
 };
 
 // I007/170 - Track Status
@@ -3170,7 +3170,7 @@ private:
     uint8 ms_nb_{};
 };
 
-class Cat007I450sub {
+class Cat007I450_sub {
 public:
     bool has_tr() const { return tr_.has_value(); }
     const Cat007I450Tr& tr() const { return tr_.value(); }
@@ -3208,7 +3208,7 @@ public:
     void set_sms_nb(const uint8& v) { sms_nb_ = v; }
     void clear_sms_nb() { sms_nb_.reset(); }
 
-    bool operator==(const Cat007I450sub&) const = default;
+    bool operator==(const Cat007I450_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -3249,8 +3249,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat007I450sub> decode(conduit::io::BitReader& r) {
-        Cat007I450sub result;
+    static conduit::Result<Cat007I450_sub> decode(conduit::io::BitReader& r) {
+        Cat007I450_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -3299,7 +3299,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat007I450sub{";
+        oss << "Cat007I450_sub{";
         bool first = true;
         if (tr_.has_value()) {
             if (!first) oss << ", ";
@@ -3354,9 +3354,9 @@ private:
 // Subfield #6: Selective Mode S Interrogations (1 octet)
 class Cat007I450 {
 public:
-    const Cat007I450sub& sub() const { return sub_; }
-    Cat007I450sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat007I450sub& v) { sub_ = v; }
+    const Cat007I450_sub& sub() const { return sub_; }
+    Cat007I450_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat007I450_sub& v) { sub_ = v; }
 
     bool operator==(const Cat007I450&) const = default;
 
@@ -3369,7 +3369,7 @@ public:
     static conduit::Result<Cat007I450> decode(conduit::io::BitReader& r) {
         Cat007I450 result;
         {
-            auto val = Cat007I450sub::decode(r);
+            auto val = Cat007I450_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -3385,7 +3385,7 @@ public:
     }
 
 private:
-    Cat007I450sub sub_{};
+    Cat007I450_sub sub_{};
 };
 
 // Required Interrogation Modes - Specific MIP
@@ -3815,7 +3815,7 @@ private:
     uint8_t m1_{};
 };
 
-class Cat007I415sub {
+class Cat007I415_sub {
 public:
     bool has_rim() const { return rim_.has_value(); }
     const Cat007I415Rim& rim() const { return rim_.value(); }
@@ -3829,7 +3829,7 @@ public:
     void set_mipt(const uint8& v) { mipt_ = v; }
     void clear_mipt() { mipt_.reset(); }
 
-    bool operator==(const Cat007I415sub&) const = default;
+    bool operator==(const Cat007I415_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -3850,8 +3850,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat007I415sub> decode(conduit::io::BitReader& r) {
-        Cat007I415sub result;
+    static conduit::Result<Cat007I415_sub> decode(conduit::io::BitReader& r) {
+        Cat007I415_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -3880,7 +3880,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat007I415sub{";
+        oss << "Cat007I415_sub{";
         bool first = true;
         if (rim_.has_value()) {
             if (!first) oss << ", ";
@@ -3907,9 +3907,9 @@ private:
 // Subfield #2: MIPT - MIP Table Reference Number (1 octet)
 class Cat007I415 {
 public:
-    const Cat007I415sub& sub() const { return sub_; }
-    Cat007I415sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat007I415sub& v) { sub_ = v; }
+    const Cat007I415_sub& sub() const { return sub_; }
+    Cat007I415_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat007I415_sub& v) { sub_ = v; }
 
     bool operator==(const Cat007I415&) const = default;
 
@@ -3922,7 +3922,7 @@ public:
     static conduit::Result<Cat007I415> decode(conduit::io::BitReader& r) {
         Cat007I415 result;
         {
-            auto val = Cat007I415sub::decode(r);
+            auto val = Cat007I415_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -3938,7 +3938,7 @@ public:
     }
 
 private:
-    Cat007I415sub sub_{};
+    Cat007I415_sub sub_{};
 };
 
 // I007/420 - Directed Interrogation Window
@@ -5210,7 +5210,7 @@ private:
     std::vector<pointsElement> points_{};
 };
 
-class Cat021I110sub {
+class Cat021I110_sub {
 public:
     bool has_tis() const { return tis_.has_value(); }
     const Cat021I110Tis& tis() const { return tis_.value(); }
@@ -5224,7 +5224,7 @@ public:
     void set_tid(const Cat021I110Tid& v) { tid_ = v; }
     void clear_tid() { tid_.reset(); }
 
-    bool operator==(const Cat021I110sub&) const = default;
+    bool operator==(const Cat021I110_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -5245,8 +5245,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat021I110sub> decode(conduit::io::BitReader& r) {
-        Cat021I110sub result;
+    static conduit::Result<Cat021I110_sub> decode(conduit::io::BitReader& r) {
+        Cat021I110_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -5275,7 +5275,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat021I110sub{";
+        oss << "Cat021I110_sub{";
         bool first = true;
         if (tis_.has_value()) {
             if (!first) oss << ", ";
@@ -5302,9 +5302,9 @@ private:
 // Subfield #2: Trajectory Intent Data (TID)
 class Cat021I110 {
 public:
-    const Cat021I110sub& sub() const { return sub_; }
-    Cat021I110sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat021I110sub& v) { sub_ = v; }
+    const Cat021I110_sub& sub() const { return sub_; }
+    Cat021I110_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat021I110_sub& v) { sub_ = v; }
 
     bool operator==(const Cat021I110&) const = default;
 
@@ -5317,7 +5317,7 @@ public:
     static conduit::Result<Cat021I110> decode(conduit::io::BitReader& r) {
         Cat021I110 result;
         {
-            auto val = Cat021I110sub::decode(r);
+            auto val = Cat021I110_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -5333,7 +5333,7 @@ public:
     }
 
 private:
-    Cat021I110sub sub_{};
+    Cat021I110_sub sub_{};
 };
 
 // I021/130 - Position in WGS-84 Co-ordinates
@@ -6311,7 +6311,7 @@ private:
     double temperature_{};
 };
 
-class Cat021I220sub {
+class Cat021I220_sub {
 public:
     bool has_ws() const { return ws_.has_value(); }
     const Cat021I220Ws& ws() const { return ws_.value(); }
@@ -6337,7 +6337,7 @@ public:
     void set_trb(const uint8& v) { trb_ = v; }
     void clear_trb() { trb_.reset(); }
 
-    bool operator==(const Cat021I220sub&) const = default;
+    bool operator==(const Cat021I220_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -6368,8 +6368,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat021I220sub> decode(conduit::io::BitReader& r) {
-        Cat021I220sub result;
+    static conduit::Result<Cat021I220_sub> decode(conduit::io::BitReader& r) {
+        Cat021I220_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -6408,7 +6408,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat021I220sub{";
+        oss << "Cat021I220_sub{";
         bool first = true;
         if (ws_.has_value()) {
             if (!first) oss << ", ";
@@ -6449,9 +6449,9 @@ private:
 // Subfield #4: Turbulence (TRB)
 class Cat021I220 {
 public:
-    const Cat021I220sub& sub() const { return sub_; }
-    Cat021I220sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat021I220sub& v) { sub_ = v; }
+    const Cat021I220_sub& sub() const { return sub_; }
+    Cat021I220_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat021I220_sub& v) { sub_ = v; }
 
     bool operator==(const Cat021I220&) const = default;
 
@@ -6464,7 +6464,7 @@ public:
     static conduit::Result<Cat021I220> decode(conduit::io::BitReader& r) {
         Cat021I220 result;
         {
-            auto val = Cat021I220sub::decode(r);
+            auto val = Cat021I220_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -6480,7 +6480,7 @@ public:
     }
 
 private:
-    Cat021I220sub sub_{};
+    Cat021I220_sub sub_{};
 };
 
 // I021/230 - Roll Angle
@@ -6522,7 +6522,7 @@ private:
     double roll_angle_{};
 };
 
-class Cat021I250bdsElement {
+class Cat021I250_bdsElement {
 public:
     const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
     std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
@@ -6536,7 +6536,7 @@ public:
     uint8_t& mutable_bds2() { return bds2_; }
     void set_bds2(const uint8_t& v) { bds2_ = v; }
 
-    bool operator==(const Cat021I250bdsElement&) const = default;
+    bool operator==(const Cat021I250_bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
@@ -6546,8 +6546,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat021I250bdsElement> decode(conduit::io::BitReader& r) {
-        Cat021I250bdsElement result;
+    static conduit::Result<Cat021I250_bdsElement> decode(conduit::io::BitReader& r) {
+        Cat021I250_bdsElement result;
         {
             auto span = r.read_bytes(7);
             if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
@@ -6568,7 +6568,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat021I250bdsElement{"
+        oss << "Cat021I250_bdsElement{"
             << "mb-data=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
@@ -6589,9 +6589,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<Cat021I250bdsElement>& bds() const { return bds_; }
-    std::vector<Cat021I250bdsElement>& mutable_bds() { return bds_; }
-    void set_bds(const std::vector<Cat021I250bdsElement>& v) { bds_ = v; }
+    const std::vector<Cat021I250_bdsElement>& bds() const { return bds_; }
+    std::vector<Cat021I250_bdsElement>& mutable_bds() { return bds_; }
+    void set_bds(const std::vector<Cat021I250_bdsElement>& v) { bds_ = v; }
 
     bool operator==(const Cat021I250&) const = default;
 
@@ -6616,7 +6616,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = Cat021I250bdsElement::decode(r);
+                auto elem = Cat021I250_bdsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
                 result.bds_.push_back(std::move(*elem));
             }
@@ -6641,7 +6641,7 @@ public:
 
 private:
     uint8 rep_{};
-    std::vector<Cat021I250bdsElement> bds_{};
+    std::vector<Cat021I250_bdsElement> bds_{};
 };
 
 // I021/260 - ACAS Resolution Advisory Report (BDS 3,0)
@@ -6886,7 +6886,7 @@ private:
     std::optional<uint8_t> lw_;
 };
 
-class Cat021I295sub {
+class Cat021I295_sub {
 public:
     bool has_aos() const { return aos_.has_value(); }
     const uint8& aos() const { return aos_.value(); }
@@ -7026,7 +7026,7 @@ public:
     void set_scc(const uint8& v) { scc_ = v; }
     void clear_scc() { scc_.reset(); }
 
-    bool operator==(const Cat021I295sub&) const = default;
+    bool operator==(const Cat021I295_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -7152,8 +7152,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat021I295sub> decode(conduit::io::BitReader& r) {
-        Cat021I295sub result;
+    static conduit::Result<Cat021I295_sub> decode(conduit::io::BitReader& r) {
+        Cat021I295_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 4> fspec{};
@@ -7287,7 +7287,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat021I295sub{";
+        oss << "Cat021I295_sub{";
         bool first = true;
         if (aos_.has_value()) {
             if (!first) oss << ", ";
@@ -7439,9 +7439,9 @@ private:
 // 23 subfields, each 1 octet, LSB = 0.1 seconds.
 class Cat021I295 {
 public:
-    const Cat021I295sub& sub() const { return sub_; }
-    Cat021I295sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat021I295sub& v) { sub_ = v; }
+    const Cat021I295_sub& sub() const { return sub_; }
+    Cat021I295_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat021I295_sub& v) { sub_ = v; }
 
     bool operator==(const Cat021I295&) const = default;
 
@@ -7454,7 +7454,7 @@ public:
     static conduit::Result<Cat021I295> decode(conduit::io::BitReader& r) {
         Cat021I295 result;
         {
-            auto val = Cat021I295sub::decode(r);
+            auto val = Cat021I295_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -7470,7 +7470,7 @@ public:
     }
 
 private:
-    Cat021I295sub sub_{};
+    Cat021I295_sub sub_{};
 };
 
 // I048/020 - Target Report Descriptor
@@ -8449,7 +8449,7 @@ private:
     int16_t cal_{};
 };
 
-class Cat048I120RdsdopplerElement {
+class Cat048I120Rds_dopplerElement {
 public:
     const uint16& dop() const { return dop_; }
     uint16& mutable_dop() { return dop_; }
@@ -8463,7 +8463,7 @@ public:
     uint16& mutable_frq() { return frq_; }
     void set_frq(const uint16& v) { frq_ = v; }
 
-    bool operator==(const Cat048I120RdsdopplerElement&) const = default;
+    bool operator==(const Cat048I120Rds_dopplerElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u16(static_cast<uint16_t>(dop_), conduit::io::Endian::Big);
@@ -8473,8 +8473,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat048I120RdsdopplerElement> decode(conduit::io::BitReader& r) {
-        Cat048I120RdsdopplerElement result;
+    static conduit::Result<Cat048I120Rds_dopplerElement> decode(conduit::io::BitReader& r) {
+        Cat048I120Rds_dopplerElement result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
             if (!val) return std::unexpected(val.error().with_context("field 'dop'"));
@@ -8495,7 +8495,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat048I120RdsdopplerElement{"
+        oss << "Cat048I120Rds_dopplerElement{"
             << "dop=" << +(dop_)
             << ", amb=" << +(amb_)
             << ", frq=" << +(frq_)
@@ -8516,9 +8516,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<Cat048I120RdsdopplerElement>& doppler() const { return doppler_; }
-    std::vector<Cat048I120RdsdopplerElement>& mutable_doppler() { return doppler_; }
-    void set_doppler(const std::vector<Cat048I120RdsdopplerElement>& v) { doppler_ = v; }
+    const std::vector<Cat048I120Rds_dopplerElement>& doppler() const { return doppler_; }
+    std::vector<Cat048I120Rds_dopplerElement>& mutable_doppler() { return doppler_; }
+    void set_doppler(const std::vector<Cat048I120Rds_dopplerElement>& v) { doppler_ = v; }
 
     bool operator==(const Cat048I120Rds&) const = default;
 
@@ -8543,7 +8543,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'doppler'"));
             result.doppler_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = Cat048I120RdsdopplerElement::decode(r);
+                auto elem = Cat048I120Rds_dopplerElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'doppler'"));
                 result.doppler_.push_back(std::move(*elem));
             }
@@ -8568,10 +8568,10 @@ public:
 
 private:
     uint8 rep_{};
-    std::vector<Cat048I120RdsdopplerElement> doppler_{};
+    std::vector<Cat048I120Rds_dopplerElement> doppler_{};
 };
 
-class Cat048I120sub {
+class Cat048I120_sub {
 public:
     bool has_cal() const { return cal_.has_value(); }
     const Cat048I120Cal& cal() const { return cal_.value(); }
@@ -8585,7 +8585,7 @@ public:
     void set_rds(const Cat048I120Rds& v) { rds_ = v; }
     void clear_rds() { rds_.reset(); }
 
-    bool operator==(const Cat048I120sub&) const = default;
+    bool operator==(const Cat048I120_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -8606,8 +8606,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat048I120sub> decode(conduit::io::BitReader& r) {
-        Cat048I120sub result;
+    static conduit::Result<Cat048I120_sub> decode(conduit::io::BitReader& r) {
+        Cat048I120_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -8636,7 +8636,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat048I120sub{";
+        oss << "Cat048I120_sub{";
         bool first = true;
         if (cal_.has_value()) {
             if (!first) oss << ", ";
@@ -8662,9 +8662,9 @@ private:
 // Bits 7 (CAL) and 6 (RDS) control presence of subfields.
 class Cat048I120 {
 public:
-    const Cat048I120sub& sub() const { return sub_; }
-    Cat048I120sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat048I120sub& v) { sub_ = v; }
+    const Cat048I120_sub& sub() const { return sub_; }
+    Cat048I120_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat048I120_sub& v) { sub_ = v; }
 
     bool operator==(const Cat048I120&) const = default;
 
@@ -8677,7 +8677,7 @@ public:
     static conduit::Result<Cat048I120> decode(conduit::io::BitReader& r) {
         Cat048I120 result;
         {
-            auto val = Cat048I120sub::decode(r);
+            auto val = Cat048I120_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -8693,10 +8693,10 @@ public:
     }
 
 private:
-    Cat048I120sub sub_{};
+    Cat048I120_sub sub_{};
 };
 
-class Cat048I130sub {
+class Cat048I130_sub {
 public:
     bool has_srl() const { return srl_.has_value(); }
     const uint8& srl() const { return srl_.value(); }
@@ -8740,7 +8740,7 @@ public:
     void set_apd(const int8& v) { apd_ = v; }
     void clear_apd() { apd_.reset(); }
 
-    bool operator==(const Cat048I130sub&) const = default;
+    bool operator==(const Cat048I130_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -8786,8 +8786,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat048I130sub> decode(conduit::io::BitReader& r) {
-        Cat048I130sub result;
+    static conduit::Result<Cat048I130_sub> decode(conduit::io::BitReader& r) {
+        Cat048I130_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -8841,7 +8841,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat048I130sub{";
+        oss << "Cat048I130_sub{";
         bool first = true;
         if (srl_.has_value()) {
             if (!first) oss << ", ";
@@ -8897,9 +8897,9 @@ private:
 // with up to 7 one-octet subfields.
 class Cat048I130 {
 public:
-    const Cat048I130sub& sub() const { return sub_; }
-    Cat048I130sub& mutable_sub() { return sub_; }
-    void set_sub(const Cat048I130sub& v) { sub_ = v; }
+    const Cat048I130_sub& sub() const { return sub_; }
+    Cat048I130_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat048I130_sub& v) { sub_ = v; }
 
     bool operator==(const Cat048I130&) const = default;
 
@@ -8912,7 +8912,7 @@ public:
     static conduit::Result<Cat048I130> decode(conduit::io::BitReader& r) {
         Cat048I130 result;
         {
-            auto val = Cat048I130sub::decode(r);
+            auto val = Cat048I130_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
@@ -8928,7 +8928,7 @@ public:
     }
 
 private:
-    Cat048I130sub sub_{};
+    Cat048I130_sub sub_{};
 };
 
 // I048/161 - Track Number
@@ -9385,7 +9385,7 @@ private:
     uint8_t b1b_{};
 };
 
-class Cat048I250bdsElement {
+class Cat048I250_bdsElement {
 public:
     const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
     std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
@@ -9399,7 +9399,7 @@ public:
     uint8_t& mutable_bds2() { return bds2_; }
     void set_bds2(const uint8_t& v) { bds2_ = v; }
 
-    bool operator==(const Cat048I250bdsElement&) const = default;
+    bool operator==(const Cat048I250_bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
@@ -9409,8 +9409,8 @@ public:
         return {};
     }
 
-    static conduit::Result<Cat048I250bdsElement> decode(conduit::io::BitReader& r) {
-        Cat048I250bdsElement result;
+    static conduit::Result<Cat048I250_bdsElement> decode(conduit::io::BitReader& r) {
+        Cat048I250_bdsElement result;
         {
             auto span = r.read_bytes(7);
             if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
@@ -9431,7 +9431,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "Cat048I250bdsElement{"
+        oss << "Cat048I250_bdsElement{"
             << "mb-data=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
@@ -9452,9 +9452,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<Cat048I250bdsElement>& bds() const { return bds_; }
-    std::vector<Cat048I250bdsElement>& mutable_bds() { return bds_; }
-    void set_bds(const std::vector<Cat048I250bdsElement>& v) { bds_ = v; }
+    const std::vector<Cat048I250_bdsElement>& bds() const { return bds_; }
+    std::vector<Cat048I250_bdsElement>& mutable_bds() { return bds_; }
+    void set_bds(const std::vector<Cat048I250_bdsElement>& v) { bds_ = v; }
 
     bool operator==(const Cat048I250&) const = default;
 
@@ -9479,7 +9479,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = Cat048I250bdsElement::decode(r);
+                auto elem = Cat048I250_bdsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
                 result.bds_.push_back(std::move(*elem));
             }
@@ -9504,7 +9504,7 @@ public:
 
 private:
     uint8 rep_{};
-    std::vector<Cat048I250bdsElement> bds_{};
+    std::vector<Cat048I250_bdsElement> bds_{};
 };
 
 // I048/260 - ACAS Resolution Advisory Report (BDS 3,0)
@@ -10523,7 +10523,7 @@ public:
 
 private:
     cat253_mp_detection detection_{cat253_mp_detection::disabled};
-    cat253_mp_level level_{cat253_mp_level::tbd};
+    cat253_mp_level level_{cat253_mp_level::ok};
 };
 
 // I253/100 variant: Squitter data (1 data byte, excluding length)
@@ -10587,8 +10587,8 @@ public:
 
 private:
     cat253_sq_rx_channel rx_channel_{cat253_sq_rx_channel::sum};
-    cat253_sq_ms_squitter ms_squitter_{cat253_sq_ms_squitter::tbd};
-    cat253_sq_m5_squitter m5_squitter_{cat253_sq_m5_squitter::tbd};
+    cat253_sq_ms_squitter ms_squitter_{cat253_sq_ms_squitter::ok};
+    cat253_sq_m5_squitter m5_squitter_{cat253_sq_m5_squitter::ok};
 };
 
 // I253/100 variant: BIT Report data (16 data bytes, excluding length)
@@ -10930,34 +10930,34 @@ public:
     }
 
 private:
-    cat253_br_bit_type bit_type_{cat253_br_bit_type::tbd};
-    cat253_br_success_state success_state_{cat253_br_success_state::tbd};
-    cat253_br_antenna_general antenna_general_{cat253_br_antenna_general::tbd};
-    cat253_br_antenna_scan_error antenna_scan_error_{cat253_br_antenna_scan_error::tbd};
-    cat253_br_power_source_general power_source_general_{cat253_br_power_source_general::tbd};
-    cat253_br_ctrl_unit_general ctrl_unit_general_{cat253_br_ctrl_unit_general::tbd};
-    cat253_br_kb_crypto_comm kb_crypto_comm_{cat253_br_kb_crypto_comm::tbd};
-    cat253_br_kb_rtc kb_rtc_{cat253_br_kb_rtc::tbd};
-    cat253_br_kb_heat_warning kb_heat_warning_{cat253_br_kb_heat_warning::tbd};
-    cat253_br_bottom_band_general bottom_band_general_{cat253_br_bottom_band_general::tbd};
-    cat253_br_tb_ctrl_comm tb_ctrl_comm_{cat253_br_tb_ctrl_comm::tbd};
-    cat253_br_tb_config_upload tb_config_upload_{cat253_br_tb_config_upload::tbd};
-    cat253_br_vswr_general vswr_general_{cat253_br_vswr_general::tbd};
-    cat253_br_vswr_sum vswr_sum_{cat253_br_vswr_sum::tbd};
-    cat253_br_vswr_diff vswr_diff_{cat253_br_vswr_diff::tbd};
-    cat253_br_vswr_omni vswr_omni_{cat253_br_vswr_omni::tbd};
-    cat253_br_afb_general afb_general_{cat253_br_afb_general::tbd};
-    cat253_br_afb_main_synth afb_main_synth_{cat253_br_afb_main_synth::tbd};
-    cat253_br_afb_bit_synth afb_bit_synth_{cat253_br_afb_bit_synth::tbd};
-    cat253_br_afb_total_ch afb_total_ch_{cat253_br_afb_total_ch::tbd};
-    cat253_br_afb_diff_ch afb_diff_ch_{cat253_br_afb_diff_ch::tbd};
-    cat253_br_afb_omni_ch afb_omni_ch_{cat253_br_afb_omni_ch::tbd};
-    cat253_br_rfgyb_general rfgyb_general_{cat253_br_rfgyb_general::tbd};
-    cat253_br_rfgyb_total_pwr rfgyb_total_pwr_{cat253_br_rfgyb_total_pwr::tbd};
-    cat253_br_rfgyb_diff_pwr rfgyb_diff_pwr_{cat253_br_rfgyb_diff_pwr::tbd};
-    cat253_br_rfgyb_omni_pwr rfgyb_omni_pwr_{cat253_br_rfgyb_omni_pwr::tbd};
-    cat253_br_rfgyb_heat_warning rfgyb_heat_warning_{cat253_br_rfgyb_heat_warning::tbd};
-    cat253_br_crypto_general crypto_general_{cat253_br_crypto_general::tbd};
+    cat253_br_bit_type bit_type_{cat253_br_bit_type::ok};
+    cat253_br_success_state success_state_{cat253_br_success_state::ok};
+    cat253_br_antenna_general antenna_general_{cat253_br_antenna_general::ok};
+    cat253_br_antenna_scan_error antenna_scan_error_{cat253_br_antenna_scan_error::ok};
+    cat253_br_power_source_general power_source_general_{cat253_br_power_source_general::ok};
+    cat253_br_ctrl_unit_general ctrl_unit_general_{cat253_br_ctrl_unit_general::ok};
+    cat253_br_kb_crypto_comm kb_crypto_comm_{cat253_br_kb_crypto_comm::ok};
+    cat253_br_kb_rtc kb_rtc_{cat253_br_kb_rtc::ok};
+    cat253_br_kb_heat_warning kb_heat_warning_{cat253_br_kb_heat_warning::ok};
+    cat253_br_bottom_band_general bottom_band_general_{cat253_br_bottom_band_general::ok};
+    cat253_br_tb_ctrl_comm tb_ctrl_comm_{cat253_br_tb_ctrl_comm::ok};
+    cat253_br_tb_config_upload tb_config_upload_{cat253_br_tb_config_upload::ok};
+    cat253_br_vswr_general vswr_general_{cat253_br_vswr_general::ok};
+    cat253_br_vswr_sum vswr_sum_{cat253_br_vswr_sum::ok};
+    cat253_br_vswr_diff vswr_diff_{cat253_br_vswr_diff::ok};
+    cat253_br_vswr_omni vswr_omni_{cat253_br_vswr_omni::ok};
+    cat253_br_afb_general afb_general_{cat253_br_afb_general::ok};
+    cat253_br_afb_main_synth afb_main_synth_{cat253_br_afb_main_synth::ok};
+    cat253_br_afb_bit_synth afb_bit_synth_{cat253_br_afb_bit_synth::ok};
+    cat253_br_afb_total_ch afb_total_ch_{cat253_br_afb_total_ch::ok};
+    cat253_br_afb_diff_ch afb_diff_ch_{cat253_br_afb_diff_ch::ok};
+    cat253_br_afb_omni_ch afb_omni_ch_{cat253_br_afb_omni_ch::ok};
+    cat253_br_rfgyb_general rfgyb_general_{cat253_br_rfgyb_general::ok};
+    cat253_br_rfgyb_total_pwr rfgyb_total_pwr_{cat253_br_rfgyb_total_pwr::ok};
+    cat253_br_rfgyb_diff_pwr rfgyb_diff_pwr_{cat253_br_rfgyb_diff_pwr::ok};
+    cat253_br_rfgyb_omni_pwr rfgyb_omni_pwr_{cat253_br_rfgyb_omni_pwr::ok};
+    cat253_br_rfgyb_heat_warning rfgyb_heat_warning_{cat253_br_rfgyb_heat_warning::ok};
+    cat253_br_crypto_general crypto_general_{cat253_br_crypto_general::ok};
 };
 
 } // namespace asterix_alt

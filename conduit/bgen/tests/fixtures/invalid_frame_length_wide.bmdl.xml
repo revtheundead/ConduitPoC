@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bmdl version="2.0">
+  <defaults><namespace>invalid_test</namespace></defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
     <type name="uint64" base="uint" bits="64"/>

@@ -1,4 +1,4 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <import href="transitive_base.bmdl.xml"/>
   <!-- Mid-level library: adds types, imports from base -->
   <types>

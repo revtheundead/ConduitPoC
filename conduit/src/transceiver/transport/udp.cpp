@@ -287,7 +287,11 @@ void UdpTransport::Impl::io_loop() {
 
     // Obtain PeerId for single-peer mode
     if (single_peer && !peer_id.valid() && callbacks.on_peer_connected) {
-        peer_id = callbacks.on_peer_connected();
+        std::string endpoint;
+        if (!config.remote_address.empty()) {
+            endpoint = std::format("{}:{}", config.remote_address, config.remote_port);
+        }
+        peer_id = callbacks.on_peer_connected(std::move(endpoint));
     }
 
     // Notify connected state for single-peer
@@ -413,9 +417,13 @@ PeerId UdpTransport::Impl::resolve_peer(const sockaddr_in& addr) {
 
     // New peer — ask transceiver OUTSIDE the lock to prevent deadlock
     // (callback may trigger send() which acquires peers_mutex)
+    char addr_buf[INET_ADDRSTRLEN]{};
+    inet_ntop(AF_INET, &addr.sin_addr, addr_buf, sizeof(addr_buf));
+    std::string endpoint = std::format("{}:{}", addr_buf, ntohs(addr.sin_port));
+
     PeerId new_id;
     if (callbacks.on_peer_connected) {
-        new_id = callbacks.on_peer_connected();
+        new_id = callbacks.on_peer_connected(std::move(endpoint));
     }
 
     if (new_id.valid()) {

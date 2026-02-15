@@ -191,8 +191,8 @@ hb.set_sequence(1);
 
 send<Heartbeat>(hb)
   → session.encode_wrap(TYPE_ID, hb)
-  → MyFrame::wrap(hb) → {msg_type=1, length=3, payload=hb}
-  → BitWriter → [01 00 03 00 01 00]
+  → MyFrame::wrap(hb) → {msg_type=1, length=6, payload=hb}
+  → BitWriter → [01 00 06 00 01 00]
   → UDP send ──────────────────────────►  UDP recv
                                            → session.decode_frame(bytes)
                                            → Frame → Heartbeat{seq=1, status=0}

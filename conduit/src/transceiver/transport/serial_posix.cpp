@@ -106,7 +106,7 @@ VoidResult SerialTransport::start(TransportCallbacks cb) {
 
     // Obtain PeerId from transceiver
     if (!impl_->peer_id.valid() && impl_->callbacks.on_peer_connected) {
-        impl_->peer_id = impl_->callbacks.on_peer_connected();
+        impl_->peer_id = impl_->callbacks.on_peer_connected(impl_->config.port);
     }
 
     if (impl_->callbacks.on_state_changed && impl_->peer_id.valid()) {

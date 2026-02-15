@@ -1,0 +1,23 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_frame_present_when</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="BadFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <!-- present-when on frame fields should be rejected -->
+    <field name="flags" type="uint8" present-when="msg-type &amp; 1"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Msg">
+      <field name="data" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

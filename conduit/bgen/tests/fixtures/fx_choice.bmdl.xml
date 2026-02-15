@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bmdl version="1.0">
-<protocol name="fx-choice" version="1.0">
-
+<bmdl version="2.0">
+  <defaults>
+    <namespace>fx_choice</namespace>
+  </defaults>
   <constants>
     <const name="TAG_A" type="uint8" value="1"/>
     <const name="TAG_B" type="uint8" value="2"/>
@@ -42,6 +43,4 @@
       </fx>
     </message>
   </messages>
-
-</protocol>
 </bmdl>

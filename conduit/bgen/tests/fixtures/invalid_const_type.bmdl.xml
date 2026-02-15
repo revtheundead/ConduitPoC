@@ -1,5 +1,7 @@
-<bmdl version="1.0">
-<protocol name="invalid-const-type" version="1.0">
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_const_type</namespace>
+  </defaults>
   <types>
     <type name="uint8" base="uint" bits="8"/>
   </types>
@@ -11,5 +13,4 @@
       <field name="data" type="uint8"/>
     </message>
   </messages>
-</protocol>
 </bmdl>

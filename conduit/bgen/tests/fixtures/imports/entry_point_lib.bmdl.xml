@@ -1,7 +1,13 @@
-<bmdl version="1.0">
+<bmdl version="2.0">
   <import href="types_lib.bmdl.xml"/>
+
+  <frame name="LibEntryFrame">
+    <field name="msg-id" type="uint8" auto="id"/>
+    <payload/>
+  </frame>
+
   <messages>
-    <message name="LibEntryMsg" role="entry-point">
+    <message id="1" name="LibEntryMsg">
       <field name="header" type="SharedHeader"/>
       <field name="payload" type="uint32"/>
     </message>

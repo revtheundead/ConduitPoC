@@ -19,6 +19,10 @@ namespace conduit::transceiver {
 
 Transceiver::Transceiver(TransceiverConfig config)
     : config_(std::move(config)) {
+    if (config_.message_log.enabled) {
+        message_log_ = std::make_unique<MessageLog>(config_.message_log);
+    }
+
     // Materialize any config-driven peers
     auto result = materialize_config_peers();
     if (!result) {
@@ -132,6 +136,9 @@ Result<PeerId> Transceiver::add_peer(
 
     {
         std::unique_lock lock(peers_mutex_);
+        CONDUIT_ENSURE(name_to_peer_.find(ctx->name) == name_to_peer_.end(),
+                       ErrorCode::InvalidArgument,
+                       std::format("Duplicate peer name '{}'", ctx->name));
         peers_.push_back(std::move(ctx));
         peer_map_[id.value()] = peers_.back().get();
         name_to_peer_.emplace(std::move(name), id);
@@ -170,6 +177,9 @@ Result<PeerId> Transceiver::add_peer(
 
     {
         std::unique_lock lock(peers_mutex_);
+        CONDUIT_ENSURE(name_to_peer_.find(name) == name_to_peer_.end(),
+                       ErrorCode::InvalidArgument,
+                       std::format("Duplicate peer name '{}'", name));
         multi_peer_entries_.push_back(std::move(entry));
         name_to_peer_.emplace(std::move(name), id);
 
@@ -252,6 +262,10 @@ VoidResult Transceiver::start() {
     CONDUIT_ENSURE(!running_, ErrorCode::AlreadyRunning,
                    "Transceiver is already running");
 
+    double bp = config_.rx_queue.back_pressure_threshold;
+    CONDUIT_ENSURE(bp >= 0.0 && bp <= 1.0, ErrorCode::InvalidArgument,
+                   std::format("back_pressure_threshold must be in [0.0, 1.0], got {}", bp));
+
     // Create dispatch queue
     dispatch_queue_ = std::make_unique<queue::BoundedQueue<InboundMessage>>(
         config_.rx_queue.capacity, config_.rx_queue.drop_policy);
@@ -273,8 +287,8 @@ VoidResult Transceiver::start() {
         cb.on_data_received = [this](PeerId peer, std::span<const uint8_t> data) {
             handle_data_received(peer, data);
         };
-        cb.on_peer_connected = [this, tp = transport.get()]() -> PeerId {
-            return handle_peer_connected(tp);
+        cb.on_peer_connected = [this, tp = transport.get()](std::string endpoint) -> PeerId {
+            return handle_peer_connected(tp, std::move(endpoint));
         };
         cb.on_peer_disconnected = [this](PeerId peer) {
             handle_peer_disconnected(peer);
@@ -326,10 +340,10 @@ void Transceiver::stop() {
     if (timeout.count() > 0) {
         std::unique_lock lock(shutdown_mutex_);
         bool drained = shutdown_cv_.wait_for(lock, timeout,
-            [this] { return active_workers_.load(std::memory_order_relaxed) == 0; });
+            [this] { return active_workers_.load(std::memory_order_acquire) == 0; });
         if (!drained) {
             LOG_WARNF("Shutdown timeout ({}ms): {} workers still active, waiting for completion",
-                      timeout.count(), active_workers_.load(std::memory_order_relaxed));
+                      timeout.count(), active_workers_.load(std::memory_order_acquire));
         }
     }
 
@@ -399,16 +413,114 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
 
     // Encode via session under per-peer lock (session is not thread-safe)
     std::vector<uint8_t> encoded;
+    std::string log_content;
+    std::string log_type_name;
+    std::string log_protocol;
+    std::string log_peer_name;
+    std::string log_remote;
+    std::string_view log_transport;
     {
         std::lock_guard ctx_lock(ctx->ctx_mutex);
         CONDUIT_TRY_ASSIGN(auto, enc,
                            ctx->session->encode_wrap(type_id, payload));
         encoded = std::move(enc);
+
+        if (message_log_) {
+            // Decode the encoded bytes to get actual wire values (frame fields populated)
+            auto decoded = ctx->session->decode_frame(encoded);
+            if (decoded && !decoded->empty()) {
+                log_type_name = std::string(decoded->front().type_name);
+                if (config_.message_log.include_message_content) {
+                    log_content = ctx->session->format_message(
+                        decoded->front().type_id, decoded->front().payload);
+                }
+            } else {
+                log_type_name = std::string(ctx->session->type_name(type_id));
+            }
+            log_protocol = std::string(ctx->session->protocol_name());
+            log_peer_name = ctx->name;
+            log_remote = ctx->remote_endpoint;
+            log_transport = ctx->transport->transport_type();
+        }
     }
 
     lock.unlock();
 
+    if (message_log_) {
+        message_log_->log_send(log_peer_name, log_remote, log_type_name,
+                               encoded.size(), log_content, log_protocol,
+                               log_transport);
+    }
+
     // Send via transport
+    stats_.bytes_sent.fetch_add(encoded.size(), std::memory_order_relaxed);
+    return transport->send(peer, encoded);
+}
+
+VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
+                                        std::span<const std::any> payloads) {
+    CONDUIT_ENSURE(running_, ErrorCode::NotRunning,
+                   "Transceiver is not running");
+    CONDUIT_ENSURE(!payloads.empty(), ErrorCode::InvalidArgument,
+                   "Batch must contain at least one message");
+
+    std::shared_lock lock(peers_mutex_);
+    auto* ctx = find_peer(peer);
+    CONDUIT_ENSURE(ctx != nullptr, ErrorCode::PeerNotFound,
+                   std::format("Peer {} not found", peer.value()));
+
+    auto transport = ctx->transport;
+
+    if (ctx->session->is_receive_only(type_id)) {
+        auto name = ctx->session->type_name(type_id);
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::DirectionViolation,
+                          std::format("Cannot send receive-only message type '{}'", name)));
+    }
+
+    std::vector<uint8_t> encoded;
+    std::string log_content;
+    std::string log_type_name;
+    std::string log_protocol;
+    std::string log_peer_name;
+    std::string log_remote;
+    std::string_view log_transport;
+    {
+        std::lock_guard ctx_lock(ctx->ctx_mutex);
+        CONDUIT_TRY_ASSIGN(auto, enc,
+                           ctx->session->encode_batch(type_id, payloads));
+        encoded = std::move(enc);
+
+        if (message_log_) {
+            auto decoded = ctx->session->decode_frame(encoded);
+            if (decoded && !decoded->empty()) {
+                log_type_name = std::string(decoded->front().type_name);
+                if (config_.message_log.include_message_content) {
+                    // Format all decoded messages from the batch
+                    for (size_t i = 0; i < decoded->size(); ++i) {
+                        if (i > 0) log_content += '\n';
+                        log_content += ctx->session->format_message(
+                            (*decoded)[i].type_id, (*decoded)[i].payload);
+                    }
+                }
+            } else {
+                log_type_name = std::string(ctx->session->type_name(type_id));
+            }
+            log_protocol = std::string(ctx->session->protocol_name());
+            log_peer_name = ctx->name;
+            log_remote = ctx->remote_endpoint;
+            log_transport = ctx->transport->transport_type();
+        }
+    }
+
+    lock.unlock();
+
+    if (message_log_) {
+        message_log_->log_send(log_peer_name, log_remote, log_type_name,
+                               encoded.size(), log_content, log_protocol,
+                               log_transport);
+    }
+
     stats_.bytes_sent.fetch_add(encoded.size(), std::memory_order_relaxed);
     return transport->send(peer, encoded);
 }
@@ -427,12 +539,53 @@ void Transceiver::handle_data_received(PeerId peer,
     // (which needs ctx_mutex for encode).
     std::vector<InboundMessage> to_enqueue;
 
+    struct RecvLogEntry {
+        std::string peer_name;
+        std::string remote_endpoint;
+        std::string type_name;
+        size_t byte_count;
+        std::string content;
+        std::string protocol;
+        std::string transport;
+    };
+    std::vector<RecvLogEntry> log_entries;
+
     {
         std::shared_lock lock(peers_mutex_);
         auto* ctx = find_peer(peer);
         if (!ctx) return;
 
         std::lock_guard ctx_lock(ctx->ctx_mutex);
+
+        // Collect logging metadata once (shared across all messages in this callback)
+        std::string log_peer_name;
+        std::string log_remote;
+        std::string log_protocol;
+        std::string log_transport_str;
+        if (message_log_) {
+            log_peer_name = ctx->name;
+            log_remote = ctx->remote_endpoint;
+            log_protocol = std::string(ctx->session->protocol_name());
+            log_transport_str = std::string(ctx->transport->transport_type());
+        }
+
+        auto log_decoded_messages = [&](const std::vector<traits::DecodedMessage>& msgs,
+                                        size_t frame_bytes) {
+            if (!message_log_) return;
+            for (const auto& msg : msgs) {
+                RecvLogEntry entry;
+                entry.peer_name = log_peer_name;
+                entry.remote_endpoint = log_remote;
+                entry.type_name = std::string(msg.type_name);
+                entry.byte_count = frame_bytes;
+                if (config_.message_log.include_message_content) {
+                    entry.content = ctx->session->format_message(msg.type_id, msg.payload);
+                }
+                entry.protocol = log_protocol;
+                entry.transport = log_transport_str;
+                log_entries.push_back(std::move(entry));
+            }
+        };
 
         if (ctx->framer) {
             // Stream transport: extract frames via framer
@@ -455,6 +608,7 @@ void Transceiver::handle_data_received(PeerId peer,
                              decoded.error().format_short());
                     continue;
                 }
+                log_decoded_messages(*decoded, frame.size());
                 for (auto& msg : *decoded) {
                     stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
                     to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
@@ -470,11 +624,19 @@ void Transceiver::handle_data_received(PeerId peer,
                          decoded.error().format_short());
                 return;
             }
+            log_decoded_messages(*decoded, data.size());
             for (auto& msg : *decoded) {
                 stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
                 to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
             }
         }
+    }
+
+    // Log outside all locks
+    for (const auto& entry : log_entries) {
+        message_log_->log_recv(entry.peer_name, entry.remote_endpoint,
+                               entry.type_name, entry.byte_count,
+                               entry.content, entry.protocol, entry.transport);
     }
 
     // Push to queue outside all locks — safe to block here
@@ -500,12 +662,14 @@ void Transceiver::handle_data_received(PeerId peer,
     }
 }
 
-PeerId Transceiver::handle_peer_connected(transport::ITransport* transport) {
+PeerId Transceiver::handle_peer_connected(transport::ITransport* transport,
+                                          std::string remote_endpoint) {
     // Single-peer transport: return the pre-existing PeerId
     if (!transport->is_multi_peer()) {
         std::shared_lock lock(peers_mutex_);
         for (auto& ctx : peers_) {
             if (ctx->transport.get() == transport) {
+                ctx->remote_endpoint = std::move(remote_endpoint);
                 return ctx->id;
             }
         }
@@ -532,7 +696,8 @@ PeerId Transceiver::handle_peer_connected(transport::ITransport* transport) {
 
         auto ctx = std::make_unique<PeerContext>();
         ctx->id = id;
-        ctx->name = std::format("{}/{}", entry->name, id.value());
+        ctx->name = std::format("{}/{}", entry->name, entry->next_child++);
+        ctx->remote_endpoint = std::move(remote_endpoint);
 
         if (transport->is_stream_oriented()) {
             ctx->framer = std::make_unique<StreamFramer>(*session);
@@ -544,6 +709,7 @@ PeerId Transceiver::handle_peer_connected(transport::ITransport* transport) {
 
         peers_.push_back(std::move(ctx));
         peer_map_[id.value()] = peers_.back().get();
+        name_to_peer_[peers_.back()->name] = id;
     }
 
     handle_state_changed(id, net::ConnectionState::Connected);
@@ -552,6 +718,7 @@ PeerId Transceiver::handle_peer_connected(transport::ITransport* transport) {
 
 void Transceiver::handle_peer_disconnected(PeerId peer) {
     // Set disconnected state + remove dynamic peer atomically under one lock
+    bool is_dynamic_peer = false;
     {
         std::unique_lock lock(peers_mutex_);
         auto* ctx = find_peer(peer);
@@ -565,6 +732,7 @@ void Transceiver::handle_peer_disconnected(PeerId peer) {
             // Check if this is a dynamic peer (has a matching multi-peer entry)
             auto* entry = find_multi_peer_entry((*it)->transport.get());
             if (entry) {
+                is_dynamic_peer = true;
                 // Also clean up name_to_peer_ for this dynamic peer
                 for (auto nit = name_to_peer_.begin(); nit != name_to_peer_.end(); ++nit) {
                     if (nit->second == peer) {
@@ -578,9 +746,11 @@ void Transceiver::handle_peer_disconnected(PeerId peer) {
         }
     }
 
-    // Clean up any per-peer handlers to prevent unbounded map growth
-    // during repeated connect/disconnect cycles (e.g. TCP server clients).
-    handlers_.remove_peer(peer);
+    // Only clean up per-peer handlers for dynamic peers (e.g. TCP server clients).
+    // Static peers (TCP client) keep their handlers across reconnects.
+    if (is_dynamic_peer) {
+        handlers_.remove_peer(peer);
+    }
 
     // Notify callbacks outside all locks
     std::vector<StateCallbackEntry> cbs;
@@ -642,7 +812,7 @@ void Transceiver::handle_state_changed(PeerId peer,
 // ============================================================================
 
 void Transceiver::worker_loop() {
-    active_workers_.fetch_add(1, std::memory_order_relaxed);
+    active_workers_.fetch_add(1, std::memory_order_acquire);
 
     while (true) {
         auto msg = dispatch_queue_->pop();
@@ -696,7 +866,7 @@ void Transceiver::worker_loop() {
         }
     }
 
-    active_workers_.fetch_sub(1, std::memory_order_relaxed);
+    active_workers_.fetch_sub(1, std::memory_order_release);
     shutdown_cv_.notify_all();
 }
 
