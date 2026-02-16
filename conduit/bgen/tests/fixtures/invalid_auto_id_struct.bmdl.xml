@@ -1,0 +1,11 @@
+<bmdl version="2.0">
+  <defaults><namespace>invalid_auto_id_struct</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <!-- auto="id" is only valid inside <frame> definitions -->
+    <struct name="BadStruct">
+      <field name="id" type="uint8" auto="id"/>
+      <field name="value" type="uint8"/>
+    </struct>
+  </types>
+</bmdl>

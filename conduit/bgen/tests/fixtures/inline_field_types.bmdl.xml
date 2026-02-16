@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>inline_field_types</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="InlineMsg">
+      <!-- Inline float32 -->
+      <field name="temperature" bits="32" base="float"/>
+      <!-- Inline float64 -->
+      <field name="latitude" bits="64" base="float"/>
+      <!-- Inline signed integer (base="int" equiv to signed="true") -->
+      <field name="offset" bits="16" base="int"/>
+      <!-- Inline string with encoding -->
+      <field name="callsign" base="string" length="8" encoding="ia5" padding="space" trim="right"/>
+      <!-- Inline bytes (using bytes size attribute, not base="bytes") -->
+      <field name="raw-data" bytes="4"/>
+      <!-- Inline bool -->
+      <field name="active" bits="1" base="bool"/>
+      <!-- Inline uint with format -->
+      <field name="mode3a" bits="12" base="uint" format="octal"/>
+      <!-- Pad to byte boundary -->
+      <reserved bits="3"/>
+      <!-- Regular field -->
+      <field name="tag" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

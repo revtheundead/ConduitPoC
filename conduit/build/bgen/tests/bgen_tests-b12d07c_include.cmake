@@ -1,0 +1,5 @@
+if(EXISTS "/home/dev/app/conduit/build/bgen/tests/bgen_tests-b12d07c_tests.cmake")
+  include("/home/dev/app/conduit/build/bgen/tests/bgen_tests-b12d07c_tests.cmake")
+else()
+  add_test(bgen_tests_NOT_BUILT-b12d07c bgen_tests_NOT_BUILT-b12d07c)
+endif()

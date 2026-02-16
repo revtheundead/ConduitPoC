@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>frame_count</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="CountFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="count" type="uint8" auto="count(payload)"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload count="*"/>
+  </frame>
+
+  <messages>
+    <message id="1" name="DataItem">
+      <field name="value" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

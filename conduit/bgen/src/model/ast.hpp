@@ -45,6 +45,20 @@ enum class Direction { Both, Send, Receive };
 enum class Dispatch { Batch, PerRecord };
 enum class WireEncoding { Default, CB2, BNR, BNR_S, BCD, BCD_S };
 enum class AutoKind { Id, Length, Count, Increment, Config, Timestamp };
+enum class ArithOp { None, Add, Sub, Mul, Div, Mod };
+
+// ============================================================================
+// Arithmetic modifier for auto="length" expressions
+// ============================================================================
+
+struct ArithModifier {
+    ArithOp op = ArithOp::None;
+    int64_t literal = 0;       // numeric operand (when field_ref is empty)
+    std::string field_ref;     // field operand (mutually exclusive with literal)
+
+    bool has_modifier() const { return op != ArithOp::None; }
+    bool is_field_operand() const { return !field_ref.empty(); }
+};
 
 // ============================================================================
 // Auto expression (parsed form of auto="..." attribute)
@@ -54,7 +68,7 @@ struct AutoExpr {
     AutoKind kind = AutoKind::Id;
     std::string field_ref;   // length(field), count(field)
     std::string key;         // config(key)
-    int offset = 0;          // length - 3 => offset=-3
+    ArithModifier modifier;  // length * 2, length(field) - header_len, etc.
 };
 
 // ============================================================================
@@ -207,6 +221,7 @@ struct Field {
     std::optional<int> bits;
     std::optional<int> bytes_attr;
     bool is_signed = false;
+    std::optional<PrimitiveBase> base;  // explicit base type for inline fields
 
     std::optional<double> scale;
     std::optional<double> offset;

@@ -43,6 +43,7 @@ public:
                                     break;
                                 case model::AutoKind::Length:
                                     si.length_field_name = f->name;
+                                    si.frame_length_field_ref = f->auto_expr->field_ref;
                                     si.frame_length_expr = f->name;
                                     si.frame_length_bit_offset = header_bit_offset;
                                     si.frame_length_bits = field_bits;
@@ -62,7 +63,7 @@ public:
                                             }, *resolved);
                                         }
                                     }
-                                    si.frame_length_offset = f->auto_expr->offset;
+                                    si.frame_length_modifier = f->auto_expr->modifier;
                                     si.frame_length_endian = f->endian;
                                     break;
                                 case model::AutoKind::Config: {
@@ -75,6 +76,9 @@ public:
                                     si.config_fields.push_back(std::move(cf));
                                     break;
                                 }
+                                case model::AutoKind::Count:
+                                    si.count_field_name = f->name;
+                                    break;
                                 default:
                                     break;
                             }
@@ -106,6 +110,22 @@ public:
                     }
                 }
                 si.min_frame_header_size = (header_bit_offset + 7) / 8;
+
+                // Compute footer size
+                size_t footer_bit_offset = 0;
+                for (const auto& child : frame.footer_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        footer_bit_offset += static_cast<size_t>(resolve_field_bits(*f));
+                    } else if (auto* r = std::get_if<model::Reserved>(&child)) {
+                        footer_bit_offset += static_cast<size_t>(r->bits);
+                    } else if (auto* al = std::get_if<model::Align>(&child)) {
+                        size_t align_bits = static_cast<size_t>(al->to) * 8;
+                        if (align_bits > 0) {
+                            footer_bit_offset = ((footer_bit_offset + align_bits - 1) / align_bits) * align_bits;
+                        }
+                    }
+                }
+                si.frame_footer_size = (footer_bit_offset + 7) / 8;
 
                 // Collect frame-level auto-increment fields (apply to all leaf types)
                 std::vector<std::string> frame_auto_fields;

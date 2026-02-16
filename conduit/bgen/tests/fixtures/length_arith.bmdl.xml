@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>length_arith</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <!-- Struct-level: length(field) with multiply -->
+  <messages>
+    <!-- len field stores half of data byte length (length / 2) -->
+    <message name="HalfLenMsg">
+      <field name="tag" type="uint8"/>
+      <field name="half-len" type="uint8" auto="length(data) / 2"/>
+      <field name="data" type="bytes" length-from="half-len * 2"/>
+      <field name="suffix" type="uint8"/>
+    </message>
+
+    <!-- len field stores data length + 1 (length + overhead) -->
+    <message name="OffsetLenMsg">
+      <field name="tag" type="uint8"/>
+      <field name="len-plus-one" type="uint8" auto="length(data) + 1"/>
+      <field name="data" type="bytes" length-from="len-plus-one - 1"/>
+      <field name="suffix" type="uint8"/>
+    </message>
+
+    <!-- len field stores data length * 2 -->
+    <message name="DoubleLenMsg">
+      <field name="tag" type="uint8"/>
+      <field name="double-len" type="uint8" auto="length(data) * 2"/>
+      <field name="data" type="bytes" length-from="double-len / 2"/>
+      <field name="suffix" type="uint8"/>
+    </message>
+
+    <!-- Struct-level with field operand: len stores data length - overhead -->
+    <message name="FieldOpMsg">
+      <field name="overhead" type="uint8"/>
+      <field name="adjusted-len" type="uint8" auto="length(data) - overhead"/>
+      <field name="data" type="bytes" length-from="adjusted-len + overhead"/>
+    </message>
+  </messages>
+</bmdl>

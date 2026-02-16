@@ -980,8 +980,8 @@ TEST_CASE("frame_length_offset: offset appears in session codegen", "[codegen][f
     auto gc = generate_from("frame_length_offset.bmdl.xml");
     REQUIRE(gc.has_value());
 
-    // extract_frame_length should reverse the -3 offset by adding 3
-    CHECK(gc->sessions.find("+ (3)") != std::string::npos);
+    // extract_frame_length should reverse the Sub(3) modifier by adding 3
+    CHECK(gc->sessions.find("+ 3)") != std::string::npos);
 }
 
 TEST_CASE("SourceLoc shows line:column in error messages", "[parser]") {

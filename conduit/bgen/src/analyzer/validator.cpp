@@ -75,6 +75,7 @@ private:
     }
 
     model::PrimitiveBase resolve_base(const model::Field& f) const {
+        if (f.base) return *f.base;
         if (!f.type_ref.empty()) {
             auto it = index_.types.find(f.type_ref);
             if (it != index_.types.end()) return it->second->base;
@@ -526,8 +527,10 @@ private:
                           bool in_bitmap, const std::string& parent_name,
                           bool in_array = false, bool in_choice = false,
                           bool in_bounded_container = false,
-                          const std::set<std::string>* parent_scope = nullptr) {
+                          const std::set<std::string>* parent_scope = nullptr,
+                          bool in_fx = false, bool in_frame = false) {
         std::set<std::string> field_names;
+        std::set<std::string> array_names;  // For validating auto="count(field)" targets
         int fx_count = 0;
         bool seen_star_field = false;
         std::string star_field_name;
@@ -560,7 +563,7 @@ private:
                         error(c.loc, "field '" + c.name +
                               "': 'remaining' in length-from requires a bounded container");
                     }
-                    validate_field(c, in_bitmap, parent_name);
+                    validate_field(c, in_bitmap, parent_name, in_fx, in_frame);
                     if (!c.name.empty()) {
                         if (!field_names.insert(c.name).second) {
                             error(c.loc, "duplicate field name '" + c.name + "' in " + parent_name);
@@ -600,7 +603,7 @@ private:
                     validate_children(c.children, c.is_bitmap,
                                      c.name.empty() ? parent_name : c.name,
                                      in_array, in_choice, in_bounded_container,
-                                     &field_names);
+                                     &field_names, in_fx, in_frame);
                 } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
                     // Check that no data elements follow a length="*" or count="*" field
                     if (seen_star_field) {
@@ -636,6 +639,7 @@ private:
                         if (!field_names.insert(c.name).second) {
                             error(c.loc, "duplicate name '" + c.name + "' in " + parent_name);
                         }
+                        array_names.insert(c.name);
                     }
                     // Track count="*" arrays — must be last data element
                     if (c.count_star) {
@@ -645,7 +649,8 @@ private:
                     // Array with length-from creates a bounded container for its children
                     bool array_bounded = c.length_from != nullptr || c.length;
                     validate_children(c.children, false, c.name, true, in_choice,
-                                     array_bounded || in_bounded_container);
+                                     array_bounded || in_bounded_container,
+                                     nullptr, in_fx, in_frame);
                 } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
                     // Forward reference checks on choice expressions
                     check_no_forward_refs(c.switch_expr.get(), field_names,
@@ -687,7 +692,8 @@ private:
                         error(c.loc, "<fx> cannot appear inside presence=\"bitmap\" struct in " + parent_name);
                     }
                     validate_children(c.children, false, parent_name + ".<fx>",
-                                     in_array, in_choice, in_bounded_container);
+                                     in_array, in_choice, in_bounded_container,
+                                     nullptr, /*in_fx=*/true, in_frame);
                 } else if constexpr (std::is_same_v<T, model::Reserved>) {
                     if (c.bits <= 0) {
                         error(c.loc, "<reserved> has no size in " + parent_name);
@@ -697,6 +703,36 @@ private:
                     validate_align(c, parent_name);
                 }
             }, child);
+        }
+
+        // Check auto expression field references exist in sibling scope
+        // (field_names is now fully populated after the main loop)
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->auto_expr && !f->auto_expr->field_ref.empty()) {
+                    // "payload" is valid in frame context (handled separately)
+                    if (f->auto_expr->field_ref != "payload" &&
+                        field_names.count(f->auto_expr->field_ref) == 0) {
+                        error(f->loc, "field '" + f->name + "': auto expression references "
+                              "unknown sibling '" + f->auto_expr->field_ref + "'");
+                    }
+                    // auto="count(X)" target must be an array, not a scalar field
+                    if (f->auto_expr->kind == model::AutoKind::Count &&
+                        f->auto_expr->field_ref != "payload" &&
+                        array_names.count(f->auto_expr->field_ref) == 0 &&
+                        field_names.count(f->auto_expr->field_ref) > 0) {
+                        error(f->loc, "field '" + f->name + "': auto=\"count(" +
+                              f->auto_expr->field_ref + ")\" target must be an array");
+                    }
+                }
+                // Also validate modifier field operands exist in scope
+                if (f->auto_expr && f->auto_expr->modifier.is_field_operand()) {
+                    if (field_names.count(f->auto_expr->modifier.field_ref) == 0) {
+                        error(f->loc, "field '" + f->name + "': auto modifier references "
+                              "unknown sibling '" + f->auto_expr->modifier.field_ref + "'");
+                    }
+                }
+            }
         }
     }
 
@@ -741,16 +777,68 @@ private:
         visiting.erase(f.type_ref);
     }
 
-    void validate_field(const model::Field& f, bool in_bitmap, const std::string& parent_name) {
+    void validate_field(const model::Field& f, bool in_bitmap, const std::string& parent_name,
+                        bool in_fx = false, bool in_frame = false) {
         if (f.name.empty()) {
             error(f.loc, "field has empty name in " + parent_name);
         }
         check_keyword_collision(f.loc, f.name, "field");
         check_cpp_name_valid(f.loc, f.name, "field");
 
-        // Must have type, bits, or bytes
-        if (f.type_ref.empty() && !f.bits && !f.bytes_attr) {
-            error(f.loc, "field '" + f.name + "' must have 'type', 'bits', or 'bytes' attribute");
+        // Must have type, bits, bytes, or base
+        if (f.type_ref.empty() && !f.bits && !f.bytes_attr && !f.base) {
+            error(f.loc, "field '" + f.name + "' must have 'type', 'bits', 'bytes', or 'base' attribute");
+        }
+
+        // base cannot combine with type (it's for inline definitions only)
+        if (f.base && !f.type_ref.empty()) {
+            error(f.loc, "field '" + f.name + "': 'base' and 'type' are mutually exclusive");
+        }
+
+        // Validate inline base types
+        if (f.base) {
+            switch (*f.base) {
+                case model::PrimitiveBase::Float:
+                    if (!f.bits || (*f.bits != 32 && *f.bits != 64)) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" requires bits of exactly 32 or 64");
+                    }
+                    if (f.is_signed) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" cannot combine with signed");
+                    }
+                    if (f.wire_encoding) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" cannot combine with wire-encoding");
+                    }
+                    if (!f.enum_values.empty()) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" cannot combine with inline enum");
+                    }
+                    if (!f.flags.empty()) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" cannot combine with inline flags");
+                    }
+                    break;
+                case model::PrimitiveBase::String:
+                    if (f.bits) {
+                        error(f.loc, "field '" + f.name + "': base=\"string\" cannot have 'bits'");
+                    }
+                    if (!f.length && !f.length_from && !f.length_prefix && !f.terminated && !f.length_star) {
+                        error(f.loc, "field '" + f.name + "': base=\"string\" requires length, length-from, length-prefix, terminated, or length=\"*\"");
+                    }
+                    break;
+                case model::PrimitiveBase::Bytes:
+                    if (f.bits) {
+                        error(f.loc, "field '" + f.name + "': base=\"bytes\" cannot have 'bits'; use bytes size attribute instead");
+                    }
+                    if (!f.length && !f.length_from && !f.bytes_attr && !f.length_star) {
+                        error(f.loc, "field '" + f.name + "': base=\"bytes\" requires length, length-from, bytes, or length=\"*\"");
+                    }
+                    break;
+                case model::PrimitiveBase::Bool:
+                    // If bits absent, bool defaults to 1 bit (handled in codegen)
+                    break;
+                case model::PrimitiveBase::Int:
+                case model::PrimitiveBase::Uint:
+                    // Fall through — these are just explicit ways to spell signed/unsigned inline
+                    break;
+            }
         }
 
         // bit and present-when mutually exclusive
@@ -786,6 +874,11 @@ private:
                         break;
                     }
                     case model::AutoKind::Length: {
+                        // auto="length" not valid inside FX blocks (backpatch would be corrupted)
+                        if (in_fx) {
+                            error(f.loc, "field '" + f.name + "': auto=\"length\" is not valid inside <fx> blocks "
+                                  "(dynamic FX layout would corrupt backpatch offsets)");
+                        }
                         // auto="length" valid in both frame and struct context
                         // Verify integer type (signed or unsigned), <= 32 bits
                         auto base = resolve_base(f);
@@ -806,13 +899,46 @@ private:
                             error(f.loc, "field '" + f.name +
                                   "': auto=\"length\" fields cannot have constraint equals");
                         }
+                        // Validate arithmetic modifier
+                        if (f.auto_expr->modifier.has_modifier()) {
+                            auto mod_op = f.auto_expr->modifier.op;
+                            if ((mod_op == model::ArithOp::Div || mod_op == model::ArithOp::Mod) &&
+                                !f.auto_expr->modifier.is_field_operand() &&
+                                f.auto_expr->modifier.literal == 0) {
+                                error(f.loc, "field '" + f.name + "': division/modulo by zero in auto expression");
+                            }
+                            if (mod_op == model::ArithOp::Mul &&
+                                !f.auto_expr->modifier.is_field_operand() &&
+                                f.auto_expr->modifier.literal == 0) {
+                                error(f.loc, "field '" + f.name + "': multiplication by zero in auto expression "
+                                      "(inverse would divide by zero at decode)");
+                            }
+                        }
                         break;
                     }
                     case model::AutoKind::Id:
-                    case model::AutoKind::Count:
-                    case model::AutoKind::Config:
-                        // These are valid in frame context; frame-level validation handles rules
+                        if (!in_frame) {
+                            error(f.loc, "field '" + f.name + "': auto=\"id\" is only valid inside <frame> definitions");
+                        }
                         break;
+                    case model::AutoKind::Config:
+                        if (!in_frame) {
+                            error(f.loc, "field '" + f.name + "': auto=\"config\" is only valid inside <frame> definitions");
+                        }
+                        break;
+                    case model::AutoKind::Count: {
+                        auto base = resolve_base(f);
+                        if (base != model::PrimitiveBase::Uint && base != model::PrimitiveBase::Int) {
+                            error(f.loc, "field '" + f.name + "': auto=\"count\" requires integer type");
+                        }
+                        if (f.constraint && f.constraint->equals) {
+                            error(f.loc, "field '" + f.name + "': auto-count fields cannot have constraint equals");
+                        }
+                        if (f.auto_expr->field_ref.empty()) {
+                            error(f.loc, "field '" + f.name + "': auto=\"count\" requires a field reference, e.g. auto=\"count(items)\"");
+                        }
+                        break;
+                    }
                     case model::AutoKind::Timestamp: {
                         auto base = resolve_base(f);
                         if (base != model::PrimitiveBase::Uint) {
@@ -1363,8 +1489,10 @@ private:
 
         for (const auto& frame : proto_.frames) {
             // Validate header/footer children like struct fields
-            validate_children(frame.header_fields, false, "frame '" + frame.name + "'", false, false, false);
-            validate_children(frame.footer_fields, false, "frame '" + frame.name + "'", false, false, false);
+            validate_children(frame.header_fields, false, "frame '" + frame.name + "'", false, false, false,
+                             nullptr, /*in_fx=*/false, /*in_frame=*/true);
+            validate_children(frame.footer_fields, false, "frame '" + frame.name + "'", false, false, false,
+                             nullptr, /*in_fx=*/false, /*in_frame=*/true);
 
             // Rule: frame fields must be scalar (no structs, arrays, choices)
             auto check_scalar_fields = [&](const std::vector<model::StructChild>& children,
@@ -1459,6 +1587,21 @@ private:
                                         error(f->loc, "field '" + f->name +
                                               "': auto=\"length\" fields cannot have constraint equals");
                                     }
+                                    // Frame-level restrictions on arithmetic modifiers:
+                                    // - Field operands disallowed (extract_frame_length only reads raw bytes)
+                                    // - Modulo disallowed (no clean inverse for frame length recovery)
+                                    if (f->auto_expr->modifier.has_modifier()) {
+                                        if (f->auto_expr->modifier.is_field_operand()) {
+                                            error(f->loc, "field '" + f->name +
+                                                  "': field operands in auto=\"length\" arithmetic are not supported "
+                                                  "at frame level (extract_frame_length cannot resolve field values)");
+                                        }
+                                        if (f->auto_expr->modifier.op == model::ArithOp::Mod) {
+                                            error(f->loc, "field '" + f->name +
+                                                  "': modulo operator in auto=\"length\" is not supported "
+                                                  "at frame level (no inverse for frame length recovery)");
+                                        }
+                                    }
                                     break;
                                 }
                                 case model::AutoKind::Config: {
@@ -1515,7 +1658,14 @@ private:
                     for (const auto& child : children) {
                         if (auto* f = std::get_if<model::Field>(&child)) {
                             if (f->auto_expr && !f->auto_expr->field_ref.empty()) {
-                                if (!frame_field_names.count(f->auto_expr->field_ref)) {
+                                bool valid = frame_field_names.count(f->auto_expr->field_ref) > 0;
+                                // "payload" is a valid ref only for length/count in frame context
+                                if (!valid && f->auto_expr->field_ref == "payload" &&
+                                    (f->auto_expr->kind == model::AutoKind::Length ||
+                                     f->auto_expr->kind == model::AutoKind::Count)) {
+                                    valid = true;
+                                }
+                                if (!valid) {
                                     error(f->loc, "field '" + f->name + "': auto expression references "
                                           "unknown field '" + f->auto_expr->field_ref + "'");
                                 }

@@ -244,6 +244,7 @@ public:
     // Bit alignment tracker: cumulative bits mod 8 from struct start.
     int bit_mod8_ = 0;
 
+
     // Outer-scope field BMDL name → C++ param variable name for current struct being emitted
     std::unordered_map<std::string, std::string> outer_scope_params_;
 
@@ -259,9 +260,18 @@ public:
     struct AutoLengthInfo {
         int bits;
         model::Endian endian;
-        int offset;
+        model::ArithModifier modifier;
     };
     std::optional<AutoLengthInfo> pending_auto_length_;
+
+    // Auto-length(field) backpatch tracking — length of a specific target field
+    struct AutoLengthFieldRefInfo {
+        int bits;
+        model::Endian endian;
+        model::ArithModifier modifier;
+        std::string target_name;  // BMDL name of the target field/array
+    };
+    std::optional<AutoLengthFieldRefInfo> pending_auto_length_ref_;
 };
 
 } // namespace bgen::codegen

@@ -21,7 +21,7 @@ using int16 = int16_t;
 using int24 = int32_t;
 using int32 = int32_t;
 // Time of day in 1/128 second units since midnight UTC
-class time_of_day {
+class TimeOfDay {
 public:
     static constexpr double SCALE = 0.0078125;
     double value() const { return static_cast<double>(raw_) * SCALE; }
@@ -29,17 +29,17 @@ public:
     void set_value(double v) { raw_ = static_cast<uint32_t>(v / SCALE); }
     void set_raw(uint32_t v) { raw_ = v; }
 
-    bool operator==(const time_of_day&) const = default;
+    bool operator==(const TimeOfDay&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(raw_, 24);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
-    static conduit::Result<time_of_day> decode(conduit::io::BitReader& r) {
+    static conduit::Result<TimeOfDay> decode(conduit::io::BitReader& r) {
         auto raw = r.read_bits(24);
         if (!raw) return std::unexpected(raw.error());
-        time_of_day result;
+        TimeOfDay result;
         result.raw_ = static_cast<uint32_t>(*raw);
         return result;
     }
@@ -47,9 +47,9 @@ private:
     uint32_t raw_ = 0;
 };
 
-using aircraft_address = uint32_t;
+using AircraftAddress = uint32_t;
 // ICAO aircraft identification (8 chars x 6 bits = 48 bits = 6 bytes)
-class aircraft_ident {
+class AircraftIdent {
 public:
     static constexpr size_t CHAR_COUNT = 8;
     static constexpr int CHAR_BITS = 6;
@@ -58,7 +58,7 @@ public:
     std::string value() const { return value_; }
     void set_value(const std::string& v) { value_ = v; }
 
-    bool operator==(const aircraft_ident&) const = default;
+    bool operator==(const AircraftIdent&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         for (size_t i = 0; i < CHAR_COUNT; i++) {
@@ -68,8 +68,8 @@ public:
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
-    static conduit::Result<aircraft_ident> decode(conduit::io::BitReader& r) {
-        aircraft_ident result;
+    static conduit::Result<AircraftIdent> decode(conduit::io::BitReader& r) {
+        AircraftIdent result;
         result.value_.reserve(CHAR_COUNT);
         for (size_t i = 0; i < CHAR_COUNT; i++) {
             auto bits = r.read_bits(CHAR_BITS);
@@ -99,116 +99,116 @@ private:
 //         16 = Radar Monitor Start, 17 = Radar Monitor Stop,
 //         18 = Acknowledgement, 19 = Error, 20 = Alarm, 21 = Alive
 //
-enum class cat253_msg_type : uint8_t {
-    time_and_day = 1,
-    connect_request = 2,
-    connect_response = 3,
-    connect_release = 4,
-    command_token_request = 5,
-    command_token_release = 6,
-    command_token_assign = 7,
+enum class Cat253MsgType : uint8_t {
+    TimeAndDay = 1,
+    ConnectRequest = 2,
+    ConnectResponse = 3,
+    ConnectRelease = 4,
+    CommandTokenRequest = 5,
+    CommandTokenRelease = 6,
+    CommandTokenAssign = 7,
     command = 8,
-    complete_status_transfer = 9,
-    delta_status_transfer = 10,
-    complete_status_transfer_request = 11,
-    centre_exchange = 12,
-    centre_status = 13,
-    centre_transparent = 14,
-    centre_resynch_request = 15,
-    radar_monitor_start = 16,
-    radar_monitor_stop = 17,
+    CompleteStatusTransfer = 9,
+    DeltaStatusTransfer = 10,
+    CompleteStatusTransferRequest = 11,
+    CentreExchange = 12,
+    CentreStatus = 13,
+    CentreTransparent = 14,
+    CentreResynchRequest = 15,
+    RadarMonitorStart = 16,
+    RadarMonitorStop = 17,
     acknowledgement = 18,
     error = 19,
     alarm = 20,
     alive = 21,
 };
 
-inline std::string_view to_string(cat253_msg_type v) {
+inline std::string_view to_string(Cat253MsgType v) {
     switch (v) {
-        case cat253_msg_type::time_and_day: return "time-and-day";
-        case cat253_msg_type::connect_request: return "connect-request";
-        case cat253_msg_type::connect_response: return "connect-response";
-        case cat253_msg_type::connect_release: return "connect-release";
-        case cat253_msg_type::command_token_request: return "command-token-request";
-        case cat253_msg_type::command_token_release: return "command-token-release";
-        case cat253_msg_type::command_token_assign: return "command-token-assign";
-        case cat253_msg_type::command: return "command";
-        case cat253_msg_type::complete_status_transfer: return "complete-status-transfer";
-        case cat253_msg_type::delta_status_transfer: return "delta-status-transfer";
-        case cat253_msg_type::complete_status_transfer_request: return "complete-status-transfer-request";
-        case cat253_msg_type::centre_exchange: return "centre-exchange";
-        case cat253_msg_type::centre_status: return "centre-status";
-        case cat253_msg_type::centre_transparent: return "centre-transparent";
-        case cat253_msg_type::centre_resynch_request: return "centre-resynch-request";
-        case cat253_msg_type::radar_monitor_start: return "radar-monitor-start";
-        case cat253_msg_type::radar_monitor_stop: return "radar-monitor-stop";
-        case cat253_msg_type::acknowledgement: return "acknowledgement";
-        case cat253_msg_type::error: return "error";
-        case cat253_msg_type::alarm: return "alarm";
-        case cat253_msg_type::alive: return "alive";
+        case Cat253MsgType::TimeAndDay: return "TimeAndDay";
+        case Cat253MsgType::ConnectRequest: return "ConnectRequest";
+        case Cat253MsgType::ConnectResponse: return "ConnectResponse";
+        case Cat253MsgType::ConnectRelease: return "ConnectRelease";
+        case Cat253MsgType::CommandTokenRequest: return "CommandTokenRequest";
+        case Cat253MsgType::CommandTokenRelease: return "CommandTokenRelease";
+        case Cat253MsgType::CommandTokenAssign: return "CommandTokenAssign";
+        case Cat253MsgType::command: return "command";
+        case Cat253MsgType::CompleteStatusTransfer: return "CompleteStatusTransfer";
+        case Cat253MsgType::DeltaStatusTransfer: return "DeltaStatusTransfer";
+        case Cat253MsgType::CompleteStatusTransferRequest: return "CompleteStatusTransferRequest";
+        case Cat253MsgType::CentreExchange: return "CentreExchange";
+        case Cat253MsgType::CentreStatus: return "CentreStatus";
+        case Cat253MsgType::CentreTransparent: return "CentreTransparent";
+        case Cat253MsgType::CentreResynchRequest: return "CentreResynchRequest";
+        case Cat253MsgType::RadarMonitorStart: return "RadarMonitorStart";
+        case Cat253MsgType::RadarMonitorStop: return "RadarMonitorStop";
+        case Cat253MsgType::acknowledgement: return "acknowledgement";
+        case Cat253MsgType::error: return "error";
+        case Cat253MsgType::alarm: return "alarm";
+        case Cat253MsgType::alive: return "alive";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_msg_type> decode_cat253_msg_type(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253MsgType> decode_Cat253MsgType(conduit::io::BitReader& r) {
     auto raw = r.read_bits(6);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_msg_type>(*raw);
+    auto val = static_cast<Cat253MsgType>(*raw);
     switch (val) {
-        case cat253_msg_type::time_and_day:
-        case cat253_msg_type::connect_request:
-        case cat253_msg_type::connect_response:
-        case cat253_msg_type::connect_release:
-        case cat253_msg_type::command_token_request:
-        case cat253_msg_type::command_token_release:
-        case cat253_msg_type::command_token_assign:
-        case cat253_msg_type::command:
-        case cat253_msg_type::complete_status_transfer:
-        case cat253_msg_type::delta_status_transfer:
-        case cat253_msg_type::complete_status_transfer_request:
-        case cat253_msg_type::centre_exchange:
-        case cat253_msg_type::centre_status:
-        case cat253_msg_type::centre_transparent:
-        case cat253_msg_type::centre_resynch_request:
-        case cat253_msg_type::radar_monitor_start:
-        case cat253_msg_type::radar_monitor_stop:
-        case cat253_msg_type::acknowledgement:
-        case cat253_msg_type::error:
-        case cat253_msg_type::alarm:
-        case cat253_msg_type::alive:
+        case Cat253MsgType::TimeAndDay:
+        case Cat253MsgType::ConnectRequest:
+        case Cat253MsgType::ConnectResponse:
+        case Cat253MsgType::ConnectRelease:
+        case Cat253MsgType::CommandTokenRequest:
+        case Cat253MsgType::CommandTokenRelease:
+        case Cat253MsgType::CommandTokenAssign:
+        case Cat253MsgType::command:
+        case Cat253MsgType::CompleteStatusTransfer:
+        case Cat253MsgType::DeltaStatusTransfer:
+        case Cat253MsgType::CompleteStatusTransferRequest:
+        case Cat253MsgType::CentreExchange:
+        case Cat253MsgType::CentreStatus:
+        case Cat253MsgType::CentreTransparent:
+        case Cat253MsgType::CentreResynchRequest:
+        case Cat253MsgType::RadarMonitorStart:
+        case Cat253MsgType::RadarMonitorStop:
+        case Cat253MsgType::acknowledgement:
+        case Cat253MsgType::error:
+        case Cat253MsgType::alarm:
+        case Cat253MsgType::alive:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_msg_type value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253MsgType value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_msg_type(cat253_msg_type v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253MsgType(Cat253MsgType v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_msg_type::time_and_day:
-        case cat253_msg_type::connect_request:
-        case cat253_msg_type::connect_response:
-        case cat253_msg_type::connect_release:
-        case cat253_msg_type::command_token_request:
-        case cat253_msg_type::command_token_release:
-        case cat253_msg_type::command_token_assign:
-        case cat253_msg_type::command:
-        case cat253_msg_type::complete_status_transfer:
-        case cat253_msg_type::delta_status_transfer:
-        case cat253_msg_type::complete_status_transfer_request:
-        case cat253_msg_type::centre_exchange:
-        case cat253_msg_type::centre_status:
-        case cat253_msg_type::centre_transparent:
-        case cat253_msg_type::centre_resynch_request:
-        case cat253_msg_type::radar_monitor_start:
-        case cat253_msg_type::radar_monitor_stop:
-        case cat253_msg_type::acknowledgement:
-        case cat253_msg_type::error:
-        case cat253_msg_type::alarm:
-        case cat253_msg_type::alive:
+        case Cat253MsgType::TimeAndDay:
+        case Cat253MsgType::ConnectRequest:
+        case Cat253MsgType::ConnectResponse:
+        case Cat253MsgType::ConnectRelease:
+        case Cat253MsgType::CommandTokenRequest:
+        case Cat253MsgType::CommandTokenRelease:
+        case Cat253MsgType::CommandTokenAssign:
+        case Cat253MsgType::command:
+        case Cat253MsgType::CompleteStatusTransfer:
+        case Cat253MsgType::DeltaStatusTransfer:
+        case Cat253MsgType::CompleteStatusTransferRequest:
+        case Cat253MsgType::CentreExchange:
+        case Cat253MsgType::CentreStatus:
+        case Cat253MsgType::CentreTransparent:
+        case Cat253MsgType::CentreResynchRequest:
+        case Cat253MsgType::RadarMonitorStart:
+        case Cat253MsgType::RadarMonitorStop:
+        case Cat253MsgType::acknowledgement:
+        case Cat253MsgType::error:
+        case Cat253MsgType::alarm:
+        case Cat253MsgType::alive:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_msg_type enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253MsgType enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 6);
     if (w.has_error()) return std::unexpected(w.error());
@@ -216,40 +216,40 @@ inline conduit::VoidResult encode_cat253_msg_type(cat253_msg_type v, conduit::io
 }
 
 // Multipath detection: 0x0 = Disabled, 0x1 = Enabled
-enum class cat253_mp_detection : uint8_t {
+enum class Cat253MpDetection : uint8_t {
     disabled = 0,
     enabled = 1,
 };
 
-inline std::string_view to_string(cat253_mp_detection v) {
+inline std::string_view to_string(Cat253MpDetection v) {
     switch (v) {
-        case cat253_mp_detection::disabled: return "disabled";
-        case cat253_mp_detection::enabled: return "enabled";
+        case Cat253MpDetection::disabled: return "disabled";
+        case Cat253MpDetection::enabled: return "enabled";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_mp_detection> decode_cat253_mp_detection(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253MpDetection> decode_Cat253MpDetection(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_mp_detection>(*raw);
+    auto val = static_cast<Cat253MpDetection>(*raw);
     switch (val) {
-        case cat253_mp_detection::disabled:
-        case cat253_mp_detection::enabled:
+        case Cat253MpDetection::disabled:
+        case Cat253MpDetection::enabled:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_mp_detection value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253MpDetection value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_mp_detection(cat253_mp_detection v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253MpDetection(Cat253MpDetection v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_mp_detection::disabled:
-        case cat253_mp_detection::enabled:
+        case Cat253MpDetection::disabled:
+        case Cat253MpDetection::enabled:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_mp_detection enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253MpDetection enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -257,44 +257,44 @@ inline conduit::VoidResult encode_cat253_mp_detection(cat253_mp_detection v, con
 }
 
 // Multipath level (LSB = 1 dB, range 0-6 dB)
-enum class cat253_mp_level : uint8_t {
+enum class Cat253MpLevel : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_mp_level v) {
+inline std::string_view to_string(Cat253MpLevel v) {
     switch (v) {
-        case cat253_mp_level::ok: return "ok";
-        case cat253_mp_level::error: return "error";
-        case cat253_mp_level::unknown: return "unknown";
+        case Cat253MpLevel::ok: return "ok";
+        case Cat253MpLevel::error: return "error";
+        case Cat253MpLevel::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_mp_level> decode_cat253_mp_level(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253MpLevel> decode_Cat253MpLevel(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_mp_level>(*raw);
+    auto val = static_cast<Cat253MpLevel>(*raw);
     switch (val) {
-        case cat253_mp_level::ok:
-        case cat253_mp_level::error:
-        case cat253_mp_level::unknown:
+        case Cat253MpLevel::ok:
+        case Cat253MpLevel::error:
+        case Cat253MpLevel::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_mp_level value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253MpLevel value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_mp_level(cat253_mp_level v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253MpLevel(Cat253MpLevel v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_mp_level::ok:
-        case cat253_mp_level::error:
-        case cat253_mp_level::unknown:
+        case Cat253MpLevel::ok:
+        case Cat253MpLevel::error:
+        case Cat253MpLevel::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_mp_level enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253MpLevel enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -302,44 +302,44 @@ inline conduit::VoidResult encode_cat253_mp_level(cat253_mp_level v, conduit::io
 }
 
 // Squitter receiving channel: 0x0 = SUM, 0x1 = DIFF, 0x2 = SUM+DIFF
-enum class cat253_sq_rx_channel : uint8_t {
+enum class Cat253SqRxChannel : uint8_t {
     sum = 0,
     diff = 1,
-    sum_diff = 2,
+    SumDiff = 2,
 };
 
-inline std::string_view to_string(cat253_sq_rx_channel v) {
+inline std::string_view to_string(Cat253SqRxChannel v) {
     switch (v) {
-        case cat253_sq_rx_channel::sum: return "sum";
-        case cat253_sq_rx_channel::diff: return "diff";
-        case cat253_sq_rx_channel::sum_diff: return "sum-diff";
+        case Cat253SqRxChannel::sum: return "sum";
+        case Cat253SqRxChannel::diff: return "diff";
+        case Cat253SqRxChannel::SumDiff: return "SumDiff";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_sq_rx_channel> decode_cat253_sq_rx_channel(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253SqRxChannel> decode_Cat253SqRxChannel(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_sq_rx_channel>(*raw);
+    auto val = static_cast<Cat253SqRxChannel>(*raw);
     switch (val) {
-        case cat253_sq_rx_channel::sum:
-        case cat253_sq_rx_channel::diff:
-        case cat253_sq_rx_channel::sum_diff:
+        case Cat253SqRxChannel::sum:
+        case Cat253SqRxChannel::diff:
+        case Cat253SqRxChannel::SumDiff:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_sq_rx_channel value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253SqRxChannel value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_sq_rx_channel(cat253_sq_rx_channel v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253SqRxChannel(Cat253SqRxChannel v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_sq_rx_channel::sum:
-        case cat253_sq_rx_channel::diff:
-        case cat253_sq_rx_channel::sum_diff:
+        case Cat253SqRxChannel::sum:
+        case Cat253SqRxChannel::diff:
+        case Cat253SqRxChannel::SumDiff:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_sq_rx_channel enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253SqRxChannel enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -347,40 +347,40 @@ inline conduit::VoidResult encode_cat253_sq_rx_channel(cat253_sq_rx_channel v, c
 }
 
 // Mode S Squitter
-enum class cat253_sq_ms_squitter : uint8_t {
+enum class Cat253SqMsSquitter : uint8_t {
     ok = 0,
     error = 1,
 };
 
-inline std::string_view to_string(cat253_sq_ms_squitter v) {
+inline std::string_view to_string(Cat253SqMsSquitter v) {
     switch (v) {
-        case cat253_sq_ms_squitter::ok: return "ok";
-        case cat253_sq_ms_squitter::error: return "error";
+        case Cat253SqMsSquitter::ok: return "ok";
+        case Cat253SqMsSquitter::error: return "error";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_sq_ms_squitter> decode_cat253_sq_ms_squitter(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253SqMsSquitter> decode_Cat253SqMsSquitter(conduit::io::BitReader& r) {
     auto raw = r.read_bits(1);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_sq_ms_squitter>(*raw);
+    auto val = static_cast<Cat253SqMsSquitter>(*raw);
     switch (val) {
-        case cat253_sq_ms_squitter::ok:
-        case cat253_sq_ms_squitter::error:
+        case Cat253SqMsSquitter::ok:
+        case Cat253SqMsSquitter::error:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_sq_ms_squitter value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253SqMsSquitter value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_sq_ms_squitter(cat253_sq_ms_squitter v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253SqMsSquitter(Cat253SqMsSquitter v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_sq_ms_squitter::ok:
-        case cat253_sq_ms_squitter::error:
+        case Cat253SqMsSquitter::ok:
+        case Cat253SqMsSquitter::error:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_sq_ms_squitter enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253SqMsSquitter enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 1);
     if (w.has_error()) return std::unexpected(w.error());
@@ -388,40 +388,40 @@ inline conduit::VoidResult encode_cat253_sq_ms_squitter(cat253_sq_ms_squitter v,
 }
 
 // Mode 5 Squitter
-enum class cat253_sq_m5_squitter : uint8_t {
+enum class Cat253SqM5Squitter : uint8_t {
     ok = 0,
     error = 1,
 };
 
-inline std::string_view to_string(cat253_sq_m5_squitter v) {
+inline std::string_view to_string(Cat253SqM5Squitter v) {
     switch (v) {
-        case cat253_sq_m5_squitter::ok: return "ok";
-        case cat253_sq_m5_squitter::error: return "error";
+        case Cat253SqM5Squitter::ok: return "ok";
+        case Cat253SqM5Squitter::error: return "error";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_sq_m5_squitter> decode_cat253_sq_m5_squitter(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253SqM5Squitter> decode_Cat253SqM5Squitter(conduit::io::BitReader& r) {
     auto raw = r.read_bits(1);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_sq_m5_squitter>(*raw);
+    auto val = static_cast<Cat253SqM5Squitter>(*raw);
     switch (val) {
-        case cat253_sq_m5_squitter::ok:
-        case cat253_sq_m5_squitter::error:
+        case Cat253SqM5Squitter::ok:
+        case Cat253SqM5Squitter::error:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_sq_m5_squitter value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253SqM5Squitter value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_sq_m5_squitter(cat253_sq_m5_squitter v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253SqM5Squitter(Cat253SqM5Squitter v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_sq_m5_squitter::ok:
-        case cat253_sq_m5_squitter::error:
+        case Cat253SqM5Squitter::ok:
+        case Cat253SqM5Squitter::error:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_sq_m5_squitter enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253SqM5Squitter enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 1);
     if (w.has_error()) return std::unexpected(w.error());
@@ -429,44 +429,44 @@ inline conduit::VoidResult encode_cat253_sq_m5_squitter(cat253_sq_m5_squitter v,
 }
 
 // BIT Type
-enum class cat253_br_bit_type : uint8_t {
+enum class Cat253BrBitType : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_bit_type v) {
+inline std::string_view to_string(Cat253BrBitType v) {
     switch (v) {
-        case cat253_br_bit_type::ok: return "ok";
-        case cat253_br_bit_type::error: return "error";
-        case cat253_br_bit_type::unknown: return "unknown";
+        case Cat253BrBitType::ok: return "ok";
+        case Cat253BrBitType::error: return "error";
+        case Cat253BrBitType::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_bit_type> decode_cat253_br_bit_type(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrBitType> decode_Cat253BrBitType(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_bit_type>(*raw);
+    auto val = static_cast<Cat253BrBitType>(*raw);
     switch (val) {
-        case cat253_br_bit_type::ok:
-        case cat253_br_bit_type::error:
-        case cat253_br_bit_type::unknown:
+        case Cat253BrBitType::ok:
+        case Cat253BrBitType::error:
+        case Cat253BrBitType::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_bit_type value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrBitType value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_bit_type(cat253_br_bit_type v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrBitType(Cat253BrBitType v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_bit_type::ok:
-        case cat253_br_bit_type::error:
-        case cat253_br_bit_type::unknown:
+        case Cat253BrBitType::ok:
+        case Cat253BrBitType::error:
+        case Cat253BrBitType::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_bit_type enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrBitType enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -474,44 +474,44 @@ inline conduit::VoidResult encode_cat253_br_bit_type(cat253_br_bit_type v, condu
 }
 
 // Success State
-enum class cat253_br_success_state : uint8_t {
+enum class Cat253BrSuccessState : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_success_state v) {
+inline std::string_view to_string(Cat253BrSuccessState v) {
     switch (v) {
-        case cat253_br_success_state::ok: return "ok";
-        case cat253_br_success_state::error: return "error";
-        case cat253_br_success_state::unknown: return "unknown";
+        case Cat253BrSuccessState::ok: return "ok";
+        case Cat253BrSuccessState::error: return "error";
+        case Cat253BrSuccessState::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_success_state> decode_cat253_br_success_state(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrSuccessState> decode_Cat253BrSuccessState(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_success_state>(*raw);
+    auto val = static_cast<Cat253BrSuccessState>(*raw);
     switch (val) {
-        case cat253_br_success_state::ok:
-        case cat253_br_success_state::error:
-        case cat253_br_success_state::unknown:
+        case Cat253BrSuccessState::ok:
+        case Cat253BrSuccessState::error:
+        case Cat253BrSuccessState::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_success_state value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrSuccessState value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_success_state(cat253_br_success_state v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrSuccessState(Cat253BrSuccessState v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_success_state::ok:
-        case cat253_br_success_state::error:
-        case cat253_br_success_state::unknown:
+        case Cat253BrSuccessState::ok:
+        case Cat253BrSuccessState::error:
+        case Cat253BrSuccessState::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_success_state enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrSuccessState enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -519,44 +519,44 @@ inline conduit::VoidResult encode_cat253_br_success_state(cat253_br_success_stat
 }
 
 // Antenna General Response
-enum class cat253_br_antenna_general : uint8_t {
+enum class Cat253BrAntennaGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_antenna_general v) {
+inline std::string_view to_string(Cat253BrAntennaGeneral v) {
     switch (v) {
-        case cat253_br_antenna_general::ok: return "ok";
-        case cat253_br_antenna_general::error: return "error";
-        case cat253_br_antenna_general::unknown: return "unknown";
+        case Cat253BrAntennaGeneral::ok: return "ok";
+        case Cat253BrAntennaGeneral::error: return "error";
+        case Cat253BrAntennaGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_antenna_general> decode_cat253_br_antenna_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAntennaGeneral> decode_Cat253BrAntennaGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_antenna_general>(*raw);
+    auto val = static_cast<Cat253BrAntennaGeneral>(*raw);
     switch (val) {
-        case cat253_br_antenna_general::ok:
-        case cat253_br_antenna_general::error:
-        case cat253_br_antenna_general::unknown:
+        case Cat253BrAntennaGeneral::ok:
+        case Cat253BrAntennaGeneral::error:
+        case Cat253BrAntennaGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_antenna_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAntennaGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_antenna_general(cat253_br_antenna_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAntennaGeneral(Cat253BrAntennaGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_antenna_general::ok:
-        case cat253_br_antenna_general::error:
-        case cat253_br_antenna_general::unknown:
+        case Cat253BrAntennaGeneral::ok:
+        case Cat253BrAntennaGeneral::error:
+        case Cat253BrAntennaGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_antenna_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAntennaGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -564,44 +564,44 @@ inline conduit::VoidResult encode_cat253_br_antenna_general(cat253_br_antenna_ge
 }
 
 // Antenna Scan Error
-enum class cat253_br_antenna_scan_error : uint8_t {
+enum class Cat253BrAntennaScanError : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_antenna_scan_error v) {
+inline std::string_view to_string(Cat253BrAntennaScanError v) {
     switch (v) {
-        case cat253_br_antenna_scan_error::ok: return "ok";
-        case cat253_br_antenna_scan_error::error: return "error";
-        case cat253_br_antenna_scan_error::unknown: return "unknown";
+        case Cat253BrAntennaScanError::ok: return "ok";
+        case Cat253BrAntennaScanError::error: return "error";
+        case Cat253BrAntennaScanError::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_antenna_scan_error> decode_cat253_br_antenna_scan_error(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAntennaScanError> decode_Cat253BrAntennaScanError(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_antenna_scan_error>(*raw);
+    auto val = static_cast<Cat253BrAntennaScanError>(*raw);
     switch (val) {
-        case cat253_br_antenna_scan_error::ok:
-        case cat253_br_antenna_scan_error::error:
-        case cat253_br_antenna_scan_error::unknown:
+        case Cat253BrAntennaScanError::ok:
+        case Cat253BrAntennaScanError::error:
+        case Cat253BrAntennaScanError::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_antenna_scan_error value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAntennaScanError value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_antenna_scan_error(cat253_br_antenna_scan_error v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAntennaScanError(Cat253BrAntennaScanError v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_antenna_scan_error::ok:
-        case cat253_br_antenna_scan_error::error:
-        case cat253_br_antenna_scan_error::unknown:
+        case Cat253BrAntennaScanError::ok:
+        case Cat253BrAntennaScanError::error:
+        case Cat253BrAntennaScanError::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_antenna_scan_error enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAntennaScanError enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -609,44 +609,44 @@ inline conduit::VoidResult encode_cat253_br_antenna_scan_error(cat253_br_antenna
 }
 
 // Power Source General
-enum class cat253_br_power_source_general : uint8_t {
+enum class Cat253BrPowerSourceGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_power_source_general v) {
+inline std::string_view to_string(Cat253BrPowerSourceGeneral v) {
     switch (v) {
-        case cat253_br_power_source_general::ok: return "ok";
-        case cat253_br_power_source_general::error: return "error";
-        case cat253_br_power_source_general::unknown: return "unknown";
+        case Cat253BrPowerSourceGeneral::ok: return "ok";
+        case Cat253BrPowerSourceGeneral::error: return "error";
+        case Cat253BrPowerSourceGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_power_source_general> decode_cat253_br_power_source_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrPowerSourceGeneral> decode_Cat253BrPowerSourceGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_power_source_general>(*raw);
+    auto val = static_cast<Cat253BrPowerSourceGeneral>(*raw);
     switch (val) {
-        case cat253_br_power_source_general::ok:
-        case cat253_br_power_source_general::error:
-        case cat253_br_power_source_general::unknown:
+        case Cat253BrPowerSourceGeneral::ok:
+        case Cat253BrPowerSourceGeneral::error:
+        case Cat253BrPowerSourceGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_power_source_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrPowerSourceGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_power_source_general(cat253_br_power_source_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrPowerSourceGeneral(Cat253BrPowerSourceGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_power_source_general::ok:
-        case cat253_br_power_source_general::error:
-        case cat253_br_power_source_general::unknown:
+        case Cat253BrPowerSourceGeneral::ok:
+        case Cat253BrPowerSourceGeneral::error:
+        case Cat253BrPowerSourceGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_power_source_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrPowerSourceGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -654,44 +654,44 @@ inline conduit::VoidResult encode_cat253_br_power_source_general(cat253_br_power
 }
 
 // Control Unit General
-enum class cat253_br_ctrl_unit_general : uint8_t {
+enum class Cat253BrCtrlUnitGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_ctrl_unit_general v) {
+inline std::string_view to_string(Cat253BrCtrlUnitGeneral v) {
     switch (v) {
-        case cat253_br_ctrl_unit_general::ok: return "ok";
-        case cat253_br_ctrl_unit_general::error: return "error";
-        case cat253_br_ctrl_unit_general::unknown: return "unknown";
+        case Cat253BrCtrlUnitGeneral::ok: return "ok";
+        case Cat253BrCtrlUnitGeneral::error: return "error";
+        case Cat253BrCtrlUnitGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_ctrl_unit_general> decode_cat253_br_ctrl_unit_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrCtrlUnitGeneral> decode_Cat253BrCtrlUnitGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_ctrl_unit_general>(*raw);
+    auto val = static_cast<Cat253BrCtrlUnitGeneral>(*raw);
     switch (val) {
-        case cat253_br_ctrl_unit_general::ok:
-        case cat253_br_ctrl_unit_general::error:
-        case cat253_br_ctrl_unit_general::unknown:
+        case Cat253BrCtrlUnitGeneral::ok:
+        case Cat253BrCtrlUnitGeneral::error:
+        case Cat253BrCtrlUnitGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_ctrl_unit_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrCtrlUnitGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_ctrl_unit_general(cat253_br_ctrl_unit_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrCtrlUnitGeneral(Cat253BrCtrlUnitGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_ctrl_unit_general::ok:
-        case cat253_br_ctrl_unit_general::error:
-        case cat253_br_ctrl_unit_general::unknown:
+        case Cat253BrCtrlUnitGeneral::ok:
+        case Cat253BrCtrlUnitGeneral::error:
+        case Cat253BrCtrlUnitGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_ctrl_unit_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrCtrlUnitGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -699,44 +699,44 @@ inline conduit::VoidResult encode_cat253_br_ctrl_unit_general(cat253_br_ctrl_uni
 }
 
 // KB Crypto Communication
-enum class cat253_br_kb_crypto_comm : uint8_t {
+enum class Cat253BrKbCryptoComm : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_kb_crypto_comm v) {
+inline std::string_view to_string(Cat253BrKbCryptoComm v) {
     switch (v) {
-        case cat253_br_kb_crypto_comm::ok: return "ok";
-        case cat253_br_kb_crypto_comm::error: return "error";
-        case cat253_br_kb_crypto_comm::unknown: return "unknown";
+        case Cat253BrKbCryptoComm::ok: return "ok";
+        case Cat253BrKbCryptoComm::error: return "error";
+        case Cat253BrKbCryptoComm::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_kb_crypto_comm> decode_cat253_br_kb_crypto_comm(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrKbCryptoComm> decode_Cat253BrKbCryptoComm(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_kb_crypto_comm>(*raw);
+    auto val = static_cast<Cat253BrKbCryptoComm>(*raw);
     switch (val) {
-        case cat253_br_kb_crypto_comm::ok:
-        case cat253_br_kb_crypto_comm::error:
-        case cat253_br_kb_crypto_comm::unknown:
+        case Cat253BrKbCryptoComm::ok:
+        case Cat253BrKbCryptoComm::error:
+        case Cat253BrKbCryptoComm::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_kb_crypto_comm value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrKbCryptoComm value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_kb_crypto_comm(cat253_br_kb_crypto_comm v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrKbCryptoComm(Cat253BrKbCryptoComm v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_kb_crypto_comm::ok:
-        case cat253_br_kb_crypto_comm::error:
-        case cat253_br_kb_crypto_comm::unknown:
+        case Cat253BrKbCryptoComm::ok:
+        case Cat253BrKbCryptoComm::error:
+        case Cat253BrKbCryptoComm::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_kb_crypto_comm enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrKbCryptoComm enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -744,44 +744,44 @@ inline conduit::VoidResult encode_cat253_br_kb_crypto_comm(cat253_br_kb_crypto_c
 }
 
 // KB RTC
-enum class cat253_br_kb_rtc : uint8_t {
+enum class Cat253BrKbRtc : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_kb_rtc v) {
+inline std::string_view to_string(Cat253BrKbRtc v) {
     switch (v) {
-        case cat253_br_kb_rtc::ok: return "ok";
-        case cat253_br_kb_rtc::error: return "error";
-        case cat253_br_kb_rtc::unknown: return "unknown";
+        case Cat253BrKbRtc::ok: return "ok";
+        case Cat253BrKbRtc::error: return "error";
+        case Cat253BrKbRtc::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_kb_rtc> decode_cat253_br_kb_rtc(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrKbRtc> decode_Cat253BrKbRtc(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_kb_rtc>(*raw);
+    auto val = static_cast<Cat253BrKbRtc>(*raw);
     switch (val) {
-        case cat253_br_kb_rtc::ok:
-        case cat253_br_kb_rtc::error:
-        case cat253_br_kb_rtc::unknown:
+        case Cat253BrKbRtc::ok:
+        case Cat253BrKbRtc::error:
+        case Cat253BrKbRtc::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_kb_rtc value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrKbRtc value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_kb_rtc(cat253_br_kb_rtc v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrKbRtc(Cat253BrKbRtc v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_kb_rtc::ok:
-        case cat253_br_kb_rtc::error:
-        case cat253_br_kb_rtc::unknown:
+        case Cat253BrKbRtc::ok:
+        case Cat253BrKbRtc::error:
+        case Cat253BrKbRtc::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_kb_rtc enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrKbRtc enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -789,44 +789,44 @@ inline conduit::VoidResult encode_cat253_br_kb_rtc(cat253_br_kb_rtc v, conduit::
 }
 
 // KB Heat Warning
-enum class cat253_br_kb_heat_warning : uint8_t {
+enum class Cat253BrKbHeatWarning : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_kb_heat_warning v) {
+inline std::string_view to_string(Cat253BrKbHeatWarning v) {
     switch (v) {
-        case cat253_br_kb_heat_warning::ok: return "ok";
-        case cat253_br_kb_heat_warning::error: return "error";
-        case cat253_br_kb_heat_warning::unknown: return "unknown";
+        case Cat253BrKbHeatWarning::ok: return "ok";
+        case Cat253BrKbHeatWarning::error: return "error";
+        case Cat253BrKbHeatWarning::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_kb_heat_warning> decode_cat253_br_kb_heat_warning(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrKbHeatWarning> decode_Cat253BrKbHeatWarning(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_kb_heat_warning>(*raw);
+    auto val = static_cast<Cat253BrKbHeatWarning>(*raw);
     switch (val) {
-        case cat253_br_kb_heat_warning::ok:
-        case cat253_br_kb_heat_warning::error:
-        case cat253_br_kb_heat_warning::unknown:
+        case Cat253BrKbHeatWarning::ok:
+        case Cat253BrKbHeatWarning::error:
+        case Cat253BrKbHeatWarning::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_kb_heat_warning value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrKbHeatWarning value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_kb_heat_warning(cat253_br_kb_heat_warning v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrKbHeatWarning(Cat253BrKbHeatWarning v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_kb_heat_warning::ok:
-        case cat253_br_kb_heat_warning::error:
-        case cat253_br_kb_heat_warning::unknown:
+        case Cat253BrKbHeatWarning::ok:
+        case Cat253BrKbHeatWarning::error:
+        case Cat253BrKbHeatWarning::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_kb_heat_warning enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrKbHeatWarning enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -834,44 +834,44 @@ inline conduit::VoidResult encode_cat253_br_kb_heat_warning(cat253_br_kb_heat_wa
 }
 
 // General Bottom Band
-enum class cat253_br_bottom_band_general : uint8_t {
+enum class Cat253BrBottomBandGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_bottom_band_general v) {
+inline std::string_view to_string(Cat253BrBottomBandGeneral v) {
     switch (v) {
-        case cat253_br_bottom_band_general::ok: return "ok";
-        case cat253_br_bottom_band_general::error: return "error";
-        case cat253_br_bottom_band_general::unknown: return "unknown";
+        case Cat253BrBottomBandGeneral::ok: return "ok";
+        case Cat253BrBottomBandGeneral::error: return "error";
+        case Cat253BrBottomBandGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_bottom_band_general> decode_cat253_br_bottom_band_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrBottomBandGeneral> decode_Cat253BrBottomBandGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_bottom_band_general>(*raw);
+    auto val = static_cast<Cat253BrBottomBandGeneral>(*raw);
     switch (val) {
-        case cat253_br_bottom_band_general::ok:
-        case cat253_br_bottom_band_general::error:
-        case cat253_br_bottom_band_general::unknown:
+        case Cat253BrBottomBandGeneral::ok:
+        case Cat253BrBottomBandGeneral::error:
+        case Cat253BrBottomBandGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_bottom_band_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrBottomBandGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_bottom_band_general(cat253_br_bottom_band_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrBottomBandGeneral(Cat253BrBottomBandGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_bottom_band_general::ok:
-        case cat253_br_bottom_band_general::error:
-        case cat253_br_bottom_band_general::unknown:
+        case Cat253BrBottomBandGeneral::ok:
+        case Cat253BrBottomBandGeneral::error:
+        case Cat253BrBottomBandGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_bottom_band_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrBottomBandGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -879,44 +879,44 @@ inline conduit::VoidResult encode_cat253_br_bottom_band_general(cat253_br_bottom
 }
 
 // TB Control Unit Communication
-enum class cat253_br_tb_ctrl_comm : uint8_t {
+enum class Cat253BrTbCtrlComm : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_tb_ctrl_comm v) {
+inline std::string_view to_string(Cat253BrTbCtrlComm v) {
     switch (v) {
-        case cat253_br_tb_ctrl_comm::ok: return "ok";
-        case cat253_br_tb_ctrl_comm::error: return "error";
-        case cat253_br_tb_ctrl_comm::unknown: return "unknown";
+        case Cat253BrTbCtrlComm::ok: return "ok";
+        case Cat253BrTbCtrlComm::error: return "error";
+        case Cat253BrTbCtrlComm::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_tb_ctrl_comm> decode_cat253_br_tb_ctrl_comm(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrTbCtrlComm> decode_Cat253BrTbCtrlComm(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_tb_ctrl_comm>(*raw);
+    auto val = static_cast<Cat253BrTbCtrlComm>(*raw);
     switch (val) {
-        case cat253_br_tb_ctrl_comm::ok:
-        case cat253_br_tb_ctrl_comm::error:
-        case cat253_br_tb_ctrl_comm::unknown:
+        case Cat253BrTbCtrlComm::ok:
+        case Cat253BrTbCtrlComm::error:
+        case Cat253BrTbCtrlComm::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_tb_ctrl_comm value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrTbCtrlComm value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_tb_ctrl_comm(cat253_br_tb_ctrl_comm v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrTbCtrlComm(Cat253BrTbCtrlComm v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_tb_ctrl_comm::ok:
-        case cat253_br_tb_ctrl_comm::error:
-        case cat253_br_tb_ctrl_comm::unknown:
+        case Cat253BrTbCtrlComm::ok:
+        case Cat253BrTbCtrlComm::error:
+        case Cat253BrTbCtrlComm::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_tb_ctrl_comm enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrTbCtrlComm enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -924,44 +924,44 @@ inline conduit::VoidResult encode_cat253_br_tb_ctrl_comm(cat253_br_tb_ctrl_comm 
 }
 
 // TB Config Upload
-enum class cat253_br_tb_config_upload : uint8_t {
+enum class Cat253BrTbConfigUpload : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_tb_config_upload v) {
+inline std::string_view to_string(Cat253BrTbConfigUpload v) {
     switch (v) {
-        case cat253_br_tb_config_upload::ok: return "ok";
-        case cat253_br_tb_config_upload::error: return "error";
-        case cat253_br_tb_config_upload::unknown: return "unknown";
+        case Cat253BrTbConfigUpload::ok: return "ok";
+        case Cat253BrTbConfigUpload::error: return "error";
+        case Cat253BrTbConfigUpload::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_tb_config_upload> decode_cat253_br_tb_config_upload(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrTbConfigUpload> decode_Cat253BrTbConfigUpload(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_tb_config_upload>(*raw);
+    auto val = static_cast<Cat253BrTbConfigUpload>(*raw);
     switch (val) {
-        case cat253_br_tb_config_upload::ok:
-        case cat253_br_tb_config_upload::error:
-        case cat253_br_tb_config_upload::unknown:
+        case Cat253BrTbConfigUpload::ok:
+        case Cat253BrTbConfigUpload::error:
+        case Cat253BrTbConfigUpload::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_tb_config_upload value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrTbConfigUpload value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_tb_config_upload(cat253_br_tb_config_upload v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrTbConfigUpload(Cat253BrTbConfigUpload v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_tb_config_upload::ok:
-        case cat253_br_tb_config_upload::error:
-        case cat253_br_tb_config_upload::unknown:
+        case Cat253BrTbConfigUpload::ok:
+        case Cat253BrTbConfigUpload::error:
+        case Cat253BrTbConfigUpload::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_tb_config_upload enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrTbConfigUpload enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -969,44 +969,44 @@ inline conduit::VoidResult encode_cat253_br_tb_config_upload(cat253_br_tb_config
 }
 
 // VSWR General
-enum class cat253_br_vswr_general : uint8_t {
+enum class Cat253BrVswrGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_vswr_general v) {
+inline std::string_view to_string(Cat253BrVswrGeneral v) {
     switch (v) {
-        case cat253_br_vswr_general::ok: return "ok";
-        case cat253_br_vswr_general::error: return "error";
-        case cat253_br_vswr_general::unknown: return "unknown";
+        case Cat253BrVswrGeneral::ok: return "ok";
+        case Cat253BrVswrGeneral::error: return "error";
+        case Cat253BrVswrGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_vswr_general> decode_cat253_br_vswr_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrVswrGeneral> decode_Cat253BrVswrGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_vswr_general>(*raw);
+    auto val = static_cast<Cat253BrVswrGeneral>(*raw);
     switch (val) {
-        case cat253_br_vswr_general::ok:
-        case cat253_br_vswr_general::error:
-        case cat253_br_vswr_general::unknown:
+        case Cat253BrVswrGeneral::ok:
+        case Cat253BrVswrGeneral::error:
+        case Cat253BrVswrGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_vswr_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrVswrGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_vswr_general(cat253_br_vswr_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrVswrGeneral(Cat253BrVswrGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_vswr_general::ok:
-        case cat253_br_vswr_general::error:
-        case cat253_br_vswr_general::unknown:
+        case Cat253BrVswrGeneral::ok:
+        case Cat253BrVswrGeneral::error:
+        case Cat253BrVswrGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_vswr_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrVswrGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1014,44 +1014,44 @@ inline conduit::VoidResult encode_cat253_br_vswr_general(cat253_br_vswr_general 
 }
 
 // VSWR Sum
-enum class cat253_br_vswr_sum : uint8_t {
+enum class Cat253BrVswrSum : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_vswr_sum v) {
+inline std::string_view to_string(Cat253BrVswrSum v) {
     switch (v) {
-        case cat253_br_vswr_sum::ok: return "ok";
-        case cat253_br_vswr_sum::error: return "error";
-        case cat253_br_vswr_sum::unknown: return "unknown";
+        case Cat253BrVswrSum::ok: return "ok";
+        case Cat253BrVswrSum::error: return "error";
+        case Cat253BrVswrSum::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_vswr_sum> decode_cat253_br_vswr_sum(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrVswrSum> decode_Cat253BrVswrSum(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_vswr_sum>(*raw);
+    auto val = static_cast<Cat253BrVswrSum>(*raw);
     switch (val) {
-        case cat253_br_vswr_sum::ok:
-        case cat253_br_vswr_sum::error:
-        case cat253_br_vswr_sum::unknown:
+        case Cat253BrVswrSum::ok:
+        case Cat253BrVswrSum::error:
+        case Cat253BrVswrSum::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_vswr_sum value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrVswrSum value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_vswr_sum(cat253_br_vswr_sum v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrVswrSum(Cat253BrVswrSum v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_vswr_sum::ok:
-        case cat253_br_vswr_sum::error:
-        case cat253_br_vswr_sum::unknown:
+        case Cat253BrVswrSum::ok:
+        case Cat253BrVswrSum::error:
+        case Cat253BrVswrSum::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_vswr_sum enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrVswrSum enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1059,44 +1059,44 @@ inline conduit::VoidResult encode_cat253_br_vswr_sum(cat253_br_vswr_sum v, condu
 }
 
 // VSWR Difference
-enum class cat253_br_vswr_diff : uint8_t {
+enum class Cat253BrVswrDiff : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_vswr_diff v) {
+inline std::string_view to_string(Cat253BrVswrDiff v) {
     switch (v) {
-        case cat253_br_vswr_diff::ok: return "ok";
-        case cat253_br_vswr_diff::error: return "error";
-        case cat253_br_vswr_diff::unknown: return "unknown";
+        case Cat253BrVswrDiff::ok: return "ok";
+        case Cat253BrVswrDiff::error: return "error";
+        case Cat253BrVswrDiff::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_vswr_diff> decode_cat253_br_vswr_diff(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrVswrDiff> decode_Cat253BrVswrDiff(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_vswr_diff>(*raw);
+    auto val = static_cast<Cat253BrVswrDiff>(*raw);
     switch (val) {
-        case cat253_br_vswr_diff::ok:
-        case cat253_br_vswr_diff::error:
-        case cat253_br_vswr_diff::unknown:
+        case Cat253BrVswrDiff::ok:
+        case Cat253BrVswrDiff::error:
+        case Cat253BrVswrDiff::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_vswr_diff value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrVswrDiff value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_vswr_diff(cat253_br_vswr_diff v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrVswrDiff(Cat253BrVswrDiff v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_vswr_diff::ok:
-        case cat253_br_vswr_diff::error:
-        case cat253_br_vswr_diff::unknown:
+        case Cat253BrVswrDiff::ok:
+        case Cat253BrVswrDiff::error:
+        case Cat253BrVswrDiff::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_vswr_diff enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrVswrDiff enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1104,44 +1104,44 @@ inline conduit::VoidResult encode_cat253_br_vswr_diff(cat253_br_vswr_diff v, con
 }
 
 // VSWR Omni
-enum class cat253_br_vswr_omni : uint8_t {
+enum class Cat253BrVswrOmni : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_vswr_omni v) {
+inline std::string_view to_string(Cat253BrVswrOmni v) {
     switch (v) {
-        case cat253_br_vswr_omni::ok: return "ok";
-        case cat253_br_vswr_omni::error: return "error";
-        case cat253_br_vswr_omni::unknown: return "unknown";
+        case Cat253BrVswrOmni::ok: return "ok";
+        case Cat253BrVswrOmni::error: return "error";
+        case Cat253BrVswrOmni::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_vswr_omni> decode_cat253_br_vswr_omni(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrVswrOmni> decode_Cat253BrVswrOmni(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_vswr_omni>(*raw);
+    auto val = static_cast<Cat253BrVswrOmni>(*raw);
     switch (val) {
-        case cat253_br_vswr_omni::ok:
-        case cat253_br_vswr_omni::error:
-        case cat253_br_vswr_omni::unknown:
+        case Cat253BrVswrOmni::ok:
+        case Cat253BrVswrOmni::error:
+        case Cat253BrVswrOmni::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_vswr_omni value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrVswrOmni value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_vswr_omni(cat253_br_vswr_omni v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrVswrOmni(Cat253BrVswrOmni v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_vswr_omni::ok:
-        case cat253_br_vswr_omni::error:
-        case cat253_br_vswr_omni::unknown:
+        case Cat253BrVswrOmni::ok:
+        case Cat253BrVswrOmni::error:
+        case Cat253BrVswrOmni::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_vswr_omni enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrVswrOmni enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1149,44 +1149,44 @@ inline conduit::VoidResult encode_cat253_br_vswr_omni(cat253_br_vswr_omni v, con
 }
 
 // AFB General
-enum class cat253_br_afb_general : uint8_t {
+enum class Cat253BrAfbGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_general v) {
+inline std::string_view to_string(Cat253BrAfbGeneral v) {
     switch (v) {
-        case cat253_br_afb_general::ok: return "ok";
-        case cat253_br_afb_general::error: return "error";
-        case cat253_br_afb_general::unknown: return "unknown";
+        case Cat253BrAfbGeneral::ok: return "ok";
+        case Cat253BrAfbGeneral::error: return "error";
+        case Cat253BrAfbGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_general> decode_cat253_br_afb_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbGeneral> decode_Cat253BrAfbGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_general>(*raw);
+    auto val = static_cast<Cat253BrAfbGeneral>(*raw);
     switch (val) {
-        case cat253_br_afb_general::ok:
-        case cat253_br_afb_general::error:
-        case cat253_br_afb_general::unknown:
+        case Cat253BrAfbGeneral::ok:
+        case Cat253BrAfbGeneral::error:
+        case Cat253BrAfbGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_general(cat253_br_afb_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbGeneral(Cat253BrAfbGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_general::ok:
-        case cat253_br_afb_general::error:
-        case cat253_br_afb_general::unknown:
+        case Cat253BrAfbGeneral::ok:
+        case Cat253BrAfbGeneral::error:
+        case Cat253BrAfbGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1194,44 +1194,44 @@ inline conduit::VoidResult encode_cat253_br_afb_general(cat253_br_afb_general v,
 }
 
 // AFB Main Synthesizer
-enum class cat253_br_afb_main_synth : uint8_t {
+enum class Cat253BrAfbMainSynth : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_main_synth v) {
+inline std::string_view to_string(Cat253BrAfbMainSynth v) {
     switch (v) {
-        case cat253_br_afb_main_synth::ok: return "ok";
-        case cat253_br_afb_main_synth::error: return "error";
-        case cat253_br_afb_main_synth::unknown: return "unknown";
+        case Cat253BrAfbMainSynth::ok: return "ok";
+        case Cat253BrAfbMainSynth::error: return "error";
+        case Cat253BrAfbMainSynth::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_main_synth> decode_cat253_br_afb_main_synth(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbMainSynth> decode_Cat253BrAfbMainSynth(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_main_synth>(*raw);
+    auto val = static_cast<Cat253BrAfbMainSynth>(*raw);
     switch (val) {
-        case cat253_br_afb_main_synth::ok:
-        case cat253_br_afb_main_synth::error:
-        case cat253_br_afb_main_synth::unknown:
+        case Cat253BrAfbMainSynth::ok:
+        case Cat253BrAfbMainSynth::error:
+        case Cat253BrAfbMainSynth::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_main_synth value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbMainSynth value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_main_synth(cat253_br_afb_main_synth v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbMainSynth(Cat253BrAfbMainSynth v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_main_synth::ok:
-        case cat253_br_afb_main_synth::error:
-        case cat253_br_afb_main_synth::unknown:
+        case Cat253BrAfbMainSynth::ok:
+        case Cat253BrAfbMainSynth::error:
+        case Cat253BrAfbMainSynth::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_main_synth enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbMainSynth enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1239,44 +1239,44 @@ inline conduit::VoidResult encode_cat253_br_afb_main_synth(cat253_br_afb_main_sy
 }
 
 // AFB BIT Synthesizer
-enum class cat253_br_afb_bit_synth : uint8_t {
+enum class Cat253BrAfbBitSynth : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_bit_synth v) {
+inline std::string_view to_string(Cat253BrAfbBitSynth v) {
     switch (v) {
-        case cat253_br_afb_bit_synth::ok: return "ok";
-        case cat253_br_afb_bit_synth::error: return "error";
-        case cat253_br_afb_bit_synth::unknown: return "unknown";
+        case Cat253BrAfbBitSynth::ok: return "ok";
+        case Cat253BrAfbBitSynth::error: return "error";
+        case Cat253BrAfbBitSynth::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_bit_synth> decode_cat253_br_afb_bit_synth(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbBitSynth> decode_Cat253BrAfbBitSynth(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_bit_synth>(*raw);
+    auto val = static_cast<Cat253BrAfbBitSynth>(*raw);
     switch (val) {
-        case cat253_br_afb_bit_synth::ok:
-        case cat253_br_afb_bit_synth::error:
-        case cat253_br_afb_bit_synth::unknown:
+        case Cat253BrAfbBitSynth::ok:
+        case Cat253BrAfbBitSynth::error:
+        case Cat253BrAfbBitSynth::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_bit_synth value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbBitSynth value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_bit_synth(cat253_br_afb_bit_synth v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbBitSynth(Cat253BrAfbBitSynth v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_bit_synth::ok:
-        case cat253_br_afb_bit_synth::error:
-        case cat253_br_afb_bit_synth::unknown:
+        case Cat253BrAfbBitSynth::ok:
+        case Cat253BrAfbBitSynth::error:
+        case Cat253BrAfbBitSynth::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_bit_synth enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbBitSynth enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1284,44 +1284,44 @@ inline conduit::VoidResult encode_cat253_br_afb_bit_synth(cat253_br_afb_bit_synt
 }
 
 // AFB Total Channel
-enum class cat253_br_afb_total_ch : uint8_t {
+enum class Cat253BrAfbTotalCh : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_total_ch v) {
+inline std::string_view to_string(Cat253BrAfbTotalCh v) {
     switch (v) {
-        case cat253_br_afb_total_ch::ok: return "ok";
-        case cat253_br_afb_total_ch::error: return "error";
-        case cat253_br_afb_total_ch::unknown: return "unknown";
+        case Cat253BrAfbTotalCh::ok: return "ok";
+        case Cat253BrAfbTotalCh::error: return "error";
+        case Cat253BrAfbTotalCh::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_total_ch> decode_cat253_br_afb_total_ch(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbTotalCh> decode_Cat253BrAfbTotalCh(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_total_ch>(*raw);
+    auto val = static_cast<Cat253BrAfbTotalCh>(*raw);
     switch (val) {
-        case cat253_br_afb_total_ch::ok:
-        case cat253_br_afb_total_ch::error:
-        case cat253_br_afb_total_ch::unknown:
+        case Cat253BrAfbTotalCh::ok:
+        case Cat253BrAfbTotalCh::error:
+        case Cat253BrAfbTotalCh::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_total_ch value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbTotalCh value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_total_ch(cat253_br_afb_total_ch v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbTotalCh(Cat253BrAfbTotalCh v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_total_ch::ok:
-        case cat253_br_afb_total_ch::error:
-        case cat253_br_afb_total_ch::unknown:
+        case Cat253BrAfbTotalCh::ok:
+        case Cat253BrAfbTotalCh::error:
+        case Cat253BrAfbTotalCh::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_total_ch enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbTotalCh enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1329,44 +1329,44 @@ inline conduit::VoidResult encode_cat253_br_afb_total_ch(cat253_br_afb_total_ch 
 }
 
 // AFB Difference Channel
-enum class cat253_br_afb_diff_ch : uint8_t {
+enum class Cat253BrAfbDiffCh : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_diff_ch v) {
+inline std::string_view to_string(Cat253BrAfbDiffCh v) {
     switch (v) {
-        case cat253_br_afb_diff_ch::ok: return "ok";
-        case cat253_br_afb_diff_ch::error: return "error";
-        case cat253_br_afb_diff_ch::unknown: return "unknown";
+        case Cat253BrAfbDiffCh::ok: return "ok";
+        case Cat253BrAfbDiffCh::error: return "error";
+        case Cat253BrAfbDiffCh::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_diff_ch> decode_cat253_br_afb_diff_ch(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbDiffCh> decode_Cat253BrAfbDiffCh(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_diff_ch>(*raw);
+    auto val = static_cast<Cat253BrAfbDiffCh>(*raw);
     switch (val) {
-        case cat253_br_afb_diff_ch::ok:
-        case cat253_br_afb_diff_ch::error:
-        case cat253_br_afb_diff_ch::unknown:
+        case Cat253BrAfbDiffCh::ok:
+        case Cat253BrAfbDiffCh::error:
+        case Cat253BrAfbDiffCh::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_diff_ch value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbDiffCh value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_diff_ch(cat253_br_afb_diff_ch v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbDiffCh(Cat253BrAfbDiffCh v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_diff_ch::ok:
-        case cat253_br_afb_diff_ch::error:
-        case cat253_br_afb_diff_ch::unknown:
+        case Cat253BrAfbDiffCh::ok:
+        case Cat253BrAfbDiffCh::error:
+        case Cat253BrAfbDiffCh::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_diff_ch enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbDiffCh enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1374,44 +1374,44 @@ inline conduit::VoidResult encode_cat253_br_afb_diff_ch(cat253_br_afb_diff_ch v,
 }
 
 // AFB Omni Channel
-enum class cat253_br_afb_omni_ch : uint8_t {
+enum class Cat253BrAfbOmniCh : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_afb_omni_ch v) {
+inline std::string_view to_string(Cat253BrAfbOmniCh v) {
     switch (v) {
-        case cat253_br_afb_omni_ch::ok: return "ok";
-        case cat253_br_afb_omni_ch::error: return "error";
-        case cat253_br_afb_omni_ch::unknown: return "unknown";
+        case Cat253BrAfbOmniCh::ok: return "ok";
+        case Cat253BrAfbOmniCh::error: return "error";
+        case Cat253BrAfbOmniCh::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_afb_omni_ch> decode_cat253_br_afb_omni_ch(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrAfbOmniCh> decode_Cat253BrAfbOmniCh(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_afb_omni_ch>(*raw);
+    auto val = static_cast<Cat253BrAfbOmniCh>(*raw);
     switch (val) {
-        case cat253_br_afb_omni_ch::ok:
-        case cat253_br_afb_omni_ch::error:
-        case cat253_br_afb_omni_ch::unknown:
+        case Cat253BrAfbOmniCh::ok:
+        case Cat253BrAfbOmniCh::error:
+        case Cat253BrAfbOmniCh::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_afb_omni_ch value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrAfbOmniCh value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_afb_omni_ch(cat253_br_afb_omni_ch v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrAfbOmniCh(Cat253BrAfbOmniCh v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_afb_omni_ch::ok:
-        case cat253_br_afb_omni_ch::error:
-        case cat253_br_afb_omni_ch::unknown:
+        case Cat253BrAfbOmniCh::ok:
+        case Cat253BrAfbOmniCh::error:
+        case Cat253BrAfbOmniCh::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_afb_omni_ch enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrAfbOmniCh enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1419,44 +1419,44 @@ inline conduit::VoidResult encode_cat253_br_afb_omni_ch(cat253_br_afb_omni_ch v,
 }
 
 // RFGYB General
-enum class cat253_br_rfgyb_general : uint8_t {
+enum class Cat253BrRfgybGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_rfgyb_general v) {
+inline std::string_view to_string(Cat253BrRfgybGeneral v) {
     switch (v) {
-        case cat253_br_rfgyb_general::ok: return "ok";
-        case cat253_br_rfgyb_general::error: return "error";
-        case cat253_br_rfgyb_general::unknown: return "unknown";
+        case Cat253BrRfgybGeneral::ok: return "ok";
+        case Cat253BrRfgybGeneral::error: return "error";
+        case Cat253BrRfgybGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_rfgyb_general> decode_cat253_br_rfgyb_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrRfgybGeneral> decode_Cat253BrRfgybGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_rfgyb_general>(*raw);
+    auto val = static_cast<Cat253BrRfgybGeneral>(*raw);
     switch (val) {
-        case cat253_br_rfgyb_general::ok:
-        case cat253_br_rfgyb_general::error:
-        case cat253_br_rfgyb_general::unknown:
+        case Cat253BrRfgybGeneral::ok:
+        case Cat253BrRfgybGeneral::error:
+        case Cat253BrRfgybGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_rfgyb_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrRfgybGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_rfgyb_general(cat253_br_rfgyb_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrRfgybGeneral(Cat253BrRfgybGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_rfgyb_general::ok:
-        case cat253_br_rfgyb_general::error:
-        case cat253_br_rfgyb_general::unknown:
+        case Cat253BrRfgybGeneral::ok:
+        case Cat253BrRfgybGeneral::error:
+        case Cat253BrRfgybGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_rfgyb_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrRfgybGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1464,44 +1464,44 @@ inline conduit::VoidResult encode_cat253_br_rfgyb_general(cat253_br_rfgyb_genera
 }
 
 // RFGYB Total Output Power
-enum class cat253_br_rfgyb_total_pwr : uint8_t {
+enum class Cat253BrRfgybTotalPwr : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_rfgyb_total_pwr v) {
+inline std::string_view to_string(Cat253BrRfgybTotalPwr v) {
     switch (v) {
-        case cat253_br_rfgyb_total_pwr::ok: return "ok";
-        case cat253_br_rfgyb_total_pwr::error: return "error";
-        case cat253_br_rfgyb_total_pwr::unknown: return "unknown";
+        case Cat253BrRfgybTotalPwr::ok: return "ok";
+        case Cat253BrRfgybTotalPwr::error: return "error";
+        case Cat253BrRfgybTotalPwr::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_rfgyb_total_pwr> decode_cat253_br_rfgyb_total_pwr(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrRfgybTotalPwr> decode_Cat253BrRfgybTotalPwr(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_rfgyb_total_pwr>(*raw);
+    auto val = static_cast<Cat253BrRfgybTotalPwr>(*raw);
     switch (val) {
-        case cat253_br_rfgyb_total_pwr::ok:
-        case cat253_br_rfgyb_total_pwr::error:
-        case cat253_br_rfgyb_total_pwr::unknown:
+        case Cat253BrRfgybTotalPwr::ok:
+        case Cat253BrRfgybTotalPwr::error:
+        case Cat253BrRfgybTotalPwr::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_rfgyb_total_pwr value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrRfgybTotalPwr value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_rfgyb_total_pwr(cat253_br_rfgyb_total_pwr v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrRfgybTotalPwr(Cat253BrRfgybTotalPwr v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_rfgyb_total_pwr::ok:
-        case cat253_br_rfgyb_total_pwr::error:
-        case cat253_br_rfgyb_total_pwr::unknown:
+        case Cat253BrRfgybTotalPwr::ok:
+        case Cat253BrRfgybTotalPwr::error:
+        case Cat253BrRfgybTotalPwr::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_rfgyb_total_pwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrRfgybTotalPwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1509,44 +1509,44 @@ inline conduit::VoidResult encode_cat253_br_rfgyb_total_pwr(cat253_br_rfgyb_tota
 }
 
 // RFGYB Difference Output Power
-enum class cat253_br_rfgyb_diff_pwr : uint8_t {
+enum class Cat253BrRfgybDiffPwr : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_rfgyb_diff_pwr v) {
+inline std::string_view to_string(Cat253BrRfgybDiffPwr v) {
     switch (v) {
-        case cat253_br_rfgyb_diff_pwr::ok: return "ok";
-        case cat253_br_rfgyb_diff_pwr::error: return "error";
-        case cat253_br_rfgyb_diff_pwr::unknown: return "unknown";
+        case Cat253BrRfgybDiffPwr::ok: return "ok";
+        case Cat253BrRfgybDiffPwr::error: return "error";
+        case Cat253BrRfgybDiffPwr::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_rfgyb_diff_pwr> decode_cat253_br_rfgyb_diff_pwr(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrRfgybDiffPwr> decode_Cat253BrRfgybDiffPwr(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_rfgyb_diff_pwr>(*raw);
+    auto val = static_cast<Cat253BrRfgybDiffPwr>(*raw);
     switch (val) {
-        case cat253_br_rfgyb_diff_pwr::ok:
-        case cat253_br_rfgyb_diff_pwr::error:
-        case cat253_br_rfgyb_diff_pwr::unknown:
+        case Cat253BrRfgybDiffPwr::ok:
+        case Cat253BrRfgybDiffPwr::error:
+        case Cat253BrRfgybDiffPwr::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_rfgyb_diff_pwr value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrRfgybDiffPwr value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_rfgyb_diff_pwr(cat253_br_rfgyb_diff_pwr v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrRfgybDiffPwr(Cat253BrRfgybDiffPwr v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_rfgyb_diff_pwr::ok:
-        case cat253_br_rfgyb_diff_pwr::error:
-        case cat253_br_rfgyb_diff_pwr::unknown:
+        case Cat253BrRfgybDiffPwr::ok:
+        case Cat253BrRfgybDiffPwr::error:
+        case Cat253BrRfgybDiffPwr::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_rfgyb_diff_pwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrRfgybDiffPwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1554,44 +1554,44 @@ inline conduit::VoidResult encode_cat253_br_rfgyb_diff_pwr(cat253_br_rfgyb_diff_
 }
 
 // RFGYB Omni Output Power
-enum class cat253_br_rfgyb_omni_pwr : uint8_t {
+enum class Cat253BrRfgybOmniPwr : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_rfgyb_omni_pwr v) {
+inline std::string_view to_string(Cat253BrRfgybOmniPwr v) {
     switch (v) {
-        case cat253_br_rfgyb_omni_pwr::ok: return "ok";
-        case cat253_br_rfgyb_omni_pwr::error: return "error";
-        case cat253_br_rfgyb_omni_pwr::unknown: return "unknown";
+        case Cat253BrRfgybOmniPwr::ok: return "ok";
+        case Cat253BrRfgybOmniPwr::error: return "error";
+        case Cat253BrRfgybOmniPwr::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_rfgyb_omni_pwr> decode_cat253_br_rfgyb_omni_pwr(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrRfgybOmniPwr> decode_Cat253BrRfgybOmniPwr(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_rfgyb_omni_pwr>(*raw);
+    auto val = static_cast<Cat253BrRfgybOmniPwr>(*raw);
     switch (val) {
-        case cat253_br_rfgyb_omni_pwr::ok:
-        case cat253_br_rfgyb_omni_pwr::error:
-        case cat253_br_rfgyb_omni_pwr::unknown:
+        case Cat253BrRfgybOmniPwr::ok:
+        case Cat253BrRfgybOmniPwr::error:
+        case Cat253BrRfgybOmniPwr::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_rfgyb_omni_pwr value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrRfgybOmniPwr value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_rfgyb_omni_pwr(cat253_br_rfgyb_omni_pwr v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrRfgybOmniPwr(Cat253BrRfgybOmniPwr v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_rfgyb_omni_pwr::ok:
-        case cat253_br_rfgyb_omni_pwr::error:
-        case cat253_br_rfgyb_omni_pwr::unknown:
+        case Cat253BrRfgybOmniPwr::ok:
+        case Cat253BrRfgybOmniPwr::error:
+        case Cat253BrRfgybOmniPwr::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_rfgyb_omni_pwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrRfgybOmniPwr enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1599,44 +1599,44 @@ inline conduit::VoidResult encode_cat253_br_rfgyb_omni_pwr(cat253_br_rfgyb_omni_
 }
 
 // RFGYB Heat Warning
-enum class cat253_br_rfgyb_heat_warning : uint8_t {
+enum class Cat253BrRfgybHeatWarning : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_rfgyb_heat_warning v) {
+inline std::string_view to_string(Cat253BrRfgybHeatWarning v) {
     switch (v) {
-        case cat253_br_rfgyb_heat_warning::ok: return "ok";
-        case cat253_br_rfgyb_heat_warning::error: return "error";
-        case cat253_br_rfgyb_heat_warning::unknown: return "unknown";
+        case Cat253BrRfgybHeatWarning::ok: return "ok";
+        case Cat253BrRfgybHeatWarning::error: return "error";
+        case Cat253BrRfgybHeatWarning::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_rfgyb_heat_warning> decode_cat253_br_rfgyb_heat_warning(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrRfgybHeatWarning> decode_Cat253BrRfgybHeatWarning(conduit::io::BitReader& r) {
     auto raw = r.read_bits(2);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_rfgyb_heat_warning>(*raw);
+    auto val = static_cast<Cat253BrRfgybHeatWarning>(*raw);
     switch (val) {
-        case cat253_br_rfgyb_heat_warning::ok:
-        case cat253_br_rfgyb_heat_warning::error:
-        case cat253_br_rfgyb_heat_warning::unknown:
+        case Cat253BrRfgybHeatWarning::ok:
+        case Cat253BrRfgybHeatWarning::error:
+        case Cat253BrRfgybHeatWarning::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_rfgyb_heat_warning value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrRfgybHeatWarning value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_rfgyb_heat_warning(cat253_br_rfgyb_heat_warning v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrRfgybHeatWarning(Cat253BrRfgybHeatWarning v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_rfgyb_heat_warning::ok:
-        case cat253_br_rfgyb_heat_warning::error:
-        case cat253_br_rfgyb_heat_warning::unknown:
+        case Cat253BrRfgybHeatWarning::ok:
+        case Cat253BrRfgybHeatWarning::error:
+        case Cat253BrRfgybHeatWarning::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_rfgyb_heat_warning enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrRfgybHeatWarning enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
     if (w.has_error()) return std::unexpected(w.error());
@@ -1644,44 +1644,44 @@ inline conduit::VoidResult encode_cat253_br_rfgyb_heat_warning(cat253_br_rfgyb_h
 }
 
 // Crypto General
-enum class cat253_br_crypto_general : uint8_t {
+enum class Cat253BrCryptoGeneral : uint8_t {
     ok = 0,
     error = 1,
     unknown = 2,
 };
 
-inline std::string_view to_string(cat253_br_crypto_general v) {
+inline std::string_view to_string(Cat253BrCryptoGeneral v) {
     switch (v) {
-        case cat253_br_crypto_general::ok: return "ok";
-        case cat253_br_crypto_general::error: return "error";
-        case cat253_br_crypto_general::unknown: return "unknown";
+        case Cat253BrCryptoGeneral::ok: return "ok";
+        case Cat253BrCryptoGeneral::error: return "error";
+        case Cat253BrCryptoGeneral::unknown: return "unknown";
     }
     return "unknown";
 }
 
-inline conduit::Result<cat253_br_crypto_general> decode_cat253_br_crypto_general(conduit::io::BitReader& r) {
+inline conduit::Result<Cat253BrCryptoGeneral> decode_Cat253BrCryptoGeneral(conduit::io::BitReader& r) {
     auto raw = r.read_bits(4);
     if (!raw) return std::unexpected(raw.error());
-    auto val = static_cast<cat253_br_crypto_general>(*raw);
+    auto val = static_cast<Cat253BrCryptoGeneral>(*raw);
     switch (val) {
-        case cat253_br_crypto_general::ok:
-        case cat253_br_crypto_general::error:
-        case cat253_br_crypto_general::unknown:
+        case Cat253BrCryptoGeneral::ok:
+        case Cat253BrCryptoGeneral::error:
+        case Cat253BrCryptoGeneral::unknown:
             return val;
     }
     return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
-        "unknown cat253_br_crypto_general value: " + std::to_string(static_cast<uint8_t>(val))));
+        "unknown Cat253BrCryptoGeneral value: " + std::to_string(static_cast<uint8_t>(val))));
 }
 
-inline conduit::VoidResult encode_cat253_br_crypto_general(cat253_br_crypto_general v, conduit::io::BitWriter& w) {
+inline conduit::VoidResult encode_Cat253BrCryptoGeneral(Cat253BrCryptoGeneral v, conduit::io::BitWriter& w) {
     switch (v) {
-        case cat253_br_crypto_general::ok:
-        case cat253_br_crypto_general::error:
-        case cat253_br_crypto_general::unknown:
+        case Cat253BrCryptoGeneral::ok:
+        case Cat253BrCryptoGeneral::error:
+        case Cat253BrCryptoGeneral::unknown:
             break;
         default:
             return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
-                "invalid cat253_br_crypto_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
+                "invalid Cat253BrCryptoGeneral enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
     if (w.has_error()) return std::unexpected(w.error());

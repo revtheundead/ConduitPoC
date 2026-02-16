@@ -1,0 +1,14 @@
+<bmdl version="2.0">
+  <defaults><namespace>invalid_auto_length_fx</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <struct name="BadStruct">
+      <field name="tag" type="uint8"/>
+      <fx>
+        <!-- auto="length" inside FX blocks is invalid -->
+        <field name="len" type="uint8" auto="length"/>
+        <field name="value" type="uint8"/>
+      </fx>
+    </struct>
+  </types>
+</bmdl>

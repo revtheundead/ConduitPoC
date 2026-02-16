@@ -31,7 +31,7 @@
          =================================================================== -->
 
     <!-- I253/040 Message Type Identifier (6 bits) -->
-    <type name="cat253-msg-type" base="uint" bits="6">
+    <type name="Cat253MsgType" base="uint" bits="6">
       <doc>
         Message Type Identification:
         1 = Time and Day, 2 = Connect Request, 3 = Connect Response,
@@ -45,23 +45,23 @@
         18 = Acknowledgement, 19 = Error, 20 = Alarm, 21 = Alive
       </doc>
       <enum>
-        <value id="1" name="time-and-day"/>
-        <value id="2" name="connect-request"/>
-        <value id="3" name="connect-response"/>
-        <value id="4" name="connect-release"/>
-        <value id="5" name="command-token-request"/>
-        <value id="6" name="command-token-release"/>
-        <value id="7" name="command-token-assign"/>
+        <value id="1" name="TimeAndDay"/>
+        <value id="2" name="ConnectRequest"/>
+        <value id="3" name="ConnectResponse"/>
+        <value id="4" name="ConnectRelease"/>
+        <value id="5" name="CommandTokenRequest"/>
+        <value id="6" name="CommandTokenRelease"/>
+        <value id="7" name="CommandTokenAssign"/>
         <value id="8" name="command"/>
-        <value id="9" name="complete-status-transfer"/>
-        <value id="10" name="delta-status-transfer"/>
-        <value id="11" name="complete-status-transfer-request"/>
-        <value id="12" name="centre-exchange"/>
-        <value id="13" name="centre-status"/>
-        <value id="14" name="centre-transparent"/>
-        <value id="15" name="centre-resynch-request"/>
-        <value id="16" name="radar-monitor-start"/>
-        <value id="17" name="radar-monitor-stop"/>
+        <value id="9" name="CompleteStatusTransfer"/>
+        <value id="10" name="DeltaStatusTransfer"/>
+        <value id="11" name="CompleteStatusTransferRequest"/>
+        <value id="12" name="CentreExchange"/>
+        <value id="13" name="CentreStatus"/>
+        <value id="14" name="CentreTransparent"/>
+        <value id="15" name="CentreResynchRequest"/>
+        <value id="16" name="RadarMonitorStart"/>
+        <value id="17" name="RadarMonitorStop"/>
         <value id="18" name="acknowledgement"/>
         <value id="19" name="error"/>
         <value id="20" name="alarm"/>
@@ -73,7 +73,7 @@
          I100 Variant Enum Types - Multipath (mp- prefix)
          ================================================================= -->
 
-    <type name="cat253-mp-detection" base="uint" bits="4">
+    <type name="Cat253MpDetection" base="uint" bits="4">
       <doc>Multipath detection: 0x0 = Disabled, 0x1 = Enabled</doc>
       <enum>
         <value id="0" name="disabled"/>
@@ -81,7 +81,7 @@
       </enum>
     </type>
 
-    <type name="cat253-mp-level" base="uint" bits="4">
+    <type name="Cat253MpLevel" base="uint" bits="4">
       <doc>Multipath level (LSB = 1 dB, range 0-6 dB)</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -94,16 +94,16 @@
          I100 Variant Enum Types - Squitter (sq- prefix)
          ================================================================= -->
 
-    <type name="cat253-sq-rx-channel" base="uint" bits="4">
+    <type name="Cat253SqRxChannel" base="uint" bits="4">
       <doc>Squitter receiving channel: 0x0 = SUM, 0x1 = DIFF, 0x2 = SUM+DIFF</doc>
       <enum>
         <value id="0" name="sum"/>
         <value id="1" name="diff"/>
-        <value id="2" name="sum-diff"/>
+        <value id="2" name="SumDiff"/>
       </enum>
     </type>
 
-    <type name="cat253-sq-ms-squitter" base="uint" bits="1">
+    <type name="Cat253SqMsSquitter" base="uint" bits="1">
       <doc>Mode S Squitter</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -111,7 +111,7 @@
       </enum>
     </type>
 
-    <type name="cat253-sq-m5-squitter" base="uint" bits="1">
+    <type name="Cat253SqM5Squitter" base="uint" bits="1">
       <doc>Mode 5 Squitter</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -124,7 +124,7 @@
          ================================================================= -->
 
     <!-- Octet 2 -->
-    <type name="cat253-br-bit-type" base="uint" bits="4">
+    <type name="Cat253BrBitType" base="uint" bits="4">
       <doc>BIT Type</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -133,7 +133,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-success-state" base="uint" bits="4">
+    <type name="Cat253BrSuccessState" base="uint" bits="4">
       <doc>Success State</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -143,7 +143,7 @@
     </type>
 
     <!-- Octet 3 -->
-    <type name="cat253-br-antenna-general" base="uint" bits="4">
+    <type name="Cat253BrAntennaGeneral" base="uint" bits="4">
       <doc>Antenna General Response</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -152,7 +152,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-antenna-scan-error" base="uint" bits="4">
+    <type name="Cat253BrAntennaScanError" base="uint" bits="4">
       <doc>Antenna Scan Error</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -162,7 +162,7 @@
     </type>
 
     <!-- Octet 4 -->
-    <type name="cat253-br-power-source-general" base="uint" bits="4">
+    <type name="Cat253BrPowerSourceGeneral" base="uint" bits="4">
       <doc>Power Source General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -172,7 +172,7 @@
     </type>
 
     <!-- Octet 5 -->
-    <type name="cat253-br-ctrl-unit-general" base="uint" bits="2">
+    <type name="Cat253BrCtrlUnitGeneral" base="uint" bits="2">
       <doc>Control Unit General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -181,7 +181,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-kb-crypto-comm" base="uint" bits="2">
+    <type name="Cat253BrKbCryptoComm" base="uint" bits="2">
       <doc>KB Crypto Communication</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -190,7 +190,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-kb-rtc" base="uint" bits="2">
+    <type name="Cat253BrKbRtc" base="uint" bits="2">
       <doc>KB RTC</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -199,7 +199,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-kb-heat-warning" base="uint" bits="2">
+    <type name="Cat253BrKbHeatWarning" base="uint" bits="2">
       <doc>KB Heat Warning</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -209,7 +209,7 @@
     </type>
 
     <!-- Octet 6 -->
-    <type name="cat253-br-bottom-band-general" base="uint" bits="4">
+    <type name="Cat253BrBottomBandGeneral" base="uint" bits="4">
       <doc>General Bottom Band</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -218,7 +218,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-tb-ctrl-comm" base="uint" bits="2">
+    <type name="Cat253BrTbCtrlComm" base="uint" bits="2">
       <doc>TB Control Unit Communication</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -227,7 +227,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-tb-config-upload" base="uint" bits="2">
+    <type name="Cat253BrTbConfigUpload" base="uint" bits="2">
       <doc>TB Config Upload</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -237,7 +237,7 @@
     </type>
 
     <!-- Octet 7 -->
-    <type name="cat253-br-vswr-general" base="uint" bits="2">
+    <type name="Cat253BrVswrGeneral" base="uint" bits="2">
       <doc>VSWR General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -246,7 +246,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-vswr-sum" base="uint" bits="2">
+    <type name="Cat253BrVswrSum" base="uint" bits="2">
       <doc>VSWR Sum</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -255,7 +255,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-vswr-diff" base="uint" bits="2">
+    <type name="Cat253BrVswrDiff" base="uint" bits="2">
       <doc>VSWR Difference</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -264,7 +264,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-vswr-omni" base="uint" bits="2">
+    <type name="Cat253BrVswrOmni" base="uint" bits="2">
       <doc>VSWR Omni</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -274,7 +274,7 @@
     </type>
 
     <!-- Octet 8 -->
-    <type name="cat253-br-afb-general" base="uint" bits="4">
+    <type name="Cat253BrAfbGeneral" base="uint" bits="4">
       <doc>AFB General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -283,7 +283,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-afb-main-synth" base="uint" bits="2">
+    <type name="Cat253BrAfbMainSynth" base="uint" bits="2">
       <doc>AFB Main Synthesizer</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -293,7 +293,7 @@
     </type>
 
     <!-- Octet 9 -->
-    <type name="cat253-br-afb-bit-synth" base="uint" bits="2">
+    <type name="Cat253BrAfbBitSynth" base="uint" bits="2">
       <doc>AFB BIT Synthesizer</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -302,7 +302,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-afb-total-ch" base="uint" bits="2">
+    <type name="Cat253BrAfbTotalCh" base="uint" bits="2">
       <doc>AFB Total Channel</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -311,7 +311,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-afb-diff-ch" base="uint" bits="2">
+    <type name="Cat253BrAfbDiffCh" base="uint" bits="2">
       <doc>AFB Difference Channel</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -320,7 +320,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-afb-omni-ch" base="uint" bits="2">
+    <type name="Cat253BrAfbOmniCh" base="uint" bits="2">
       <doc>AFB Omni Channel</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -330,7 +330,7 @@
     </type>
 
     <!-- Octet 10 -->
-    <type name="cat253-br-rfgyb-general" base="uint" bits="4">
+    <type name="Cat253BrRfgybGeneral" base="uint" bits="4">
       <doc>RFGYB General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -339,7 +339,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-rfgyb-total-pwr" base="uint" bits="2">
+    <type name="Cat253BrRfgybTotalPwr" base="uint" bits="2">
       <doc>RFGYB Total Output Power</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -348,7 +348,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-rfgyb-diff-pwr" base="uint" bits="2">
+    <type name="Cat253BrRfgybDiffPwr" base="uint" bits="2">
       <doc>RFGYB Difference Output Power</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -358,7 +358,7 @@
     </type>
 
     <!-- Octet 11 -->
-    <type name="cat253-br-rfgyb-omni-pwr" base="uint" bits="2">
+    <type name="Cat253BrRfgybOmniPwr" base="uint" bits="2">
       <doc>RFGYB Omni Output Power</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -367,7 +367,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-rfgyb-heat-warning" base="uint" bits="2">
+    <type name="Cat253BrRfgybHeatWarning" base="uint" bits="2">
       <doc>RFGYB Heat Warning</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -376,7 +376,7 @@
       </enum>
     </type>
 
-    <type name="cat253-br-crypto-general" base="uint" bits="4">
+    <type name="Cat253BrCryptoGeneral" base="uint" bits="4">
       <doc>Crypto General</doc>
       <enum>
         <value id="0" name="ok"/>
@@ -395,7 +395,7 @@
          ======================================================================= -->
     <struct name="Cat253I025">
       <doc>I253/025 - Data Destination Identifier and Local Data Destination ID</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(destinations)">
         <doc>Repetition factor</doc>
       </field>
       <array name="destinations" count-from="rep">
@@ -405,7 +405,7 @@
         <field name="sic" type="uint8">
           <doc>System Identification Code of destination</doc>
         </field>
-        <field name="local-id" type="uint8">
+        <field name="localId" type="uint8">
           <doc>Local Data Destination Identifier</doc>
         </field>
       </array>
@@ -423,7 +423,7 @@
       <field name="oic" type="uint8">
         <doc>Origin Identification Code</doc>
       </field>
-      <field name="local-id" type="uint8">
+      <field name="localId" type="uint8">
         <doc>Origin Local Identifier</doc>
       </field>
     </struct>
@@ -440,7 +440,7 @@
       <field name="d" bits="1">
         <doc>Direction: 0 = Request, 1 = Response</doc>
       </field>
-      <field name="mit" type="cat253-msg-type">
+      <field name="mit" type="Cat253MsgType">
         <doc>Message Type Identification</doc>
       </field>
     </struct>
@@ -451,7 +451,7 @@
          ======================================================================= -->
     <struct name="Cat253I050">
       <doc>I253/050 - Message Sequence Identifier</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(sequences)">
         <doc>Repetition factor</doc>
       </field>
       <array name="sequences" count-from="rep">
@@ -484,7 +484,7 @@
          ======================================================================= -->
     <struct name="Cat253I080">
       <doc>I253/080 - Application Data Structure</doc>
-      <field name="start-index" type="uint16">
+      <field name="startIndex" type="uint16">
         <doc>Start Index (determines data structure in I100)</doc>
       </field>
       <field name="count" type="uint8">
@@ -496,15 +496,15 @@
       <field name="sim" bits="1">
         <doc>Simulation indicator: 0 = Actual, 1 = Simulated</doc>
       </field>
-      <field name="local-ctrl" bits="1">
+      <field name="localCtrl" bits="1">
         <doc>Local control: 0 = Not under local control, 1 = Under local control</doc>
       </field>
-      <field name="data-included" bits="1">
+      <field name="dataIncluded" bits="1">
         <doc>Data included: 0 = No data in I100, 1 = Data included in I100</doc>
       </field>
       <reserved bits="3"/>
       <fx>
-        <field name="start-index1" type="uint16">
+        <field name="startIndex1" type="uint16">
           <doc>Start Index (second extent)</doc>
         </field>
         <field name="count1" type="uint8">
@@ -516,15 +516,15 @@
         <field name="sim1" bits="1">
           <doc>Simulation indicator (second extent)</doc>
         </field>
-        <field name="local-ctrl1" bits="1">
+        <field name="localCtrl1" bits="1">
           <doc>Local control (second extent)</doc>
         </field>
-        <field name="data-included1" bits="1">
+        <field name="dataIncluded1" bits="1">
           <doc>Data included (second extent)</doc>
         </field>
         <reserved bits="3"/>
         <fx>
-          <field name="start-index2" type="uint16">
+          <field name="startIndex2" type="uint16">
             <doc>Start Index (third extent)</doc>
           </field>
           <field name="count2" type="uint8">
@@ -536,15 +536,15 @@
           <field name="sim2" bits="1">
             <doc>Simulation indicator (third extent)</doc>
           </field>
-          <field name="local-ctrl2" bits="1">
+          <field name="localCtrl2" bits="1">
             <doc>Local control (third extent)</doc>
           </field>
-          <field name="data-included2" bits="1">
+          <field name="dataIncluded2" bits="1">
             <doc>Data included (third extent)</doc>
           </field>
           <reserved bits="3"/>
           <fx>
-            <field name="start-index3" type="uint16">
+            <field name="startIndex3" type="uint16">
               <doc>Start Index (fourth extent)</doc>
             </field>
             <field name="count3" type="uint8">
@@ -556,10 +556,10 @@
             <field name="sim3" bits="1">
               <doc>Simulation indicator (fourth extent)</doc>
             </field>
-            <field name="local-ctrl3" bits="1">
+            <field name="localCtrl3" bits="1">
               <doc>Local control (fourth extent)</doc>
             </field>
-            <field name="data-included3" bits="1">
+            <field name="dataIncluded3" bits="1">
               <doc>Data included (fourth extent)</doc>
             </field>
             <reserved bits="3"/>
@@ -575,10 +575,10 @@
          ======================================================================= -->
     <struct name="Cat253I090">
       <doc>I253/090 - Application Data (not used, included for completeness)</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(dataItems)">
         <doc>Repetition factor</doc>
       </field>
-      <array name="data-items" count-from="rep">
+      <array name="dataItems" count-from="rep">
         <field name="data" bytes="16">
           <doc>Application data (16 bytes per item)</doc>
         </field>
@@ -597,10 +597,10 @@
          ======================================================================= -->
     <struct name="Cat253Multipath">
       <doc>I253/100 variant: Multipath data (1 data byte, excluding length)</doc>
-      <field name="detection" type="cat253-mp-detection">
+      <field name="detection" type="Cat253MpDetection">
         <doc>Multipath detection: 0 = Disabled, 1 = Enabled</doc>
       </field>
-      <field name="level" type="cat253-mp-level">
+      <field name="level" type="Cat253MpLevel">
         <doc>Multipath level (LSB = 1 dB, range 0-6 dB)</doc>
       </field>
     </struct>
@@ -612,14 +612,14 @@
          ======================================================================= -->
     <struct name="Cat253Squitter">
       <doc>I253/100 variant: Squitter data (1 data byte, excluding length)</doc>
-      <field name="rx-channel" type="cat253-sq-rx-channel">
+      <field name="rxChannel" type="Cat253SqRxChannel">
         <doc>Squitter receiving channel: 0 = SUM, 1 = DIFF, 2 = SUM+DIFF</doc>
       </field>
       <reserved bits="2"/>
-      <field name="ms-squitter" type="cat253-sq-ms-squitter">
+      <field name="msSquitter" type="Cat253SqMsSquitter">
         <doc>Mode S Squitter</doc>
       </field>
-      <field name="m5-squitter" type="cat253-sq-m5-squitter">
+      <field name="m5Squitter" type="Cat253SqM5Squitter">
         <doc>Mode 5 Squitter</doc>
       </field>
     </struct>
@@ -644,113 +644,113 @@
       <doc>I253/100 variant: BIT Report data (16 data bytes, excluding length)</doc>
 
       <!-- Octet 1 -->
-      <field name="bit-type" type="cat253-br-bit-type">
+      <field name="bitType" type="Cat253BrBitType">
         <doc>BIT Type</doc>
       </field>
-      <field name="success-state" type="cat253-br-success-state">
+      <field name="successState" type="Cat253BrSuccessState">
         <doc>Success State</doc>
       </field>
 
       <!-- Octet 2 -->
-      <field name="antenna-general" type="cat253-br-antenna-general">
+      <field name="antennaGeneral" type="Cat253BrAntennaGeneral">
         <doc>Antenna General Response</doc>
       </field>
-      <field name="antenna-scan-error" type="cat253-br-antenna-scan-error">
+      <field name="antennaScanError" type="Cat253BrAntennaScanError">
         <doc>Antenna Scan Error</doc>
       </field>
 
       <!-- Octet 3 -->
       <reserved bits="4"/>
-      <field name="power-source-general" type="cat253-br-power-source-general">
+      <field name="powerSourceGeneral" type="Cat253BrPowerSourceGeneral">
         <doc>Power Source General</doc>
       </field>
 
       <!-- Octet 4 -->
-      <field name="ctrl-unit-general" type="cat253-br-ctrl-unit-general">
+      <field name="ctrlUnitGeneral" type="Cat253BrCtrlUnitGeneral">
         <doc>Control Unit General</doc>
       </field>
-      <field name="kb-crypto-comm" type="cat253-br-kb-crypto-comm">
+      <field name="kbCryptoComm" type="Cat253BrKbCryptoComm">
         <doc>KB Crypto Communication</doc>
       </field>
-      <field name="kb-rtc" type="cat253-br-kb-rtc">
+      <field name="kbRtc" type="Cat253BrKbRtc">
         <doc>KB RTC</doc>
       </field>
-      <field name="kb-heat-warning" type="cat253-br-kb-heat-warning">
+      <field name="kbHeatWarning" type="Cat253BrKbHeatWarning">
         <doc>KB Heat Warning</doc>
       </field>
 
       <!-- Octet 5 -->
-      <field name="bottom-band-general" type="cat253-br-bottom-band-general">
+      <field name="bottomBandGeneral" type="Cat253BrBottomBandGeneral">
         <doc>General Bottom Band</doc>
       </field>
-      <field name="tb-ctrl-comm" type="cat253-br-tb-ctrl-comm">
+      <field name="tbCtrlComm" type="Cat253BrTbCtrlComm">
         <doc>TB Control Unit Communication</doc>
       </field>
-      <field name="tb-config-upload" type="cat253-br-tb-config-upload">
+      <field name="tbConfigUpload" type="Cat253BrTbConfigUpload">
         <doc>TB Config Upload</doc>
       </field>
 
       <!-- Octet 6 -->
-      <field name="vswr-general" type="cat253-br-vswr-general">
+      <field name="vswrGeneral" type="Cat253BrVswrGeneral">
         <doc>VSWR General</doc>
       </field>
-      <field name="vswr-sum" type="cat253-br-vswr-sum">
+      <field name="vswrSum" type="Cat253BrVswrSum">
         <doc>VSWR Sum</doc>
       </field>
-      <field name="vswr-diff" type="cat253-br-vswr-diff">
+      <field name="vswrDiff" type="Cat253BrVswrDiff">
         <doc>VSWR Difference</doc>
       </field>
-      <field name="vswr-omni" type="cat253-br-vswr-omni">
+      <field name="vswrOmni" type="Cat253BrVswrOmni">
         <doc>VSWR Omni</doc>
       </field>
 
       <!-- Octet 7 -->
       <reserved bits="2"/>
-      <field name="afb-general" type="cat253-br-afb-general">
+      <field name="afbGeneral" type="Cat253BrAfbGeneral">
         <doc>AFB General</doc>
       </field>
-      <field name="afb-main-synth" type="cat253-br-afb-main-synth">
+      <field name="afbMainSynth" type="Cat253BrAfbMainSynth">
         <doc>AFB Main Synthesizer</doc>
       </field>
 
       <!-- Octet 8 -->
-      <field name="afb-bit-synth" type="cat253-br-afb-bit-synth">
+      <field name="afbBitSynth" type="Cat253BrAfbBitSynth">
         <doc>AFB BIT Synthesizer</doc>
       </field>
-      <field name="afb-total-ch" type="cat253-br-afb-total-ch">
+      <field name="afbTotalCh" type="Cat253BrAfbTotalCh">
         <doc>AFB Total Channel</doc>
       </field>
-      <field name="afb-diff-ch" type="cat253-br-afb-diff-ch">
+      <field name="afbDiffCh" type="Cat253BrAfbDiffCh">
         <doc>AFB Difference Channel</doc>
       </field>
-      <field name="afb-omni-ch" type="cat253-br-afb-omni-ch">
+      <field name="afbOmniCh" type="Cat253BrAfbOmniCh">
         <doc>AFB Omni Channel</doc>
       </field>
 
       <!-- Octet 9 -->
-      <field name="rfgyb-general" type="cat253-br-rfgyb-general">
+      <field name="rfgybGeneral" type="Cat253BrRfgybGeneral">
         <doc>RFGYB General</doc>
       </field>
-      <field name="rfgyb-total-pwr" type="cat253-br-rfgyb-total-pwr">
+      <field name="rfgybTotalPwr" type="Cat253BrRfgybTotalPwr">
         <doc>RFGYB Total Output Power</doc>
       </field>
-      <field name="rfgyb-diff-pwr" type="cat253-br-rfgyb-diff-pwr">
+      <field name="rfgybDiffPwr" type="Cat253BrRfgybDiffPwr">
         <doc>RFGYB Difference Output Power</doc>
       </field>
 
       <!-- Octet 10 -->
-      <field name="rfgyb-omni-pwr" type="cat253-br-rfgyb-omni-pwr">
+      <field name="rfgybOmniPwr" type="Cat253BrRfgybOmniPwr">
         <doc>RFGYB Omni Output Power</doc>
       </field>
-      <field name="rfgyb-heat-warning" type="cat253-br-rfgyb-heat-warning">
+      <field name="rfgybHeatWarning" type="Cat253BrRfgybHeatWarning">
         <doc>RFGYB Heat Warning</doc>
       </field>
-      <field name="crypto-general" type="cat253-br-crypto-general">
+      <field name="cryptoGeneral" type="Cat253BrCryptoGeneral">
         <doc>Crypto General</doc>
       </field>
 
       <!-- Octets 11-16: Reserved -->
-      <reserved bits="48"/>
+      <reserved bytes="6"/>
     </struct>
 
   </types>
@@ -803,7 +803,7 @@
         </field>
 
         <!-- FRN 7: I253/070 - Time of Day (3 octets) -->
-        <field name="i070" bit="1" type="time-of-day">
+        <field name="i070" bit="1" type="TimeOfDay">
           <doc>I253/070 - Time of Day</doc>
         </field>
 
@@ -836,10 +836,10 @@
           <field name="len" type="uint8" auto="length">
               <doc>Length of I100 including this length byte</doc>
           </field>
-          <choice name="payload" switch="i080.start-index">
+          <choice name="payload" switch="i080.startIndex">
             <case name="multipath" value="0x05" type="Cat253Multipath"/>
             <case name="squitter" value="0x06" type="Cat253Squitter"/>
-            <case name="bit-report" value="0x23" type="Cat253BitReport"/>
+            <case name="bitReport" value="0x23" type="Cat253BitReport"/>
             <otherwise name="unknown">
               <field name="data" type="bytes" length-from="len - 1"/>
             </otherwise>
@@ -849,7 +849,7 @@
         <!-- FRN 13: SP - Special Purpose Field -->
         <struct name="sp" bit="10">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -858,7 +858,7 @@
         <!-- FRN 14: RFS - Random Field Sequencing -->
         <struct name="rfs" bit="9">
           <doc>Random Field Sequencing</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RFS including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

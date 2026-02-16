@@ -94,6 +94,14 @@ bgen_generate_fixture(ebcdic_strings)
 bgen_generate_fixture(inline_case_collision)
 bgen_generate_fixture(bitmap_wide_fixed)
 bgen_generate_fixture(optional_constrained)
+bgen_generate_fixture(inline_field_types)
+bgen_generate_fixture(auto_count)
+bgen_generate_fixture(auto_struct_length)
+bgen_generate_fixture(frame_count)
+bgen_generate_fixture(frame_payload_length)
+bgen_generate_fixture(constraints_extended)
+bgen_generate_fixture(length_arith)
+bgen_generate_fixture(frame_length_arith)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -138,6 +146,14 @@ add_executable(bgen_tests
     test_frame_timestamp.cpp
     test_ebcdic_roundtrip.cpp
     test_inline_case_collision.cpp
+    test_inline_field_types.cpp
+    test_auto_count.cpp
+    test_auto_struct_length.cpp
+    test_constraints_extended.cpp
+    test_frame_count.cpp
+    test_frame_payload_length.cpp
+    test_length_arith.cpp
+    test_frame_length_arith.cpp
 )
 
 add_dependencies(bgen_tests
@@ -170,6 +186,14 @@ add_dependencies(bgen_tests
     gen_inline_case_collision
     gen_bitmap_wide_fixed
     gen_optional_constrained
+    gen_inline_field_types
+    gen_auto_count
+    gen_auto_struct_length
+    gen_frame_count
+    gen_frame_payload_length
+    gen_constraints_extended
+    gen_length_arith
+    gen_frame_length_arith
 )
 
 target_link_libraries(bgen_tests PRIVATE

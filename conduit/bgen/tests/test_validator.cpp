@@ -1567,3 +1567,219 @@ TEST_CASE("Inline enum id exceeding field bit range rejected", "[validator]") {
     }
     CHECK(found);
 }
+
+// ============================================================================
+// Inline base attribute validation
+// ============================================================================
+
+TEST_CASE("Inline float with non-32/64 bits rejected", "[validator][inline]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_inline_float_bits.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("float") != std::string::npos &&
+            e.message.find("32 or 64") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Inline base + type on same field rejected", "[validator][inline]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_inline_base_type.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("base") != std::string::npos &&
+            e.message.find("type") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Valid inline_field_types passes validation", "[validator][inline]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("inline_field_types.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("Valid auto_count passes validation", "[validator][auto]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("auto_count.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("Valid auto_struct_length passes validation", "[validator][auto]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("auto_struct_length.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("Valid frame_count passes validation", "[validator][frame]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("frame_count.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("Valid frame_payload_length passes validation", "[validator][frame]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("frame_payload_length.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+// ============================================================================
+// Arithmetic modifier validation
+// ============================================================================
+
+TEST_CASE("Multiplication by zero in auto expression rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_mul_zero.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("multiplication by zero") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("auto=count targeting non-array field rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_count_target.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("must be an array") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("auto=id outside frame context rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_id_struct.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("auto=\"id\"") != std::string::npos &&
+            e.message.find("only valid inside <frame>") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("auto=length inside FX block rejected", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_length_fx.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("auto=\"length\"") != std::string::npos &&
+            e.message.find("<fx>") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Valid length_arith passes validation", "[validator]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("length_arith.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}

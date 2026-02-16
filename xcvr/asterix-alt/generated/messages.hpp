@@ -4204,6 +4204,7 @@ public:
     }
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
+        auto frame_start_pos_ = w.size_bytes();
         w.write_u8(static_cast<uint8_t>(cat_));
         auto length_byte_pos_ = w.size_bytes();
         w.write_u16(static_cast<uint16_t>(0), conduit::io::Endian::Big);
@@ -4212,7 +4213,7 @@ public:
                 return m.encode(w);
             }, item));
         }
-        if (!w.patch_u16(length_byte_pos_, static_cast<uint16_t>(w.size_bytes()), conduit::io::Endian::Big))
+        if (!w.patch_u16(length_byte_pos_, static_cast<uint16_t>(w.size_bytes() - frame_start_pos_), conduit::io::Endian::Big))
             return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch frame length"));
         return {};
     }
@@ -4225,10 +4226,12 @@ public:
         auto len_val_ = r.read_u16(conduit::io::Endian::Big);
         if (!len_val_) return std::unexpected(len_val_.error());
         result.len_ = *len_val_;
-        while (r.remaining_bytes() > 0) {
+        auto payload_reader_ = r.sub_reader(static_cast<size_t>(result.len_) - 3);
+        if (!payload_reader_) return std::unexpected(payload_reader_.error());
+        while ((*payload_reader_).remaining_bytes() > 0) {
             switch (static_cast<uint8>(result.cat_)) {
                 case 7: {
-                    auto payload_val_ = Cat007UplinkRecord::decode(r);
+                    auto payload_val_ = Cat007UplinkRecord::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4236,7 +4239,7 @@ public:
                     break;
                 }
                 case 21: {
-                    auto payload_val_ = Cat021Record::decode(r);
+                    auto payload_val_ = Cat021Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4244,7 +4247,7 @@ public:
                     break;
                 }
                 case 48: {
-                    auto payload_val_ = Cat048Record::decode(r);
+                    auto payload_val_ = Cat048Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4252,7 +4255,7 @@ public:
                     break;
                 }
                 case 253: {
-                    auto payload_val_ = Cat253Record::decode(r);
+                    auto payload_val_ = Cat253Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;

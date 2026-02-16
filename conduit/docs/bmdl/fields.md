@@ -61,7 +61,8 @@ When `type` is omitted but `bits` and/or `bytes` is present, an anonymous intege
 | `terminated` | String terminator | `"null"` |
 | `max-length` | Max length for terminated strings | `"256"` |
 | `char-bits` | Bits per character | `"6"` |
-| `auto` | Auto-managed strategy (frames/sessions) | `"id"`, `"length"`, `"increment"` |
+| `base` | Explicit base type for inline fields | `"float"`, `"int"`, `"string"`, `"bool"` |
+| `auto` | Auto-managed strategy (frames/sessions) | `"id"`, `"length"`, `"length(field)"`, `"count(field)"`, `"config(key)"`, `"increment"`, `"timestamp"` |
 
 ## Inline Type Modifiers
 
@@ -86,6 +87,40 @@ Fields can carry inline type modifications:
 ```
 
 Inline `<enum>`, `<flags>`, and `<scale>`/`<offset>` are mutually exclusive (same rule as on `<type>`).
+
+### Inline Base Types
+
+The `base` attribute allows defining a field's primitive type inline, without a separate named `<type>` definition:
+
+```xml
+<!-- Inline float32 / float64 -->
+<field name="temperature" bits="32" base="float"/>
+<field name="latitude" bits="64" base="float"/>
+
+<!-- Inline signed integer (equivalent to signed="true") -->
+<field name="offset" bits="16" base="int"/>
+
+<!-- Inline string with encoding, padding, and trim -->
+<field name="callsign" base="string" length="8" encoding="ia5" padding="space" trim="right"/>
+
+<!-- Inline bool (defaults to 1 bit if bits omitted) -->
+<field name="active" bits="1" base="bool"/>
+```
+
+**Supported base values:**
+
+| Base | Description | Required attributes |
+|------|-------------|-------------------|
+| `float` | IEEE 754 float | `bits` (exactly 32 or 64) |
+| `int` | Signed integer | `bits` |
+| `uint` | Unsigned integer | `bits` |
+| `string` | Character string | `length`, or `length-from`/`terminated` |
+| `bool` | Boolean (1-bit unsigned) | `bits` (default 1) |
+
+**Rules:**
+- `base` and `type` are mutually exclusive -- `base` is for inline definitions only
+- `base="float"` cannot combine with `signed`, `wire-encoding`, inline `<enum>`, or `<flags>`
+- For raw byte data, use `bytes="N"` instead of `base="bytes"`
 
 A field referencing a named type that already has `<scale>` or `<offset>` **cannot** redefine them.
 
@@ -204,19 +239,52 @@ The `auto` attribute marks fields for automatic management by frames and session
 |------------|---------|-------------|
 | `auto="id"` | Frame | Marks the message ID field. Used for dispatch during decode and auto-set during encode. |
 | `auto="length"` | Frame | Total frame length. Auto-computed and backpatched during encode. |
-| `auto="length - N"` | Frame | Frame length minus offset N. |
-| `auto="length + N"` | Frame | Frame length plus offset N. |
-| `auto="length(field)"` | Frame | Length of a specific field (e.g., payload). |
-| `auto="count(field)"` | Frame | Count of items in an array field. |
+| `auto="length {op} N"` | Frame | Frame length with arithmetic (see below). |
+| `auto="length(field)"` | Frame, Struct, Message | Byte length of a specific sibling field. Backpatched during encode. |
+| `auto="length(field) {op} N"` | Frame, Struct, Message | Byte length of a sibling field with arithmetic modifier (literal operand). |
+| `auto="length(field) {op} other"` | Struct, Message | Byte length with field operand (see below). |
+| `auto="count(field)"` | Frame, Struct, Message | Element count of a sibling array field. Auto-computed during encode. Does not support arithmetic modifiers. |
 | `auto="config(key)"` | Frame | Value from session configuration. |
 | `auto="increment"` | Session | Auto-incrementing counter, wrapping at type maximum. |
 | `auto="timestamp"` | Session | Milliseconds since Unix epoch (system clock), masked to field bit width. Unsigned integer only. |
 
+### Length Arithmetic Modifiers
+
+Length auto-expressions support arithmetic modifiers with the operators `+`, `-`, `*`, `/`, and `%`. The operand can be an integer literal or a sibling field name:
+
+```xml
+<!-- Integer literal operands -->
+<field name="length" type="uint16" auto="length - 3"/>
+<field name="length" type="uint16" auto="length * 2"/>
+<field name="half-len" type="uint8" auto="length(data) / 2"/>
+
+<!-- Field operands (struct/message only) -->
+<field name="overhead" type="uint8"/>
+<field name="adjusted-len" type="uint8" auto="length(data) - overhead"/>
+```
+
+The wire value is computed as: `computed_byte_length {op} operand`.
+
+**Restrictions:**
+- At frame level, only integer literal operands are allowed (field operands require decoded values not available during stream parsing).
+- The `%` operator is not allowed at frame level (no inverse for frame length recovery).
+- Division or modulo by zero is a validation error. Multiplication by zero is also rejected.
+- Field operands must reference existing sibling fields in the same scope.
+- `auto="length"` is not valid inside `<fx>` blocks (dynamic FX layout would corrupt backpatch offsets).
+- `auto="id"` and `auto="config(key)"` are only valid inside `<frame>` definitions.
+
 ### Frame Auto Fields
 
-- `auto="id"` -- Exactly one per frame. Defines the field used to dispatch incoming messages to the correct type during decode. The message `id` attribute values must be valid literals for this field's type.
-- `auto="length"` -- At most one per frame. The total frame length is auto-computed during encode and backpatched after writing the payload. On decode, the value is read but not used for dispatch.
+- `auto="id"` -- Exactly one per frame. The message's `id` attribute value is written into this field during encode. The message `id` attribute values must be valid literals for this field's type.
+- `auto="length"` -- At most one per frame. The total frame length is auto-computed and backpatched during encode. Supports arithmetic: `auto="length - 3"` encodes `total_frame_bytes - 3`, `auto="length * 2"` encodes `total_frame_bytes * 2`.
+- `auto="length(payload)"` -- Like `auto="length"`, but computes the byte length of the payload only (excluding header and footer fields). In frame context, the field reference must be `payload`. Supports arithmetic modifiers with literal operands (e.g., `auto="length(payload) - 1"`).
+- `auto="count(payload)"` -- For `<payload count="*"/>` (array payloads). Auto-computes the number of payload items during encode.
 - `auto="config(key)"` -- Values provided via a Config struct at session creation. Useful for fields like system identifiers that are fixed for the lifetime of a session.
+
+### Struct/Message Auto Fields
+
+- `auto="count(field)"` -- Auto-computes the size of a sibling array during encode. The field reference must name a sibling array in the same struct/message. Example: `<field name="count" type="uint8" auto="count(items)"/>` followed by `<array name="items" ... count-from="count"/>`.
+- `auto="length(field)"` -- Auto-computes the byte length of a sibling field during encode. Uses a zero-placeholder and backpatch approach. Supports arithmetic modifiers including field operands. Example: `<field name="len" type="uint8" auto="length(data) / 2"/>`.
 
 ### Session Auto Fields
 

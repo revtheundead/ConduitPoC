@@ -22,13 +22,28 @@ namespace {
 // and stores the byte offset. For other fields, writes the member value.
 void emit_frame_field_write(EmitContext& ctx, const model::Field& f,
                             const FieldTypeInfo& fti,
-                            [[maybe_unused]] const analyzer::TypeIndex& index) {
+                            [[maybe_unused]] const analyzer::TypeIndex& index,
+                            const analyzer::SessionInfo& session) {
     std::string member = to_member_name(f.name);
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
         ctx.line("auto length_byte_pos_ = w.size_bytes();");
         // Write zero placeholder for backpatching
         FieldTypeInfo zero_fti = fti;
         emit_write_stmt(ctx, "0", zero_fti, f.endian);
+        // For length(payload), record the position AFTER the placeholder
+        // so payload_start_pos_ marks where the payload actually begins
+        if (!f.auto_expr->field_ref.empty() && f.auto_expr->field_ref == "payload") {
+            ctx.line("auto payload_start_pos_ = w.size_bytes();");
+        }
+    } else if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count) {
+        // Auto-count: write count of payload items (for array payloads)
+        std::string cast_type = storage_type_for_bits(fti.bits, fti.is_signed);
+        if (f.auto_expr->field_ref == "payload" && session.payload_is_array) {
+            emit_write_stmt(ctx, "static_cast<" + cast_type + ">(payload_.size())", fti, f.endian);
+        } else {
+            // Fallback: write the member value
+            emit_write_stmt(ctx, member, fti, f.endian);
+        }
     } else if (f.constraint && f.constraint->equals) {
         // Constraint-equals: always write the constraint value (e.g., sync words)
         std::string cast_val = "static_cast<" + storage_type_for_bits(fti.bits, fti.is_signed) + ">(" + *f.constraint->equals + ")";
@@ -64,10 +79,14 @@ void emit_frame_field_read(EmitContext& ctx, const model::Field& f,
 // Emit the length backpatch after payload and footer encoding
 void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
                                  const FieldTypeInfo& fti) {
-    std::string length_expr = "w.size_bytes()";
-    if (f.auto_expr->offset != 0) {
-        length_expr = "static_cast<size_t>(static_cast<ptrdiff_t>(w.size_bytes()) + (" + std::to_string(f.auto_expr->offset) + "))";
+    bool payload_only = !f.auto_expr->field_ref.empty() && f.auto_expr->field_ref == "payload";
+    std::string raw_length;
+    if (payload_only) {
+        raw_length = "w.size_bytes() - payload_start_pos_";
+    } else {
+        raw_length = "w.size_bytes() - frame_start_pos_";
     }
+    std::string length_expr = apply_arith(raw_length, f.auto_expr->modifier);
     std::string cast_type = storage_type_for_bits(fti.bits, false);
     std::string patch_call;
     if (fti.bits <= 8) {
@@ -212,20 +231,26 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
     // Find the length field for backpatching
     const model::Field* length_field = nullptr;
     FieldTypeInfo length_fti;
+    bool length_is_total_frame = false;
     for (const auto& child : frame.header_fields) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
                 length_field = f;
                 length_fti = resolve_field_type(*f, index);
+                length_is_total_frame = f->auto_expr->field_ref.empty();
             }
         }
+    }
+    // Record writer position at frame start for relative length computation
+    if (length_is_total_frame) {
+        ctx.line("auto frame_start_pos_ = w.size_bytes();");
     }
 
     // Write header fields
     for (const auto& child : frame.header_fields) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             auto fti = resolve_field_type(*f, index);
-            emit_frame_field_write(ctx, *f, fti, index);
+            emit_frame_field_write(ctx, *f, fti, index, session);
         }
     }
 
@@ -248,7 +273,7 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
     for (const auto& child : frame.footer_fields) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             auto fti = resolve_field_type(*f, index);
-            emit_frame_field_write(ctx, *f, fti, index);
+            emit_frame_field_write(ctx, *f, fti, index, session);
         }
     }
 
@@ -283,7 +308,7 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
     std::string id_cast_type;
     for (const auto& child : frame.header_fields) {
         if (auto* f = std::get_if<model::Field>(&child)) {
-            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Id) {
+            if (f->name == session.id_field_name) {
                 auto fti = resolve_field_type(*f, index);
                 id_cast_type = fti.is_enum
                     ? storage_type_for_bits(fti.bits, fti.is_signed)
@@ -316,8 +341,8 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
 
     // Dispatch on id value
     if (session.payload_is_array) {
-        // Array payload: read until payload bytes are exhausted.
-        // Use a sub-reader bounded to the payload region so we don't consume footer bytes.
+        // Array payload: decode records from the payload region.
+        // Compute footer size and header size for payload bounds.
         int footer_bits = 0;
         for (const auto& child : frame.footer_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
@@ -325,17 +350,52 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
                 footer_bits += ffti.bits;
             }
         }
+        auto footer_bytes = static_cast<size_t>((footer_bits + 7) / 8);
         std::string reader_name = "r";
-        if (footer_bits > 0) {
-            auto footer_bytes = static_cast<size_t>((footer_bits + 7) / 8);
+        if (!session.length_field_name.empty() && session.count_field_name.empty()) {
+            // Use the length field to create a bounded sub-reader for payload.
+            int header_bits = 0;
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child))
+                    header_bits += resolve_field_type(*f, index).bits;
+                else if (auto* r = std::get_if<model::Reserved>(&child))
+                    header_bits += r->bits;
+            }
+            auto header_bytes = static_cast<size_t>((header_bits + 7) / 8);
+            std::string len_member = to_member_name(session.length_field_name);
+            std::string raw_val = "static_cast<size_t>(result." + len_member + ")";
+            std::string total_expr = reverse_arith(raw_val, session.frame_length_modifier);
+            std::string size_expr;
+            if (session.frame_length_field_ref.empty()) {
+                // Total frame length: payload = total - header - footer
+                auto overhead = header_bytes + footer_bytes;
+                size_expr = total_expr + " - " + std::to_string(overhead);
+            } else {
+                // Payload-only length: payload = value - footer
+                if (footer_bytes > 0) {
+                    size_expr = total_expr + " - " + std::to_string(footer_bytes);
+                } else {
+                    size_expr = total_expr;
+                }
+            }
+            ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            reader_name = "(*payload_reader_)";
+        } else if (footer_bits > 0 && session.count_field_name.empty()) {
+            // No length field for bounding but need to exclude footer bytes.
             ctx.line("if (r.remaining_bytes() < " + std::to_string(footer_bytes) + ")");
             ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"frame too short for footer\"));");
             ctx.line("auto payload_reader_ = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ");");
             ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
-            ctx.line("while (payload_reader_->remaining_bytes() > 0) {");
             reader_name = "(*payload_reader_)";
+        }
+        // When a count field is available, use count-bounded iteration;
+        // otherwise fall back to reading until payload bytes are exhausted.
+        if (!session.count_field_name.empty()) {
+            std::string count_member = to_member_name(session.count_field_name);
+            ctx.line("for (size_t i_ = 0; i_ < static_cast<size_t>(result." + count_member + "); ++i_) {");
         } else {
-            ctx.line("while (r.remaining_bytes() > 0) {");
+            ctx.line("while (" + reader_name + ".remaining_bytes() > 0) {");
         }
         ctx.indent();
         // Each record in the array has the same message type from the id
@@ -367,6 +427,17 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         // sub_reader() already advanced r past the payload bytes
     } else {
         // Single payload dispatch
+        // When payload length is available, create a bounded sub-reader
+        std::string single_reader = "r";
+        if (!session.frame_length_field_ref.empty() && session.frame_length_field_ref == "payload") {
+            std::string length_member = to_member_name(session.length_field_name);
+            std::string raw_val = "static_cast<size_t>(result." + length_member + ")";
+            std::string size_expr = reverse_arith(raw_val, session.frame_length_modifier);
+            ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            single_reader = "(*payload_reader_)";
+        }
+
         ctx.line("switch (static_cast<" + id_cast_type + ">(result." + id_member + ")) {");
         ctx.indent();
 
@@ -386,7 +457,7 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             std::string msg_type = to_cpp_type_name(decode_leaf->name);
             ctx.line("case " + id_val + ": {");
             ctx.indent();
-            ctx.line("auto payload_val_ = " + msg_type + "::decode(r);");
+            ctx.line("auto payload_val_ = " + msg_type + "::decode(" + single_reader + ");");
             ctx.line("if (!payload_val_) return std::unexpected(payload_val_.error());");
             emit_copy_header();
             ctx.line("result.payload_ = std::move(*payload_val_);");
@@ -843,7 +914,7 @@ void StructEmitter::emit_message(const model::MessageDef& md,
         if (current_session_->frame) {
             for (const auto& child : current_session_->frame->header_fields) {
                 if (auto* f = std::get_if<model::Field>(&child)) {
-                    if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Id) {
+                    if (f->name == current_session_->id_field_name) {
                         auto fti = resolve_field_type(*f, index_);
                         id_cpp_type = fti.cpp_type;
                         break;

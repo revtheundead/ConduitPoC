@@ -192,6 +192,24 @@ switch="category"
 - Expression nesting depth is limited to 128 levels. Expressions exceeding this limit produce a parse error.
 - Shift amounts must be in the range [0, 64). A shift expression with a constant amount outside this range is a validation error.
 
+## Auto Expression Grammar
+
+The `auto` attribute on fields uses a **separate, simpler grammar** that is distinct from the expression language described above. Auto expressions are not general-purpose expressions — they follow a fixed pattern:
+
+```
+auto-expr = "id" | "increment" | "timestamp"
+          | "length" [arith-modifier]
+          | "length(" field-ref ")" [arith-modifier]
+          | "count(" field-ref ")"
+          | "config(" key ")"
+
+arith-modifier = ("+" | "-" | "*" | "/" | "%") (number | field-ref)
+```
+
+Auto expressions are parsed by a dedicated parser (`auto_expr_parser`), not by the general expression parser. They do not support full expression syntax — only a single arithmetic modifier with one operand is allowed.
+
+See [Fields](fields.md#auto-managed-fields) for details on each auto expression kind.
+
 ## Best Practices
 
 - Use [constants](constants.md) for magic numbers in expressions to improve readability.

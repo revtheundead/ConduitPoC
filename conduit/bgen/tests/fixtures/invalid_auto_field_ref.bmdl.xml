@@ -17,8 +17,10 @@
   <payload/>
 </frame>
 
-<message id="1" name="Msg">
-  <field name="data" type="uint8"/>
-</message>
+<messages>
+  <message id="1" name="Msg">
+    <field name="data" type="uint8"/>
+  </message>
+</messages>
 
 </bmdl>

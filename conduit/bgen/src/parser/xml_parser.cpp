@@ -61,8 +61,8 @@ public:
                 if (std::string_view(attr.name()) == k) { found = true; break; }
             }
             if (!found) {
-                warn(node, std::string("unknown attribute '") + attr.name() +
-                     "' on <" + node.name() + ">, ignored");
+                warn(node, std::string("unrecognized attribute '") + attr.name() +
+                     "' on <" + node.name() + "> element, ignored");
             }
         }
     }
@@ -362,6 +362,18 @@ public:
         auto bits = parse_nonneg_int_attr(node, "bits");
         if (bits) td.bits = *bits;
 
+        auto type_bytes = parse_nonneg_int_attr(node, "bytes");
+        if (type_bytes) {
+            if (*type_bytes > 0x0FFF'FFFF) {
+                error(node, "<type> bytes attribute too large");
+            } else if (bits) {
+                // Combine bytes + bits
+                td.bits = *type_bytes * 8 + *bits;
+            } else {
+                td.bits = *type_bytes * 8;
+            }
+        }
+
         auto [endian, endian_explicit] = parse_endian(node);
         td.endian = endian;
         td.endian_explicit = endian_explicit;
@@ -412,7 +424,7 @@ public:
         td.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
-            "name", "base", "bits", "endian", "format", "wire-encoding",
+            "name", "base", "bits", "bytes", "endian", "format", "wire-encoding",
             "length", "encoding", "padding", "trim", "terminated",
             "max-length", "char-bits"
         });
@@ -446,6 +458,13 @@ public:
         auto signed_attr = node.attribute("signed");
         if (signed_attr) f.is_signed = std::string_view(signed_attr.value()) == "true";
 
+        // Parse base attribute for inline field type
+        auto base_attr = node.attribute("base");
+        if (base_attr) {
+            f.base = parse_base(node, base_attr.value());
+            if (*f.base == model::PrimitiveBase::Int) f.is_signed = true;
+        }
+
         // Combine bytes + bits: spec says bytes="2" bits="3" = 19 bits
         if (bits && bytes) {
             if (*bytes > 0x0FFF'FFFF) { // Guard against int overflow in *bytes * 8
@@ -456,8 +475,8 @@ public:
             f.bytes_attr = std::nullopt;
         }
 
-        // If no type but has bits or bytes, it's inline
-        if (f.type_ref.empty() && (f.bits || f.bytes_attr)) {
+        // If no type but has bits, bytes, or base, it's inline
+        if (f.type_ref.empty() && (f.bits || f.bytes_attr || f.base)) {
             f.type_is_inline = true;
         }
 
@@ -577,7 +596,7 @@ public:
         f.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
-            "name", "type", "bits", "bytes", "signed", "bit", "present-when",
+            "name", "type", "bits", "bytes", "signed", "base", "bit", "present-when",
             "length", "length-from", "length-prefix", "length-includes-prefix",
             "encoding", "padding", "trim", "terminated", "max-length", "char-bits",
             "endian", "format", "wire-encoding", "inline", "default", "initial", "auto"
@@ -1277,13 +1296,13 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         // Parse all definitions at root level
         parse_definitions(root);
 
-        // Warn on unrecognized root children
+        // Error on unrecognized root children
         for (auto child : root.children()) {
             std::string_view cname = child.name();
             if (cname != "import" && cname != "defaults" && cname != "constants" &&
                 cname != "types" && cname != "messages" && cname != "frame" &&
                 cname != "doc") {
-                ctx.warn(child, "unrecognized element <" + std::string(cname) + "> in v2 file, ignored");
+                ctx.error(child, "unrecognized element <" + std::string(cname) + "> in v2 file");
             }
         }
     } else {
@@ -1293,12 +1312,12 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         // Root-level imports already parsed above — parse remaining definitions
         parse_definitions(root);
 
-        // Warn on unrecognized child elements at root level (library file)
+        // Error on unrecognized child elements at root level (library file)
         for (auto child : root.children()) {
             std::string_view cname = child.name();
             if (cname != "import" && cname != "constants" &&
                 cname != "types" && cname != "messages" && cname != "frame") {
-                ctx.warn(child, "unrecognized element <" + std::string(cname) + "> in library file, ignored");
+                ctx.error(child, "unrecognized element <" + std::string(cname) + "> in library file");
             }
         }
     }

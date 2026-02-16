@@ -1,0 +1,11 @@
+<bmdl version="2.0">
+  <defaults><namespace>invalid_count_target</namespace><endian>big</endian></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <struct name="BadStruct">
+      <!-- auto="count(X)" but X is a scalar field, not an array -->
+      <field name="num" type="uint8" auto="count(value)"/>
+      <field name="value" type="uint8"/>
+    </struct>
+  </types>
+</bmdl>

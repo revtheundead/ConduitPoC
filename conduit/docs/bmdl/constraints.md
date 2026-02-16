@@ -46,7 +46,7 @@ Constraints restrict the valid range of field or type values. They are checked a
 </field>
 ```
 
-Constraint values accept decimal literals, hexadecimal literals (`0x` prefix), or named [constants](constants.md).
+Constraint values accept decimal literals (`42`, `-10`), hexadecimal literals (`0xFF`), or named [constants](constants.md). Decimal and hex literals are useful for protocol magic numbers and sync words where a named constant would add unnecessary indirection.
 
 ## Validation Timing
 
@@ -113,6 +113,15 @@ On decode, if the terminator is not found within `max-length` bytes, the decoder
 - When both `min` and `max` are specified, `min` must be less than or equal to `max`. Violations are reported as a validation error.
 - Constraint values (`equals`, `min`, `max`) are checked against the field's bit width. A value that exceeds the representable range for the field (e.g., `max="300"` on an 8-bit unsigned field) is a validation error.
 - A field can narrow a type-level constraint but cannot relax it.
+
+## Frame-Level Constraint-Equals
+
+In `<frame>` context, `<constraint equals="..."/>` has special semantics:
+
+- **Encode**: The constrained value is automatically set by the generated `wrap()` and `encode_batch()` methods. Application code does not need to set it manually.
+- **Decode**: The value is read from the wire but **not validated** against the constraint. Frame-level constraint-equals is encode-only. Sync word scanning is handled separately by the session's stream framing layer, not by per-message decode validation.
+
+This differs from struct/message-level `equals` constraints, which validate on both encode and decode.
 
 ## Best Practices
 

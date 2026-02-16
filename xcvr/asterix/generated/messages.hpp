@@ -41,8 +41,12 @@ public:
     bool operator==(const spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -91,8 +95,12 @@ public:
     bool operator==(const ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -148,9 +156,9 @@ public:
     void clear_i410() { i410_.reset(); }
 
     bool has_i140() const { return i140_.has_value(); }
-    const time_of_day& i140() const { return i140_.value(); }
-    time_of_day& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
-    void set_i140(const time_of_day& v) { i140_ = v; }
+    const TimeOfDay& i140() const { return i140_.value(); }
+    TimeOfDay& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
+    void set_i140(const TimeOfDay& v) { i140_ = v; }
     void clear_i140() { i140_.reset(); }
 
     bool has_i400() const { return i400_.has_value(); }
@@ -190,15 +198,15 @@ public:
     void clear_i130() { i130_.reset(); }
 
     bool has_i220() const { return i220_.has_value(); }
-    const aircraft_address& i220() const { return i220_.value(); }
-    aircraft_address& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
-    void set_i220(const aircraft_address& v) { i220_ = v; }
+    const AircraftAddress& i220() const { return i220_.value(); }
+    AircraftAddress& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
+    void set_i220(const AircraftAddress& v) { i220_ = v; }
     void clear_i220() { i220_.reset(); }
 
     bool has_i240() const { return i240_.has_value(); }
-    const aircraft_ident& i240() const { return i240_.value(); }
-    aircraft_ident& mutable_i240() { if (!i240_) i240_.emplace(); return *i240_; }
-    void set_i240(const aircraft_ident& v) { i240_ = v; }
+    const AircraftIdent& i240() const { return i240_.value(); }
+    AircraftIdent& mutable_i240() { if (!i240_) i240_.emplace(); return *i240_; }
+    void set_i240(const AircraftIdent& v) { i240_ = v; }
     void clear_i240() { i240_.reset(); }
 
     bool has_i250() const { return i250_.has_value(); }
@@ -533,7 +541,7 @@ public:
             result.i410_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i140_ = std::move(*val);
         }
@@ -570,10 +578,10 @@ public:
         if (fspec_len > 1 && (fspec[1] & (1 << 4))) {
             auto val = r.read_bits(24);
             if (!val) return std::unexpected(val.error());
-            result.i220_ = static_cast<aircraft_address>(*val);
+            result.i220_ = static_cast<AircraftAddress>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 3))) {
-            auto val = aircraft_ident::decode(r);
+            auto val = AircraftIdent::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i240_ = std::move(*val);
         }
@@ -863,15 +871,15 @@ private:
     std::optional<DataSourceId> i010_;
     std::optional<DataSourceId> i025_;
     std::optional<Cat007I410> i410_;
-    std::optional<time_of_day> i140_;
+    std::optional<TimeOfDay> i140_;
     std::optional<Cat007I400> i400_;
     std::optional<Cat007I020> i020_;
     std::optional<Cat007I040> i040_;
     std::optional<Cat007I070> i070_;
     std::optional<Cat007I090> i090_;
     std::optional<Cat007I130> i130_;
-    std::optional<aircraft_address> i220_;
-    std::optional<aircraft_ident> i240_;
+    std::optional<AircraftAddress> i220_;
+    std::optional<AircraftIdent> i240_;
     std::optional<Cat007I250> i250_;
     std::optional<Cat007I161> i161_;
     std::optional<Cat007I042> i042_;
@@ -981,8 +989,12 @@ public:
     bool operator==(const items_spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -1031,8 +1043,12 @@ public:
     bool operator==(const items_ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -1088,9 +1104,9 @@ public:
     void clear_i410() { i410_.reset(); }
 
     bool has_i140() const { return i140_.has_value(); }
-    const time_of_day& i140() const { return i140_.value(); }
-    time_of_day& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
-    void set_i140(const time_of_day& v) { i140_ = v; }
+    const TimeOfDay& i140() const { return i140_.value(); }
+    TimeOfDay& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
+    void set_i140(const TimeOfDay& v) { i140_ = v; }
     void clear_i140() { i140_.reset(); }
 
     bool has_i400() const { return i400_.has_value(); }
@@ -1106,9 +1122,9 @@ public:
     void clear_i040() { i040_.reset(); }
 
     bool has_i220() const { return i220_.has_value(); }
-    const aircraft_address& i220() const { return i220_.value(); }
-    aircraft_address& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
-    void set_i220(const aircraft_address& v) { i220_ = v; }
+    const AircraftAddress& i220() const { return i220_.value(); }
+    AircraftAddress& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
+    void set_i220(const AircraftAddress& v) { i220_ = v; }
     void clear_i220() { i220_.reset(); }
 
     bool has_i161() const { return i161_.has_value(); }
@@ -1275,7 +1291,7 @@ public:
             result.i410_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i140_ = std::move(*val);
         }
@@ -1292,7 +1308,7 @@ public:
         if (fspec_len > 0 && (fspec[0] & (1 << 1))) {
             auto val = r.read_bits(24);
             if (!val) return std::unexpected(val.error());
-            result.i220_ = static_cast<aircraft_address>(*val);
+            result.i220_ = static_cast<AircraftAddress>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 7))) {
             auto val = Cat007I161::decode(r);
@@ -1425,10 +1441,10 @@ private:
     std::optional<DataSourceId> i010_;
     std::optional<DataSourceId> i025_;
     std::optional<Cat007I410> i410_;
-    std::optional<time_of_day> i140_;
+    std::optional<TimeOfDay> i140_;
     std::optional<Cat007I400> i400_;
     std::optional<Cat007I040> i040_;
-    std::optional<aircraft_address> i220_;
+    std::optional<AircraftAddress> i220_;
     std::optional<Cat007I161> i161_;
     std::optional<Cat007I042> i042_;
     std::optional<Cat007I200> i200_;
@@ -1525,8 +1541,12 @@ public:
     bool operator==(const re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -1575,8 +1595,12 @@ public:
     bool operator==(const sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -1638,9 +1662,9 @@ public:
     void clear_i015() { i015_.reset(); }
 
     bool has_i071() const { return i071_.has_value(); }
-    const time_of_day& i071() const { return i071_.value(); }
-    time_of_day& mutable_i071() { if (!i071_) i071_.emplace(); return *i071_; }
-    void set_i071(const time_of_day& v) { i071_ = v; }
+    const TimeOfDay& i071() const { return i071_.value(); }
+    TimeOfDay& mutable_i071() { if (!i071_) i071_.emplace(); return *i071_; }
+    void set_i071(const TimeOfDay& v) { i071_ = v; }
     void clear_i071() { i071_.reset(); }
 
     bool has_i130() const { return i130_.has_value(); }
@@ -1656,9 +1680,9 @@ public:
     void clear_i131() { i131_.reset(); }
 
     bool has_i072() const { return i072_.has_value(); }
-    const time_of_day& i072() const { return i072_.value(); }
-    time_of_day& mutable_i072() { if (!i072_) i072_.emplace(); return *i072_; }
-    void set_i072(const time_of_day& v) { i072_ = v; }
+    const TimeOfDay& i072() const { return i072_.value(); }
+    TimeOfDay& mutable_i072() { if (!i072_) i072_.emplace(); return *i072_; }
+    void set_i072(const TimeOfDay& v) { i072_ = v; }
     void clear_i072() { i072_.reset(); }
 
     bool has_i150() const { return i150_.has_value(); }
@@ -1674,15 +1698,15 @@ public:
     void clear_i151() { i151_.reset(); }
 
     bool has_i080() const { return i080_.has_value(); }
-    const aircraft_address& i080() const { return i080_.value(); }
-    aircraft_address& mutable_i080() { if (!i080_) i080_.emplace(); return *i080_; }
-    void set_i080(const aircraft_address& v) { i080_ = v; }
+    const AircraftAddress& i080() const { return i080_.value(); }
+    AircraftAddress& mutable_i080() { if (!i080_) i080_.emplace(); return *i080_; }
+    void set_i080(const AircraftAddress& v) { i080_ = v; }
     void clear_i080() { i080_.reset(); }
 
     bool has_i073() const { return i073_.has_value(); }
-    const time_of_day& i073() const { return i073_.value(); }
-    time_of_day& mutable_i073() { if (!i073_) i073_.emplace(); return *i073_; }
-    void set_i073(const time_of_day& v) { i073_ = v; }
+    const TimeOfDay& i073() const { return i073_.value(); }
+    TimeOfDay& mutable_i073() { if (!i073_) i073_.emplace(); return *i073_; }
+    void set_i073(const TimeOfDay& v) { i073_ = v; }
     void clear_i073() { i073_.reset(); }
 
     bool has_i074() const { return i074_.has_value(); }
@@ -1692,9 +1716,9 @@ public:
     void clear_i074() { i074_.reset(); }
 
     bool has_i075() const { return i075_.has_value(); }
-    const time_of_day& i075() const { return i075_.value(); }
-    time_of_day& mutable_i075() { if (!i075_) i075_.emplace(); return *i075_; }
-    void set_i075(const time_of_day& v) { i075_ = v; }
+    const TimeOfDay& i075() const { return i075_.value(); }
+    TimeOfDay& mutable_i075() { if (!i075_) i075_.emplace(); return *i075_; }
+    void set_i075(const TimeOfDay& v) { i075_ = v; }
     void clear_i075() { i075_.reset(); }
 
     bool has_i076() const { return i076_.has_value(); }
@@ -1776,15 +1800,15 @@ public:
     void clear_i165() { i165_.reset(); }
 
     bool has_i077() const { return i077_.has_value(); }
-    const time_of_day& i077() const { return i077_.value(); }
-    time_of_day& mutable_i077() { if (!i077_) i077_.emplace(); return *i077_; }
-    void set_i077(const time_of_day& v) { i077_ = v; }
+    const TimeOfDay& i077() const { return i077_.value(); }
+    TimeOfDay& mutable_i077() { if (!i077_) i077_.emplace(); return *i077_; }
+    void set_i077(const TimeOfDay& v) { i077_ = v; }
     void clear_i077() { i077_.reset(); }
 
     bool has_i170() const { return i170_.has_value(); }
-    const aircraft_ident& i170() const { return i170_.value(); }
-    aircraft_ident& mutable_i170() { if (!i170_) i170_.emplace(); return *i170_; }
-    void set_i170(const aircraft_ident& v) { i170_ = v; }
+    const AircraftIdent& i170() const { return i170_.value(); }
+    AircraftIdent& mutable_i170() { if (!i170_) i170_.emplace(); return *i170_; }
+    void set_i170(const AircraftIdent& v) { i170_ = v; }
     void clear_i170() { i170_.reset(); }
 
     bool has_i020() const { return i020_.has_value(); }
@@ -2143,7 +2167,7 @@ public:
             result.i015_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i071_ = std::move(*val);
         }
@@ -2158,7 +2182,7 @@ public:
             result.i131_ = std::move(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 7))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i072_ = std::move(*val);
         }
@@ -2175,10 +2199,10 @@ public:
         if (fspec_len > 1 && (fspec[1] & (1 << 4))) {
             auto val = r.read_bits(24);
             if (!val) return std::unexpected(val.error());
-            result.i080_ = static_cast<aircraft_address>(*val);
+            result.i080_ = static_cast<AircraftAddress>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 3))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i073_ = std::move(*val);
         }
@@ -2188,7 +2212,7 @@ public:
             result.i074_ = std::move(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 1))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i075_ = std::move(*val);
         }
@@ -2258,12 +2282,12 @@ public:
             result.i165_ = std::move(*val);
         }
         if (fspec_len > 3 && (fspec[3] & (1 << 1))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i077_ = std::move(*val);
         }
         if (fspec_len > 4 && (fspec[4] & (1 << 7))) {
-            auto val = aircraft_ident::decode(r);
+            auto val = AircraftIdent::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i170_ = std::move(*val);
         }
@@ -2579,16 +2603,16 @@ private:
     std::optional<Cat021I040> i040_;
     std::optional<Cat021I161> i161_;
     std::optional<uint8> i015_;
-    std::optional<time_of_day> i071_;
+    std::optional<TimeOfDay> i071_;
     std::optional<Cat021I130> i130_;
     std::optional<Cat021I131> i131_;
-    std::optional<time_of_day> i072_;
+    std::optional<TimeOfDay> i072_;
     std::optional<Cat021I150> i150_;
     std::optional<Cat021I151> i151_;
-    std::optional<aircraft_address> i080_;
-    std::optional<time_of_day> i073_;
+    std::optional<AircraftAddress> i080_;
+    std::optional<TimeOfDay> i073_;
     std::optional<Cat021I074> i074_;
-    std::optional<time_of_day> i075_;
+    std::optional<TimeOfDay> i075_;
     std::optional<Cat021I076> i076_;
     std::optional<Cat021I140> i140_;
     std::optional<Cat021I090> i090_;
@@ -2602,8 +2626,8 @@ private:
     std::optional<Cat021I157> i157_;
     std::optional<Cat021I160> i160_;
     std::optional<Cat021I165> i165_;
-    std::optional<time_of_day> i077_;
-    std::optional<aircraft_ident> i170_;
+    std::optional<TimeOfDay> i077_;
+    std::optional<AircraftIdent> i170_;
     std::optional<uint8> i020_;
     std::optional<Cat021I220> i220_;
     std::optional<Cat021I146> i146_;
@@ -2705,8 +2729,12 @@ public:
     bool operator==(const items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -2755,8 +2783,12 @@ public:
     bool operator==(const items_re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -2800,9 +2832,9 @@ public:
     void clear_i010() { i010_.reset(); }
 
     bool has_i140() const { return i140_.has_value(); }
-    const time_of_day& i140() const { return i140_.value(); }
-    time_of_day& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
-    void set_i140(const time_of_day& v) { i140_ = v; }
+    const TimeOfDay& i140() const { return i140_.value(); }
+    TimeOfDay& mutable_i140() { if (!i140_) i140_.emplace(); return *i140_; }
+    void set_i140(const TimeOfDay& v) { i140_ = v; }
     void clear_i140() { i140_.reset(); }
 
     bool has_i020() const { return i020_.has_value(); }
@@ -2836,15 +2868,15 @@ public:
     void clear_i130() { i130_.reset(); }
 
     bool has_i220() const { return i220_.has_value(); }
-    const aircraft_address& i220() const { return i220_.value(); }
-    aircraft_address& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
-    void set_i220(const aircraft_address& v) { i220_ = v; }
+    const AircraftAddress& i220() const { return i220_.value(); }
+    AircraftAddress& mutable_i220() { if (!i220_) i220_.emplace(); return *i220_; }
+    void set_i220(const AircraftAddress& v) { i220_ = v; }
     void clear_i220() { i220_.reset(); }
 
     bool has_i240() const { return i240_.has_value(); }
-    const aircraft_ident& i240() const { return i240_.value(); }
-    aircraft_ident& mutable_i240() { if (!i240_) i240_.emplace(); return *i240_; }
-    void set_i240(const aircraft_ident& v) { i240_ = v; }
+    const AircraftIdent& i240() const { return i240_.value(); }
+    AircraftIdent& mutable_i240() { if (!i240_) i240_.emplace(); return *i240_; }
+    void set_i240(const AircraftIdent& v) { i240_ = v; }
     void clear_i240() { i240_.reset(); }
 
     bool has_i250() const { return i250_.has_value(); }
@@ -3132,7 +3164,7 @@ public:
             result.i010_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i140_ = std::move(*val);
         }
@@ -3164,10 +3196,10 @@ public:
         if (fspec_len > 1 && (fspec[1] & (1 << 7))) {
             auto val = r.read_bits(24);
             if (!val) return std::unexpected(val.error());
-            result.i220_ = static_cast<aircraft_address>(*val);
+            result.i220_ = static_cast<AircraftAddress>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 6))) {
-            auto val = aircraft_ident::decode(r);
+            auto val = AircraftIdent::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i240_ = std::move(*val);
         }
@@ -3420,14 +3452,14 @@ public:
 
 private:
     std::optional<DataSourceId> i010_;
-    std::optional<time_of_day> i140_;
+    std::optional<TimeOfDay> i140_;
     std::optional<Cat048I020> i020_;
     std::optional<Cat048I040> i040_;
     std::optional<Cat048I070> i070_;
     std::optional<Cat048I090> i090_;
     std::optional<Cat048I130> i130_;
-    std::optional<aircraft_address> i220_;
-    std::optional<aircraft_ident> i240_;
+    std::optional<AircraftAddress> i220_;
+    std::optional<AircraftIdent> i240_;
     std::optional<Cat048I250> i250_;
     std::optional<Cat048I161> i161_;
     std::optional<Cat048I042> i042_;
@@ -3592,7 +3624,7 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto switch_val = i080.start_index();
+            auto switch_val = i080.startIndex();
             if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
                 auto val = Cat253Multipath::decode(r);
                 if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
@@ -3642,8 +3674,12 @@ public:
     bool operator==(const rfs&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -3717,9 +3753,9 @@ public:
     void clear_i050() { i050_.reset(); }
 
     bool has_i070() const { return i070_.has_value(); }
-    const time_of_day& i070() const { return i070_.value(); }
-    time_of_day& mutable_i070() { if (!i070_) i070_.emplace(); return *i070_; }
-    void set_i070(const time_of_day& v) { i070_ = v; }
+    const TimeOfDay& i070() const { return i070_.value(); }
+    TimeOfDay& mutable_i070() { if (!i070_) i070_.emplace(); return *i070_; }
+    void set_i070(const TimeOfDay& v) { i070_ = v; }
     void clear_i070() { i070_.reset(); }
 
     bool has_i035() const { return i035_.has_value(); }
@@ -3890,7 +3926,7 @@ public:
             result.i050_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 1))) {
-            auto val = time_of_day::decode(r);
+            auto val = TimeOfDay::decode(r);
             if (!val) return std::unexpected(val.error());
             result.i070_ = std::move(*val);
         }
@@ -4020,7 +4056,7 @@ private:
     std::optional<uint16> i030_;
     std::optional<Cat253I040> i040_;
     std::optional<Cat253I050> i050_;
-    std::optional<time_of_day> i070_;
+    std::optional<TimeOfDay> i070_;
     std::optional<Cat253I035> i035_;
     std::optional<Cat253I060> i060_;
     std::optional<Cat253I080> i080_;
@@ -4204,6 +4240,7 @@ public:
     }
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
+        auto frame_start_pos_ = w.size_bytes();
         w.write_u8(static_cast<uint8_t>(cat_));
         auto length_byte_pos_ = w.size_bytes();
         w.write_u16(static_cast<uint16_t>(0), conduit::io::Endian::Big);
@@ -4212,7 +4249,7 @@ public:
                 return m.encode(w);
             }, item));
         }
-        if (!w.patch_u16(length_byte_pos_, static_cast<uint16_t>(w.size_bytes()), conduit::io::Endian::Big))
+        if (!w.patch_u16(length_byte_pos_, static_cast<uint16_t>(w.size_bytes() - frame_start_pos_), conduit::io::Endian::Big))
             return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch frame length"));
         return {};
     }
@@ -4225,10 +4262,12 @@ public:
         auto len_val_ = r.read_u16(conduit::io::Endian::Big);
         if (!len_val_) return std::unexpected(len_val_.error());
         result.len_ = *len_val_;
-        while (r.remaining_bytes() > 0) {
+        auto payload_reader_ = r.sub_reader(static_cast<size_t>(result.len_) - 3);
+        if (!payload_reader_) return std::unexpected(payload_reader_.error());
+        while ((*payload_reader_).remaining_bytes() > 0) {
             switch (static_cast<uint8>(result.cat_)) {
                 case 7: {
-                    auto payload_val_ = Cat007DownlinkRecord::decode(r);
+                    auto payload_val_ = Cat007DownlinkRecord::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4236,7 +4275,7 @@ public:
                     break;
                 }
                 case 21: {
-                    auto payload_val_ = Cat021Record::decode(r);
+                    auto payload_val_ = Cat021Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4244,7 +4283,7 @@ public:
                     break;
                 }
                 case 48: {
-                    auto payload_val_ = Cat048Record::decode(r);
+                    auto payload_val_ = Cat048Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;
@@ -4252,7 +4291,7 @@ public:
                     break;
                 }
                 case 253: {
-                    auto payload_val_ = Cat253Record::decode(r);
+                    auto payload_val_ = Cat253Record::decode((*payload_reader_));
                     if (!payload_val_) return std::unexpected(payload_val_.error());
                     payload_val_->cat_ = result.cat_;
                     payload_val_->len_ = result.len_;

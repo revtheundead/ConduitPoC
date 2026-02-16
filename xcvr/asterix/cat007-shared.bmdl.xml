@@ -54,7 +54,7 @@
     <struct name="Cat007I161">
       <doc>I007/161 - Track Number</doc>
       <reserved bits="4"/>
-      <field name="track-number" bits="12">
+      <field name="trackNumber" bits="12">
         <doc>Track number (0..4095)</doc>
       </field>
     </struct>
@@ -65,7 +65,7 @@
          ======================================================================= -->
     <struct name="Cat007I200">
       <doc>I007/200 - Calculated Track Velocity in Polar Co-ordinates</doc>
-      <field name="ground-speed" type="uint16">
+      <field name="groundSpeed" type="uint16">
         <doc>Calculated groundspeed, LSB = 2^-14 NM/s (~0.22 kt), max 2 NM/s</doc>
         <scale>6.103515625e-5</scale>
         <unit>NM/s</unit>
@@ -86,7 +86,7 @@
       <field name="pri" bits="1">
         <doc>0 = Normal priority, 1 = High priority (DI has priority over surveillance)</doc>
       </field>
-      <field name="request-number" bits="15">
+      <field name="requestNumber" bits="15">
         <doc>Request Number (shall be >= 1; value 0 causes reject)</doc>
       </field>
     </struct>
@@ -108,7 +108,7 @@
         7 = Interrogation Request Type C
         8 = Selective BDS-Register Request
       </doc>
-      <field name="msg-type" type="uint8">
+      <field name="msgType" type="uint8">
         <doc>Directed Interrogation message type (0..8)</doc>
       </field>
     </struct>

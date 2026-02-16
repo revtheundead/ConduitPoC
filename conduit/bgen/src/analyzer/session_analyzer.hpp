@@ -49,7 +49,7 @@ struct SessionInfo {
     size_t frame_length_bit_offset = 0;
     int frame_length_bits = 0;
     bool frame_length_signed = false;
-    int frame_length_offset = 0;  // auto="length - 3" → offset=-3
+    model::ArithModifier frame_length_modifier;  // auto="length * 2", "length - 3", etc.
     model::Endian frame_length_endian = model::Endian::Big;
 
     // v2 frame-based session info
@@ -58,6 +58,9 @@ struct SessionInfo {
     bool payload_is_array = false;
     std::string id_field_name;
     std::string length_field_name;
+    std::string frame_length_field_ref;  // empty = total frame, "payload" = payload only
+    std::string count_field_name;
+    size_t frame_footer_size = 0;
     std::vector<ConfigField> config_fields;
 };
 

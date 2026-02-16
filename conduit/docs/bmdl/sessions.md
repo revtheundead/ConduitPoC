@@ -69,15 +69,18 @@ The frame generates a class with:
 
 This generates a nested `Config` struct with a `system_id` member. The session factory function accepts a `Config` parameter.
 
-### Length Offset
+### Length Arithmetic
 
-The `auto="length"` field supports an additive offset:
+The `auto="length"` and `auto="length(payload)"` fields support arithmetic modifiers with the operators `+`, `-`, `*`, `/`:
 
 ```xml
 <field name="length" type="uint16" auto="length - 3"/>
+<field name="payload-len" type="uint16" auto="length(payload) * 2"/>
 ```
 
-During encode, the frame writes `total_bytes - 3` into the length field. During decode, the session adds 3 back when extracting the frame length from a partial header. This is useful for protocols where the length field excludes the header size.
+During encode, the frame writes the modified value (e.g., `total_bytes - 3`) into the length field. This is useful for protocols where the length field excludes the header size or uses a different unit.
+
+At frame level, only integer literal operands are allowed. Field operands are supported in struct/message-level `auto="length(field)"` expressions (see [Fields](fields.md)).
 
 ### Footer Fields
 

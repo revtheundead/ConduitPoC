@@ -2,6 +2,7 @@
 // Bgen - Session Code Generator Implementation
 
 #include "cpp_session.hpp"
+#include "cpp_structs_helpers.hpp"
 #include "emit_context.hpp"
 #include "name_utils.hpp"
 #include <sstream>
@@ -323,9 +324,14 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
         }
         ctx.line("auto val = " + read_call + ";");
         ctx.line("if (!val) return 0;");
-        if (si.frame_length_offset != 0) {
-            ctx.line("return static_cast<size_t>(static_cast<int64_t>(*val) + (" +
-                     std::to_string(-si.frame_length_offset) + "));");
+        if (!si.frame_length_field_ref.empty() && si.frame_length_field_ref == "payload") {
+            // Payload-only length: reverse arithmetic, then add header + footer overhead
+            size_t overhead = si.min_frame_header_size + si.frame_footer_size;
+            std::string val_expr = reverse_arith("static_cast<size_t>(*val)", si.frame_length_modifier);
+            ctx.line("return " + val_expr + " + " + std::to_string(overhead) + ";");
+        } else if (si.frame_length_modifier.has_modifier()) {
+            std::string val_expr = reverse_arith("static_cast<size_t>(*val)", si.frame_length_modifier);
+            ctx.line("return " + val_expr + ";");
         } else {
             ctx.line("return static_cast<size_t>(*val);");
         }

@@ -62,7 +62,7 @@
         <field name="mi" bits="1">
           <doc>0 = No military identification, 1 = Military identification</doc>
         </field>
-        <field name="foe-fri" bits="2">
+        <field name="foeFri" bits="2">
           <doc>
             00 = No Mode 4 interrogation
             01 = Friendly target
@@ -399,7 +399,7 @@
     <struct name="Cat007I110">
       <doc>I007/110 - Height Measured by a 3D Radar</doc>
       <reserved bits="2"/>
-      <field name="height-3d" bits="14" signed="true">
+      <field name="height3d" bits="14" signed="true">
         <doc>3D height above reference plane, LSB = 25 ft</doc>
         <scale>25</scale>
         <unit>ft</unit>
@@ -429,7 +429,7 @@
     <!-- Subfield #2: Raw Doppler Speed (repetitive) -->
     <struct name="Cat007I120Rds">
       <doc>Raw Doppler Speed</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(doppler)">
         <doc>Repetition factor</doc>
       </field>
       <array name="doppler" count-from="rep">
@@ -559,22 +559,22 @@
          ======================================================================= -->
     <struct name="Cat007I210">
       <doc>I007/210 - Track Quality (standard deviations)</doc>
-      <field name="sigma-x" type="uint8">
+      <field name="sigmaX" type="uint8">
         <doc>Std dev on horizontal axis of local grid, LSB = 1/128 NM</doc>
         <scale>0.0078125</scale>
         <unit>NM</unit>
       </field>
-      <field name="sigma-y" type="uint8">
+      <field name="sigmaY" type="uint8">
         <doc>Std dev on vertical axis of local grid, LSB = 1/128 NM</doc>
         <scale>0.0078125</scale>
         <unit>NM</unit>
       </field>
-      <field name="sigma-v" type="uint8">
+      <field name="sigmaV" type="uint8">
         <doc>Std dev on groundspeed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
         <scale>6.103515625e-5</scale>
         <unit>NM/s</unit>
       </field>
-      <field name="sigma-h" type="uint8">
+      <field name="sigmaH" type="uint8">
         <doc>Std dev on heading, LSB = 360/2^12 degrees (~0.088 deg)</doc>
         <scale>0.087890625</scale>
         <unit>degrees</unit>
@@ -637,11 +637,11 @@
          ======================================================================= -->
     <struct name="Cat007I250">
       <doc>I007/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
-        <field name="mb-data" bytes="7">
+        <field name="mbData" bytes="7">
           <doc>56-bit Mode S Comm B message data</doc>
         </field>
         <field name="bds1" bits="4">
@@ -659,7 +659,7 @@
          ======================================================================= -->
     <struct name="Cat007I260">
       <doc>I007/260 - ACAS Resolution Advisory Report (BDS 3,0)</doc>
-      <field name="mb-data" bytes="7">
+      <field name="mbData" bytes="7">
         <doc>56-bit Mode S Comm B message data of BDS Register 3,0</doc>
       </field>
     </struct>
@@ -700,7 +700,7 @@
           10 = Lockout-Override applied
         </doc>
       </field>
-      <field name="ms-nb" type="uint8">
+      <field name="msNb" type="uint8">
         <doc>Number of Mode S All Calls performed for the request</doc>
       </field>
     </struct>
@@ -722,19 +722,19 @@
         <field name="tr" bit="7" type="Cat007I450Tr">
           <doc>Subfield #1: Truncation</doc>
         </field>
-        <field name="m4-nb" bit="6" type="uint8">
+        <field name="m4Nb" bit="6" type="uint8">
           <doc>Subfield #2: Number of Mode 4 Interrogations</doc>
         </field>
-        <field name="m5-nb" bit="5" type="uint8">
+        <field name="m5Nb" bit="5" type="uint8">
           <doc>Subfield #3: Number of Mode 5 Interrogations</doc>
         </field>
         <field name="ms" bit="4" type="Cat007I450Ms">
           <doc>Subfield #4: Mode S All Call Interrogations</doc>
         </field>
-        <field name="mx-nb" bit="3" type="uint8">
+        <field name="mxNb" bit="3" type="uint8">
           <doc>Subfield #5: Number of Mark X Interrogations</doc>
         </field>
-        <field name="sms-nb" bit="2" type="uint8">
+        <field name="smsNb" bit="2" type="uint8">
           <doc>Subfield #6: Number of Selective Mode S Interrogations</doc>
         </field>
       </struct>
@@ -776,7 +776,7 @@
         </field>
 
         <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
-        <field name="i140" bit="4" type="time-of-day">
+        <field name="i140" bit="4" type="TimeOfDay">
           <doc>I007/140 - Time of Day</doc>
         </field>
 
@@ -813,12 +813,12 @@
         </field>
 
         <!-- FRN 11: I007/220 - Aircraft Address (3 octets) -->
-        <field name="i220" bit="12" type="aircraft-address">
+        <field name="i220" bit="12" type="AircraftAddress">
           <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FRN 12: I007/240 - Aircraft Identification (6 octets) -->
-        <field name="i240" bit="11" type="aircraft-ident">
+        <field name="i240" bit="11" type="AircraftIdent">
           <doc>I007/240 - Aircraft Identification (8 chars x 6 bits)</doc>
         </field>
 
@@ -929,7 +929,7 @@
         <!-- FRN 34: SPF - Special Purpose Field -->
         <struct name="spf" bit="34">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SPF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -938,7 +938,7 @@
         <!-- FRN 35: REF - Reserved Expansion Field -->
         <struct name="ref" bit="33">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of REF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

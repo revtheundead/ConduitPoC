@@ -286,9 +286,9 @@ private:
 // I007/161 - Track Number
 class Cat007I161 {
 public:
-    const uint16_t& track_number() const { return track_number_; }
-    uint16_t& mutable_track_number() { return track_number_; }
-    void set_track_number(const uint16_t& v) { track_number_ = v; }
+    const uint16_t& trackNumber() const { return trackNumber_; }
+    uint16_t& mutable_trackNumber() { return trackNumber_; }
+    void set_trackNumber(const uint16_t& v) { trackNumber_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -296,7 +296,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 4);
-        w.write_bits(track_number_, 12);
+        w.write_bits(trackNumber_, 12);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -306,8 +306,8 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
-            result.track_number_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'trackNumber'"));
+            result.trackNumber_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -315,21 +315,21 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I161{"
-            << "track-number=" << +(track_number_)
+            << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint16_t track_number_{};
+    uint16_t trackNumber_{};
 };
 
 // I007/200 - Calculated Track Velocity in Polar Co-ordinates
 class Cat007I200 {
 public:
-    const double& ground_speed() const { return ground_speed_; }
-    double& mutable_ground_speed() { return ground_speed_; }
-    void set_ground_speed(const double& v) { ground_speed_ = v; }
+    const double& groundSpeed() const { return groundSpeed_; }
+    double& mutable_groundSpeed() { return groundSpeed_; }
+    void set_groundSpeed(const double& v) { groundSpeed_ = v; }
 
     const double& heading() const { return heading_; }
     double& mutable_heading() { return heading_; }
@@ -340,7 +340,7 @@ public:
     bool operator==(const Cat007I200&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(groundSpeed_ / 6.103515625e-05)), conduit::io::Endian::Big);
         w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(heading_ / 0.0054931640625)), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -350,8 +350,8 @@ public:
         Cat007I200 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
-            result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'groundSpeed'"));
+            result.groundSpeed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
@@ -364,14 +364,14 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I200{"
-            << "ground-speed=" << +(ground_speed_)
+            << "groundSpeed=" << +(groundSpeed_)
             << ", heading=" << +(heading_)
             << "}";
         return oss.str();
     }
 
 private:
-    double ground_speed_{};
+    double groundSpeed_{};
     double heading_{};
 };
 
@@ -382,9 +382,9 @@ public:
     uint8_t& mutable_pri() { return pri_; }
     void set_pri(const uint8_t& v) { pri_ = v; }
 
-    const uint16_t& request_number() const { return request_number_; }
-    uint16_t& mutable_request_number() { return request_number_; }
-    void set_request_number(const uint16_t& v) { request_number_ = v; }
+    const uint16_t& requestNumber() const { return requestNumber_; }
+    uint16_t& mutable_requestNumber() { return requestNumber_; }
+    void set_requestNumber(const uint16_t& v) { requestNumber_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -392,7 +392,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(pri_, 1);
-        w.write_bits(request_number_, 15);
+        w.write_bits(requestNumber_, 15);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -406,8 +406,8 @@ public:
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'request-number'"));
-            result.request_number_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'requestNumber'"));
+            result.requestNumber_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -416,14 +416,14 @@ public:
         std::ostringstream oss;
         oss << "Cat007I400{"
             << "pri=" << +(pri_)
-            << ", request-number=" << +(request_number_)
+            << ", requestNumber=" << +(requestNumber_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t pri_{};
-    uint16_t request_number_{};
+    uint16_t requestNumber_{};
 };
 
 // I007/410 - Directed Interrogation Message Type
@@ -438,16 +438,16 @@ private:
 // 8 = Selective BDS-Register Request
 class Cat007I410 {
 public:
-    const uint8& msg_type() const { return msg_type_; }
-    uint8& mutable_msg_type() { return msg_type_; }
-    void set_msg_type(const uint8& v) { msg_type_ = v; }
+    const uint8& msgType() const { return msgType_; }
+    uint8& mutable_msgType() { return msgType_; }
+    void set_msgType(const uint8& v) { msgType_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
     bool operator==(const Cat007I410&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(msg_type_));
+        w.write_u8(static_cast<uint8_t>(msgType_));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -456,8 +456,8 @@ public:
         Cat007I410 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'msg-type'"));
-            result.msg_type_ = static_cast<uint8>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'msgType'"));
+            result.msgType_ = static_cast<uint8>(*val);
         }
         return result;
     }
@@ -465,13 +465,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I410{"
-            << "msg-type=" << +(msg_type_)
+            << "msgType=" << +(msgType_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint8 msg_type_{};
+    uint8 msgType_{};
 };
 
 // I007/020 - Target Report Descriptor
@@ -527,11 +527,11 @@ public:
     void set_mi(const uint8_t& v) { mi_ = v; }
     void clear_mi() { mi_.reset(); }
 
-    bool has_foe_fri() const { return foe_fri_.has_value(); }
-    const uint8_t& foe_fri() const { return foe_fri_.value(); }
-    uint8_t& mutable_foe_fri() { if (!foe_fri_) foe_fri_.emplace(); return *foe_fri_; }
-    void set_foe_fri(const uint8_t& v) { foe_fri_ = v; }
-    void clear_foe_fri() { foe_fri_.reset(); }
+    bool has_foeFri() const { return foeFri_.has_value(); }
+    const uint8_t& foeFri() const { return foeFri_.value(); }
+    uint8_t& mutable_foeFri() { if (!foeFri_) foeFri_.emplace(); return *foeFri_; }
+    void set_foeFri(const uint8_t& v) { foeFri_ = v; }
+    void clear_foeFri() { foeFri_.reset(); }
 
     bool operator==(const Cat007I020&) const = default;
 
@@ -548,7 +548,7 @@ public:
             if (xpp_.has_value()) fx_continue = true;
             if (me_.has_value()) fx_continue = true;
             if (mi_.has_value()) fx_continue = true;
-            if (foe_fri_.has_value()) fx_continue = true;
+            if (foeFri_.has_value()) fx_continue = true;
             w.write_bits(fx_continue ? 1 : 0, 1);
             if (fx_continue) {
                 w.write_bits(tst_.value_or(0), 1);
@@ -556,7 +556,7 @@ public:
                 w.write_bits(xpp_.value_or(0), 1);
                 w.write_bits(me_.value_or(0), 1);
                 w.write_bits(mi_.value_or(0), 1);
-                w.write_bits(foe_fri_.value_or(0), 2);
+                w.write_bits(foeFri_.value_or(0), 2);
                 w.write_bits(0, 1); // Terminal FX=0
             }
         }
@@ -624,7 +624,7 @@ public:
                 {
                     auto val = r.read_bits(2);
                     if (!val) return std::unexpected(val.error());
-                    result.foe_fri_ = static_cast<uint8_t>(*val);
+                    result.foeFri_ = static_cast<uint8_t>(*val);
                 }
                 CONDUIT_TRY(r.skip_bits(1)); // Terminal FX=0
             }
@@ -645,7 +645,7 @@ public:
             << ", xpp=" << (xpp_.has_value() ? std::to_string(*xpp_) : std::string("<none>"))
             << ", me=" << (me_.has_value() ? std::to_string(*me_) : std::string("<none>"))
             << ", mi=" << (mi_.has_value() ? std::to_string(*mi_) : std::string("<none>"))
-            << ", foe-fri=" << (foe_fri_.has_value() ? std::to_string(*foe_fri_) : std::string("<none>"))
+            << ", foeFri=" << (foeFri_.has_value() ? std::to_string(*foeFri_) : std::string("<none>"))
             << "}";
         return oss.str();
     }
@@ -661,7 +661,7 @@ private:
     std::optional<uint8_t> xpp_;
     std::optional<uint8_t> me_;
     std::optional<uint8_t> mi_;
-    std::optional<uint8_t> foe_fri_;
+    std::optional<uint8_t> foeFri_;
 };
 
 // I007/030 - Warning/Error Conditions and Target Classification
@@ -1944,9 +1944,9 @@ private:
 // I007/110 - Height Measured by a 3D Radar
 class Cat007I110 {
 public:
-    const double& height_3d() const { return height_3d_; }
-    double& mutable_height_3d() { return height_3d_; }
-    void set_height_3d(const double& v) { height_3d_ = v; }
+    const double& height3d() const { return height3d_; }
+    double& mutable_height3d() { return height3d_; }
+    void set_height3d(const double& v) { height3d_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -1954,7 +1954,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 2);
-        w.write_signed_bits(static_cast<int16_t>(height_3d_ / 25), 14);
+        w.write_signed_bits(static_cast<int16_t>(height3d_ / 25), 14);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -1964,8 +1964,8 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'height-3d'"));
-            result.height_3d_ = static_cast<double>(*val) * 25 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'height3d'"));
+            result.height3d_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
     }
@@ -1973,13 +1973,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I110{"
-            << "height-3d=" << +(height_3d_)
+            << "height3d=" << +(height3d_)
             << "}";
         return oss.str();
     }
 
 private:
-    double height_3d_{};
+    double height3d_{};
 };
 
 // Calculated Doppler Speed
@@ -2109,7 +2109,7 @@ public:
     bool operator==(const Cat007I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -2682,31 +2682,31 @@ private:
 // I007/210 - Track Quality (standard deviations)
 class Cat007I210 {
 public:
-    const double& sigma_x() const { return sigma_x_; }
-    double& mutable_sigma_x() { return sigma_x_; }
-    void set_sigma_x(const double& v) { sigma_x_ = v; }
+    const double& sigmaX() const { return sigmaX_; }
+    double& mutable_sigmaX() { return sigmaX_; }
+    void set_sigmaX(const double& v) { sigmaX_ = v; }
 
-    const double& sigma_y() const { return sigma_y_; }
-    double& mutable_sigma_y() { return sigma_y_; }
-    void set_sigma_y(const double& v) { sigma_y_ = v; }
+    const double& sigmaY() const { return sigmaY_; }
+    double& mutable_sigmaY() { return sigmaY_; }
+    void set_sigmaY(const double& v) { sigmaY_ = v; }
 
-    const double& sigma_v() const { return sigma_v_; }
-    double& mutable_sigma_v() { return sigma_v_; }
-    void set_sigma_v(const double& v) { sigma_v_ = v; }
+    const double& sigmaV() const { return sigmaV_; }
+    double& mutable_sigmaV() { return sigmaV_; }
+    void set_sigmaV(const double& v) { sigmaV_ = v; }
 
-    const double& sigma_h() const { return sigma_h_; }
-    double& mutable_sigma_h() { return sigma_h_; }
-    void set_sigma_h(const double& v) { sigma_h_ = v; }
+    const double& sigmaH() const { return sigmaH_; }
+    double& mutable_sigmaH() { return sigmaH_; }
+    void set_sigmaH(const double& v) { sigmaH_ = v; }
 
     static constexpr size_t WIRE_SIZE = 4;
 
     bool operator==(const Cat007I210&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_x_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_y_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_h_ / 0.087890625)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaX_ / 0.0078125)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaY_ / 0.0078125)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaV_ / 6.103515625e-05)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaH_ / 0.087890625)));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -2715,23 +2715,23 @@ public:
         Cat007I210 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-x'"));
-            result.sigma_x_ = static_cast<double>(*val) * 0.0078125 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaX'"));
+            result.sigmaX_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-y'"));
-            result.sigma_y_ = static_cast<double>(*val) * 0.0078125 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaY'"));
+            result.sigmaY_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-v'"));
-            result.sigma_v_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaV'"));
+            result.sigmaV_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-h'"));
-            result.sigma_h_ = static_cast<double>(*val) * 0.087890625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaH'"));
+            result.sigmaH_ = static_cast<double>(*val) * 0.087890625 + 0;
         }
         return result;
     }
@@ -2739,19 +2739,19 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I210{"
-            << "sigma-x=" << +(sigma_x_)
-            << ", sigma-y=" << +(sigma_y_)
-            << ", sigma-v=" << +(sigma_v_)
-            << ", sigma-h=" << +(sigma_h_)
+            << "sigmaX=" << +(sigmaX_)
+            << ", sigmaY=" << +(sigmaY_)
+            << ", sigmaV=" << +(sigmaV_)
+            << ", sigmaH=" << +(sigmaH_)
             << "}";
         return oss.str();
     }
 
 private:
-    double sigma_x_{};
-    double sigma_y_{};
-    double sigma_v_{};
-    double sigma_h_{};
+    double sigmaX_{};
+    double sigmaY_{};
+    double sigmaV_{};
+    double sigmaH_{};
 };
 
 // I007/230 - Communications/ACAS Capability and Flight Status
@@ -2881,9 +2881,9 @@ private:
 
 class bdsElement {
 public:
-    const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
-    std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
-    void set_mb_data(const std::array<uint8_t, 7>& v) { mb_data_ = v; }
+    const std::array<uint8_t, 7>& mbData() const { return mbData_; }
+    std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
+    void set_mbData(const std::array<uint8_t, 7>& v) { mbData_ = v; }
 
     const uint8_t& bds1() const { return bds1_; }
     uint8_t& mutable_bds1() { return bds1_; }
@@ -2896,7 +2896,7 @@ public:
     bool operator==(const bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
+        w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
         w.write_bits(bds1_, 4);
         w.write_bits(bds2_, 4);
         if (w.has_error()) return std::unexpected(w.error());
@@ -2907,8 +2907,8 @@ public:
         bdsElement result;
         {
             auto span = r.read_bytes(7);
-            if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
-            std::copy(span->begin(), span->end(), result.mb_data_.begin());
+            if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
+            std::copy(span->begin(), span->end(), result.mbData_.begin());
         }
         {
             auto val = r.read_bits(4);
@@ -2926,7 +2926,7 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "bdsElement{"
-            << "mb-data=[bytes]"
+            << "mbData=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
             << "}";
@@ -2934,7 +2934,7 @@ public:
     }
 
 private:
-    std::array<uint8_t, 7> mb_data_{};
+    std::array<uint8_t, 7> mbData_{};
     uint8_t bds1_{};
     uint8_t bds2_{};
 };
@@ -2953,7 +2953,7 @@ public:
     bool operator==(const Cat007I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -3004,16 +3004,16 @@ private:
 // I007/260 - ACAS Resolution Advisory Report (BDS 3,0)
 class Cat007I260 {
 public:
-    const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
-    std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
-    void set_mb_data(const std::array<uint8_t, 7>& v) { mb_data_ = v; }
+    const std::array<uint8_t, 7>& mbData() const { return mbData_; }
+    std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
+    void set_mbData(const std::array<uint8_t, 7>& v) { mbData_ = v; }
 
     static constexpr size_t WIRE_SIZE = 7;
 
     bool operator==(const Cat007I260&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
+        w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -3022,8 +3022,8 @@ public:
         Cat007I260 result;
         {
             auto span = r.read_bytes(7);
-            if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
-            std::copy(span->begin(), span->end(), result.mb_data_.begin());
+            if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
+            std::copy(span->begin(), span->end(), result.mbData_.begin());
         }
         return result;
     }
@@ -3031,13 +3031,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I260{"
-            << "mb-data=[bytes]"
+            << "mbData=[bytes]"
             << "}";
         return oss.str();
     }
 
 private:
-    std::array<uint8_t, 7> mb_data_{};
+    std::array<uint8_t, 7> mbData_{};
 };
 
 // Truncation information
@@ -3124,9 +3124,9 @@ public:
     uint8_t& mutable_lo() { return lo_; }
     void set_lo(const uint8_t& v) { lo_ = v; }
 
-    const uint8& ms_nb() const { return ms_nb_; }
-    uint8& mutable_ms_nb() { return ms_nb_; }
-    void set_ms_nb(const uint8& v) { ms_nb_ = v; }
+    const uint8& msNb() const { return msNb_; }
+    uint8& mutable_msNb() { return msNb_; }
+    void set_msNb(const uint8& v) { msNb_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -3135,7 +3135,7 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 6);
         w.write_bits(lo_, 2);
-        w.write_u8(static_cast<uint8_t>(ms_nb_));
+        w.write_u8(static_cast<uint8_t>(msNb_));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -3150,8 +3150,8 @@ public:
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-nb'"));
-            result.ms_nb_ = static_cast<uint8>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'msNb'"));
+            result.msNb_ = static_cast<uint8>(*val);
         }
         return result;
     }
@@ -3160,14 +3160,14 @@ public:
         std::ostringstream oss;
         oss << "Cat007I450Ms{"
             << "lo=" << +(lo_)
-            << ", ms-nb=" << +(ms_nb_)
+            << ", msNb=" << +(msNb_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t lo_{};
-    uint8 ms_nb_{};
+    uint8 msNb_{};
 };
 
 class Cat007I450_sub {
@@ -3178,17 +3178,17 @@ public:
     void set_tr(const Cat007I450Tr& v) { tr_ = v; }
     void clear_tr() { tr_.reset(); }
 
-    bool has_m4_nb() const { return m4_nb_.has_value(); }
-    const uint8& m4_nb() const { return m4_nb_.value(); }
-    uint8& mutable_m4_nb() { if (!m4_nb_) m4_nb_.emplace(); return *m4_nb_; }
-    void set_m4_nb(const uint8& v) { m4_nb_ = v; }
-    void clear_m4_nb() { m4_nb_.reset(); }
+    bool has_m4Nb() const { return m4Nb_.has_value(); }
+    const uint8& m4Nb() const { return m4Nb_.value(); }
+    uint8& mutable_m4Nb() { if (!m4Nb_) m4Nb_.emplace(); return *m4Nb_; }
+    void set_m4Nb(const uint8& v) { m4Nb_ = v; }
+    void clear_m4Nb() { m4Nb_.reset(); }
 
-    bool has_m5_nb() const { return m5_nb_.has_value(); }
-    const uint8& m5_nb() const { return m5_nb_.value(); }
-    uint8& mutable_m5_nb() { if (!m5_nb_) m5_nb_.emplace(); return *m5_nb_; }
-    void set_m5_nb(const uint8& v) { m5_nb_ = v; }
-    void clear_m5_nb() { m5_nb_.reset(); }
+    bool has_m5Nb() const { return m5Nb_.has_value(); }
+    const uint8& m5Nb() const { return m5Nb_.value(); }
+    uint8& mutable_m5Nb() { if (!m5Nb_) m5Nb_.emplace(); return *m5Nb_; }
+    void set_m5Nb(const uint8& v) { m5Nb_ = v; }
+    void clear_m5Nb() { m5Nb_.reset(); }
 
     bool has_ms() const { return ms_.has_value(); }
     const Cat007I450Ms& ms() const { return ms_.value(); }
@@ -3196,54 +3196,54 @@ public:
     void set_ms(const Cat007I450Ms& v) { ms_ = v; }
     void clear_ms() { ms_.reset(); }
 
-    bool has_mx_nb() const { return mx_nb_.has_value(); }
-    const uint8& mx_nb() const { return mx_nb_.value(); }
-    uint8& mutable_mx_nb() { if (!mx_nb_) mx_nb_.emplace(); return *mx_nb_; }
-    void set_mx_nb(const uint8& v) { mx_nb_ = v; }
-    void clear_mx_nb() { mx_nb_.reset(); }
+    bool has_mxNb() const { return mxNb_.has_value(); }
+    const uint8& mxNb() const { return mxNb_.value(); }
+    uint8& mutable_mxNb() { if (!mxNb_) mxNb_.emplace(); return *mxNb_; }
+    void set_mxNb(const uint8& v) { mxNb_ = v; }
+    void clear_mxNb() { mxNb_.reset(); }
 
-    bool has_sms_nb() const { return sms_nb_.has_value(); }
-    const uint8& sms_nb() const { return sms_nb_.value(); }
-    uint8& mutable_sms_nb() { if (!sms_nb_) sms_nb_.emplace(); return *sms_nb_; }
-    void set_sms_nb(const uint8& v) { sms_nb_ = v; }
-    void clear_sms_nb() { sms_nb_.reset(); }
+    bool has_smsNb() const { return smsNb_.has_value(); }
+    const uint8& smsNb() const { return smsNb_.value(); }
+    uint8& mutable_smsNb() { if (!smsNb_) smsNb_.emplace(); return *smsNb_; }
+    void set_smsNb(const uint8& v) { smsNb_ = v; }
+    void clear_smsNb() { smsNb_.reset(); }
 
     bool operator==(const Cat007I450_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
         if (tr_.has_value() && 0 > last_octet) last_octet = 0;
-        if (m4_nb_.has_value() && 0 > last_octet) last_octet = 0;
-        if (m5_nb_.has_value() && 0 > last_octet) last_octet = 0;
+        if (m4Nb_.has_value() && 0 > last_octet) last_octet = 0;
+        if (m5Nb_.has_value() && 0 > last_octet) last_octet = 0;
         if (ms_.has_value() && 0 > last_octet) last_octet = 0;
-        if (mx_nb_.has_value() && 0 > last_octet) last_octet = 0;
-        if (sms_nb_.has_value() && 0 > last_octet) last_octet = 0;
+        if (mxNb_.has_value() && 0 > last_octet) last_octet = 0;
+        if (smsNb_.has_value() && 0 > last_octet) last_octet = 0;
         std::array<uint8_t, 1> fspec{};
         if (tr_.has_value()) fspec[0] |= (1 << 7);
-        if (m4_nb_.has_value()) fspec[0] |= (1 << 6);
-        if (m5_nb_.has_value()) fspec[0] |= (1 << 5);
+        if (m4Nb_.has_value()) fspec[0] |= (1 << 6);
+        if (m5Nb_.has_value()) fspec[0] |= (1 << 5);
         if (ms_.has_value()) fspec[0] |= (1 << 4);
-        if (mx_nb_.has_value()) fspec[0] |= (1 << 3);
-        if (sms_nb_.has_value()) fspec[0] |= (1 << 2);
+        if (mxNb_.has_value()) fspec[0] |= (1 << 3);
+        if (smsNb_.has_value()) fspec[0] |= (1 << 2);
         for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
         w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
         if (tr_.has_value()) {
             CONDUIT_TRY(tr_->encode(w));
         }
-        if (m4_nb_.has_value()) {
-            w.write_bits(*m4_nb_, 8);
+        if (m4Nb_.has_value()) {
+            w.write_bits(*m4Nb_, 8);
         }
-        if (m5_nb_.has_value()) {
-            w.write_bits(*m5_nb_, 8);
+        if (m5Nb_.has_value()) {
+            w.write_bits(*m5Nb_, 8);
         }
         if (ms_.has_value()) {
             CONDUIT_TRY(ms_->encode(w));
         }
-        if (mx_nb_.has_value()) {
-            w.write_bits(*mx_nb_, 8);
+        if (mxNb_.has_value()) {
+            w.write_bits(*mxNb_, 8);
         }
-        if (sms_nb_.has_value()) {
-            w.write_bits(*sms_nb_, 8);
+        if (smsNb_.has_value()) {
+            w.write_bits(*smsNb_, 8);
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -3271,12 +3271,12 @@ public:
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
             auto val = r.read_bits(8);
             if (!val) return std::unexpected(val.error());
-            result.m4_nb_ = static_cast<uint8>(*val);
+            result.m4Nb_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
             auto val = r.read_bits(8);
             if (!val) return std::unexpected(val.error());
-            result.m5_nb_ = static_cast<uint8>(*val);
+            result.m5Nb_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
             auto val = Cat007I450Ms::decode(r);
@@ -3286,12 +3286,12 @@ public:
         if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
             auto val = r.read_bits(8);
             if (!val) return std::unexpected(val.error());
-            result.mx_nb_ = static_cast<uint8>(*val);
+            result.mxNb_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 2))) {
             auto val = r.read_bits(8);
             if (!val) return std::unexpected(val.error());
-            result.sms_nb_ = static_cast<uint8>(*val);
+            result.smsNb_ = static_cast<uint8>(*val);
         }
 
         return result;
@@ -3306,30 +3306,30 @@ public:
             first = false;
             oss << "tr=" << (*tr_).to_string();
         }
-        if (m4_nb_.has_value()) {
+        if (m4Nb_.has_value()) {
             if (!first) oss << ", ";
             first = false;
-            oss << "m4-nb=" << static_cast<uint64_t>(*m4_nb_);
+            oss << "m4Nb=" << static_cast<uint64_t>(*m4Nb_);
         }
-        if (m5_nb_.has_value()) {
+        if (m5Nb_.has_value()) {
             if (!first) oss << ", ";
             first = false;
-            oss << "m5-nb=" << static_cast<uint64_t>(*m5_nb_);
+            oss << "m5Nb=" << static_cast<uint64_t>(*m5Nb_);
         }
         if (ms_.has_value()) {
             if (!first) oss << ", ";
             first = false;
             oss << "ms=" << (*ms_).to_string();
         }
-        if (mx_nb_.has_value()) {
+        if (mxNb_.has_value()) {
             if (!first) oss << ", ";
             first = false;
-            oss << "mx-nb=" << static_cast<uint64_t>(*mx_nb_);
+            oss << "mxNb=" << static_cast<uint64_t>(*mxNb_);
         }
-        if (sms_nb_.has_value()) {
+        if (smsNb_.has_value()) {
             if (!first) oss << ", ";
             first = false;
-            oss << "sms-nb=" << static_cast<uint64_t>(*sms_nb_);
+            oss << "smsNb=" << static_cast<uint64_t>(*smsNb_);
         }
         oss << "}";
         return oss.str();
@@ -3337,11 +3337,11 @@ public:
 
 private:
     std::optional<Cat007I450Tr> tr_;
-    std::optional<uint8> m4_nb_;
-    std::optional<uint8> m5_nb_;
+    std::optional<uint8> m4Nb_;
+    std::optional<uint8> m5Nb_;
     std::optional<Cat007I450Ms> ms_;
-    std::optional<uint8> mx_nb_;
-    std::optional<uint8> sms_nb_;
+    std::optional<uint8> mxNb_;
+    std::optional<uint8> smsNb_;
 };
 
 // I007/450 - Directed Interrogation Result
@@ -3395,13 +3395,13 @@ public:
     uint8_t& mutable_lo() { return lo_; }
     void set_lo(const uint8_t& v) { lo_ = v; }
 
-    const uint8_t& ms_prob() const { return ms_prob_; }
-    uint8_t& mutable_ms_prob() { return ms_prob_; }
-    void set_ms_prob(const uint8_t& v) { ms_prob_ = v; }
+    const uint8_t& msProb() const { return msProb_; }
+    uint8_t& mutable_msProb() { return msProb_; }
+    void set_msProb(const uint8_t& v) { msProb_ = v; }
 
-    const uint8_t& m5_format() const { return m5_format_; }
-    uint8_t& mutable_m5_format() { return m5_format_; }
-    void set_m5_format(const uint8_t& v) { m5_format_ = v; }
+    const uint8_t& m5Format() const { return m5Format_; }
+    uint8_t& mutable_m5Format() { return m5Format_; }
+    void set_m5Format(const uint8_t& v) { m5Format_ = v; }
 
     const uint8_t& m4cs() const { return m4cs_; }
     uint8_t& mutable_m4cs() { return m4cs_; }
@@ -3530,8 +3530,8 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 7);
         w.write_bits(lo_, 1);
-        w.write_bits(ms_prob_, 3);
-        w.write_bits(m5_format_, 5);
+        w.write_bits(msProb_, 3);
+        w.write_bits(m5Format_, 5);
         w.write_bits(m4cs_, 2);
         w.write_bits(m5s_, 1);
         w.write_bits(sm5s_, 1);
@@ -3577,13 +3577,13 @@ public:
         }
         {
             auto val = r.read_bits(3);
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-prob'"));
-            result.ms_prob_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'msProb'"));
+            result.msProb_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5-format'"));
-            result.m5_format_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'm5Format'"));
+            result.m5Format_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(2);
@@ -3743,8 +3743,8 @@ public:
         std::ostringstream oss;
         oss << "Cat007I415Rim{"
             << "lo=" << +(lo_)
-            << ", ms-prob=" << +(ms_prob_)
-            << ", m5-format=" << +(m5_format_)
+            << ", msProb=" << +(msProb_)
+            << ", m5Format=" << +(m5Format_)
             << ", m4cs=" << +(m4cs_)
             << ", m5s=" << +(m5s_)
             << ", sm5s=" << +(sm5s_)
@@ -3781,8 +3781,8 @@ public:
 
 private:
     uint8_t lo_{};
-    uint8_t ms_prob_{};
-    uint8_t m5_format_{};
+    uint8_t msProb_{};
+    uint8_t m5Format_{};
     uint8_t m4cs_{};
     uint8_t m5s_{};
     uint8_t sm5s_{};
@@ -3944,31 +3944,31 @@ private:
 // I007/420 - Directed Interrogation Window
 class Cat007I420 {
 public:
-    const double& rho_start() const { return rho_start_; }
-    double& mutable_rho_start() { return rho_start_; }
-    void set_rho_start(const double& v) { rho_start_ = v; }
+    const double& rhoStart() const { return rhoStart_; }
+    double& mutable_rhoStart() { return rhoStart_; }
+    void set_rhoStart(const double& v) { rhoStart_ = v; }
 
-    const double& rho_end() const { return rho_end_; }
-    double& mutable_rho_end() { return rho_end_; }
-    void set_rho_end(const double& v) { rho_end_ = v; }
+    const double& rhoEnd() const { return rhoEnd_; }
+    double& mutable_rhoEnd() { return rhoEnd_; }
+    void set_rhoEnd(const double& v) { rhoEnd_ = v; }
 
-    const double& theta_start() const { return theta_start_; }
-    double& mutable_theta_start() { return theta_start_; }
-    void set_theta_start(const double& v) { theta_start_ = v; }
+    const double& thetaStart() const { return thetaStart_; }
+    double& mutable_thetaStart() { return thetaStart_; }
+    void set_thetaStart(const double& v) { thetaStart_ = v; }
 
-    const double& theta_end() const { return theta_end_; }
-    double& mutable_theta_end() { return theta_end_; }
-    void set_theta_end(const double& v) { theta_end_ = v; }
+    const double& thetaEnd() const { return thetaEnd_; }
+    double& mutable_thetaEnd() { return thetaEnd_; }
+    void set_thetaEnd(const double& v) { thetaEnd_ = v; }
 
     static constexpr size_t WIRE_SIZE = 8;
 
     bool operator==(const Cat007I420&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_start_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_end_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_start_ / 0.0054931640625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_end_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rhoStart_ / 0.00390625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rhoEnd_ / 0.00390625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(thetaStart_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(thetaEnd_ / 0.0054931640625)), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -3977,23 +3977,23 @@ public:
         Cat007I420 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho-start'"));
-            result.rho_start_ = static_cast<double>(*val) * 0.00390625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'rhoStart'"));
+            result.rhoStart_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho-end'"));
-            result.rho_end_ = static_cast<double>(*val) * 0.00390625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'rhoEnd'"));
+            result.rhoEnd_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta-start'"));
-            result.theta_start_ = static_cast<double>(*val) * 0.0054931640625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'thetaStart'"));
+            result.thetaStart_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta-end'"));
-            result.theta_end_ = static_cast<double>(*val) * 0.0054931640625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'thetaEnd'"));
+            result.thetaEnd_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
     }
@@ -4001,19 +4001,19 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat007I420{"
-            << "rho-start=" << +(rho_start_)
-            << ", rho-end=" << +(rho_end_)
-            << ", theta-start=" << +(theta_start_)
-            << ", theta-end=" << +(theta_end_)
+            << "rhoStart=" << +(rhoStart_)
+            << ", rhoEnd=" << +(rhoEnd_)
+            << ", thetaStart=" << +(thetaStart_)
+            << ", thetaEnd=" << +(thetaEnd_)
             << "}";
         return oss.str();
     }
 
 private:
-    double rho_start_{};
-    double rho_end_{};
-    double theta_start_{};
-    double theta_end_{};
+    double rhoStart_{};
+    double rhoEnd_{};
+    double thetaStart_{};
+    double thetaEnd_{};
 };
 
 class registersElement {
@@ -4078,7 +4078,7 @@ public:
     bool operator==(const Cat007I440&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(registers_.size())));
         for (const auto& elem : registers_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -4149,9 +4149,9 @@ public:
     uint8_t& mutable_cdtia() { return cdtia_; }
     void set_cdtia(const uint8_t& v) { cdtia_ = v; }
 
-    const uint8_t& not_tcas() const { return not_tcas_; }
-    uint8_t& mutable_not_tcas() { return not_tcas_; }
-    void set_not_tcas(const uint8_t& v) { not_tcas_ = v; }
+    const uint8_t& notTcas() const { return notTcas_; }
+    uint8_t& mutable_notTcas() { return notTcas_; }
+    void set_notTcas(const uint8_t& v) { notTcas_ = v; }
 
     const uint8_t& sa() const { return sa_; }
     uint8_t& mutable_sa() { return sa_; }
@@ -4167,7 +4167,7 @@ public:
         w.write_bits(ts_, 1);
         w.write_bits(arv_, 1);
         w.write_bits(cdtia_, 1);
-        w.write_bits(not_tcas_, 1);
+        w.write_bits(notTcas_, 1);
         w.write_bits(sa_, 1);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -4202,8 +4202,8 @@ public:
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'not-tcas'"));
-            result.not_tcas_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'notTcas'"));
+            result.notTcas_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
@@ -4221,7 +4221,7 @@ public:
             << ", ts=" << +(ts_)
             << ", arv=" << +(arv_)
             << ", cdtia=" << +(cdtia_)
-            << ", not-tcas=" << +(not_tcas_)
+            << ", notTcas=" << +(notTcas_)
             << ", sa=" << +(sa_)
             << "}";
         return oss.str();
@@ -4233,7 +4233,7 @@ private:
     uint8_t ts_{};
     uint8_t arv_{};
     uint8_t cdtia_{};
-    uint8_t not_tcas_{};
+    uint8_t notTcas_{};
     uint8_t sa_{};
 };
 
@@ -4613,9 +4613,9 @@ public:
     uint8_t& mutable_fsi() { return fsi_; }
     void set_fsi(const uint8_t& v) { fsi_ = v; }
 
-    const double& time_frac() const { return time_frac_; }
-    double& mutable_time_frac() { return time_frac_; }
-    void set_time_frac(const double& v) { time_frac_ = v; }
+    const double& timeFrac() const { return timeFrac_; }
+    double& mutable_timeFrac() { return timeFrac_; }
+    void set_timeFrac(const double& v) { timeFrac_ = v; }
 
     static constexpr size_t WIRE_SIZE = 4;
 
@@ -4623,7 +4623,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(fsi_, 2);
-        w.write_bits(static_cast<uint32_t>(time_frac_ / 9.313225746154785e-10), 30);
+        w.write_bits(static_cast<uint32_t>(timeFrac_ / 9.313225746154785e-10), 30);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -4637,8 +4637,8 @@ public:
         }
         {
             auto val = r.read_bits(30);
-            if (!val) return std::unexpected(val.error().with_context("field 'time-frac'"));
-            result.time_frac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'timeFrac'"));
+            result.timeFrac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
         }
         return result;
     }
@@ -4647,14 +4647,14 @@ public:
         std::ostringstream oss;
         oss << "Cat021I074{"
             << "fsi=" << +(fsi_)
-            << ", time-frac=" << +(time_frac_)
+            << ", timeFrac=" << +(timeFrac_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t fsi_{};
-    double time_frac_{};
+    double timeFrac_{};
 };
 
 // I021/076 - Time of Message Reception of Velocity - High Precision
@@ -4664,9 +4664,9 @@ public:
     uint8_t& mutable_fsi() { return fsi_; }
     void set_fsi(const uint8_t& v) { fsi_ = v; }
 
-    const double& time_frac() const { return time_frac_; }
-    double& mutable_time_frac() { return time_frac_; }
-    void set_time_frac(const double& v) { time_frac_ = v; }
+    const double& timeFrac() const { return timeFrac_; }
+    double& mutable_timeFrac() { return timeFrac_; }
+    void set_timeFrac(const double& v) { timeFrac_ = v; }
 
     static constexpr size_t WIRE_SIZE = 4;
 
@@ -4674,7 +4674,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(fsi_, 2);
-        w.write_bits(static_cast<uint32_t>(time_frac_ / 9.313225746154785e-10), 30);
+        w.write_bits(static_cast<uint32_t>(timeFrac_ / 9.313225746154785e-10), 30);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -4688,8 +4688,8 @@ public:
         }
         {
             auto val = r.read_bits(30);
-            if (!val) return std::unexpected(val.error().with_context("field 'time-frac'"));
-            result.time_frac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'timeFrac'"));
+            result.timeFrac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
         }
         return result;
     }
@@ -4698,32 +4698,32 @@ public:
         std::ostringstream oss;
         oss << "Cat021I076{"
             << "fsi=" << +(fsi_)
-            << ", time-frac=" << +(time_frac_)
+            << ", timeFrac=" << +(timeFrac_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t fsi_{};
-    double time_frac_{};
+    double timeFrac_{};
 };
 
 // I021/090 - Quality Indicators
 class Cat021I090 {
 public:
-    const uint8_t& nucr_nacv() const { return nucr_nacv_; }
-    uint8_t& mutable_nucr_nacv() { return nucr_nacv_; }
-    void set_nucr_nacv(const uint8_t& v) { nucr_nacv_ = v; }
+    const uint8_t& nucrNacv() const { return nucrNacv_; }
+    uint8_t& mutable_nucrNacv() { return nucrNacv_; }
+    void set_nucrNacv(const uint8_t& v) { nucrNacv_ = v; }
 
-    const uint8_t& nucp_nic() const { return nucp_nic_; }
-    uint8_t& mutable_nucp_nic() { return nucp_nic_; }
-    void set_nucp_nic(const uint8_t& v) { nucp_nic_ = v; }
+    const uint8_t& nucpNic() const { return nucpNic_; }
+    uint8_t& mutable_nucpNic() { return nucpNic_; }
+    void set_nucpNic(const uint8_t& v) { nucpNic_ = v; }
 
-    bool has_nic_baro() const { return nic_baro_.has_value(); }
-    const uint8_t& nic_baro() const { return nic_baro_.value(); }
-    uint8_t& mutable_nic_baro() { if (!nic_baro_) nic_baro_.emplace(); return *nic_baro_; }
-    void set_nic_baro(const uint8_t& v) { nic_baro_ = v; }
-    void clear_nic_baro() { nic_baro_.reset(); }
+    bool has_nicBaro() const { return nicBaro_.has_value(); }
+    const uint8_t& nicBaro() const { return nicBaro_.value(); }
+    uint8_t& mutable_nicBaro() { if (!nicBaro_) nicBaro_.emplace(); return *nicBaro_; }
+    void set_nicBaro(const uint8_t& v) { nicBaro_ = v; }
+    void clear_nicBaro() { nicBaro_.reset(); }
 
     bool has_sil() const { return sil_.has_value(); }
     const uint8_t& sil() const { return sil_.value(); }
@@ -4764,11 +4764,11 @@ public:
     bool operator==(const Cat021I090&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bits(nucr_nacv_, 3);
-        w.write_bits(nucp_nic_, 4);
+        w.write_bits(nucrNacv_, 3);
+        w.write_bits(nucpNic_, 4);
         {
             bool fx_continue = false;
-            if (nic_baro_.has_value()) fx_continue = true;
+            if (nicBaro_.has_value()) fx_continue = true;
             if (sil_.has_value()) fx_continue = true;
             if (nacp_.has_value()) fx_continue = true;
             if (sils_.has_value()) fx_continue = true;
@@ -4777,7 +4777,7 @@ public:
             if (pic_.has_value()) fx_continue = true;
             w.write_bits(fx_continue ? 1 : 0, 1);
             if (fx_continue) {
-                w.write_bits(nic_baro_.value_or(0), 1);
+                w.write_bits(nicBaro_.value_or(0), 1);
                 w.write_bits(sil_.value_or(0), 2);
                 w.write_bits(nacp_.value_or(0), 4);
                 {
@@ -4814,13 +4814,13 @@ public:
         Cat021I090 result;
         {
             auto val = r.read_bits(3);
-            if (!val) return std::unexpected(val.error().with_context("field 'nucr-nacv'"));
-            result.nucr_nacv_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'nucrNacv'"));
+            result.nucrNacv_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'nucp-nic'"));
-            result.nucp_nic_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'nucpNic'"));
+            result.nucpNic_ = static_cast<uint8_t>(*val);
         }
         // FX extension
         {
@@ -4830,7 +4830,7 @@ public:
                 {
                     auto val = r.read_bits(1);
                     if (!val) return std::unexpected(val.error());
-                    result.nic_baro_ = static_cast<uint8_t>(*val);
+                    result.nicBaro_ = static_cast<uint8_t>(*val);
                 }
                 {
                     auto val = r.read_bits(2);
@@ -4887,9 +4887,9 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I090{"
-            << "nucr-nacv=" << +(nucr_nacv_)
-            << ", nucp-nic=" << +(nucp_nic_)
-            << ", nic-baro=" << (nic_baro_.has_value() ? std::to_string(*nic_baro_) : std::string("<none>"))
+            << "nucrNacv=" << +(nucrNacv_)
+            << ", nucpNic=" << +(nucpNic_)
+            << ", nicBaro=" << (nicBaro_.has_value() ? std::to_string(*nicBaro_) : std::string("<none>"))
             << ", sil=" << (sil_.has_value() ? std::to_string(*sil_) : std::string("<none>"))
             << ", nacp=" << (nacp_.has_value() ? std::to_string(*nacp_) : std::string("<none>"))
             << ", sils=" << (sils_.has_value() ? std::to_string(*sils_) : std::string("<none>"))
@@ -4901,9 +4901,9 @@ public:
     }
 
 private:
-    uint8_t nucr_nacv_{};
-    uint8_t nucp_nic_{};
-    std::optional<uint8_t> nic_baro_;
+    uint8_t nucrNacv_{};
+    uint8_t nucpNic_{};
+    std::optional<uint8_t> nicBaro_;
     std::optional<uint8_t> sil_;
     std::optional<uint8_t> nacp_;
     std::optional<uint8_t> sils_;
@@ -4990,9 +4990,9 @@ public:
     uint8_t& mutable_nc() { return nc_; }
     void set_nc(const uint8_t& v) { nc_ = v; }
 
-    const uint8_t& tcp_number() const { return tcp_number_; }
-    uint8_t& mutable_tcp_number() { return tcp_number_; }
-    void set_tcp_number(const uint8_t& v) { tcp_number_ = v; }
+    const uint8_t& tcpNumber() const { return tcpNumber_; }
+    uint8_t& mutable_tcpNumber() { return tcpNumber_; }
+    void set_tcpNumber(const uint8_t& v) { tcpNumber_ = v; }
 
     const double& altitude() const { return altitude_; }
     double& mutable_altitude() { return altitude_; }
@@ -5006,9 +5006,9 @@ public:
     double& mutable_longitude() { return longitude_; }
     void set_longitude(const double& v) { longitude_ = v; }
 
-    const uint8_t& point_type() const { return point_type_; }
-    uint8_t& mutable_point_type() { return point_type_; }
-    void set_point_type(const uint8_t& v) { point_type_ = v; }
+    const uint8_t& pointType() const { return pointType_; }
+    uint8_t& mutable_pointType() { return pointType_; }
+    void set_pointType(const uint8_t& v) { pointType_ = v; }
 
     const uint8_t& td() const { return td_; }
     uint8_t& mutable_td() { return td_; }
@@ -5035,11 +5035,11 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(tca_, 1);
         w.write_bits(nc_, 1);
-        w.write_bits(tcp_number_, 6);
+        w.write_bits(tcpNumber_, 6);
         w.write_signed_bits(static_cast<int16_t>(altitude_ / 10), 16);
         w.write_signed_bits(static_cast<int32_t>(latitude_ / 2.1457672119140625e-05), 24);
         w.write_signed_bits(static_cast<int32_t>(longitude_ / 2.1457672119140625e-05), 24);
-        w.write_bits(point_type_, 4);
+        w.write_bits(pointType_, 4);
         w.write_bits(td_, 2);
         w.write_bits(tra_, 1);
         w.write_bits(toa_, 1);
@@ -5063,8 +5063,8 @@ public:
         }
         {
             auto val = r.read_bits(6);
-            if (!val) return std::unexpected(val.error().with_context("field 'tcp-number'"));
-            result.tcp_number_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'tcpNumber'"));
+            result.tcpNumber_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
@@ -5083,8 +5083,8 @@ public:
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'point-type'"));
-            result.point_type_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'pointType'"));
+            result.pointType_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(2);
@@ -5119,11 +5119,11 @@ public:
         oss << "pointsElement{"
             << "tca=" << +(tca_)
             << ", nc=" << +(nc_)
-            << ", tcp-number=" << +(tcp_number_)
+            << ", tcpNumber=" << +(tcpNumber_)
             << ", altitude=" << +(altitude_)
             << ", latitude=" << +(latitude_)
             << ", longitude=" << +(longitude_)
-            << ", point-type=" << +(point_type_)
+            << ", pointType=" << +(pointType_)
             << ", td=" << +(td_)
             << ", tra=" << +(tra_)
             << ", toa=" << +(toa_)
@@ -5136,11 +5136,11 @@ public:
 private:
     uint8_t tca_{};
     uint8_t nc_{};
-    uint8_t tcp_number_{};
+    uint8_t tcpNumber_{};
     double altitude_{};
     double latitude_{};
     double longitude_{};
-    uint8_t point_type_{};
+    uint8_t pointType_{};
     uint8_t td_{};
     uint8_t tra_{};
     uint8_t toa_{};
@@ -5162,7 +5162,7 @@ public:
     bool operator==(const Cat021I110Tid&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(points_.size())));
         for (const auto& elem : points_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -5661,9 +5661,9 @@ public:
     uint8_t& mutable_im() { return im_; }
     void set_im(const uint8_t& v) { im_ = v; }
 
-    const uint16_t& air_speed() const { return air_speed_; }
-    uint16_t& mutable_air_speed() { return air_speed_; }
-    void set_air_speed(const uint16_t& v) { air_speed_ = v; }
+    const uint16_t& airSpeed() const { return airSpeed_; }
+    uint16_t& mutable_airSpeed() { return airSpeed_; }
+    void set_airSpeed(const uint16_t& v) { airSpeed_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -5671,7 +5671,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(im_, 1);
-        w.write_bits(air_speed_, 15);
+        w.write_bits(airSpeed_, 15);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5685,8 +5685,8 @@ public:
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'air-speed'"));
-            result.air_speed_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'airSpeed'"));
+            result.airSpeed_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -5695,14 +5695,14 @@ public:
         std::ostringstream oss;
         oss << "Cat021I150{"
             << "im=" << +(im_)
-            << ", air-speed=" << +(air_speed_)
+            << ", airSpeed=" << +(airSpeed_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t im_{};
-    uint16_t air_speed_{};
+    uint16_t airSpeed_{};
 };
 
 // I021/151 - True Airspeed
@@ -5712,9 +5712,9 @@ public:
     uint8_t& mutable_re() { return re_; }
     void set_re(const uint8_t& v) { re_ = v; }
 
-    const uint16_t& true_air_speed() const { return true_air_speed_; }
-    uint16_t& mutable_true_air_speed() { return true_air_speed_; }
-    void set_true_air_speed(const uint16_t& v) { true_air_speed_ = v; }
+    const uint16_t& trueAirSpeed() const { return trueAirSpeed_; }
+    uint16_t& mutable_trueAirSpeed() { return trueAirSpeed_; }
+    void set_trueAirSpeed(const uint16_t& v) { trueAirSpeed_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -5722,7 +5722,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(re_, 1);
-        w.write_bits(true_air_speed_, 15);
+        w.write_bits(trueAirSpeed_, 15);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5736,8 +5736,8 @@ public:
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'true-air-speed'"));
-            result.true_air_speed_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'trueAirSpeed'"));
+            result.trueAirSpeed_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -5746,29 +5746,29 @@ public:
         std::ostringstream oss;
         oss << "Cat021I151{"
             << "re=" << +(re_)
-            << ", true-air-speed=" << +(true_air_speed_)
+            << ", trueAirSpeed=" << +(trueAirSpeed_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t re_{};
-    uint16_t true_air_speed_{};
+    uint16_t trueAirSpeed_{};
 };
 
 // I021/152 - Magnetic Heading
 class Cat021I152 {
 public:
-    const double& magnetic_heading() const { return magnetic_heading_; }
-    double& mutable_magnetic_heading() { return magnetic_heading_; }
-    void set_magnetic_heading(const double& v) { magnetic_heading_ = v; }
+    const double& magneticHeading() const { return magneticHeading_; }
+    double& mutable_magneticHeading() { return magneticHeading_; }
+    void set_magneticHeading(const double& v) { magneticHeading_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
     bool operator==(const Cat021I152&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(magnetic_heading_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(magneticHeading_ / 0.0054931640625)), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5777,8 +5777,8 @@ public:
         Cat021I152 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'magnetic-heading'"));
-            result.magnetic_heading_ = static_cast<double>(*val) * 0.0054931640625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'magneticHeading'"));
+            result.magneticHeading_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
     }
@@ -5786,13 +5786,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I152{"
-            << "magnetic-heading=" << +(magnetic_heading_)
+            << "magneticHeading=" << +(magneticHeading_)
             << "}";
         return oss.str();
     }
 
 private:
-    double magnetic_heading_{};
+    double magneticHeading_{};
 };
 
 // I021/155 - Barometric Vertical Rate
@@ -5904,13 +5904,13 @@ public:
     uint8_t& mutable_re() { return re_; }
     void set_re(const uint8_t& v) { re_ = v; }
 
-    const double& ground_speed() const { return ground_speed_; }
-    double& mutable_ground_speed() { return ground_speed_; }
-    void set_ground_speed(const double& v) { ground_speed_ = v; }
+    const double& groundSpeed() const { return groundSpeed_; }
+    double& mutable_groundSpeed() { return groundSpeed_; }
+    void set_groundSpeed(const double& v) { groundSpeed_ = v; }
 
-    const double& track_angle() const { return track_angle_; }
-    double& mutable_track_angle() { return track_angle_; }
-    void set_track_angle(const double& v) { track_angle_ = v; }
+    const double& trackAngle() const { return trackAngle_; }
+    double& mutable_trackAngle() { return trackAngle_; }
+    void set_trackAngle(const double& v) { trackAngle_ = v; }
 
     static constexpr size_t WIRE_SIZE = 4;
 
@@ -5918,8 +5918,8 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(re_, 1);
-        w.write_bits(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05), 15);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(track_angle_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_bits(static_cast<uint16_t>(groundSpeed_ / 6.103515625e-05), 15);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(trackAngle_ / 0.0054931640625)), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5933,13 +5933,13 @@ public:
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
-            result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'groundSpeed'"));
+            result.groundSpeed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-angle'"));
-            result.track_angle_ = static_cast<double>(*val) * 0.0054931640625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'trackAngle'"));
+            result.trackAngle_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
     }
@@ -5948,24 +5948,24 @@ public:
         std::ostringstream oss;
         oss << "Cat021I160{"
             << "re=" << +(re_)
-            << ", ground-speed=" << +(ground_speed_)
-            << ", track-angle=" << +(track_angle_)
+            << ", groundSpeed=" << +(groundSpeed_)
+            << ", trackAngle=" << +(trackAngle_)
             << "}";
         return oss.str();
     }
 
 private:
     uint8_t re_{};
-    double ground_speed_{};
-    double track_angle_{};
+    double groundSpeed_{};
+    double trackAngle_{};
 };
 
 // I021/161 - Track Number
 class Cat021I161 {
 public:
-    const uint16_t& track_number() const { return track_number_; }
-    uint16_t& mutable_track_number() { return track_number_; }
-    void set_track_number(const uint16_t& v) { track_number_ = v; }
+    const uint16_t& trackNumber() const { return trackNumber_; }
+    uint16_t& mutable_trackNumber() { return trackNumber_; }
+    void set_trackNumber(const uint16_t& v) { trackNumber_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -5973,7 +5973,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 4);
-        w.write_bits(track_number_, 12);
+        w.write_bits(trackNumber_, 12);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5983,8 +5983,8 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
-            result.track_number_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'trackNumber'"));
+            result.trackNumber_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -5992,13 +5992,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I161{"
-            << "track-number=" << +(track_number_)
+            << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint16_t track_number_{};
+    uint16_t trackNumber_{};
 };
 
 // I021/165 - Track Angle Rate
@@ -6197,16 +6197,16 @@ private:
 // Wind Speed
 class Cat021I220Ws {
 public:
-    const uint16& wind_speed() const { return wind_speed_; }
-    uint16& mutable_wind_speed() { return wind_speed_; }
-    void set_wind_speed(const uint16& v) { wind_speed_ = v; }
+    const uint16& windSpeed() const { return windSpeed_; }
+    uint16& mutable_windSpeed() { return windSpeed_; }
+    void set_windSpeed(const uint16& v) { windSpeed_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
     bool operator==(const Cat021I220Ws&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(wind_speed_), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(windSpeed_), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -6215,8 +6215,8 @@ public:
         Cat021I220Ws result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'wind-speed'"));
-            result.wind_speed_ = static_cast<uint16>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'windSpeed'"));
+            result.windSpeed_ = static_cast<uint16>(*val);
         }
         return result;
     }
@@ -6224,28 +6224,28 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I220Ws{"
-            << "wind-speed=" << +(wind_speed_)
+            << "windSpeed=" << +(windSpeed_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint16 wind_speed_{};
+    uint16 windSpeed_{};
 };
 
 // Wind Direction
 class Cat021I220Wd {
 public:
-    const uint16& wind_direction() const { return wind_direction_; }
-    uint16& mutable_wind_direction() { return wind_direction_; }
-    void set_wind_direction(const uint16& v) { wind_direction_ = v; }
+    const uint16& windDirection() const { return windDirection_; }
+    uint16& mutable_windDirection() { return windDirection_; }
+    void set_windDirection(const uint16& v) { windDirection_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
     bool operator==(const Cat021I220Wd&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(wind_direction_), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(windDirection_), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -6254,8 +6254,8 @@ public:
         Cat021I220Wd result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'wind-direction'"));
-            result.wind_direction_ = static_cast<uint16>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'windDirection'"));
+            result.windDirection_ = static_cast<uint16>(*val);
         }
         return result;
     }
@@ -6263,13 +6263,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I220Wd{"
-            << "wind-direction=" << +(wind_direction_)
+            << "windDirection=" << +(windDirection_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint16 wind_direction_{};
+    uint16 windDirection_{};
 };
 
 // Temperature
@@ -6486,16 +6486,16 @@ private:
 // I021/230 - Roll Angle
 class Cat021I230 {
 public:
-    const double& roll_angle() const { return roll_angle_; }
-    double& mutable_roll_angle() { return roll_angle_; }
-    void set_roll_angle(const double& v) { roll_angle_ = v; }
+    const double& rollAngle() const { return rollAngle_; }
+    double& mutable_rollAngle() { return rollAngle_; }
+    void set_rollAngle(const double& v) { rollAngle_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
     bool operator==(const Cat021I230&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_signed_bits(static_cast<int16_t>(roll_angle_ / 0.01), 16);
+        w.write_signed_bits(static_cast<int16_t>(rollAngle_ / 0.01), 16);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -6504,8 +6504,8 @@ public:
         Cat021I230 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'roll-angle'"));
-            result.roll_angle_ = static_cast<double>(*val) * 0.01 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'rollAngle'"));
+            result.rollAngle_ = static_cast<double>(*val) * 0.01 + 0;
         }
         return result;
     }
@@ -6513,20 +6513,20 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I230{"
-            << "roll-angle=" << +(roll_angle_)
+            << "rollAngle=" << +(rollAngle_)
             << "}";
         return oss.str();
     }
 
 private:
-    double roll_angle_{};
+    double rollAngle_{};
 };
 
 class Cat021I250_bdsElement {
 public:
-    const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
-    std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
-    void set_mb_data(const std::array<uint8_t, 7>& v) { mb_data_ = v; }
+    const std::array<uint8_t, 7>& mbData() const { return mbData_; }
+    std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
+    void set_mbData(const std::array<uint8_t, 7>& v) { mbData_ = v; }
 
     const uint8_t& bds1() const { return bds1_; }
     uint8_t& mutable_bds1() { return bds1_; }
@@ -6539,7 +6539,7 @@ public:
     bool operator==(const Cat021I250_bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
+        w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
         w.write_bits(bds1_, 4);
         w.write_bits(bds2_, 4);
         if (w.has_error()) return std::unexpected(w.error());
@@ -6550,8 +6550,8 @@ public:
         Cat021I250_bdsElement result;
         {
             auto span = r.read_bytes(7);
-            if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
-            std::copy(span->begin(), span->end(), result.mb_data_.begin());
+            if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
+            std::copy(span->begin(), span->end(), result.mbData_.begin());
         }
         {
             auto val = r.read_bits(4);
@@ -6569,7 +6569,7 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat021I250_bdsElement{"
-            << "mb-data=[bytes]"
+            << "mbData=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
             << "}";
@@ -6577,7 +6577,7 @@ public:
     }
 
 private:
-    std::array<uint8_t, 7> mb_data_{};
+    std::array<uint8_t, 7> mbData_{};
     uint8_t bds1_{};
     uint8_t bds2_{};
 };
@@ -6596,7 +6596,7 @@ public:
     bool operator==(const Cat021I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -6774,13 +6774,13 @@ public:
     uint8_t& mutable_poa() { return poa_; }
     void set_poa(const uint8_t& v) { poa_ = v; }
 
-    const uint8_t& cdti_s() const { return cdti_s_; }
-    uint8_t& mutable_cdti_s() { return cdti_s_; }
-    void set_cdti_s(const uint8_t& v) { cdti_s_ = v; }
+    const uint8_t& cdtiS() const { return cdtiS_; }
+    uint8_t& mutable_cdtiS() { return cdtiS_; }
+    void set_cdtiS(const uint8_t& v) { cdtiS_ = v; }
 
-    const uint8_t& b2_low() const { return b2_low_; }
-    uint8_t& mutable_b2_low() { return b2_low_; }
-    void set_b2_low(const uint8_t& v) { b2_low_ = v; }
+    const uint8_t& b2Low() const { return b2Low_; }
+    uint8_t& mutable_b2Low() { return b2Low_; }
+    void set_b2Low(const uint8_t& v) { b2Low_ = v; }
 
     const uint8_t& ras() const { return ras_; }
     uint8_t& mutable_ras() { return ras_; }
@@ -6801,8 +6801,8 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 2);
         w.write_bits(poa_, 1);
-        w.write_bits(cdti_s_, 1);
-        w.write_bits(b2_low_, 1);
+        w.write_bits(cdtiS_, 1);
+        w.write_bits(b2Low_, 1);
         w.write_bits(ras_, 1);
         w.write_bits(ident_, 1);
         {
@@ -6829,13 +6829,13 @@ public:
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'cdti-s'"));
-            result.cdti_s_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'cdtiS'"));
+            result.cdtiS_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'b2-low'"));
-            result.b2_low_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'b2Low'"));
+            result.b2Low_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
@@ -6868,8 +6868,8 @@ public:
         std::ostringstream oss;
         oss << "Cat021I271{"
             << "poa=" << +(poa_)
-            << ", cdti-s=" << +(cdti_s_)
-            << ", b2-low=" << +(b2_low_)
+            << ", cdtiS=" << +(cdtiS_)
+            << ", b2Low=" << +(b2Low_)
             << ", ras=" << +(ras_)
             << ", ident=" << +(ident_)
             << ", lw=" << (lw_.has_value() ? std::to_string(*lw_) : std::string("<none>"))
@@ -6879,8 +6879,8 @@ public:
 
 private:
     uint8_t poa_{};
-    uint8_t cdti_s_{};
-    uint8_t b2_low_{};
+    uint8_t cdtiS_{};
+    uint8_t b2Low_{};
     uint8_t ras_{};
     uint8_t ident_{};
     std::optional<uint8_t> lw_;
@@ -6990,11 +6990,11 @@ public:
     void set_tar(const uint8& v) { tar_ = v; }
     void clear_tar() { tar_.reset(); }
 
-    bool has_ti_age() const { return ti_age_.has_value(); }
-    const uint8& ti_age() const { return ti_age_.value(); }
-    uint8& mutable_ti_age() { if (!ti_age_) ti_age_.emplace(); return *ti_age_; }
-    void set_ti_age(const uint8& v) { ti_age_ = v; }
-    void clear_ti_age() { ti_age_.reset(); }
+    bool has_tiAge() const { return tiAge_.has_value(); }
+    const uint8& tiAge() const { return tiAge_.value(); }
+    uint8& mutable_tiAge() { if (!tiAge_) tiAge_.emplace(); return *tiAge_; }
+    void set_tiAge(const uint8& v) { tiAge_ = v; }
+    void clear_tiAge() { tiAge_.reset(); }
 
     bool has_ts() const { return ts_.has_value(); }
     const uint8& ts() const { return ts_.value(); }
@@ -7047,7 +7047,7 @@ public:
         if (gvr_.has_value() && 2 > last_octet) last_octet = 2;
         if (gv_.has_value() && 2 > last_octet) last_octet = 2;
         if (tar_.has_value() && 2 > last_octet) last_octet = 2;
-        if (ti_age_.has_value() && 2 > last_octet) last_octet = 2;
+        if (tiAge_.has_value() && 2 > last_octet) last_octet = 2;
         if (ts_.has_value() && 2 > last_octet) last_octet = 2;
         if (met_.has_value() && 2 > last_octet) last_octet = 2;
         if (roa_.has_value() && 2 > last_octet) last_octet = 2;
@@ -7071,7 +7071,7 @@ public:
         if (gvr_.has_value()) fspec[2] |= (1 << 7);
         if (gv_.has_value()) fspec[2] |= (1 << 6);
         if (tar_.has_value()) fspec[2] |= (1 << 5);
-        if (ti_age_.has_value()) fspec[2] |= (1 << 4);
+        if (tiAge_.has_value()) fspec[2] |= (1 << 4);
         if (ts_.has_value()) fspec[2] |= (1 << 3);
         if (met_.has_value()) fspec[2] |= (1 << 2);
         if (roa_.has_value()) fspec[2] |= (1 << 1);
@@ -7130,8 +7130,8 @@ public:
         if (tar_.has_value()) {
             w.write_bits(*tar_, 8);
         }
-        if (ti_age_.has_value()) {
-            w.write_bits(*ti_age_, 8);
+        if (tiAge_.has_value()) {
+            w.write_bits(*tiAge_, 8);
         }
         if (ts_.has_value()) {
             w.write_bits(*ts_, 8);
@@ -7254,7 +7254,7 @@ public:
         if (fspec_len > 2 && (fspec[2] & (1 << 4))) {
             auto val = r.read_bits(8);
             if (!val) return std::unexpected(val.error());
-            result.ti_age_ = static_cast<uint8>(*val);
+            result.tiAge_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 3))) {
             auto val = r.read_bits(8);
@@ -7374,10 +7374,10 @@ public:
             first = false;
             oss << "tar=" << static_cast<uint64_t>(*tar_);
         }
-        if (ti_age_.has_value()) {
+        if (tiAge_.has_value()) {
             if (!first) oss << ", ";
             first = false;
-            oss << "ti-age=" << static_cast<uint64_t>(*ti_age_);
+            oss << "tiAge=" << static_cast<uint64_t>(*tiAge_);
         }
         if (ts_.has_value()) {
             if (!first) oss << ", ";
@@ -7426,7 +7426,7 @@ private:
     std::optional<uint8> gvr_;
     std::optional<uint8> gv_;
     std::optional<uint8> tar_;
-    std::optional<uint8> ti_age_;
+    std::optional<uint8> tiAge_;
     std::optional<uint8> ts_;
     std::optional<uint8> met_;
     std::optional<uint8> roa_;
@@ -7526,11 +7526,11 @@ public:
     void set_mi(const uint8_t& v) { mi_ = v; }
     void clear_mi() { mi_.reset(); }
 
-    bool has_foe_fri() const { return foe_fri_.has_value(); }
-    const uint8_t& foe_fri() const { return foe_fri_.value(); }
-    uint8_t& mutable_foe_fri() { if (!foe_fri_) foe_fri_.emplace(); return *foe_fri_; }
-    void set_foe_fri(const uint8_t& v) { foe_fri_ = v; }
-    void clear_foe_fri() { foe_fri_.reset(); }
+    bool has_foeFri() const { return foeFri_.has_value(); }
+    const uint8_t& foeFri() const { return foeFri_.value(); }
+    uint8_t& mutable_foeFri() { if (!foeFri_) foeFri_.emplace(); return *foeFri_; }
+    void set_foeFri(const uint8_t& v) { foeFri_ = v; }
+    void clear_foeFri() { foeFri_.reset(); }
 
     bool operator==(const Cat048I020&) const = default;
 
@@ -7547,7 +7547,7 @@ public:
             if (xpp_.has_value()) fx_continue = true;
             if (me_.has_value()) fx_continue = true;
             if (mi_.has_value()) fx_continue = true;
-            if (foe_fri_.has_value()) fx_continue = true;
+            if (foeFri_.has_value()) fx_continue = true;
             w.write_bits(fx_continue ? 1 : 0, 1);
             if (fx_continue) {
                 w.write_bits(tst_.value_or(0), 1);
@@ -7555,7 +7555,7 @@ public:
                 w.write_bits(xpp_.value_or(0), 1);
                 w.write_bits(me_.value_or(0), 1);
                 w.write_bits(mi_.value_or(0), 1);
-                w.write_bits(foe_fri_.value_or(0), 2);
+                w.write_bits(foeFri_.value_or(0), 2);
                 w.write_bits(0, 1); // Terminal FX=0
             }
         }
@@ -7623,7 +7623,7 @@ public:
                 {
                     auto val = r.read_bits(2);
                     if (!val) return std::unexpected(val.error());
-                    result.foe_fri_ = static_cast<uint8_t>(*val);
+                    result.foeFri_ = static_cast<uint8_t>(*val);
                 }
                 CONDUIT_TRY(r.skip_bits(1)); // Terminal FX=0
             }
@@ -7644,7 +7644,7 @@ public:
             << ", xpp=" << (xpp_.has_value() ? std::to_string(*xpp_) : std::string("<none>"))
             << ", me=" << (me_.has_value() ? std::to_string(*me_) : std::string("<none>"))
             << ", mi=" << (mi_.has_value() ? std::to_string(*mi_) : std::string("<none>"))
-            << ", foe-fri=" << (foe_fri_.has_value() ? std::to_string(*foe_fri_) : std::string("<none>"))
+            << ", foeFri=" << (foeFri_.has_value() ? std::to_string(*foeFri_) : std::string("<none>"))
             << "}";
         return oss.str();
     }
@@ -7660,7 +7660,7 @@ private:
     std::optional<uint8_t> xpp_;
     std::optional<uint8_t> me_;
     std::optional<uint8_t> mi_;
-    std::optional<uint8_t> foe_fri_;
+    std::optional<uint8_t> foeFri_;
 };
 
 // I048/030 - Warning/Error Conditions and Target Classification
@@ -8358,9 +8358,9 @@ private:
 // I048/110 - Height Measured by a 3D Radar
 class Cat048I110 {
 public:
-    const double& height_3d() const { return height_3d_; }
-    double& mutable_height_3d() { return height_3d_; }
-    void set_height_3d(const double& v) { height_3d_ = v; }
+    const double& height3d() const { return height3d_; }
+    double& mutable_height3d() { return height3d_; }
+    void set_height3d(const double& v) { height3d_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -8368,7 +8368,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 2);
-        w.write_signed_bits(static_cast<int16_t>(height_3d_ / 25), 14);
+        w.write_signed_bits(static_cast<int16_t>(height3d_ / 25), 14);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -8378,8 +8378,8 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'height-3d'"));
-            result.height_3d_ = static_cast<double>(*val) * 25 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'height3d'"));
+            result.height3d_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
     }
@@ -8387,13 +8387,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I110{"
-            << "height-3d=" << +(height_3d_)
+            << "height3d=" << +(height3d_)
             << "}";
         return oss.str();
     }
 
 private:
-    double height_3d_{};
+    double height3d_{};
 };
 
 // Calculated Doppler Speed
@@ -8523,7 +8523,7 @@ public:
     bool operator==(const Cat048I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -8934,9 +8934,9 @@ private:
 // I048/161 - Track Number
 class Cat048I161 {
 public:
-    const uint16_t& track_number() const { return track_number_; }
-    uint16_t& mutable_track_number() { return track_number_; }
-    void set_track_number(const uint16_t& v) { track_number_ = v; }
+    const uint16_t& trackNumber() const { return trackNumber_; }
+    uint16_t& mutable_trackNumber() { return trackNumber_; }
+    void set_trackNumber(const uint16_t& v) { trackNumber_ = v; }
 
     static constexpr size_t WIRE_SIZE = 2;
 
@@ -8944,7 +8944,7 @@ public:
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(0, 4);
-        w.write_bits(track_number_, 12);
+        w.write_bits(trackNumber_, 12);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -8954,8 +8954,8 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
-            result.track_number_ = static_cast<uint16_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'trackNumber'"));
+            result.trackNumber_ = static_cast<uint16_t>(*val);
         }
         return result;
     }
@@ -8963,13 +8963,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I161{"
-            << "track-number=" << +(track_number_)
+            << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
 
 private:
-    uint16_t track_number_{};
+    uint16_t trackNumber_{};
 };
 
 // I048/170 - Track Status
@@ -9137,9 +9137,9 @@ private:
 // I048/200 - Calculated Track Velocity in Polar Co-ordinates
 class Cat048I200 {
 public:
-    const double& ground_speed() const { return ground_speed_; }
-    double& mutable_ground_speed() { return ground_speed_; }
-    void set_ground_speed(const double& v) { ground_speed_ = v; }
+    const double& groundSpeed() const { return groundSpeed_; }
+    double& mutable_groundSpeed() { return groundSpeed_; }
+    void set_groundSpeed(const double& v) { groundSpeed_ = v; }
 
     const double& heading() const { return heading_; }
     double& mutable_heading() { return heading_; }
@@ -9150,7 +9150,7 @@ public:
     bool operator==(const Cat048I200&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(groundSpeed_ / 6.103515625e-05)), conduit::io::Endian::Big);
         w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(heading_ / 0.0054931640625)), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -9160,8 +9160,8 @@ public:
         Cat048I200 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
-            result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'groundSpeed'"));
+            result.groundSpeed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
@@ -9174,45 +9174,45 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I200{"
-            << "ground-speed=" << +(ground_speed_)
+            << "groundSpeed=" << +(groundSpeed_)
             << ", heading=" << +(heading_)
             << "}";
         return oss.str();
     }
 
 private:
-    double ground_speed_{};
+    double groundSpeed_{};
     double heading_{};
 };
 
 // I048/210 - Track Quality (standard deviations)
 class Cat048I210 {
 public:
-    const double& sigma_x() const { return sigma_x_; }
-    double& mutable_sigma_x() { return sigma_x_; }
-    void set_sigma_x(const double& v) { sigma_x_ = v; }
+    const double& sigmaX() const { return sigmaX_; }
+    double& mutable_sigmaX() { return sigmaX_; }
+    void set_sigmaX(const double& v) { sigmaX_ = v; }
 
-    const double& sigma_y() const { return sigma_y_; }
-    double& mutable_sigma_y() { return sigma_y_; }
-    void set_sigma_y(const double& v) { sigma_y_ = v; }
+    const double& sigmaY() const { return sigmaY_; }
+    double& mutable_sigmaY() { return sigmaY_; }
+    void set_sigmaY(const double& v) { sigmaY_ = v; }
 
-    const double& sigma_v() const { return sigma_v_; }
-    double& mutable_sigma_v() { return sigma_v_; }
-    void set_sigma_v(const double& v) { sigma_v_ = v; }
+    const double& sigmaV() const { return sigmaV_; }
+    double& mutable_sigmaV() { return sigmaV_; }
+    void set_sigmaV(const double& v) { sigmaV_ = v; }
 
-    const double& sigma_h() const { return sigma_h_; }
-    double& mutable_sigma_h() { return sigma_h_; }
-    void set_sigma_h(const double& v) { sigma_h_ = v; }
+    const double& sigmaH() const { return sigmaH_; }
+    double& mutable_sigmaH() { return sigmaH_; }
+    void set_sigmaH(const double& v) { sigmaH_ = v; }
 
     static constexpr size_t WIRE_SIZE = 4;
 
     bool operator==(const Cat048I210&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_x_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_y_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_h_ / 0.087890625)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaX_ / 0.0078125)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaY_ / 0.0078125)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaV_ / 6.103515625e-05)));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigmaH_ / 0.087890625)));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9221,23 +9221,23 @@ public:
         Cat048I210 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-x'"));
-            result.sigma_x_ = static_cast<double>(*val) * 0.0078125 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaX'"));
+            result.sigmaX_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-y'"));
-            result.sigma_y_ = static_cast<double>(*val) * 0.0078125 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaY'"));
+            result.sigmaY_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-v'"));
-            result.sigma_v_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaV'"));
+            result.sigmaV_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-h'"));
-            result.sigma_h_ = static_cast<double>(*val) * 0.087890625 + 0;
+            if (!val) return std::unexpected(val.error().with_context("field 'sigmaH'"));
+            result.sigmaH_ = static_cast<double>(*val) * 0.087890625 + 0;
         }
         return result;
     }
@@ -9245,19 +9245,19 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I210{"
-            << "sigma-x=" << +(sigma_x_)
-            << ", sigma-y=" << +(sigma_y_)
-            << ", sigma-v=" << +(sigma_v_)
-            << ", sigma-h=" << +(sigma_h_)
+            << "sigmaX=" << +(sigmaX_)
+            << ", sigmaY=" << +(sigmaY_)
+            << ", sigmaV=" << +(sigmaV_)
+            << ", sigmaH=" << +(sigmaH_)
             << "}";
         return oss.str();
     }
 
 private:
-    double sigma_x_{};
-    double sigma_y_{};
-    double sigma_v_{};
-    double sigma_h_{};
+    double sigmaX_{};
+    double sigmaY_{};
+    double sigmaV_{};
+    double sigmaH_{};
 };
 
 // I048/230 - Communications/ACAS Capability and Flight Status
@@ -9387,9 +9387,9 @@ private:
 
 class Cat048I250_bdsElement {
 public:
-    const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
-    std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
-    void set_mb_data(const std::array<uint8_t, 7>& v) { mb_data_ = v; }
+    const std::array<uint8_t, 7>& mbData() const { return mbData_; }
+    std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
+    void set_mbData(const std::array<uint8_t, 7>& v) { mbData_ = v; }
 
     const uint8_t& bds1() const { return bds1_; }
     uint8_t& mutable_bds1() { return bds1_; }
@@ -9402,7 +9402,7 @@ public:
     bool operator==(const Cat048I250_bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
+        w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
         w.write_bits(bds1_, 4);
         w.write_bits(bds2_, 4);
         if (w.has_error()) return std::unexpected(w.error());
@@ -9413,8 +9413,8 @@ public:
         Cat048I250_bdsElement result;
         {
             auto span = r.read_bytes(7);
-            if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
-            std::copy(span->begin(), span->end(), result.mb_data_.begin());
+            if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
+            std::copy(span->begin(), span->end(), result.mbData_.begin());
         }
         {
             auto val = r.read_bits(4);
@@ -9432,7 +9432,7 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I250_bdsElement{"
-            << "mb-data=[bytes]"
+            << "mbData=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
             << "}";
@@ -9440,7 +9440,7 @@ public:
     }
 
 private:
-    std::array<uint8_t, 7> mb_data_{};
+    std::array<uint8_t, 7> mbData_{};
     uint8_t bds1_{};
     uint8_t bds2_{};
 };
@@ -9459,7 +9459,7 @@ public:
     bool operator==(const Cat048I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -9510,16 +9510,16 @@ private:
 // I048/260 - ACAS Resolution Advisory Report (BDS 3,0)
 class Cat048I260 {
 public:
-    const std::array<uint8_t, 7>& mb_data() const { return mb_data_; }
-    std::array<uint8_t, 7>& mutable_mb_data() { return mb_data_; }
-    void set_mb_data(const std::array<uint8_t, 7>& v) { mb_data_ = v; }
+    const std::array<uint8_t, 7>& mbData() const { return mbData_; }
+    std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
+    void set_mbData(const std::array<uint8_t, 7>& v) { mbData_ = v; }
 
     static constexpr size_t WIRE_SIZE = 7;
 
     bool operator==(const Cat048I260&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_bytes(std::span<const uint8_t>(mb_data_.data(), mb_data_.size()));
+        w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9528,8 +9528,8 @@ public:
         Cat048I260 result;
         {
             auto span = r.read_bytes(7);
-            if (!span) return std::unexpected(span.error().with_context("field 'mb-data'"));
-            std::copy(span->begin(), span->end(), result.mb_data_.begin());
+            if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
+            std::copy(span->begin(), span->end(), result.mbData_.begin());
         }
         return result;
     }
@@ -9537,13 +9537,13 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat048I260{"
-            << "mb-data=[bytes]"
+            << "mbData=[bytes]"
             << "}";
         return oss.str();
     }
 
 private:
-    std::array<uint8_t, 7> mb_data_{};
+    std::array<uint8_t, 7> mbData_{};
 };
 
 class destinationsElement {
@@ -9556,16 +9556,16 @@ public:
     uint8& mutable_sic() { return sic_; }
     void set_sic(const uint8& v) { sic_ = v; }
 
-    const uint8& local_id() const { return local_id_; }
-    uint8& mutable_local_id() { return local_id_; }
-    void set_local_id(const uint8& v) { local_id_ = v; }
+    const uint8& localId() const { return localId_; }
+    uint8& mutable_localId() { return localId_; }
+    void set_localId(const uint8& v) { localId_ = v; }
 
     bool operator==(const destinationsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(sac_));
         w.write_u8(static_cast<uint8_t>(sic_));
-        w.write_u8(static_cast<uint8_t>(local_id_));
+        w.write_u8(static_cast<uint8_t>(localId_));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9584,8 +9584,8 @@ public:
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'local-id'"));
-            result.local_id_ = static_cast<uint8>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'localId'"));
+            result.localId_ = static_cast<uint8>(*val);
         }
         return result;
     }
@@ -9595,7 +9595,7 @@ public:
         oss << "destinationsElement{"
             << "sac=" << +(sac_)
             << ", sic=" << +(sic_)
-            << ", local-id=" << +(local_id_)
+            << ", localId=" << +(localId_)
             << "}";
         return oss.str();
     }
@@ -9603,7 +9603,7 @@ public:
 private:
     uint8 sac_{};
     uint8 sic_{};
-    uint8 local_id_{};
+    uint8 localId_{};
 };
 
 // I253/025 - Data Destination Identifier and Local Data Destination ID
@@ -9620,7 +9620,7 @@ public:
     bool operator==(const Cat253I025&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(destinations_.size())));
         for (const auto& elem : destinations_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -9679,9 +9679,9 @@ public:
     uint8& mutable_oic() { return oic_; }
     void set_oic(const uint8& v) { oic_ = v; }
 
-    const uint8& local_id() const { return local_id_; }
-    uint8& mutable_local_id() { return local_id_; }
-    void set_local_id(const uint8& v) { local_id_ = v; }
+    const uint8& localId() const { return localId_; }
+    uint8& mutable_localId() { return localId_; }
+    void set_localId(const uint8& v) { localId_ = v; }
 
     static constexpr size_t WIRE_SIZE = 3;
 
@@ -9690,7 +9690,7 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(oac_));
         w.write_u8(static_cast<uint8_t>(oic_));
-        w.write_u8(static_cast<uint8_t>(local_id_));
+        w.write_u8(static_cast<uint8_t>(localId_));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9709,8 +9709,8 @@ public:
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'local-id'"));
-            result.local_id_ = static_cast<uint8>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'localId'"));
+            result.localId_ = static_cast<uint8>(*val);
         }
         return result;
     }
@@ -9720,7 +9720,7 @@ public:
         oss << "Cat253I035{"
             << "oac=" << +(oac_)
             << ", oic=" << +(oic_)
-            << ", local-id=" << +(local_id_)
+            << ", localId=" << +(localId_)
             << "}";
         return oss.str();
     }
@@ -9728,7 +9728,7 @@ public:
 private:
     uint8 oac_{};
     uint8 oic_{};
-    uint8 local_id_{};
+    uint8 localId_{};
 };
 
 // I253/040 - Message Type Identifier
@@ -9742,9 +9742,9 @@ public:
     uint8_t& mutable_d() { return d_; }
     void set_d(const uint8_t& v) { d_ = v; }
 
-    const cat253_msg_type& mit() const { return mit_; }
-    cat253_msg_type& mutable_mit() { return mit_; }
-    void set_mit(const cat253_msg_type& v) { mit_ = v; }
+    const Cat253MsgType& mit() const { return mit_; }
+    Cat253MsgType& mutable_mit() { return mit_; }
+    void set_mit(const Cat253MsgType& v) { mit_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
@@ -9753,7 +9753,7 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(pi_, 1);
         w.write_bits(d_, 1);
-        CONDUIT_TRY(encode_cat253_msg_type(mit_, w));
+        CONDUIT_TRY(encode_Cat253MsgType(mit_, w));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9771,7 +9771,7 @@ public:
             result.d_ = static_cast<uint8_t>(*val);
         }
         {
-            auto val = decode_cat253_msg_type(r);
+            auto val = decode_Cat253MsgType(r);
             if (!val) return std::unexpected(val.error().with_context("field 'mit'"));
             result.mit_ = std::move(*val);
         }
@@ -9791,7 +9791,7 @@ public:
 private:
     uint8_t pi_{};
     uint8_t d_{};
-    cat253_msg_type mit_{cat253_msg_type::time_and_day};
+    Cat253MsgType mit_{Cat253MsgType::TimeAndDay};
 };
 
 class sequencesElement {
@@ -9844,7 +9844,7 @@ public:
     bool operator==(const Cat253I050&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(sequences_.size())));
         for (const auto& elem : sequences_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -9946,9 +9946,9 @@ private:
 // I253/080 - Application Data Structure
 class Cat253I080 {
 public:
-    const uint16& start_index() const { return start_index_; }
-    uint16& mutable_start_index() { return start_index_; }
-    void set_start_index(const uint16& v) { start_index_ = v; }
+    const uint16& startIndex() const { return startIndex_; }
+    uint16& mutable_startIndex() { return startIndex_; }
+    void set_startIndex(const uint16& v) { startIndex_ = v; }
 
     const uint8& count() const { return count_; }
     uint8& mutable_count() { return count_; }
@@ -9962,19 +9962,19 @@ public:
     uint8_t& mutable_sim() { return sim_; }
     void set_sim(const uint8_t& v) { sim_ = v; }
 
-    const uint8_t& local_ctrl() const { return local_ctrl_; }
-    uint8_t& mutable_local_ctrl() { return local_ctrl_; }
-    void set_local_ctrl(const uint8_t& v) { local_ctrl_ = v; }
+    const uint8_t& localCtrl() const { return localCtrl_; }
+    uint8_t& mutable_localCtrl() { return localCtrl_; }
+    void set_localCtrl(const uint8_t& v) { localCtrl_ = v; }
 
-    const uint8_t& data_included() const { return data_included_; }
-    uint8_t& mutable_data_included() { return data_included_; }
-    void set_data_included(const uint8_t& v) { data_included_ = v; }
+    const uint8_t& dataIncluded() const { return dataIncluded_; }
+    uint8_t& mutable_dataIncluded() { return dataIncluded_; }
+    void set_dataIncluded(const uint8_t& v) { dataIncluded_ = v; }
 
-    bool has_start_index1() const { return start_index1_.has_value(); }
-    const uint16& start_index1() const { return start_index1_.value(); }
-    uint16& mutable_start_index1() { if (!start_index1_) start_index1_.emplace(); return *start_index1_; }
-    void set_start_index1(const uint16& v) { start_index1_ = v; }
-    void clear_start_index1() { start_index1_.reset(); }
+    bool has_startIndex1() const { return startIndex1_.has_value(); }
+    const uint16& startIndex1() const { return startIndex1_.value(); }
+    uint16& mutable_startIndex1() { if (!startIndex1_) startIndex1_.emplace(); return *startIndex1_; }
+    void set_startIndex1(const uint16& v) { startIndex1_ = v; }
+    void clear_startIndex1() { startIndex1_.reset(); }
 
     bool has_count1() const { return count1_.has_value(); }
     const uint8& count1() const { return count1_.value(); }
@@ -9994,23 +9994,23 @@ public:
     void set_sim1(const uint8_t& v) { sim1_ = v; }
     void clear_sim1() { sim1_.reset(); }
 
-    bool has_local_ctrl1() const { return local_ctrl1_.has_value(); }
-    const uint8_t& local_ctrl1() const { return local_ctrl1_.value(); }
-    uint8_t& mutable_local_ctrl1() { if (!local_ctrl1_) local_ctrl1_.emplace(); return *local_ctrl1_; }
-    void set_local_ctrl1(const uint8_t& v) { local_ctrl1_ = v; }
-    void clear_local_ctrl1() { local_ctrl1_.reset(); }
+    bool has_localCtrl1() const { return localCtrl1_.has_value(); }
+    const uint8_t& localCtrl1() const { return localCtrl1_.value(); }
+    uint8_t& mutable_localCtrl1() { if (!localCtrl1_) localCtrl1_.emplace(); return *localCtrl1_; }
+    void set_localCtrl1(const uint8_t& v) { localCtrl1_ = v; }
+    void clear_localCtrl1() { localCtrl1_.reset(); }
 
-    bool has_data_included1() const { return data_included1_.has_value(); }
-    const uint8_t& data_included1() const { return data_included1_.value(); }
-    uint8_t& mutable_data_included1() { if (!data_included1_) data_included1_.emplace(); return *data_included1_; }
-    void set_data_included1(const uint8_t& v) { data_included1_ = v; }
-    void clear_data_included1() { data_included1_.reset(); }
+    bool has_dataIncluded1() const { return dataIncluded1_.has_value(); }
+    const uint8_t& dataIncluded1() const { return dataIncluded1_.value(); }
+    uint8_t& mutable_dataIncluded1() { if (!dataIncluded1_) dataIncluded1_.emplace(); return *dataIncluded1_; }
+    void set_dataIncluded1(const uint8_t& v) { dataIncluded1_ = v; }
+    void clear_dataIncluded1() { dataIncluded1_.reset(); }
 
-    bool has_start_index2() const { return start_index2_.has_value(); }
-    const uint16& start_index2() const { return start_index2_.value(); }
-    uint16& mutable_start_index2() { if (!start_index2_) start_index2_.emplace(); return *start_index2_; }
-    void set_start_index2(const uint16& v) { start_index2_ = v; }
-    void clear_start_index2() { start_index2_.reset(); }
+    bool has_startIndex2() const { return startIndex2_.has_value(); }
+    const uint16& startIndex2() const { return startIndex2_.value(); }
+    uint16& mutable_startIndex2() { if (!startIndex2_) startIndex2_.emplace(); return *startIndex2_; }
+    void set_startIndex2(const uint16& v) { startIndex2_ = v; }
+    void clear_startIndex2() { startIndex2_.reset(); }
 
     bool has_count2() const { return count2_.has_value(); }
     const uint8& count2() const { return count2_.value(); }
@@ -10030,23 +10030,23 @@ public:
     void set_sim2(const uint8_t& v) { sim2_ = v; }
     void clear_sim2() { sim2_.reset(); }
 
-    bool has_local_ctrl2() const { return local_ctrl2_.has_value(); }
-    const uint8_t& local_ctrl2() const { return local_ctrl2_.value(); }
-    uint8_t& mutable_local_ctrl2() { if (!local_ctrl2_) local_ctrl2_.emplace(); return *local_ctrl2_; }
-    void set_local_ctrl2(const uint8_t& v) { local_ctrl2_ = v; }
-    void clear_local_ctrl2() { local_ctrl2_.reset(); }
+    bool has_localCtrl2() const { return localCtrl2_.has_value(); }
+    const uint8_t& localCtrl2() const { return localCtrl2_.value(); }
+    uint8_t& mutable_localCtrl2() { if (!localCtrl2_) localCtrl2_.emplace(); return *localCtrl2_; }
+    void set_localCtrl2(const uint8_t& v) { localCtrl2_ = v; }
+    void clear_localCtrl2() { localCtrl2_.reset(); }
 
-    bool has_data_included2() const { return data_included2_.has_value(); }
-    const uint8_t& data_included2() const { return data_included2_.value(); }
-    uint8_t& mutable_data_included2() { if (!data_included2_) data_included2_.emplace(); return *data_included2_; }
-    void set_data_included2(const uint8_t& v) { data_included2_ = v; }
-    void clear_data_included2() { data_included2_.reset(); }
+    bool has_dataIncluded2() const { return dataIncluded2_.has_value(); }
+    const uint8_t& dataIncluded2() const { return dataIncluded2_.value(); }
+    uint8_t& mutable_dataIncluded2() { if (!dataIncluded2_) dataIncluded2_.emplace(); return *dataIncluded2_; }
+    void set_dataIncluded2(const uint8_t& v) { dataIncluded2_ = v; }
+    void clear_dataIncluded2() { dataIncluded2_.reset(); }
 
-    bool has_start_index3() const { return start_index3_.has_value(); }
-    const uint16& start_index3() const { return start_index3_.value(); }
-    uint16& mutable_start_index3() { if (!start_index3_) start_index3_.emplace(); return *start_index3_; }
-    void set_start_index3(const uint16& v) { start_index3_ = v; }
-    void clear_start_index3() { start_index3_.reset(); }
+    bool has_startIndex3() const { return startIndex3_.has_value(); }
+    const uint16& startIndex3() const { return startIndex3_.value(); }
+    uint16& mutable_startIndex3() { if (!startIndex3_) startIndex3_.emplace(); return *startIndex3_; }
+    void set_startIndex3(const uint16& v) { startIndex3_ = v; }
+    void clear_startIndex3() { startIndex3_.reset(); }
 
     bool has_count3() const { return count3_.has_value(); }
     const uint8& count3() const { return count3_.value(); }
@@ -10066,96 +10066,96 @@ public:
     void set_sim3(const uint8_t& v) { sim3_ = v; }
     void clear_sim3() { sim3_.reset(); }
 
-    bool has_local_ctrl3() const { return local_ctrl3_.has_value(); }
-    const uint8_t& local_ctrl3() const { return local_ctrl3_.value(); }
-    uint8_t& mutable_local_ctrl3() { if (!local_ctrl3_) local_ctrl3_.emplace(); return *local_ctrl3_; }
-    void set_local_ctrl3(const uint8_t& v) { local_ctrl3_ = v; }
-    void clear_local_ctrl3() { local_ctrl3_.reset(); }
+    bool has_localCtrl3() const { return localCtrl3_.has_value(); }
+    const uint8_t& localCtrl3() const { return localCtrl3_.value(); }
+    uint8_t& mutable_localCtrl3() { if (!localCtrl3_) localCtrl3_.emplace(); return *localCtrl3_; }
+    void set_localCtrl3(const uint8_t& v) { localCtrl3_ = v; }
+    void clear_localCtrl3() { localCtrl3_.reset(); }
 
-    bool has_data_included3() const { return data_included3_.has_value(); }
-    const uint8_t& data_included3() const { return data_included3_.value(); }
-    uint8_t& mutable_data_included3() { if (!data_included3_) data_included3_.emplace(); return *data_included3_; }
-    void set_data_included3(const uint8_t& v) { data_included3_ = v; }
-    void clear_data_included3() { data_included3_.reset(); }
+    bool has_dataIncluded3() const { return dataIncluded3_.has_value(); }
+    const uint8_t& dataIncluded3() const { return dataIncluded3_.value(); }
+    uint8_t& mutable_dataIncluded3() { if (!dataIncluded3_) dataIncluded3_.emplace(); return *dataIncluded3_; }
+    void set_dataIncluded3(const uint8_t& v) { dataIncluded3_ = v; }
+    void clear_dataIncluded3() { dataIncluded3_.reset(); }
 
     bool operator==(const Cat253I080&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(start_index_), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(startIndex_), conduit::io::Endian::Big);
         w.write_u8(static_cast<uint8_t>(count_));
         w.write_bits(stale_, 1);
         w.write_bits(sim_, 1);
-        w.write_bits(local_ctrl_, 1);
-        w.write_bits(data_included_, 1);
+        w.write_bits(localCtrl_, 1);
+        w.write_bits(dataIncluded_, 1);
         w.write_bits(0, 3);
         {
             bool fx_continue = false;
-            if (start_index1_.has_value()) fx_continue = true;
+            if (startIndex1_.has_value()) fx_continue = true;
             if (count1_.has_value()) fx_continue = true;
             if (stale1_.has_value()) fx_continue = true;
             if (sim1_.has_value()) fx_continue = true;
-            if (local_ctrl1_.has_value()) fx_continue = true;
-            if (data_included1_.has_value()) fx_continue = true;
-            if (start_index2_.has_value()) fx_continue = true;
+            if (localCtrl1_.has_value()) fx_continue = true;
+            if (dataIncluded1_.has_value()) fx_continue = true;
+            if (startIndex2_.has_value()) fx_continue = true;
             if (count2_.has_value()) fx_continue = true;
             if (stale2_.has_value()) fx_continue = true;
             if (sim2_.has_value()) fx_continue = true;
-            if (local_ctrl2_.has_value()) fx_continue = true;
-            if (data_included2_.has_value()) fx_continue = true;
-            if (start_index3_.has_value()) fx_continue = true;
+            if (localCtrl2_.has_value()) fx_continue = true;
+            if (dataIncluded2_.has_value()) fx_continue = true;
+            if (startIndex3_.has_value()) fx_continue = true;
             if (count3_.has_value()) fx_continue = true;
             if (stale3_.has_value()) fx_continue = true;
             if (sim3_.has_value()) fx_continue = true;
-            if (local_ctrl3_.has_value()) fx_continue = true;
-            if (data_included3_.has_value()) fx_continue = true;
+            if (localCtrl3_.has_value()) fx_continue = true;
+            if (dataIncluded3_.has_value()) fx_continue = true;
             w.write_bits(fx_continue ? 1 : 0, 1);
             if (fx_continue) {
-                w.write_u16(static_cast<uint16_t>(start_index1_.value_or(0)), conduit::io::Endian::Big);
+                w.write_u16(static_cast<uint16_t>(startIndex1_.value_or(0)), conduit::io::Endian::Big);
                 w.write_u8(static_cast<uint8_t>(count1_.value_or(0)));
                 w.write_bits(stale1_.value_or(0), 1);
                 w.write_bits(sim1_.value_or(0), 1);
-                w.write_bits(local_ctrl1_.value_or(0), 1);
-                w.write_bits(data_included1_.value_or(0), 1);
+                w.write_bits(localCtrl1_.value_or(0), 1);
+                w.write_bits(dataIncluded1_.value_or(0), 1);
                 w.write_bits(0, 3);
                 {
                     bool fx_continue_1 = false;
-                    if (start_index2_.has_value()) fx_continue_1 = true;
+                    if (startIndex2_.has_value()) fx_continue_1 = true;
                     if (count2_.has_value()) fx_continue_1 = true;
                     if (stale2_.has_value()) fx_continue_1 = true;
                     if (sim2_.has_value()) fx_continue_1 = true;
-                    if (local_ctrl2_.has_value()) fx_continue_1 = true;
-                    if (data_included2_.has_value()) fx_continue_1 = true;
-                    if (start_index3_.has_value()) fx_continue_1 = true;
+                    if (localCtrl2_.has_value()) fx_continue_1 = true;
+                    if (dataIncluded2_.has_value()) fx_continue_1 = true;
+                    if (startIndex3_.has_value()) fx_continue_1 = true;
                     if (count3_.has_value()) fx_continue_1 = true;
                     if (stale3_.has_value()) fx_continue_1 = true;
                     if (sim3_.has_value()) fx_continue_1 = true;
-                    if (local_ctrl3_.has_value()) fx_continue_1 = true;
-                    if (data_included3_.has_value()) fx_continue_1 = true;
+                    if (localCtrl3_.has_value()) fx_continue_1 = true;
+                    if (dataIncluded3_.has_value()) fx_continue_1 = true;
                     w.write_bits(fx_continue_1 ? 1 : 0, 1);
                     if (fx_continue_1) {
-                        w.write_u16(static_cast<uint16_t>(start_index2_.value_or(0)), conduit::io::Endian::Big);
+                        w.write_u16(static_cast<uint16_t>(startIndex2_.value_or(0)), conduit::io::Endian::Big);
                         w.write_u8(static_cast<uint8_t>(count2_.value_or(0)));
                         w.write_bits(stale2_.value_or(0), 1);
                         w.write_bits(sim2_.value_or(0), 1);
-                        w.write_bits(local_ctrl2_.value_or(0), 1);
-                        w.write_bits(data_included2_.value_or(0), 1);
+                        w.write_bits(localCtrl2_.value_or(0), 1);
+                        w.write_bits(dataIncluded2_.value_or(0), 1);
                         w.write_bits(0, 3);
                         {
                             bool fx_continue_2 = false;
-                            if (start_index3_.has_value()) fx_continue_2 = true;
+                            if (startIndex3_.has_value()) fx_continue_2 = true;
                             if (count3_.has_value()) fx_continue_2 = true;
                             if (stale3_.has_value()) fx_continue_2 = true;
                             if (sim3_.has_value()) fx_continue_2 = true;
-                            if (local_ctrl3_.has_value()) fx_continue_2 = true;
-                            if (data_included3_.has_value()) fx_continue_2 = true;
+                            if (localCtrl3_.has_value()) fx_continue_2 = true;
+                            if (dataIncluded3_.has_value()) fx_continue_2 = true;
                             w.write_bits(fx_continue_2 ? 1 : 0, 1);
                             if (fx_continue_2) {
-                                w.write_u16(static_cast<uint16_t>(start_index3_.value_or(0)), conduit::io::Endian::Big);
+                                w.write_u16(static_cast<uint16_t>(startIndex3_.value_or(0)), conduit::io::Endian::Big);
                                 w.write_u8(static_cast<uint8_t>(count3_.value_or(0)));
                                 w.write_bits(stale3_.value_or(0), 1);
                                 w.write_bits(sim3_.value_or(0), 1);
-                                w.write_bits(local_ctrl3_.value_or(0), 1);
-                                w.write_bits(data_included3_.value_or(0), 1);
+                                w.write_bits(localCtrl3_.value_or(0), 1);
+                                w.write_bits(dataIncluded3_.value_or(0), 1);
                                 w.write_bits(0, 3);
                                 w.write_bits(0, 1); // Terminal FX=0
                             }
@@ -10172,8 +10172,8 @@ public:
         Cat253I080 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'start-index'"));
-            result.start_index_ = static_cast<uint16>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'startIndex'"));
+            result.startIndex_ = static_cast<uint16>(*val);
         }
         {
             auto val = r.read_u8();
@@ -10192,13 +10192,13 @@ public:
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'local-ctrl'"));
-            result.local_ctrl_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'localCtrl'"));
+            result.localCtrl_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'data-included'"));
-            result.data_included_ = static_cast<uint8_t>(*val);
+            if (!val) return std::unexpected(val.error().with_context("field 'dataIncluded'"));
+            result.dataIncluded_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(3));
         // FX extension
@@ -10209,7 +10209,7 @@ public:
                 {
                     auto val = r.read_u16(conduit::io::Endian::Big);
                     if (!val) return std::unexpected(val.error());
-                    result.start_index1_ = static_cast<uint16>(*val);
+                    result.startIndex1_ = static_cast<uint16>(*val);
                 }
                 {
                     auto val = r.read_u8();
@@ -10229,12 +10229,12 @@ public:
                 {
                     auto val = r.read_bits(1);
                     if (!val) return std::unexpected(val.error());
-                    result.local_ctrl1_ = static_cast<uint8_t>(*val);
+                    result.localCtrl1_ = static_cast<uint8_t>(*val);
                 }
                 {
                     auto val = r.read_bits(1);
                     if (!val) return std::unexpected(val.error());
-                    result.data_included1_ = static_cast<uint8_t>(*val);
+                    result.dataIncluded1_ = static_cast<uint8_t>(*val);
                 }
                 CONDUIT_TRY(r.skip_bits(3));
                 // FX extension
@@ -10245,7 +10245,7 @@ public:
                         {
                             auto val = r.read_u16(conduit::io::Endian::Big);
                             if (!val) return std::unexpected(val.error());
-                            result.start_index2_ = static_cast<uint16>(*val);
+                            result.startIndex2_ = static_cast<uint16>(*val);
                         }
                         {
                             auto val = r.read_u8();
@@ -10265,12 +10265,12 @@ public:
                         {
                             auto val = r.read_bits(1);
                             if (!val) return std::unexpected(val.error());
-                            result.local_ctrl2_ = static_cast<uint8_t>(*val);
+                            result.localCtrl2_ = static_cast<uint8_t>(*val);
                         }
                         {
                             auto val = r.read_bits(1);
                             if (!val) return std::unexpected(val.error());
-                            result.data_included2_ = static_cast<uint8_t>(*val);
+                            result.dataIncluded2_ = static_cast<uint8_t>(*val);
                         }
                         CONDUIT_TRY(r.skip_bits(3));
                         // FX extension
@@ -10281,7 +10281,7 @@ public:
                                 {
                                     auto val = r.read_u16(conduit::io::Endian::Big);
                                     if (!val) return std::unexpected(val.error());
-                                    result.start_index3_ = static_cast<uint16>(*val);
+                                    result.startIndex3_ = static_cast<uint16>(*val);
                                 }
                                 {
                                     auto val = r.read_u8();
@@ -10301,12 +10301,12 @@ public:
                                 {
                                     auto val = r.read_bits(1);
                                     if (!val) return std::unexpected(val.error());
-                                    result.local_ctrl3_ = static_cast<uint8_t>(*val);
+                                    result.localCtrl3_ = static_cast<uint8_t>(*val);
                                 }
                                 {
                                     auto val = r.read_bits(1);
                                     if (!val) return std::unexpected(val.error());
-                                    result.data_included3_ = static_cast<uint8_t>(*val);
+                                    result.dataIncluded3_ = static_cast<uint8_t>(*val);
                                 }
                                 CONDUIT_TRY(r.skip_bits(3));
                                 CONDUIT_TRY(r.skip_bits(1)); // Terminal FX=0
@@ -10322,68 +10322,68 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat253I080{"
-            << "start-index=" << +(start_index_)
+            << "startIndex=" << +(startIndex_)
             << ", count=" << +(count_)
             << ", stale=" << +(stale_)
             << ", sim=" << +(sim_)
-            << ", local-ctrl=" << +(local_ctrl_)
-            << ", data-included=" << +(data_included_)
-            << ", start-index1=" << (start_index1_.has_value() ? std::to_string(*start_index1_) : std::string("<none>"))
+            << ", localCtrl=" << +(localCtrl_)
+            << ", dataIncluded=" << +(dataIncluded_)
+            << ", startIndex1=" << (startIndex1_.has_value() ? std::to_string(*startIndex1_) : std::string("<none>"))
             << ", count1=" << (count1_.has_value() ? std::to_string(*count1_) : std::string("<none>"))
             << ", stale1=" << (stale1_.has_value() ? std::to_string(*stale1_) : std::string("<none>"))
             << ", sim1=" << (sim1_.has_value() ? std::to_string(*sim1_) : std::string("<none>"))
-            << ", local-ctrl1=" << (local_ctrl1_.has_value() ? std::to_string(*local_ctrl1_) : std::string("<none>"))
-            << ", data-included1=" << (data_included1_.has_value() ? std::to_string(*data_included1_) : std::string("<none>"))
-            << ", start-index2=" << (start_index2_.has_value() ? std::to_string(*start_index2_) : std::string("<none>"))
+            << ", localCtrl1=" << (localCtrl1_.has_value() ? std::to_string(*localCtrl1_) : std::string("<none>"))
+            << ", dataIncluded1=" << (dataIncluded1_.has_value() ? std::to_string(*dataIncluded1_) : std::string("<none>"))
+            << ", startIndex2=" << (startIndex2_.has_value() ? std::to_string(*startIndex2_) : std::string("<none>"))
             << ", count2=" << (count2_.has_value() ? std::to_string(*count2_) : std::string("<none>"))
             << ", stale2=" << (stale2_.has_value() ? std::to_string(*stale2_) : std::string("<none>"))
             << ", sim2=" << (sim2_.has_value() ? std::to_string(*sim2_) : std::string("<none>"))
-            << ", local-ctrl2=" << (local_ctrl2_.has_value() ? std::to_string(*local_ctrl2_) : std::string("<none>"))
-            << ", data-included2=" << (data_included2_.has_value() ? std::to_string(*data_included2_) : std::string("<none>"))
-            << ", start-index3=" << (start_index3_.has_value() ? std::to_string(*start_index3_) : std::string("<none>"))
+            << ", localCtrl2=" << (localCtrl2_.has_value() ? std::to_string(*localCtrl2_) : std::string("<none>"))
+            << ", dataIncluded2=" << (dataIncluded2_.has_value() ? std::to_string(*dataIncluded2_) : std::string("<none>"))
+            << ", startIndex3=" << (startIndex3_.has_value() ? std::to_string(*startIndex3_) : std::string("<none>"))
             << ", count3=" << (count3_.has_value() ? std::to_string(*count3_) : std::string("<none>"))
             << ", stale3=" << (stale3_.has_value() ? std::to_string(*stale3_) : std::string("<none>"))
             << ", sim3=" << (sim3_.has_value() ? std::to_string(*sim3_) : std::string("<none>"))
-            << ", local-ctrl3=" << (local_ctrl3_.has_value() ? std::to_string(*local_ctrl3_) : std::string("<none>"))
-            << ", data-included3=" << (data_included3_.has_value() ? std::to_string(*data_included3_) : std::string("<none>"))
+            << ", localCtrl3=" << (localCtrl3_.has_value() ? std::to_string(*localCtrl3_) : std::string("<none>"))
+            << ", dataIncluded3=" << (dataIncluded3_.has_value() ? std::to_string(*dataIncluded3_) : std::string("<none>"))
             << "}";
         return oss.str();
     }
 
 private:
-    uint16 start_index_{};
+    uint16 startIndex_{};
     uint8 count_{};
     uint8_t stale_{};
     uint8_t sim_{};
-    uint8_t local_ctrl_{};
-    uint8_t data_included_{};
-    std::optional<uint16> start_index1_;
+    uint8_t localCtrl_{};
+    uint8_t dataIncluded_{};
+    std::optional<uint16> startIndex1_;
     std::optional<uint8> count1_;
     std::optional<uint8_t> stale1_;
     std::optional<uint8_t> sim1_;
-    std::optional<uint8_t> local_ctrl1_;
-    std::optional<uint8_t> data_included1_;
-    std::optional<uint16> start_index2_;
+    std::optional<uint8_t> localCtrl1_;
+    std::optional<uint8_t> dataIncluded1_;
+    std::optional<uint16> startIndex2_;
     std::optional<uint8> count2_;
     std::optional<uint8_t> stale2_;
     std::optional<uint8_t> sim2_;
-    std::optional<uint8_t> local_ctrl2_;
-    std::optional<uint8_t> data_included2_;
-    std::optional<uint16> start_index3_;
+    std::optional<uint8_t> localCtrl2_;
+    std::optional<uint8_t> dataIncluded2_;
+    std::optional<uint16> startIndex3_;
     std::optional<uint8> count3_;
     std::optional<uint8_t> stale3_;
     std::optional<uint8_t> sim3_;
-    std::optional<uint8_t> local_ctrl3_;
-    std::optional<uint8_t> data_included3_;
+    std::optional<uint8_t> localCtrl3_;
+    std::optional<uint8_t> dataIncluded3_;
 };
 
-class data_itemsElement {
+class dataItemsElement {
 public:
     const std::array<uint8_t, 16>& data() const { return data_; }
     std::array<uint8_t, 16>& mutable_data() { return data_; }
     void set_data(const std::array<uint8_t, 16>& v) { data_ = v; }
 
-    bool operator==(const data_itemsElement&) const = default;
+    bool operator==(const dataItemsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
@@ -10391,8 +10391,8 @@ public:
         return {};
     }
 
-    static conduit::Result<data_itemsElement> decode(conduit::io::BitReader& r) {
-        data_itemsElement result;
+    static conduit::Result<dataItemsElement> decode(conduit::io::BitReader& r) {
+        dataItemsElement result;
         {
             auto span = r.read_bytes(16);
             if (!span) return std::unexpected(span.error().with_context("field 'data'"));
@@ -10403,7 +10403,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "data_itemsElement{"
+        oss << "dataItemsElement{"
             << "data=[bytes]"
             << "}";
         return oss.str();
@@ -10420,15 +10420,15 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<data_itemsElement>& data_items() const { return data_items_; }
-    std::vector<data_itemsElement>& mutable_data_items() { return data_items_; }
-    void set_data_items(const std::vector<data_itemsElement>& v) { data_items_ = v; }
+    const std::vector<dataItemsElement>& dataItems() const { return dataItems_; }
+    std::vector<dataItemsElement>& mutable_dataItems() { return dataItems_; }
+    void set_dataItems(const std::vector<dataItemsElement>& v) { dataItems_ = v; }
 
     bool operator==(const Cat253I090&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
-        for (const auto& elem : data_items_) {
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(dataItems_.size())));
+        for (const auto& elem : dataItems_) {
             CONDUIT_TRY(elem.encode(w));
         }
         if (w.has_error()) return std::unexpected(w.error());
@@ -10444,12 +10444,12 @@ public:
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'data-items'"));
-            result.data_items_.reserve(count);
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'dataItems'"));
+            result.dataItems_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = data_itemsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'data-items'"));
-                result.data_items_.push_back(std::move(*elem));
+                auto elem = dataItemsElement::decode(r);
+                if (!elem) return std::unexpected(elem.error().with_context("array 'dataItems'"));
+                result.dataItems_.push_back(std::move(*elem));
             }
         }
         return result;
@@ -10459,11 +10459,11 @@ public:
         std::ostringstream oss;
         oss << "Cat253I090{"
             << "rep=" << +(rep_)
-            << ", data-items=["
+            << ", dataItems=["
             ;
-            for (size_t i = 0; i < data_items_.size(); ++i) {
+            for (size_t i = 0; i < dataItems_.size(); ++i) {
                 if (i > 0) oss << ", ";
-                oss << data_items_[i].to_string();
+                oss << dataItems_[i].to_string();
             }
             oss << "]"
             << "}";
@@ -10472,27 +10472,27 @@ public:
 
 private:
     uint8 rep_{};
-    std::vector<data_itemsElement> data_items_{};
+    std::vector<dataItemsElement> dataItems_{};
 };
 
 // I253/100 variant: Multipath data (1 data byte, excluding length)
 class Cat253Multipath {
 public:
-    const cat253_mp_detection& detection() const { return detection_; }
-    cat253_mp_detection& mutable_detection() { return detection_; }
-    void set_detection(const cat253_mp_detection& v) { detection_ = v; }
+    const Cat253MpDetection& detection() const { return detection_; }
+    Cat253MpDetection& mutable_detection() { return detection_; }
+    void set_detection(const Cat253MpDetection& v) { detection_ = v; }
 
-    const cat253_mp_level& level() const { return level_; }
-    cat253_mp_level& mutable_level() { return level_; }
-    void set_level(const cat253_mp_level& v) { level_ = v; }
+    const Cat253MpLevel& level() const { return level_; }
+    Cat253MpLevel& mutable_level() { return level_; }
+    void set_level(const Cat253MpLevel& v) { level_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
     bool operator==(const Cat253Multipath&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        CONDUIT_TRY(encode_cat253_mp_detection(detection_, w));
-        CONDUIT_TRY(encode_cat253_mp_level(level_, w));
+        CONDUIT_TRY(encode_Cat253MpDetection(detection_, w));
+        CONDUIT_TRY(encode_Cat253MpLevel(level_, w));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -10500,12 +10500,12 @@ public:
     static conduit::Result<Cat253Multipath> decode(conduit::io::BitReader& r) {
         Cat253Multipath result;
         {
-            auto val = decode_cat253_mp_detection(r);
+            auto val = decode_Cat253MpDetection(r);
             if (!val) return std::unexpected(val.error().with_context("field 'detection'"));
             result.detection_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_mp_level(r);
+            auto val = decode_Cat253MpLevel(r);
             if (!val) return std::unexpected(val.error().with_context("field 'level'"));
             result.level_ = std::move(*val);
         }
@@ -10522,34 +10522,34 @@ public:
     }
 
 private:
-    cat253_mp_detection detection_{cat253_mp_detection::disabled};
-    cat253_mp_level level_{cat253_mp_level::ok};
+    Cat253MpDetection detection_{Cat253MpDetection::disabled};
+    Cat253MpLevel level_{Cat253MpLevel::ok};
 };
 
 // I253/100 variant: Squitter data (1 data byte, excluding length)
 class Cat253Squitter {
 public:
-    const cat253_sq_rx_channel& rx_channel() const { return rx_channel_; }
-    cat253_sq_rx_channel& mutable_rx_channel() { return rx_channel_; }
-    void set_rx_channel(const cat253_sq_rx_channel& v) { rx_channel_ = v; }
+    const Cat253SqRxChannel& rxChannel() const { return rxChannel_; }
+    Cat253SqRxChannel& mutable_rxChannel() { return rxChannel_; }
+    void set_rxChannel(const Cat253SqRxChannel& v) { rxChannel_ = v; }
 
-    const cat253_sq_ms_squitter& ms_squitter() const { return ms_squitter_; }
-    cat253_sq_ms_squitter& mutable_ms_squitter() { return ms_squitter_; }
-    void set_ms_squitter(const cat253_sq_ms_squitter& v) { ms_squitter_ = v; }
+    const Cat253SqMsSquitter& msSquitter() const { return msSquitter_; }
+    Cat253SqMsSquitter& mutable_msSquitter() { return msSquitter_; }
+    void set_msSquitter(const Cat253SqMsSquitter& v) { msSquitter_ = v; }
 
-    const cat253_sq_m5_squitter& m5_squitter() const { return m5_squitter_; }
-    cat253_sq_m5_squitter& mutable_m5_squitter() { return m5_squitter_; }
-    void set_m5_squitter(const cat253_sq_m5_squitter& v) { m5_squitter_ = v; }
+    const Cat253SqM5Squitter& m5Squitter() const { return m5Squitter_; }
+    Cat253SqM5Squitter& mutable_m5Squitter() { return m5Squitter_; }
+    void set_m5Squitter(const Cat253SqM5Squitter& v) { m5Squitter_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
     bool operator==(const Cat253Squitter&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        CONDUIT_TRY(encode_cat253_sq_rx_channel(rx_channel_, w));
+        CONDUIT_TRY(encode_Cat253SqRxChannel(rxChannel_, w));
         w.write_bits(0, 2);
-        CONDUIT_TRY(encode_cat253_sq_ms_squitter(ms_squitter_, w));
-        CONDUIT_TRY(encode_cat253_sq_m5_squitter(m5_squitter_, w));
+        CONDUIT_TRY(encode_Cat253SqMsSquitter(msSquitter_, w));
+        CONDUIT_TRY(encode_Cat253SqM5Squitter(m5Squitter_, w));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -10557,20 +10557,20 @@ public:
     static conduit::Result<Cat253Squitter> decode(conduit::io::BitReader& r) {
         Cat253Squitter result;
         {
-            auto val = decode_cat253_sq_rx_channel(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rx-channel'"));
-            result.rx_channel_ = std::move(*val);
+            auto val = decode_Cat253SqRxChannel(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rxChannel'"));
+            result.rxChannel_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
-            auto val = decode_cat253_sq_ms_squitter(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-squitter'"));
-            result.ms_squitter_ = std::move(*val);
+            auto val = decode_Cat253SqMsSquitter(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'msSquitter'"));
+            result.msSquitter_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_sq_m5_squitter(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5-squitter'"));
-            result.m5_squitter_ = std::move(*val);
+            auto val = decode_Cat253SqM5Squitter(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'm5Squitter'"));
+            result.m5Squitter_ = std::move(*val);
         }
         return result;
     }
@@ -10578,169 +10578,169 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat253Squitter{"
-            << "rx-channel=" << ::asterix::to_string(rx_channel_)
-            << ", ms-squitter=" << ::asterix::to_string(ms_squitter_)
-            << ", m5-squitter=" << ::asterix::to_string(m5_squitter_)
+            << "rxChannel=" << ::asterix::to_string(rxChannel_)
+            << ", msSquitter=" << ::asterix::to_string(msSquitter_)
+            << ", m5Squitter=" << ::asterix::to_string(m5Squitter_)
             << "}";
         return oss.str();
     }
 
 private:
-    cat253_sq_rx_channel rx_channel_{cat253_sq_rx_channel::sum};
-    cat253_sq_ms_squitter ms_squitter_{cat253_sq_ms_squitter::ok};
-    cat253_sq_m5_squitter m5_squitter_{cat253_sq_m5_squitter::ok};
+    Cat253SqRxChannel rxChannel_{Cat253SqRxChannel::sum};
+    Cat253SqMsSquitter msSquitter_{Cat253SqMsSquitter::ok};
+    Cat253SqM5Squitter m5Squitter_{Cat253SqM5Squitter::ok};
 };
 
 // I253/100 variant: BIT Report data (16 data bytes, excluding length)
 class Cat253BitReport {
 public:
-    const cat253_br_bit_type& bit_type() const { return bit_type_; }
-    cat253_br_bit_type& mutable_bit_type() { return bit_type_; }
-    void set_bit_type(const cat253_br_bit_type& v) { bit_type_ = v; }
+    const Cat253BrBitType& bitType() const { return bitType_; }
+    Cat253BrBitType& mutable_bitType() { return bitType_; }
+    void set_bitType(const Cat253BrBitType& v) { bitType_ = v; }
 
-    const cat253_br_success_state& success_state() const { return success_state_; }
-    cat253_br_success_state& mutable_success_state() { return success_state_; }
-    void set_success_state(const cat253_br_success_state& v) { success_state_ = v; }
+    const Cat253BrSuccessState& successState() const { return successState_; }
+    Cat253BrSuccessState& mutable_successState() { return successState_; }
+    void set_successState(const Cat253BrSuccessState& v) { successState_ = v; }
 
-    const cat253_br_antenna_general& antenna_general() const { return antenna_general_; }
-    cat253_br_antenna_general& mutable_antenna_general() { return antenna_general_; }
-    void set_antenna_general(const cat253_br_antenna_general& v) { antenna_general_ = v; }
+    const Cat253BrAntennaGeneral& antennaGeneral() const { return antennaGeneral_; }
+    Cat253BrAntennaGeneral& mutable_antennaGeneral() { return antennaGeneral_; }
+    void set_antennaGeneral(const Cat253BrAntennaGeneral& v) { antennaGeneral_ = v; }
 
-    const cat253_br_antenna_scan_error& antenna_scan_error() const { return antenna_scan_error_; }
-    cat253_br_antenna_scan_error& mutable_antenna_scan_error() { return antenna_scan_error_; }
-    void set_antenna_scan_error(const cat253_br_antenna_scan_error& v) { antenna_scan_error_ = v; }
+    const Cat253BrAntennaScanError& antennaScanError() const { return antennaScanError_; }
+    Cat253BrAntennaScanError& mutable_antennaScanError() { return antennaScanError_; }
+    void set_antennaScanError(const Cat253BrAntennaScanError& v) { antennaScanError_ = v; }
 
-    const cat253_br_power_source_general& power_source_general() const { return power_source_general_; }
-    cat253_br_power_source_general& mutable_power_source_general() { return power_source_general_; }
-    void set_power_source_general(const cat253_br_power_source_general& v) { power_source_general_ = v; }
+    const Cat253BrPowerSourceGeneral& powerSourceGeneral() const { return powerSourceGeneral_; }
+    Cat253BrPowerSourceGeneral& mutable_powerSourceGeneral() { return powerSourceGeneral_; }
+    void set_powerSourceGeneral(const Cat253BrPowerSourceGeneral& v) { powerSourceGeneral_ = v; }
 
-    const cat253_br_ctrl_unit_general& ctrl_unit_general() const { return ctrl_unit_general_; }
-    cat253_br_ctrl_unit_general& mutable_ctrl_unit_general() { return ctrl_unit_general_; }
-    void set_ctrl_unit_general(const cat253_br_ctrl_unit_general& v) { ctrl_unit_general_ = v; }
+    const Cat253BrCtrlUnitGeneral& ctrlUnitGeneral() const { return ctrlUnitGeneral_; }
+    Cat253BrCtrlUnitGeneral& mutable_ctrlUnitGeneral() { return ctrlUnitGeneral_; }
+    void set_ctrlUnitGeneral(const Cat253BrCtrlUnitGeneral& v) { ctrlUnitGeneral_ = v; }
 
-    const cat253_br_kb_crypto_comm& kb_crypto_comm() const { return kb_crypto_comm_; }
-    cat253_br_kb_crypto_comm& mutable_kb_crypto_comm() { return kb_crypto_comm_; }
-    void set_kb_crypto_comm(const cat253_br_kb_crypto_comm& v) { kb_crypto_comm_ = v; }
+    const Cat253BrKbCryptoComm& kbCryptoComm() const { return kbCryptoComm_; }
+    Cat253BrKbCryptoComm& mutable_kbCryptoComm() { return kbCryptoComm_; }
+    void set_kbCryptoComm(const Cat253BrKbCryptoComm& v) { kbCryptoComm_ = v; }
 
-    const cat253_br_kb_rtc& kb_rtc() const { return kb_rtc_; }
-    cat253_br_kb_rtc& mutable_kb_rtc() { return kb_rtc_; }
-    void set_kb_rtc(const cat253_br_kb_rtc& v) { kb_rtc_ = v; }
+    const Cat253BrKbRtc& kbRtc() const { return kbRtc_; }
+    Cat253BrKbRtc& mutable_kbRtc() { return kbRtc_; }
+    void set_kbRtc(const Cat253BrKbRtc& v) { kbRtc_ = v; }
 
-    const cat253_br_kb_heat_warning& kb_heat_warning() const { return kb_heat_warning_; }
-    cat253_br_kb_heat_warning& mutable_kb_heat_warning() { return kb_heat_warning_; }
-    void set_kb_heat_warning(const cat253_br_kb_heat_warning& v) { kb_heat_warning_ = v; }
+    const Cat253BrKbHeatWarning& kbHeatWarning() const { return kbHeatWarning_; }
+    Cat253BrKbHeatWarning& mutable_kbHeatWarning() { return kbHeatWarning_; }
+    void set_kbHeatWarning(const Cat253BrKbHeatWarning& v) { kbHeatWarning_ = v; }
 
-    const cat253_br_bottom_band_general& bottom_band_general() const { return bottom_band_general_; }
-    cat253_br_bottom_band_general& mutable_bottom_band_general() { return bottom_band_general_; }
-    void set_bottom_band_general(const cat253_br_bottom_band_general& v) { bottom_band_general_ = v; }
+    const Cat253BrBottomBandGeneral& bottomBandGeneral() const { return bottomBandGeneral_; }
+    Cat253BrBottomBandGeneral& mutable_bottomBandGeneral() { return bottomBandGeneral_; }
+    void set_bottomBandGeneral(const Cat253BrBottomBandGeneral& v) { bottomBandGeneral_ = v; }
 
-    const cat253_br_tb_ctrl_comm& tb_ctrl_comm() const { return tb_ctrl_comm_; }
-    cat253_br_tb_ctrl_comm& mutable_tb_ctrl_comm() { return tb_ctrl_comm_; }
-    void set_tb_ctrl_comm(const cat253_br_tb_ctrl_comm& v) { tb_ctrl_comm_ = v; }
+    const Cat253BrTbCtrlComm& tbCtrlComm() const { return tbCtrlComm_; }
+    Cat253BrTbCtrlComm& mutable_tbCtrlComm() { return tbCtrlComm_; }
+    void set_tbCtrlComm(const Cat253BrTbCtrlComm& v) { tbCtrlComm_ = v; }
 
-    const cat253_br_tb_config_upload& tb_config_upload() const { return tb_config_upload_; }
-    cat253_br_tb_config_upload& mutable_tb_config_upload() { return tb_config_upload_; }
-    void set_tb_config_upload(const cat253_br_tb_config_upload& v) { tb_config_upload_ = v; }
+    const Cat253BrTbConfigUpload& tbConfigUpload() const { return tbConfigUpload_; }
+    Cat253BrTbConfigUpload& mutable_tbConfigUpload() { return tbConfigUpload_; }
+    void set_tbConfigUpload(const Cat253BrTbConfigUpload& v) { tbConfigUpload_ = v; }
 
-    const cat253_br_vswr_general& vswr_general() const { return vswr_general_; }
-    cat253_br_vswr_general& mutable_vswr_general() { return vswr_general_; }
-    void set_vswr_general(const cat253_br_vswr_general& v) { vswr_general_ = v; }
+    const Cat253BrVswrGeneral& vswrGeneral() const { return vswrGeneral_; }
+    Cat253BrVswrGeneral& mutable_vswrGeneral() { return vswrGeneral_; }
+    void set_vswrGeneral(const Cat253BrVswrGeneral& v) { vswrGeneral_ = v; }
 
-    const cat253_br_vswr_sum& vswr_sum() const { return vswr_sum_; }
-    cat253_br_vswr_sum& mutable_vswr_sum() { return vswr_sum_; }
-    void set_vswr_sum(const cat253_br_vswr_sum& v) { vswr_sum_ = v; }
+    const Cat253BrVswrSum& vswrSum() const { return vswrSum_; }
+    Cat253BrVswrSum& mutable_vswrSum() { return vswrSum_; }
+    void set_vswrSum(const Cat253BrVswrSum& v) { vswrSum_ = v; }
 
-    const cat253_br_vswr_diff& vswr_diff() const { return vswr_diff_; }
-    cat253_br_vswr_diff& mutable_vswr_diff() { return vswr_diff_; }
-    void set_vswr_diff(const cat253_br_vswr_diff& v) { vswr_diff_ = v; }
+    const Cat253BrVswrDiff& vswrDiff() const { return vswrDiff_; }
+    Cat253BrVswrDiff& mutable_vswrDiff() { return vswrDiff_; }
+    void set_vswrDiff(const Cat253BrVswrDiff& v) { vswrDiff_ = v; }
 
-    const cat253_br_vswr_omni& vswr_omni() const { return vswr_omni_; }
-    cat253_br_vswr_omni& mutable_vswr_omni() { return vswr_omni_; }
-    void set_vswr_omni(const cat253_br_vswr_omni& v) { vswr_omni_ = v; }
+    const Cat253BrVswrOmni& vswrOmni() const { return vswrOmni_; }
+    Cat253BrVswrOmni& mutable_vswrOmni() { return vswrOmni_; }
+    void set_vswrOmni(const Cat253BrVswrOmni& v) { vswrOmni_ = v; }
 
-    const cat253_br_afb_general& afb_general() const { return afb_general_; }
-    cat253_br_afb_general& mutable_afb_general() { return afb_general_; }
-    void set_afb_general(const cat253_br_afb_general& v) { afb_general_ = v; }
+    const Cat253BrAfbGeneral& afbGeneral() const { return afbGeneral_; }
+    Cat253BrAfbGeneral& mutable_afbGeneral() { return afbGeneral_; }
+    void set_afbGeneral(const Cat253BrAfbGeneral& v) { afbGeneral_ = v; }
 
-    const cat253_br_afb_main_synth& afb_main_synth() const { return afb_main_synth_; }
-    cat253_br_afb_main_synth& mutable_afb_main_synth() { return afb_main_synth_; }
-    void set_afb_main_synth(const cat253_br_afb_main_synth& v) { afb_main_synth_ = v; }
+    const Cat253BrAfbMainSynth& afbMainSynth() const { return afbMainSynth_; }
+    Cat253BrAfbMainSynth& mutable_afbMainSynth() { return afbMainSynth_; }
+    void set_afbMainSynth(const Cat253BrAfbMainSynth& v) { afbMainSynth_ = v; }
 
-    const cat253_br_afb_bit_synth& afb_bit_synth() const { return afb_bit_synth_; }
-    cat253_br_afb_bit_synth& mutable_afb_bit_synth() { return afb_bit_synth_; }
-    void set_afb_bit_synth(const cat253_br_afb_bit_synth& v) { afb_bit_synth_ = v; }
+    const Cat253BrAfbBitSynth& afbBitSynth() const { return afbBitSynth_; }
+    Cat253BrAfbBitSynth& mutable_afbBitSynth() { return afbBitSynth_; }
+    void set_afbBitSynth(const Cat253BrAfbBitSynth& v) { afbBitSynth_ = v; }
 
-    const cat253_br_afb_total_ch& afb_total_ch() const { return afb_total_ch_; }
-    cat253_br_afb_total_ch& mutable_afb_total_ch() { return afb_total_ch_; }
-    void set_afb_total_ch(const cat253_br_afb_total_ch& v) { afb_total_ch_ = v; }
+    const Cat253BrAfbTotalCh& afbTotalCh() const { return afbTotalCh_; }
+    Cat253BrAfbTotalCh& mutable_afbTotalCh() { return afbTotalCh_; }
+    void set_afbTotalCh(const Cat253BrAfbTotalCh& v) { afbTotalCh_ = v; }
 
-    const cat253_br_afb_diff_ch& afb_diff_ch() const { return afb_diff_ch_; }
-    cat253_br_afb_diff_ch& mutable_afb_diff_ch() { return afb_diff_ch_; }
-    void set_afb_diff_ch(const cat253_br_afb_diff_ch& v) { afb_diff_ch_ = v; }
+    const Cat253BrAfbDiffCh& afbDiffCh() const { return afbDiffCh_; }
+    Cat253BrAfbDiffCh& mutable_afbDiffCh() { return afbDiffCh_; }
+    void set_afbDiffCh(const Cat253BrAfbDiffCh& v) { afbDiffCh_ = v; }
 
-    const cat253_br_afb_omni_ch& afb_omni_ch() const { return afb_omni_ch_; }
-    cat253_br_afb_omni_ch& mutable_afb_omni_ch() { return afb_omni_ch_; }
-    void set_afb_omni_ch(const cat253_br_afb_omni_ch& v) { afb_omni_ch_ = v; }
+    const Cat253BrAfbOmniCh& afbOmniCh() const { return afbOmniCh_; }
+    Cat253BrAfbOmniCh& mutable_afbOmniCh() { return afbOmniCh_; }
+    void set_afbOmniCh(const Cat253BrAfbOmniCh& v) { afbOmniCh_ = v; }
 
-    const cat253_br_rfgyb_general& rfgyb_general() const { return rfgyb_general_; }
-    cat253_br_rfgyb_general& mutable_rfgyb_general() { return rfgyb_general_; }
-    void set_rfgyb_general(const cat253_br_rfgyb_general& v) { rfgyb_general_ = v; }
+    const Cat253BrRfgybGeneral& rfgybGeneral() const { return rfgybGeneral_; }
+    Cat253BrRfgybGeneral& mutable_rfgybGeneral() { return rfgybGeneral_; }
+    void set_rfgybGeneral(const Cat253BrRfgybGeneral& v) { rfgybGeneral_ = v; }
 
-    const cat253_br_rfgyb_total_pwr& rfgyb_total_pwr() const { return rfgyb_total_pwr_; }
-    cat253_br_rfgyb_total_pwr& mutable_rfgyb_total_pwr() { return rfgyb_total_pwr_; }
-    void set_rfgyb_total_pwr(const cat253_br_rfgyb_total_pwr& v) { rfgyb_total_pwr_ = v; }
+    const Cat253BrRfgybTotalPwr& rfgybTotalPwr() const { return rfgybTotalPwr_; }
+    Cat253BrRfgybTotalPwr& mutable_rfgybTotalPwr() { return rfgybTotalPwr_; }
+    void set_rfgybTotalPwr(const Cat253BrRfgybTotalPwr& v) { rfgybTotalPwr_ = v; }
 
-    const cat253_br_rfgyb_diff_pwr& rfgyb_diff_pwr() const { return rfgyb_diff_pwr_; }
-    cat253_br_rfgyb_diff_pwr& mutable_rfgyb_diff_pwr() { return rfgyb_diff_pwr_; }
-    void set_rfgyb_diff_pwr(const cat253_br_rfgyb_diff_pwr& v) { rfgyb_diff_pwr_ = v; }
+    const Cat253BrRfgybDiffPwr& rfgybDiffPwr() const { return rfgybDiffPwr_; }
+    Cat253BrRfgybDiffPwr& mutable_rfgybDiffPwr() { return rfgybDiffPwr_; }
+    void set_rfgybDiffPwr(const Cat253BrRfgybDiffPwr& v) { rfgybDiffPwr_ = v; }
 
-    const cat253_br_rfgyb_omni_pwr& rfgyb_omni_pwr() const { return rfgyb_omni_pwr_; }
-    cat253_br_rfgyb_omni_pwr& mutable_rfgyb_omni_pwr() { return rfgyb_omni_pwr_; }
-    void set_rfgyb_omni_pwr(const cat253_br_rfgyb_omni_pwr& v) { rfgyb_omni_pwr_ = v; }
+    const Cat253BrRfgybOmniPwr& rfgybOmniPwr() const { return rfgybOmniPwr_; }
+    Cat253BrRfgybOmniPwr& mutable_rfgybOmniPwr() { return rfgybOmniPwr_; }
+    void set_rfgybOmniPwr(const Cat253BrRfgybOmniPwr& v) { rfgybOmniPwr_ = v; }
 
-    const cat253_br_rfgyb_heat_warning& rfgyb_heat_warning() const { return rfgyb_heat_warning_; }
-    cat253_br_rfgyb_heat_warning& mutable_rfgyb_heat_warning() { return rfgyb_heat_warning_; }
-    void set_rfgyb_heat_warning(const cat253_br_rfgyb_heat_warning& v) { rfgyb_heat_warning_ = v; }
+    const Cat253BrRfgybHeatWarning& rfgybHeatWarning() const { return rfgybHeatWarning_; }
+    Cat253BrRfgybHeatWarning& mutable_rfgybHeatWarning() { return rfgybHeatWarning_; }
+    void set_rfgybHeatWarning(const Cat253BrRfgybHeatWarning& v) { rfgybHeatWarning_ = v; }
 
-    const cat253_br_crypto_general& crypto_general() const { return crypto_general_; }
-    cat253_br_crypto_general& mutable_crypto_general() { return crypto_general_; }
-    void set_crypto_general(const cat253_br_crypto_general& v) { crypto_general_ = v; }
+    const Cat253BrCryptoGeneral& cryptoGeneral() const { return cryptoGeneral_; }
+    Cat253BrCryptoGeneral& mutable_cryptoGeneral() { return cryptoGeneral_; }
+    void set_cryptoGeneral(const Cat253BrCryptoGeneral& v) { cryptoGeneral_ = v; }
 
     static constexpr size_t WIRE_SIZE = 16;
 
     bool operator==(const Cat253BitReport&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        CONDUIT_TRY(encode_cat253_br_bit_type(bit_type_, w));
-        CONDUIT_TRY(encode_cat253_br_success_state(success_state_, w));
-        CONDUIT_TRY(encode_cat253_br_antenna_general(antenna_general_, w));
-        CONDUIT_TRY(encode_cat253_br_antenna_scan_error(antenna_scan_error_, w));
+        CONDUIT_TRY(encode_Cat253BrBitType(bitType_, w));
+        CONDUIT_TRY(encode_Cat253BrSuccessState(successState_, w));
+        CONDUIT_TRY(encode_Cat253BrAntennaGeneral(antennaGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrAntennaScanError(antennaScanError_, w));
         w.write_bits(0, 4);
-        CONDUIT_TRY(encode_cat253_br_power_source_general(power_source_general_, w));
-        CONDUIT_TRY(encode_cat253_br_ctrl_unit_general(ctrl_unit_general_, w));
-        CONDUIT_TRY(encode_cat253_br_kb_crypto_comm(kb_crypto_comm_, w));
-        CONDUIT_TRY(encode_cat253_br_kb_rtc(kb_rtc_, w));
-        CONDUIT_TRY(encode_cat253_br_kb_heat_warning(kb_heat_warning_, w));
-        CONDUIT_TRY(encode_cat253_br_bottom_band_general(bottom_band_general_, w));
-        CONDUIT_TRY(encode_cat253_br_tb_ctrl_comm(tb_ctrl_comm_, w));
-        CONDUIT_TRY(encode_cat253_br_tb_config_upload(tb_config_upload_, w));
-        CONDUIT_TRY(encode_cat253_br_vswr_general(vswr_general_, w));
-        CONDUIT_TRY(encode_cat253_br_vswr_sum(vswr_sum_, w));
-        CONDUIT_TRY(encode_cat253_br_vswr_diff(vswr_diff_, w));
-        CONDUIT_TRY(encode_cat253_br_vswr_omni(vswr_omni_, w));
+        CONDUIT_TRY(encode_Cat253BrPowerSourceGeneral(powerSourceGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrCtrlUnitGeneral(ctrlUnitGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrKbCryptoComm(kbCryptoComm_, w));
+        CONDUIT_TRY(encode_Cat253BrKbRtc(kbRtc_, w));
+        CONDUIT_TRY(encode_Cat253BrKbHeatWarning(kbHeatWarning_, w));
+        CONDUIT_TRY(encode_Cat253BrBottomBandGeneral(bottomBandGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrTbCtrlComm(tbCtrlComm_, w));
+        CONDUIT_TRY(encode_Cat253BrTbConfigUpload(tbConfigUpload_, w));
+        CONDUIT_TRY(encode_Cat253BrVswrGeneral(vswrGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrVswrSum(vswrSum_, w));
+        CONDUIT_TRY(encode_Cat253BrVswrDiff(vswrDiff_, w));
+        CONDUIT_TRY(encode_Cat253BrVswrOmni(vswrOmni_, w));
         w.write_bits(0, 2);
-        CONDUIT_TRY(encode_cat253_br_afb_general(afb_general_, w));
-        CONDUIT_TRY(encode_cat253_br_afb_main_synth(afb_main_synth_, w));
-        CONDUIT_TRY(encode_cat253_br_afb_bit_synth(afb_bit_synth_, w));
-        CONDUIT_TRY(encode_cat253_br_afb_total_ch(afb_total_ch_, w));
-        CONDUIT_TRY(encode_cat253_br_afb_diff_ch(afb_diff_ch_, w));
-        CONDUIT_TRY(encode_cat253_br_afb_omni_ch(afb_omni_ch_, w));
-        CONDUIT_TRY(encode_cat253_br_rfgyb_general(rfgyb_general_, w));
-        CONDUIT_TRY(encode_cat253_br_rfgyb_total_pwr(rfgyb_total_pwr_, w));
-        CONDUIT_TRY(encode_cat253_br_rfgyb_diff_pwr(rfgyb_diff_pwr_, w));
-        CONDUIT_TRY(encode_cat253_br_rfgyb_omni_pwr(rfgyb_omni_pwr_, w));
-        CONDUIT_TRY(encode_cat253_br_rfgyb_heat_warning(rfgyb_heat_warning_, w));
-        CONDUIT_TRY(encode_cat253_br_crypto_general(crypto_general_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbGeneral(afbGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbMainSynth(afbMainSynth_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbBitSynth(afbBitSynth_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbTotalCh(afbTotalCh_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbDiffCh(afbDiffCh_, w));
+        CONDUIT_TRY(encode_Cat253BrAfbOmniCh(afbOmniCh_, w));
+        CONDUIT_TRY(encode_Cat253BrRfgybGeneral(rfgybGeneral_, w));
+        CONDUIT_TRY(encode_Cat253BrRfgybTotalPwr(rfgybTotalPwr_, w));
+        CONDUIT_TRY(encode_Cat253BrRfgybDiffPwr(rfgybDiffPwr_, w));
+        CONDUIT_TRY(encode_Cat253BrRfgybOmniPwr(rfgybOmniPwr_, w));
+        CONDUIT_TRY(encode_Cat253BrRfgybHeatWarning(rfgybHeatWarning_, w));
+        CONDUIT_TRY(encode_Cat253BrCryptoGeneral(cryptoGeneral_, w));
         w.write_bits(0, 48);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -10749,146 +10749,146 @@ public:
     static conduit::Result<Cat253BitReport> decode(conduit::io::BitReader& r) {
         Cat253BitReport result;
         {
-            auto val = decode_cat253_br_bit_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'bit-type'"));
-            result.bit_type_ = std::move(*val);
+            auto val = decode_Cat253BrBitType(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'bitType'"));
+            result.bitType_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_success_state(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'success-state'"));
-            result.success_state_ = std::move(*val);
+            auto val = decode_Cat253BrSuccessState(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'successState'"));
+            result.successState_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_antenna_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'antenna-general'"));
-            result.antenna_general_ = std::move(*val);
+            auto val = decode_Cat253BrAntennaGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'antennaGeneral'"));
+            result.antennaGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_antenna_scan_error(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'antenna-scan-error'"));
-            result.antenna_scan_error_ = std::move(*val);
+            auto val = decode_Cat253BrAntennaScanError(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'antennaScanError'"));
+            result.antennaScanError_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
         {
-            auto val = decode_cat253_br_power_source_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'power-source-general'"));
-            result.power_source_general_ = std::move(*val);
+            auto val = decode_Cat253BrPowerSourceGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'powerSourceGeneral'"));
+            result.powerSourceGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_ctrl_unit_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ctrl-unit-general'"));
-            result.ctrl_unit_general_ = std::move(*val);
+            auto val = decode_Cat253BrCtrlUnitGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'ctrlUnitGeneral'"));
+            result.ctrlUnitGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_kb_crypto_comm(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-crypto-comm'"));
-            result.kb_crypto_comm_ = std::move(*val);
+            auto val = decode_Cat253BrKbCryptoComm(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'kbCryptoComm'"));
+            result.kbCryptoComm_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_kb_rtc(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-rtc'"));
-            result.kb_rtc_ = std::move(*val);
+            auto val = decode_Cat253BrKbRtc(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'kbRtc'"));
+            result.kbRtc_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_kb_heat_warning(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-heat-warning'"));
-            result.kb_heat_warning_ = std::move(*val);
+            auto val = decode_Cat253BrKbHeatWarning(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'kbHeatWarning'"));
+            result.kbHeatWarning_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_bottom_band_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'bottom-band-general'"));
-            result.bottom_band_general_ = std::move(*val);
+            auto val = decode_Cat253BrBottomBandGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'bottomBandGeneral'"));
+            result.bottomBandGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_tb_ctrl_comm(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tb-ctrl-comm'"));
-            result.tb_ctrl_comm_ = std::move(*val);
+            auto val = decode_Cat253BrTbCtrlComm(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'tbCtrlComm'"));
+            result.tbCtrlComm_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_tb_config_upload(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tb-config-upload'"));
-            result.tb_config_upload_ = std::move(*val);
+            auto val = decode_Cat253BrTbConfigUpload(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'tbConfigUpload'"));
+            result.tbConfigUpload_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_vswr_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-general'"));
-            result.vswr_general_ = std::move(*val);
+            auto val = decode_Cat253BrVswrGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'vswrGeneral'"));
+            result.vswrGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_vswr_sum(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-sum'"));
-            result.vswr_sum_ = std::move(*val);
+            auto val = decode_Cat253BrVswrSum(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'vswrSum'"));
+            result.vswrSum_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_vswr_diff(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-diff'"));
-            result.vswr_diff_ = std::move(*val);
+            auto val = decode_Cat253BrVswrDiff(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'vswrDiff'"));
+            result.vswrDiff_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_vswr_omni(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-omni'"));
-            result.vswr_omni_ = std::move(*val);
+            auto val = decode_Cat253BrVswrOmni(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'vswrOmni'"));
+            result.vswrOmni_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
-            auto val = decode_cat253_br_afb_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-general'"));
-            result.afb_general_ = std::move(*val);
+            auto val = decode_Cat253BrAfbGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbGeneral'"));
+            result.afbGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_afb_main_synth(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-main-synth'"));
-            result.afb_main_synth_ = std::move(*val);
+            auto val = decode_Cat253BrAfbMainSynth(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbMainSynth'"));
+            result.afbMainSynth_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_afb_bit_synth(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-bit-synth'"));
-            result.afb_bit_synth_ = std::move(*val);
+            auto val = decode_Cat253BrAfbBitSynth(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbBitSynth'"));
+            result.afbBitSynth_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_afb_total_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-total-ch'"));
-            result.afb_total_ch_ = std::move(*val);
+            auto val = decode_Cat253BrAfbTotalCh(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbTotalCh'"));
+            result.afbTotalCh_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_afb_diff_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-diff-ch'"));
-            result.afb_diff_ch_ = std::move(*val);
+            auto val = decode_Cat253BrAfbDiffCh(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbDiffCh'"));
+            result.afbDiffCh_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_afb_omni_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-omni-ch'"));
-            result.afb_omni_ch_ = std::move(*val);
+            auto val = decode_Cat253BrAfbOmniCh(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'afbOmniCh'"));
+            result.afbOmniCh_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_rfgyb_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-general'"));
-            result.rfgyb_general_ = std::move(*val);
+            auto val = decode_Cat253BrRfgybGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rfgybGeneral'"));
+            result.rfgybGeneral_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_rfgyb_total_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-total-pwr'"));
-            result.rfgyb_total_pwr_ = std::move(*val);
+            auto val = decode_Cat253BrRfgybTotalPwr(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rfgybTotalPwr'"));
+            result.rfgybTotalPwr_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_rfgyb_diff_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-diff-pwr'"));
-            result.rfgyb_diff_pwr_ = std::move(*val);
+            auto val = decode_Cat253BrRfgybDiffPwr(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rfgybDiffPwr'"));
+            result.rfgybDiffPwr_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_rfgyb_omni_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-omni-pwr'"));
-            result.rfgyb_omni_pwr_ = std::move(*val);
+            auto val = decode_Cat253BrRfgybOmniPwr(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rfgybOmniPwr'"));
+            result.rfgybOmniPwr_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_rfgyb_heat_warning(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-heat-warning'"));
-            result.rfgyb_heat_warning_ = std::move(*val);
+            auto val = decode_Cat253BrRfgybHeatWarning(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'rfgybHeatWarning'"));
+            result.rfgybHeatWarning_ = std::move(*val);
         }
         {
-            auto val = decode_cat253_br_crypto_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'crypto-general'"));
-            result.crypto_general_ = std::move(*val);
+            auto val = decode_Cat253BrCryptoGeneral(r);
+            if (!val) return std::unexpected(val.error().with_context("field 'cryptoGeneral'"));
+            result.cryptoGeneral_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(48));
         return result;
@@ -10897,67 +10897,67 @@ public:
     std::string to_string() const {
         std::ostringstream oss;
         oss << "Cat253BitReport{"
-            << "bit-type=" << ::asterix::to_string(bit_type_)
-            << ", success-state=" << ::asterix::to_string(success_state_)
-            << ", antenna-general=" << ::asterix::to_string(antenna_general_)
-            << ", antenna-scan-error=" << ::asterix::to_string(antenna_scan_error_)
-            << ", power-source-general=" << ::asterix::to_string(power_source_general_)
-            << ", ctrl-unit-general=" << ::asterix::to_string(ctrl_unit_general_)
-            << ", kb-crypto-comm=" << ::asterix::to_string(kb_crypto_comm_)
-            << ", kb-rtc=" << ::asterix::to_string(kb_rtc_)
-            << ", kb-heat-warning=" << ::asterix::to_string(kb_heat_warning_)
-            << ", bottom-band-general=" << ::asterix::to_string(bottom_band_general_)
-            << ", tb-ctrl-comm=" << ::asterix::to_string(tb_ctrl_comm_)
-            << ", tb-config-upload=" << ::asterix::to_string(tb_config_upload_)
-            << ", vswr-general=" << ::asterix::to_string(vswr_general_)
-            << ", vswr-sum=" << ::asterix::to_string(vswr_sum_)
-            << ", vswr-diff=" << ::asterix::to_string(vswr_diff_)
-            << ", vswr-omni=" << ::asterix::to_string(vswr_omni_)
-            << ", afb-general=" << ::asterix::to_string(afb_general_)
-            << ", afb-main-synth=" << ::asterix::to_string(afb_main_synth_)
-            << ", afb-bit-synth=" << ::asterix::to_string(afb_bit_synth_)
-            << ", afb-total-ch=" << ::asterix::to_string(afb_total_ch_)
-            << ", afb-diff-ch=" << ::asterix::to_string(afb_diff_ch_)
-            << ", afb-omni-ch=" << ::asterix::to_string(afb_omni_ch_)
-            << ", rfgyb-general=" << ::asterix::to_string(rfgyb_general_)
-            << ", rfgyb-total-pwr=" << ::asterix::to_string(rfgyb_total_pwr_)
-            << ", rfgyb-diff-pwr=" << ::asterix::to_string(rfgyb_diff_pwr_)
-            << ", rfgyb-omni-pwr=" << ::asterix::to_string(rfgyb_omni_pwr_)
-            << ", rfgyb-heat-warning=" << ::asterix::to_string(rfgyb_heat_warning_)
-            << ", crypto-general=" << ::asterix::to_string(crypto_general_)
+            << "bitType=" << ::asterix::to_string(bitType_)
+            << ", successState=" << ::asterix::to_string(successState_)
+            << ", antennaGeneral=" << ::asterix::to_string(antennaGeneral_)
+            << ", antennaScanError=" << ::asterix::to_string(antennaScanError_)
+            << ", powerSourceGeneral=" << ::asterix::to_string(powerSourceGeneral_)
+            << ", ctrlUnitGeneral=" << ::asterix::to_string(ctrlUnitGeneral_)
+            << ", kbCryptoComm=" << ::asterix::to_string(kbCryptoComm_)
+            << ", kbRtc=" << ::asterix::to_string(kbRtc_)
+            << ", kbHeatWarning=" << ::asterix::to_string(kbHeatWarning_)
+            << ", bottomBandGeneral=" << ::asterix::to_string(bottomBandGeneral_)
+            << ", tbCtrlComm=" << ::asterix::to_string(tbCtrlComm_)
+            << ", tbConfigUpload=" << ::asterix::to_string(tbConfigUpload_)
+            << ", vswrGeneral=" << ::asterix::to_string(vswrGeneral_)
+            << ", vswrSum=" << ::asterix::to_string(vswrSum_)
+            << ", vswrDiff=" << ::asterix::to_string(vswrDiff_)
+            << ", vswrOmni=" << ::asterix::to_string(vswrOmni_)
+            << ", afbGeneral=" << ::asterix::to_string(afbGeneral_)
+            << ", afbMainSynth=" << ::asterix::to_string(afbMainSynth_)
+            << ", afbBitSynth=" << ::asterix::to_string(afbBitSynth_)
+            << ", afbTotalCh=" << ::asterix::to_string(afbTotalCh_)
+            << ", afbDiffCh=" << ::asterix::to_string(afbDiffCh_)
+            << ", afbOmniCh=" << ::asterix::to_string(afbOmniCh_)
+            << ", rfgybGeneral=" << ::asterix::to_string(rfgybGeneral_)
+            << ", rfgybTotalPwr=" << ::asterix::to_string(rfgybTotalPwr_)
+            << ", rfgybDiffPwr=" << ::asterix::to_string(rfgybDiffPwr_)
+            << ", rfgybOmniPwr=" << ::asterix::to_string(rfgybOmniPwr_)
+            << ", rfgybHeatWarning=" << ::asterix::to_string(rfgybHeatWarning_)
+            << ", cryptoGeneral=" << ::asterix::to_string(cryptoGeneral_)
             << "}";
         return oss.str();
     }
 
 private:
-    cat253_br_bit_type bit_type_{cat253_br_bit_type::ok};
-    cat253_br_success_state success_state_{cat253_br_success_state::ok};
-    cat253_br_antenna_general antenna_general_{cat253_br_antenna_general::ok};
-    cat253_br_antenna_scan_error antenna_scan_error_{cat253_br_antenna_scan_error::ok};
-    cat253_br_power_source_general power_source_general_{cat253_br_power_source_general::ok};
-    cat253_br_ctrl_unit_general ctrl_unit_general_{cat253_br_ctrl_unit_general::ok};
-    cat253_br_kb_crypto_comm kb_crypto_comm_{cat253_br_kb_crypto_comm::ok};
-    cat253_br_kb_rtc kb_rtc_{cat253_br_kb_rtc::ok};
-    cat253_br_kb_heat_warning kb_heat_warning_{cat253_br_kb_heat_warning::ok};
-    cat253_br_bottom_band_general bottom_band_general_{cat253_br_bottom_band_general::ok};
-    cat253_br_tb_ctrl_comm tb_ctrl_comm_{cat253_br_tb_ctrl_comm::ok};
-    cat253_br_tb_config_upload tb_config_upload_{cat253_br_tb_config_upload::ok};
-    cat253_br_vswr_general vswr_general_{cat253_br_vswr_general::ok};
-    cat253_br_vswr_sum vswr_sum_{cat253_br_vswr_sum::ok};
-    cat253_br_vswr_diff vswr_diff_{cat253_br_vswr_diff::ok};
-    cat253_br_vswr_omni vswr_omni_{cat253_br_vswr_omni::ok};
-    cat253_br_afb_general afb_general_{cat253_br_afb_general::ok};
-    cat253_br_afb_main_synth afb_main_synth_{cat253_br_afb_main_synth::ok};
-    cat253_br_afb_bit_synth afb_bit_synth_{cat253_br_afb_bit_synth::ok};
-    cat253_br_afb_total_ch afb_total_ch_{cat253_br_afb_total_ch::ok};
-    cat253_br_afb_diff_ch afb_diff_ch_{cat253_br_afb_diff_ch::ok};
-    cat253_br_afb_omni_ch afb_omni_ch_{cat253_br_afb_omni_ch::ok};
-    cat253_br_rfgyb_general rfgyb_general_{cat253_br_rfgyb_general::ok};
-    cat253_br_rfgyb_total_pwr rfgyb_total_pwr_{cat253_br_rfgyb_total_pwr::ok};
-    cat253_br_rfgyb_diff_pwr rfgyb_diff_pwr_{cat253_br_rfgyb_diff_pwr::ok};
-    cat253_br_rfgyb_omni_pwr rfgyb_omni_pwr_{cat253_br_rfgyb_omni_pwr::ok};
-    cat253_br_rfgyb_heat_warning rfgyb_heat_warning_{cat253_br_rfgyb_heat_warning::ok};
-    cat253_br_crypto_general crypto_general_{cat253_br_crypto_general::ok};
+    Cat253BrBitType bitType_{Cat253BrBitType::ok};
+    Cat253BrSuccessState successState_{Cat253BrSuccessState::ok};
+    Cat253BrAntennaGeneral antennaGeneral_{Cat253BrAntennaGeneral::ok};
+    Cat253BrAntennaScanError antennaScanError_{Cat253BrAntennaScanError::ok};
+    Cat253BrPowerSourceGeneral powerSourceGeneral_{Cat253BrPowerSourceGeneral::ok};
+    Cat253BrCtrlUnitGeneral ctrlUnitGeneral_{Cat253BrCtrlUnitGeneral::ok};
+    Cat253BrKbCryptoComm kbCryptoComm_{Cat253BrKbCryptoComm::ok};
+    Cat253BrKbRtc kbRtc_{Cat253BrKbRtc::ok};
+    Cat253BrKbHeatWarning kbHeatWarning_{Cat253BrKbHeatWarning::ok};
+    Cat253BrBottomBandGeneral bottomBandGeneral_{Cat253BrBottomBandGeneral::ok};
+    Cat253BrTbCtrlComm tbCtrlComm_{Cat253BrTbCtrlComm::ok};
+    Cat253BrTbConfigUpload tbConfigUpload_{Cat253BrTbConfigUpload::ok};
+    Cat253BrVswrGeneral vswrGeneral_{Cat253BrVswrGeneral::ok};
+    Cat253BrVswrSum vswrSum_{Cat253BrVswrSum::ok};
+    Cat253BrVswrDiff vswrDiff_{Cat253BrVswrDiff::ok};
+    Cat253BrVswrOmni vswrOmni_{Cat253BrVswrOmni::ok};
+    Cat253BrAfbGeneral afbGeneral_{Cat253BrAfbGeneral::ok};
+    Cat253BrAfbMainSynth afbMainSynth_{Cat253BrAfbMainSynth::ok};
+    Cat253BrAfbBitSynth afbBitSynth_{Cat253BrAfbBitSynth::ok};
+    Cat253BrAfbTotalCh afbTotalCh_{Cat253BrAfbTotalCh::ok};
+    Cat253BrAfbDiffCh afbDiffCh_{Cat253BrAfbDiffCh::ok};
+    Cat253BrAfbOmniCh afbOmniCh_{Cat253BrAfbOmniCh::ok};
+    Cat253BrRfgybGeneral rfgybGeneral_{Cat253BrRfgybGeneral::ok};
+    Cat253BrRfgybTotalPwr rfgybTotalPwr_{Cat253BrRfgybTotalPwr::ok};
+    Cat253BrRfgybDiffPwr rfgybDiffPwr_{Cat253BrRfgybDiffPwr::ok};
+    Cat253BrRfgybOmniPwr rfgybOmniPwr_{Cat253BrRfgybOmniPwr::ok};
+    Cat253BrRfgybHeatWarning rfgybHeatWarning_{Cat253BrRfgybHeatWarning::ok};
+    Cat253BrCryptoGeneral cryptoGeneral_{Cat253BrCryptoGeneral::ok};
 };
 
 } // namespace asterix

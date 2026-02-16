@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>auto_count</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <struct name="Record">
+      <field name="value" type="uint16"/>
+    </struct>
+    <struct name="Container">
+      <field name="tag" type="uint8"/>
+      <field name="count" type="uint8" auto="count(items)"/>
+      <array name="items" type="Record" count-from="count"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="CountMsg">
+      <field name="id" type="uint8"/>
+      <field name="num-entries" type="uint16" auto="count(entries)"/>
+      <array name="entries" type="uint16" count-from="num-entries"/>
+    </message>
+  </messages>
+</bmdl>

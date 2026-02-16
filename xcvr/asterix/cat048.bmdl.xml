@@ -57,7 +57,7 @@
         <field name="mi" bits="1">
           <doc>0 = No military identification, 1 = Military identification</doc>
         </field>
-        <field name="foe-fri" bits="2">
+        <field name="foeFri" bits="2">
           <doc>
             00 = No Mode 4 interrogation
             01 = Friendly target
@@ -274,7 +274,7 @@
     <struct name="Cat048I110">
       <doc>I048/110 - Height Measured by a 3D Radar</doc>
       <reserved bits="2"/>
-      <field name="height-3d" bits="14" signed="true">
+      <field name="height3d" bits="14" signed="true">
         <doc>3D height above reference plane, LSB = 25 ft</doc>
         <scale>25</scale>
         <unit>ft</unit>
@@ -305,7 +305,7 @@
     <!-- NOTE: DOP is uint16 (unsigned) in Cat048, unlike Cat007 which uses int16 (signed) -->
     <struct name="Cat048I120Rds">
       <doc>Raw Doppler Speed</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(doppler)">
         <doc>Repetition factor</doc>
       </field>
       <array name="doppler" count-from="rep">
@@ -386,7 +386,7 @@
     <struct name="Cat048I161">
       <doc>I048/161 - Track Number</doc>
       <reserved bits="4"/>
-      <field name="track-number" bits="12">
+      <field name="trackNumber" bits="12">
         <doc>Track number (0..4095)</doc>
       </field>
     </struct>
@@ -447,7 +447,7 @@
          ======================================================================= -->
     <struct name="Cat048I200">
       <doc>I048/200 - Calculated Track Velocity in Polar Co-ordinates</doc>
-      <field name="ground-speed" type="uint16">
+      <field name="groundSpeed" type="uint16">
         <doc>Calculated groundspeed, LSB = 2^-14 NM/s (~0.22 kt), max 2 NM/s</doc>
         <scale>6.103515625e-5</scale>
         <unit>NM/s</unit>
@@ -465,22 +465,22 @@
          ======================================================================= -->
     <struct name="Cat048I210">
       <doc>I048/210 - Track Quality (standard deviations)</doc>
-      <field name="sigma-x" type="uint8">
+      <field name="sigmaX" type="uint8">
         <doc>Std dev on horizontal axis of local grid, LSB = 1/128 NM</doc>
         <scale>0.0078125</scale>
         <unit>NM</unit>
       </field>
-      <field name="sigma-y" type="uint8">
+      <field name="sigmaY" type="uint8">
         <doc>Std dev on vertical axis of local grid, LSB = 1/128 NM</doc>
         <scale>0.0078125</scale>
         <unit>NM</unit>
       </field>
-      <field name="sigma-v" type="uint8">
+      <field name="sigmaV" type="uint8">
         <doc>Std dev on groundspeed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
         <scale>6.103515625e-5</scale>
         <unit>NM/s</unit>
       </field>
-      <field name="sigma-h" type="uint8">
+      <field name="sigmaH" type="uint8">
         <doc>Std dev on heading, LSB = 360/2^12 degrees (~0.088 deg)</doc>
         <scale>0.087890625</scale>
         <unit>degrees</unit>
@@ -543,11 +543,11 @@
          ======================================================================= -->
     <struct name="Cat048I250">
       <doc>I048/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
-        <field name="mb-data" bytes="7">
+        <field name="mbData" bytes="7">
           <doc>56-bit Mode S Comm B message data</doc>
         </field>
         <field name="bds1" bits="4">
@@ -565,7 +565,7 @@
          ======================================================================= -->
     <struct name="Cat048I260">
       <doc>I048/260 - ACAS Resolution Advisory Report (BDS 3,0)</doc>
-      <field name="mb-data" bytes="7">
+      <field name="mbData" bytes="7">
         <doc>56-bit Mode S Comm B message data of BDS Register 3,0</doc>
       </field>
     </struct>
@@ -594,7 +594,7 @@
         </field>
 
         <!-- FRN 2: I048/140 - Time of Day (3 octets) -->
-        <field name="i140" bit="6" type="time-of-day">
+        <field name="i140" bit="6" type="TimeOfDay">
           <doc>I048/140 - Time of Day</doc>
         </field>
 
@@ -626,12 +626,12 @@
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I048/220 - Aircraft Address (3 octets) -->
-        <field name="i220" bit="15" type="aircraft-address">
+        <field name="i220" bit="15" type="AircraftAddress">
           <doc>I048/220 - Aircraft Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FRN 9: I048/240 - Aircraft Identification (6 octets) -->
-        <field name="i240" bit="14" type="aircraft-ident">
+        <field name="i240" bit="14" type="AircraftIdent">
           <doc>I048/240 - Aircraft Identification (8 chars x 6 bits)</doc>
         </field>
 
@@ -727,7 +727,7 @@
         <!-- FRN 27: SP - Special Purpose Field -->
         <struct name="sp" bit="26">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -736,7 +736,7 @@
         <!-- FRN 28: RE - Reserved Expansion Field -->
         <struct name="re" bit="25">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

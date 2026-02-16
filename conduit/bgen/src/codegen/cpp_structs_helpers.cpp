@@ -14,6 +14,43 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
     FieldTypeInfo info;
 
     if (f.type_is_inline || f.type_ref.empty()) {
+        // Check explicit base first for inline fields
+        if (f.base) {
+            switch (*f.base) {
+                case model::PrimitiveBase::Float:
+                    info.bits = f.bits.value_or(32);
+                    info.is_float = true;
+                    info.cpp_type = (info.bits <= 32) ? "float" : "double";
+                    if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;
+                    return info;
+                case model::PrimitiveBase::String:
+                    info.is_string = true;
+                    info.cpp_type = "std::string";
+                    if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;
+                    return info;
+                case model::PrimitiveBase::Bytes:
+                    info.is_bytes = true;
+                    if (f.length) {
+                        info.cpp_type = "std::array<uint8_t, " + std::to_string(*f.length) + ">";
+                    } else if (f.bytes_attr) {
+                        info.cpp_type = "std::array<uint8_t, " + std::to_string(*f.bytes_attr) + ">";
+                    } else {
+                        info.cpp_type = "std::vector<uint8_t>";
+                    }
+                    if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;
+                    return info;
+                case model::PrimitiveBase::Bool:
+                    info.bits = f.bits.value_or(1);
+                    info.is_signed = false;
+                    info.cpp_type = storage_type_for_bits(info.bits, false);
+                    if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;
+                    return info;
+                case model::PrimitiveBase::Int:
+                case model::PrimitiveBase::Uint:
+                    // Fall through to existing bits/bytes_attr handling below
+                    break;
+            }
+        }
         // Inline bits/bytes
         if (f.bits) {
             info.bits = *f.bits;
@@ -335,6 +372,51 @@ void emit_prefix_write(EmitContext& ctx, const PrefixTypeInfo& pti, const std::s
 
 int get_prefix_bytes(const PrefixTypeInfo& pti) {
     return (pti.bits + 7) / 8;
+}
+
+namespace {
+
+std::string arith_op_str(model::ArithOp op) {
+    switch (op) {
+        case model::ArithOp::Add: return " + ";
+        case model::ArithOp::Sub: return " - ";
+        case model::ArithOp::Mul: return " * ";
+        case model::ArithOp::Div: return " / ";
+        case model::ArithOp::Mod: return " % ";
+        default: return "";
+    }
+}
+
+model::ArithOp inverse_op(model::ArithOp op) {
+    switch (op) {
+        case model::ArithOp::Add: return model::ArithOp::Sub;
+        case model::ArithOp::Sub: return model::ArithOp::Add;
+        case model::ArithOp::Mul: return model::ArithOp::Div;
+        case model::ArithOp::Div: return model::ArithOp::Mul;
+        default: return op; // Mod has no inverse
+    }
+}
+
+} // anonymous namespace
+
+std::string apply_arith(const std::string& base_expr, const model::ArithModifier& mod) {
+    if (!mod.has_modifier()) return base_expr;
+    std::string operand;
+    if (mod.is_field_operand()) {
+        operand = to_member_name(mod.field_ref);
+    } else {
+        operand = std::to_string(mod.literal);
+    }
+    // Parenthesize base_expr to avoid operator precedence issues
+    // e.g., "(size - start) / 2" not "size - start / 2"
+    return "((" + base_expr + ")" + arith_op_str(mod.op) + operand + ")";
+}
+
+std::string reverse_arith(const std::string& base_expr, const model::ArithModifier& mod) {
+    if (!mod.has_modifier()) return base_expr;
+    auto inv = inverse_op(mod.op);
+    std::string operand = std::to_string(mod.literal);
+    return "((" + base_expr + ")" + arith_op_str(inv) + operand + ")";
 }
 
 } // namespace bgen::codegen

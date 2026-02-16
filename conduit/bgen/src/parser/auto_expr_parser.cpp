@@ -2,6 +2,7 @@
 // Bgen - Auto expression parser implementation
 
 #include "auto_expr_parser.hpp"
+#include <cctype>
 #include <charconv>
 
 namespace bgen::parser {
@@ -33,22 +34,50 @@ bool try_parse_paren_arg(std::string_view input, size_t keyword_end,
     return true;
 }
 
-// Try to parse an offset: "+/- N" from the remaining string
-bool try_parse_offset(std::string_view remaining, int& offset) {
+// Try to parse an arithmetic modifier: "op operand" from the remaining string.
+// Supported operators: + - * / %
+// Operand: integer literal or BMDL field name (starts with letter, may contain dashes)
+bool try_parse_modifier(std::string_view remaining, model::ArithModifier& mod) {
     remaining = trim(remaining);
-    if (remaining.empty()) { offset = 0; return true; }
+    if (remaining.empty()) { mod = {}; return true; }
 
-    char sign = remaining[0];
-    if (sign != '+' && sign != '-') return false;
+    char op_ch = remaining[0];
+    model::ArithOp op;
+    switch (op_ch) {
+        case '+': op = model::ArithOp::Add; break;
+        case '-': op = model::ArithOp::Sub; break;
+        case '*': op = model::ArithOp::Mul; break;
+        case '/': op = model::ArithOp::Div; break;
+        case '%': op = model::ArithOp::Mod; break;
+        default: return false;
+    }
 
-    auto num_str = trim(remaining.substr(1));
-    if (num_str.empty()) return false;
+    auto operand_str = trim(remaining.substr(1));
+    if (operand_str.empty()) return false;
 
-    int val = 0;
-    auto [ptr, ec] = std::from_chars(num_str.data(), num_str.data() + num_str.size(), val);
-    if (ec != std::errc{} || ptr != num_str.data() + num_str.size()) return false;
+    // Determine if operand is a number or a field name
+    char first = operand_str[0];
+    if (std::isdigit(static_cast<unsigned char>(first)) || first == '-') {
+        // Numeric literal
+        int64_t val = 0;
+        auto [ptr, ec] = std::from_chars(operand_str.data(), operand_str.data() + operand_str.size(), val);
+        if (ec != std::errc{} || ptr != operand_str.data() + operand_str.size()) return false;
+        mod.op = op;
+        mod.literal = val;
+        mod.field_ref.clear();
+    } else if (std::isalpha(static_cast<unsigned char>(first)) || first == '_') {
+        // Field name operand (e.g., "header-size", "prefix_len")
+        // Validate all chars are alphanumeric, dash, or underscore
+        for (char c : operand_str) {
+            if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_') return false;
+        }
+        mod.op = op;
+        mod.literal = 0;
+        mod.field_ref = std::string(operand_str);
+    } else {
+        return false;
+    }
 
-    offset = (sign == '-') ? -val : val;
     return true;
 }
 
@@ -130,14 +159,14 @@ AutoExprResult parse_auto_expr(const std::string& input) {
             pos = after;
         }
 
-        // Check for offset
+        // Check for arithmetic modifier
         auto rest = trim(sv.substr(pos));
         if (!rest.empty()) {
-            int off = 0;
-            if (!try_parse_offset(rest, off)) {
-                return std::unexpected(AutoExprError{"invalid offset in length expression: '" + std::string(rest) + "'"});
+            model::ArithModifier mod;
+            if (!try_parse_modifier(rest, mod)) {
+                return std::unexpected(AutoExprError{"invalid modifier in length expression: '" + std::string(rest) + "'"});
             }
-            result.offset = off;
+            result.modifier = std::move(mod);
         }
 
         return result;

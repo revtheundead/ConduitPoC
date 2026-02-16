@@ -16,7 +16,8 @@ struct AutoExprError {
 using AutoExprResult = std::expected<model::AutoExpr, AutoExprError>;
 
 // Parse an auto="..." attribute value into an AutoExpr.
-// Supports: id, length, length(field), length +/- N, length(field) +/- N,
+// Supports: id, length, length(field), length {+-*/%} {N|field},
+//           length(field) {+-*/%} {N|field},
 //           count(field), increment, config(key), timestamp
 AutoExprResult parse_auto_expr(const std::string& input);
 

@@ -24,19 +24,19 @@
     <type name="int32" base="int" bits="32"/>
 
     <!-- ASTERIX Time of Day: 1/128 second resolution, 24 bits unsigned -->
-    <type name="time-of-day" base="uint" bits="24">
+    <type name="TimeOfDay" base="uint" bits="24">
       <doc>Time of day in 1/128 second units since midnight UTC</doc>
       <scale>0.0078125</scale>
       <unit>seconds</unit>
     </type>
 
     <!-- Aircraft address (24-bit ICAO) -->
-    <type name="aircraft-address" base="uint" bits="24" format="hex">
+    <type name="AircraftAddress" base="uint" bits="24" format="hex">
       <doc>24-bit ICAO aircraft address</doc>
     </type>
 
     <!-- Aircraft identification: 8 characters, 6-bit packed (6 bytes on wire) -->
-    <type name="aircraft-ident" base="string" length="8" encoding="ia5" char-bits="6">
+    <type name="AircraftIdent" base="string" length="8" encoding="ia5" char-bits="6">
       <doc>ICAO aircraft identification (8 chars x 6 bits = 48 bits = 6 bytes)</doc>
     </type>
 

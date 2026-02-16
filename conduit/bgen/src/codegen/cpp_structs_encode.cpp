@@ -19,7 +19,8 @@ void StructEmitter::emit_encode(const std::vector<model::StructChild>& children)
     bool has_auto_length = false;
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
-            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
+                && f->auto_expr->field_ref.empty()) {
                 has_auto_length = true;
                 break;
             }
@@ -29,15 +30,13 @@ void StructEmitter::emit_encode(const std::vector<model::StructChild>& children)
         ctx_.line("auto struct_start_pos_ = w.size_bytes();");
     }
     pending_auto_length_.reset();
+    pending_auto_length_ref_.reset();
 
     emit_encode_children(children);
 
     // Auto-length backpatch: write actual struct size into placeholder
     if (pending_auto_length_) {
-        std::string size_expr = "w.size_bytes() - struct_start_pos_";
-        if (pending_auto_length_->offset != 0) {
-            size_expr = "(" + size_expr + " + (" + std::to_string(pending_auto_length_->offset) + "))";
-        }
+        std::string size_expr = apply_arith("w.size_bytes() - struct_start_pos_", pending_auto_length_->modifier);
         std::string cast_type = storage_type_for_bits(pending_auto_length_->bits, false);
         std::string patch_call;
         if (pending_auto_length_->bits <= 8) {
@@ -61,8 +60,29 @@ void StructEmitter::emit_encode(const std::vector<model::StructChild>& children)
     ctx_.line();
 }
 
+// Helper to get the BMDL name from a StructChild
+static std::string get_child_bmdl_name(const model::StructChild& child) {
+    return std::visit([](const auto& c) -> std::string {
+        using T = std::decay_t<decltype(c)>;
+        if constexpr (std::is_same_v<T, model::Field>) return c.name;
+        else if constexpr (std::is_same_v<T, model::StructDef>) return c.name;
+        else if constexpr (std::is_same_v<T, model::ArrayDef>) return c.name;
+        else if constexpr (std::is_same_v<T, model::ChoiceDef>) return c.name;
+        else return {};
+    }, child);
+}
+
 void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& children) {
     for (const auto& child : children) {
+        // Auto-length(field) tracking: emit start marker before the target
+        std::string child_name = get_child_bmdl_name(child);
+        bool is_length_ref_target = pending_auto_length_ref_.has_value() &&
+                                     child_name == pending_auto_length_ref_->target_name;
+        if (is_length_ref_target) {
+            std::string start_var = to_accessor_name(child_name) + "_start_";
+            ctx_.line("auto " + start_var + " = w.size_bytes();");
+        }
+
         std::visit([this](const auto& c) {
             using T = std::decay_t<decltype(c)>;
             if constexpr (std::is_same_v<T, model::Field>) {
@@ -185,6 +205,28 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                 bit_mod8_ = 0;
             }
         }, child);
+
+        // Auto-length(field) backpatch: after the target field, emit the patch
+        if (is_length_ref_target && pending_auto_length_ref_) {
+            auto& ref = *pending_auto_length_ref_;
+            std::string start_var = to_accessor_name(child_name) + "_start_";
+            std::string pos_var = to_accessor_name(ref.target_name) + "_length_pos_";
+            std::string length_expr = apply_arith("w.size_bytes() - " + start_var, ref.modifier);
+            std::string cast_type = storage_type_for_bits(ref.bits, false);
+            std::string patch_call;
+            if (ref.bits <= 8) {
+                patch_call = "w.patch_u8(" + pos_var + ", static_cast<" + cast_type + ">(" + length_expr + "))";
+            } else if (ref.bits <= 16) {
+                patch_call = "w.patch_u16(" + pos_var + ", static_cast<" + cast_type + ">(" + length_expr + "), "
+                             + endian_str(ref.endian) + ")";
+            } else {
+                patch_call = "w.patch_u32(" + pos_var + ", static_cast<" + cast_type + ">(" + length_expr + "), "
+                             + endian_str(ref.endian) + ")";
+            }
+            ctx_.line("if (!" + patch_call + ")");
+            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"failed to patch auto-length(field)\"));");
+            pending_auto_length_ref_.reset();
+        }
     }
 }
 
@@ -214,11 +256,37 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
     auto fti = resolve_field_type(f, index_);
 
     // Auto-length: write zero placeholder for later backpatch
-    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length &&
+        f.auto_expr->field_ref.empty()) {
         ctx_.line("auto length_byte_pos_ = w.size_bytes();");
         emit_write_stmt(ctx_, "0", fti, f.endian, is_byte_aligned());
         advance_bits(fti.bits);
-        pending_auto_length_ = AutoLengthInfo{fti.bits, f.endian, f.auto_expr->offset};
+        pending_auto_length_ = AutoLengthInfo{fti.bits, f.endian, f.auto_expr->modifier};
+        return;
+    }
+
+    // Auto-length(field): write zero placeholder for target-specific backpatch
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length &&
+        !f.auto_expr->field_ref.empty()) {
+        std::string pos_var = to_accessor_name(f.auto_expr->field_ref) + "_length_pos_";
+        ctx_.line("auto " + pos_var + " = w.size_bytes();");
+        emit_write_stmt(ctx_, "0", fti, f.endian, is_byte_aligned());
+        advance_bits(fti.bits);
+        pending_auto_length_ref_ = AutoLengthFieldRefInfo{fti.bits, f.endian, f.auto_expr->modifier, f.auto_expr->field_ref};
+        return;
+    }
+
+    // Auto-count: write the referenced array's size
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count) {
+        std::string array_member = to_member_name(f.auto_expr->field_ref);
+        std::string size_expr;
+        if (optional_field_names_.count(array_member)) {
+            size_expr = array_member + ".has_value() ? static_cast<" + fti.cpp_type + ">(" + array_member + "->size()) : static_cast<" + fti.cpp_type + ">(0)";
+        } else {
+            size_expr = "static_cast<" + fti.cpp_type + ">(" + array_member + ".size())";
+        }
+        emit_write_stmt(ctx_, size_expr, fti, f.endian, is_byte_aligned());
+        advance_bits(fti.bits);
         return;
     }
 
@@ -236,8 +304,11 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
 
     if (f.is_inline) {
         // Inline struct: encode its children directly (fields are flattened)
+        // Save/restore pending_auto_length_ref_ to prevent inline children
+        // from accidentally matching the outer target name
         auto resolved = index_.find(f.type_ref);
         if (resolved) {
+            auto saved_ref = std::exchange(pending_auto_length_ref_, std::nullopt);
             std::visit([this](const auto* def) {
                 using DT = std::decay_t<decltype(*def)>;
                 if constexpr (std::is_same_v<DT, model::StructDef>) {
@@ -246,6 +317,7 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
                     emit_encode_children(def->children);
                 }
             }, *resolved);
+            pending_auto_length_ref_ = saved_ref;
         }
         return;
     }

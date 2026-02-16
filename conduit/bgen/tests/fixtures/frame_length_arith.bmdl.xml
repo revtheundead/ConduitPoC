@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>frame_len_arith</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <!-- Frame with length * 2 arithmetic (wire value = total_frame_bytes * 2) -->
+  <frame name="ArithFrame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length * 2"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="DataMsg">
+      <field name="value" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

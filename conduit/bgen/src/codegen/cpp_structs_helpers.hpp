@@ -107,4 +107,13 @@ std::string emit_prefix_read(const PrefixTypeInfo& pti);
 void emit_prefix_write(EmitContext& ctx, const PrefixTypeInfo& pti, const std::string& value);
 int get_prefix_bytes(const PrefixTypeInfo& pti);
 
+// Generate a C++ expression that applies an ArithModifier to a base expression.
+// E.g., apply_arith("payload_size", {Mul, 2, ""}) → "(payload_size * 2)"
+std::string apply_arith(const std::string& base_expr, const model::ArithModifier& mod);
+
+// Generate a C++ expression that reverses an ArithModifier (for frame length recovery).
+// Add↔Sub, Mul↔Div. Mod has no inverse (should be rejected at validation).
+// Only used by session framing layer with literal operands.
+std::string reverse_arith(const std::string& base_expr, const model::ArithModifier& mod);
+
 } // namespace bgen::codegen

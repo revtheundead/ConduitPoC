@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>auto_struct_length</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="TlvMsg">
+      <field name="tag" type="uint8"/>
+      <field name="len" type="uint8" auto="length(data)"/>
+      <field name="data" type="bytes" length-from="len"/>
+      <field name="suffix" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

@@ -607,7 +607,8 @@ TEST_CASE("Frame-based session captures length offset", "[session_analyzer][fram
     CHECK(si.is_frame_based);
     CHECK(si.length_field_name == "length");
     CHECK(si.frame_length_bits == 16);
-    CHECK(si.frame_length_offset == -3);
+    CHECK(si.frame_length_modifier.op == bgen::model::ArithOp::Sub);
+    CHECK(si.frame_length_modifier.literal == 3);
 }
 
 TEST_CASE("Frame-based session with array payload", "[session_analyzer][frame]") {

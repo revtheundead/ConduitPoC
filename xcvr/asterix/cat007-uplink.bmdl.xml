@@ -30,10 +30,10 @@
         <doc>Lockout Override: 0 = No, 1 = Yes</doc>
       </field>
       <!-- Octet 2 -->
-      <field name="ms-prob" bits="3">
+      <field name="msProb" bits="3">
         <doc>Mode S Probability</doc>
       </field>
-      <field name="m5-format" bits="5">
+      <field name="m5Format" bits="5">
         <doc>Mode 5 Format</doc>
       </field>
       <!-- Octet 3 -->
@@ -158,22 +158,22 @@
          ======================================================================= -->
     <struct name="Cat007I420">
       <doc>I007/420 - Directed Interrogation Window</doc>
-      <field name="rho-start" type="uint16">
+      <field name="rhoStart" type="uint16">
         <doc>Start of range window, LSB = 1/256 NM</doc>
         <scale>0.00390625</scale>
         <unit>NM</unit>
       </field>
-      <field name="rho-end" type="uint16">
+      <field name="rhoEnd" type="uint16">
         <doc>End of range window, LSB = 1/256 NM</doc>
         <scale>0.00390625</scale>
         <unit>NM</unit>
       </field>
-      <field name="theta-start" type="uint16">
+      <field name="thetaStart" type="uint16">
         <doc>Start of azimuth window, LSB = 360/2^16 degrees</doc>
         <scale>0.0054931640625</scale>
         <unit>degrees</unit>
       </field>
-      <field name="theta-end" type="uint16">
+      <field name="thetaEnd" type="uint16">
         <doc>End of azimuth window, LSB = 360/2^16 degrees</doc>
         <scale>0.0054931640625</scale>
         <unit>degrees</unit>
@@ -186,7 +186,7 @@
          ======================================================================= -->
     <struct name="Cat007I440">
       <doc>I007/440 - Directed Interrogation BDS Register Request</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(registers)">
         <doc>Repetition factor</doc>
       </field>
       <array name="registers" count-from="rep">
@@ -236,7 +236,7 @@
         </field>
 
         <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
-        <field name="i140" bit="4" type="time-of-day">
+        <field name="i140" bit="4" type="TimeOfDay">
           <doc>I007/140 - Time of Day</doc>
         </field>
 
@@ -251,7 +251,7 @@
         </field>
 
         <!-- FRN 7: I007/220 - Aircraft Address (3 octets) -->
-        <field name="i220" bit="1" type="aircraft-address">
+        <field name="i220" bit="1" type="AircraftAddress">
           <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
         </field>
 
@@ -296,7 +296,7 @@
         <!-- FRN 20: SPF - Special Purpose Field -->
         <struct name="spf" bit="18">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SPF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -305,7 +305,7 @@
         <!-- FRN 21: REF - Reserved Expansion Field -->
         <struct name="ref" bit="17">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of REF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

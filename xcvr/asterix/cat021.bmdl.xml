@@ -34,7 +34,7 @@
       <field name="cdtia" bits="1">
         <doc>Cockpit Display of Traffic Information Airborne: 0 = not operative, 1 = operative</doc>
       </field>
-      <field name="not-tcas" bits="1">
+      <field name="notTcas" bits="1">
         <doc>TCAS System Status: 0 = TCAS operative, 1 = TCAS not operative</doc>
       </field>
       <field name="sa" bits="1">
@@ -157,7 +157,7 @@
           11 = Reserved
         </doc>
       </field>
-      <field name="time-frac" bits="30">
+      <field name="timeFrac" bits="30">
         <doc>Fractional part of Time of Message Reception of Position, LSB = 2^-30 seconds</doc>
         <scale>9.313225746154785e-10</scale>
         <unit>seconds</unit>
@@ -179,7 +179,7 @@
           11 = Reserved
         </doc>
       </field>
-      <field name="time-frac" bits="30">
+      <field name="timeFrac" bits="30">
         <doc>Fractional part of Time of Message Reception of Velocity, LSB = 2^-30 seconds</doc>
         <scale>9.313225746154785e-10</scale>
         <unit>seconds</unit>
@@ -192,14 +192,14 @@
          ======================================================================= -->
     <struct name="Cat021I090">
       <doc>I021/090 - Quality Indicators</doc>
-      <field name="nucr-nacv" bits="3">
+      <field name="nucrNacv" bits="3">
         <doc>Navigation Uncertainty Category for velocity NUCr or NACv</doc>
       </field>
-      <field name="nucp-nic" bits="4">
+      <field name="nucpNic" bits="4">
         <doc>Navigation Uncertainty Category for position NUCp or NIC</doc>
       </field>
       <fx>
-        <field name="nic-baro" bits="1">
+        <field name="nicBaro" bits="1">
           <doc>NIC Baro: Navigation Integrity Category for Barometric Altitude</doc>
         </field>
         <field name="sil" bits="2">
@@ -253,7 +253,7 @@
     <!-- Subfield #2: Trajectory Intent Data (repetitive) -->
     <struct name="Cat021I110Tid">
       <doc>Trajectory Intent Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(points)">
         <doc>Repetition factor</doc>
       </field>
       <array name="points" count-from="rep">
@@ -263,7 +263,7 @@
         <field name="nc" bits="1">
           <doc>TCP compliance: 0 = compliant, 1 = not compliant</doc>
         </field>
-        <field name="tcp-number" bits="6">
+        <field name="tcpNumber" bits="6">
           <doc>Trajectory Change Point sequence number</doc>
         </field>
         <field name="altitude" bits="16" signed="true">
@@ -281,7 +281,7 @@
           <scale>2.1457672119140625e-5</scale>
           <unit>degrees</unit>
         </field>
-        <field name="point-type" bits="4">
+        <field name="pointType" bits="4">
           <doc>
             Point Type:
             0000 = Unknown, 0001 = Fly by, 0010 = Fly over,
@@ -446,7 +446,7 @@
       <field name="im" bits="1">
         <doc>0 = IAS (LSB=2^-14 NM/s), 1 = Mach (LSB=0.001)</doc>
       </field>
-      <field name="air-speed" bits="15">
+      <field name="airSpeed" bits="15">
         <doc>Air speed value (interpretation depends on IM flag)</doc>
       </field>
     </struct>
@@ -460,7 +460,7 @@
       <field name="re" bits="1">
         <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
       </field>
-      <field name="true-air-speed" bits="15">
+      <field name="trueAirSpeed" bits="15">
         <doc>True Airspeed, LSB = 1 knot</doc>
         <unit>knots</unit>
       </field>
@@ -472,7 +472,7 @@
          ======================================================================= -->
     <struct name="Cat021I152">
       <doc>I021/152 - Magnetic Heading</doc>
-      <field name="magnetic-heading" bits="16">
+      <field name="magneticHeading" bits="16">
         <doc>Magnetic Heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
         <scale>5.4931640625e-3</scale>
         <unit>degrees</unit>
@@ -520,12 +520,12 @@
       <field name="re" bits="1">
         <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
       </field>
-      <field name="ground-speed" bits="15">
+      <field name="groundSpeed" bits="15">
         <doc>Ground Speed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
         <scale>6.103515625e-5</scale>
         <unit>NM/s</unit>
       </field>
-      <field name="track-angle" bits="16">
+      <field name="trackAngle" bits="16">
         <doc>Track Angle clockwise reference to True North, LSB = 360/2^16 degrees</doc>
         <scale>5.4931640625e-3</scale>
         <unit>degrees</unit>
@@ -539,7 +539,7 @@
     <struct name="Cat021I161">
       <doc>I021/161 - Track Number</doc>
       <reserved bits="4"/>
-      <field name="track-number" bits="12">
+      <field name="trackNumber" bits="12">
         <doc>Track number</doc>
       </field>
     </struct>
@@ -632,7 +632,7 @@
     <!-- Subfield #1: Wind Speed (2 octets) -->
     <struct name="Cat021I220Ws">
       <doc>Wind Speed</doc>
-      <field name="wind-speed" type="uint16">
+      <field name="windSpeed" type="uint16">
         <doc>Wind Speed, LSB = 1 knot</doc>
         <unit>knots</unit>
       </field>
@@ -641,7 +641,7 @@
     <!-- Subfield #2: Wind Direction (2 octets) -->
     <struct name="Cat021I220Wd">
       <doc>Wind Direction</doc>
-      <field name="wind-direction" type="uint16">
+      <field name="windDirection" type="uint16">
         <doc>Wind Direction, LSB = 1 degree</doc>
         <unit>degrees</unit>
       </field>
@@ -690,7 +690,7 @@
          ======================================================================= -->
     <struct name="Cat021I230">
       <doc>I021/230 - Roll Angle</doc>
-      <field name="roll-angle" bits="16" signed="true">
+      <field name="rollAngle" bits="16" signed="true">
         <doc>Roll Angle, LSB = 0.01 degrees</doc>
         <scale>0.01</scale>
         <unit>degrees</unit>
@@ -703,11 +703,11 @@
          ======================================================================= -->
     <struct name="Cat021I250">
       <doc>I021/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
-        <field name="mb-data" bytes="7">
+        <field name="mbData" bytes="7">
           <doc>56-bit Mode S Comm B message data</doc>
         </field>
         <field name="bds1" bits="4">
@@ -761,10 +761,10 @@
       <field name="poa" bits="1">
         <doc>Position Offset Applied: 0 = Position transmitted is not ADS-B position reference point, 1 = Position transmitted is the ADS-B position reference point</doc>
       </field>
-      <field name="cdti-s" bits="1">
+      <field name="cdtiS" bits="1">
         <doc>Cockpit Display of Traffic Information Surface: 0 = CDTI not operational, 1 = CDTI operational</doc>
       </field>
-      <field name="b2-low" bits="1">
+      <field name="b2Low" bits="1">
         <doc>Class B2 transmit power less than 70W: 0 = >= 70W, 1 = &lt; 70W</doc>
       </field>
       <field name="ras" bits="1">
@@ -848,7 +848,7 @@
         <field name="tar" bit="21" type="uint8">
           <doc>#17: Age of the latest received Track Angle Rate (LSB=0.1s)</doc>
         </field>
-        <field name="ti-age" bit="20" type="uint8">
+        <field name="tiAge" bit="20" type="uint8">
           <doc>#18: Age of the latest received Target Identification (LSB=0.1s)</doc>
         </field>
         <field name="ts" bit="19" type="uint8">
@@ -909,7 +909,7 @@
         </field>
 
         <!-- FRN 5: I021/071 - Time of Applicability for Position (3 octets) -->
-        <field name="i071" bit="3" type="time-of-day">
+        <field name="i071" bit="3" type="TimeOfDay">
           <doc>I021/071 - Time of Applicability for Position</doc>
         </field>
 
@@ -926,7 +926,7 @@
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I021/072 - Time of Applicability for Velocity (3 octets) -->
-        <field name="i072" bit="15" type="time-of-day">
+        <field name="i072" bit="15" type="TimeOfDay">
           <doc>I021/072 - Time of Applicability for Velocity</doc>
         </field>
 
@@ -941,12 +941,12 @@
         </field>
 
         <!-- FRN 11: I021/080 - Target Address (3 octets) -->
-        <field name="i080" bit="12" type="aircraft-address">
+        <field name="i080" bit="12" type="AircraftAddress">
           <doc>I021/080 - Target Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FRN 12: I021/073 - Time of Message Reception for Position (3 octets) -->
-        <field name="i073" bit="11" type="time-of-day">
+        <field name="i073" bit="11" type="TimeOfDay">
           <doc>I021/073 - Time of Message Reception for Position</doc>
         </field>
 
@@ -956,7 +956,7 @@
         </field>
 
         <!-- FRN 14: I021/075 - Time of Message Reception for Velocity (3 octets) -->
-        <field name="i075" bit="9" type="time-of-day">
+        <field name="i075" bit="9" type="TimeOfDay">
           <doc>I021/075 - Time of Message Reception for Velocity</doc>
         </field>
 
@@ -1030,14 +1030,14 @@
         </field>
 
         <!-- FRN 28: I021/077 - Time of Report Transmission (3 octets) -->
-        <field name="i077" bit="25" type="time-of-day">
+        <field name="i077" bit="25" type="TimeOfDay">
           <doc>I021/077 - Time of Report Transmission</doc>
         </field>
 
         <!-- FSPEC Octet 5 (FRN 29-35) -->
 
         <!-- FRN 29: I021/170 - Target Identification (6 octets) -->
-        <field name="i170" bit="39" type="aircraft-ident">
+        <field name="i170" bit="39" type="AircraftIdent">
           <doc>I021/170 - Target Identification</doc>
         </field>
 
@@ -1114,7 +1114,7 @@
         <!-- FRN 48: RE - Reserved Expansion Field -->
         <struct name="re" bit="50">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -1123,7 +1123,7 @@
         <!-- FRN 49: SP - Special Purpose Field -->
         <struct name="sp" bit="49">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

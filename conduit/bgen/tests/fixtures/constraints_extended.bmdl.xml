@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>constraints_ext</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="ExtConstraintMsg">
+      <!-- Hex equals constraint (sync word) -->
+      <field name="sync-word" type="uint16">
+        <constraint equals="0xABCD"/>
+      </field>
+      <!-- Decimal equals constraint -->
+      <field name="version" type="uint8">
+        <constraint equals="42"/>
+      </field>
+      <!-- Signed range constraint -->
+      <field name="temperature" type="int16">
+        <constraint min="-40" max="85"/>
+      </field>
+      <!-- Min-only constraint -->
+      <field name="count" type="uint16">
+        <constraint min="1"/>
+      </field>
+      <!-- Max-only constraint -->
+      <field name="index" type="uint8">
+        <constraint max="99"/>
+      </field>
+      <!-- Regular field -->
+      <field name="data" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

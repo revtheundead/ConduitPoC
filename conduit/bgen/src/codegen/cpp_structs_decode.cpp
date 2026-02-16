@@ -475,6 +475,7 @@ void StructEmitter::populate_fx_optional_names(const std::vector<model::StructCh
     }
 }
 
+
 void StructEmitter::populate_local_field_names(const std::vector<model::StructChild>& children) {
     for (const auto& child : children) {
         std::visit([this](const auto& c) {
@@ -508,6 +509,7 @@ void StructEmitter::populate_local_field_names(const std::vector<model::StructCh
         }, child);
     }
 }
+
 
 void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& children,
                                           const std::string& result_var) {
@@ -1005,7 +1007,7 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
         ctx_.line("for (size_t i = 0; i < count; i++) {");
     } else if (a.count_star) {
         if (a.length_from) {
-            // Bounded: create sub-reader
+            // Bounded: create sub-reader from length-from expression
             std::string len_expr = emit_expr_code(*a.length_from, result_var);
             ctx_.line("{");
             ctx_.indent();
