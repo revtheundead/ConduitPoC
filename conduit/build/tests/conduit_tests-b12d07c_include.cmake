@@ -1,5 +1,0 @@
-if(EXISTS "/home/dev/app/conduit/build/tests/conduit_tests-b12d07c_tests.cmake")
-  include("/home/dev/app/conduit/build/tests/conduit_tests-b12d07c_tests.cmake")
-else()
-  add_test(conduit_tests_NOT_BUILT-b12d07c conduit_tests_NOT_BUILT-b12d07c)
-endif()
