@@ -3,6 +3,8 @@
 
 #include "cpp_structs.hpp"
 #include "cpp_structs_emitter.hpp"
+#include "cpp_enum_emitter.hpp"
+#include "../logger.hpp"
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -17,6 +19,66 @@ namespace { constexpr int BITS_PER_BYTE = 8; }
 // ============================================================================
 
 namespace {
+
+// Convert an Expr to C++ code in frame decode context (result_var = "result")
+std::string emit_frame_expr(const model::Expr& expr) {
+    switch (expr.op) {
+        case model::ExprOp::NumberLit:
+            return std::to_string(expr.number_value);
+        case model::ExprOp::BoolLit:
+            return expr.bool_value ? "true" : "false";
+        case model::ExprOp::FieldRef:
+            return "result." + to_member_name(expr.name);
+        case model::ExprOp::ConstantRef:
+            return expr.name;
+        case model::ExprOp::Remaining:
+            return "(r.remaining_bits() / 8)";
+        case model::ExprOp::Add:
+            return "(" + emit_frame_expr(*expr.left) + " + " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Sub:
+            return "(" + emit_frame_expr(*expr.left) + " - " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Mul:
+            return "(" + emit_frame_expr(*expr.left) + " * " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Div:
+            return "(" + emit_frame_expr(*expr.left) + " / " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Mod:
+            return "(" + emit_frame_expr(*expr.left) + " % " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Eq:
+            return "(" + emit_frame_expr(*expr.left) + " == " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Neq:
+            return "(" + emit_frame_expr(*expr.left) + " != " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Lt:
+            return "(" + emit_frame_expr(*expr.left) + " < " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Lte:
+            return "(" + emit_frame_expr(*expr.left) + " <= " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Gt:
+            return "(" + emit_frame_expr(*expr.left) + " > " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Gte:
+            return "(" + emit_frame_expr(*expr.left) + " >= " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::LogAnd:
+            return "(" + emit_frame_expr(*expr.left) + " && " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::LogOr:
+            return "(" + emit_frame_expr(*expr.left) + " || " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::BitAnd:
+            return "(" + emit_frame_expr(*expr.left) + " & " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::BitOr:
+            return "(" + emit_frame_expr(*expr.left) + " | " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::BitXor:
+            return "(" + emit_frame_expr(*expr.left) + " ^ " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::ShiftLeft:
+            return "(" + emit_frame_expr(*expr.left) + " << " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::ShiftRight:
+            return "(" + emit_frame_expr(*expr.left) + " >> " + emit_frame_expr(*expr.right) + ")";
+        case model::ExprOp::Negate:
+            return "(-" + emit_frame_expr(*expr.left) + ")";
+        case model::ExprOp::BitNot:
+            return "(~" + emit_frame_expr(*expr.left) + ")";
+        case model::ExprOp::LogNot:
+            return "(!" + emit_frame_expr(*expr.left) + ")";
+    }
+    throw std::logic_error("unhandled ExprOp in emit_frame_expr: " +
+                           std::to_string(static_cast<int>(expr.op)));
+}
 
 // Emit a frame field write: for auto="length", writes a zero placeholder
 // and stores the byte offset. For other fields, writes the member value.
@@ -339,29 +401,30 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         }
     };
 
+    // Compute footer and header sizes for payload bounds (used in both array and single paths)
+    int footer_bits = 0;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto ffti = resolve_field_type(*f, index);
+            footer_bits += ffti.bits;
+        }
+    }
+    auto footer_bytes = static_cast<size_t>((footer_bits + 7) / 8);
+    int header_bits = 0;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child))
+            header_bits += resolve_field_type(*f, index).bits;
+        else if (auto* r = std::get_if<model::Reserved>(&child))
+            header_bits += r->bits;
+    }
+    auto header_bytes = static_cast<size_t>((header_bits + 7) / 8);
+
     // Dispatch on id value
     if (session.payload_is_array) {
         // Array payload: decode records from the payload region.
-        // Compute footer size and header size for payload bounds.
-        int footer_bits = 0;
-        for (const auto& child : frame.footer_fields) {
-            if (auto* f = std::get_if<model::Field>(&child)) {
-                auto ffti = resolve_field_type(*f, index);
-                footer_bits += ffti.bits;
-            }
-        }
-        auto footer_bytes = static_cast<size_t>((footer_bits + 7) / 8);
         std::string reader_name = "r";
         if (!session.length_field_name.empty() && session.count_field_name.empty()) {
             // Use the length field to create a bounded sub-reader for payload.
-            int header_bits = 0;
-            for (const auto& child : frame.header_fields) {
-                if (auto* f = std::get_if<model::Field>(&child))
-                    header_bits += resolve_field_type(*f, index).bits;
-                else if (auto* r = std::get_if<model::Reserved>(&child))
-                    header_bits += r->bits;
-            }
-            auto header_bytes = static_cast<size_t>((header_bits + 7) / 8);
             std::string len_member = to_member_name(session.length_field_name);
             std::string raw_val = "static_cast<size_t>(result." + len_member + ")";
             std::string total_expr = reverse_arith(raw_val, session.frame_length_modifier);
@@ -386,6 +449,11 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             ctx.line("if (r.remaining_bytes() < " + std::to_string(footer_bytes) + ")");
             ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"frame too short for footer\"));");
             ctx.line("auto payload_reader_ = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            reader_name = "(*payload_reader_)";
+        } else if (session.payload_length_from) {
+            std::string size_expr = "static_cast<size_t>(" + emit_frame_expr(*session.payload_length_from) + ")";
+            ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
             ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
             reader_name = "(*payload_reader_)";
         }
@@ -429,10 +497,34 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
         // Single payload dispatch
         // When payload length is available, create a bounded sub-reader
         std::string single_reader = "r";
-        if (!session.frame_length_field_ref.empty() && session.frame_length_field_ref == "payload") {
+        if (!session.length_field_name.empty() && !session.frame_length_field_ref.empty()
+            && session.frame_length_field_ref == "payload") {
             std::string length_member = to_member_name(session.length_field_name);
             std::string raw_val = "static_cast<size_t>(result." + length_member + ")";
             std::string size_expr = reverse_arith(raw_val, session.frame_length_modifier);
+            ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            single_reader = "(*payload_reader_)";
+        } else if (!session.length_field_name.empty() && session.frame_length_field_ref.empty()
+                   && footer_bits > 0) {
+            // Total frame length with footer: bound payload to total - header - footer
+            std::string length_member = to_member_name(session.length_field_name);
+            std::string raw_val = "static_cast<size_t>(result." + length_member + ")";
+            std::string total_expr = reverse_arith(raw_val, session.frame_length_modifier);
+            auto overhead = header_bytes + footer_bytes;
+            std::string size_expr = total_expr + " - " + std::to_string(overhead);
+            ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            single_reader = "(*payload_reader_)";
+        } else if (footer_bits > 0 && session.length_field_name.empty()) {
+            // No length field but footer present: bound payload by remaining - footer
+            ctx.line("if (r.remaining_bytes() < " + std::to_string(footer_bytes) + ")");
+            ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"frame too short for footer\"));");
+            ctx.line("auto payload_reader_ = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ");");
+            ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
+            single_reader = "(*payload_reader_)";
+        } else if (session.payload_length_from) {
+            std::string size_expr = "static_cast<size_t>(" + emit_frame_expr(*session.payload_length_from) + ")";
             ctx.line("auto payload_reader_ = r.sub_reader(" + size_expr + ");");
             ctx.line("if (!payload_reader_) return std::unexpected(payload_reader_.error());");
             single_reader = "(*payload_reader_)";
@@ -634,10 +726,18 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
 StructEmitter::StructEmitter(EmitContext& ctx, const analyzer::TypeIndex& index,
                               const analyzer::WireSizeInfo& sizes, const std::string& ns)
     : ctx_(ctx), index_(index), sizes_(sizes), ns_(ns) {
-    // Build enum value lookup map for O(1) resolution
+    // Build enum value lookup map for O(1) resolution.
+    // On collision (same value name in different enum types), erase the entry
+    // so the name passes through unqualified and the compiler resolves it by context.
     for (const auto& [type_name, td] : index.types) {
         for (const auto& ev : td->enum_values) {
-            enum_value_lookup_[ev.name] = to_cpp_type_name(type_name) + "::" + to_enum_value_name(ev.name);
+            auto [it, inserted] = enum_value_lookup_.try_emplace(
+                ev.name, to_cpp_type_name(type_name) + "::" + to_enum_value_name(ev.name));
+            if (!inserted) {
+                // Collision: different type already has this value name — remove it
+                // so resolve_enum_value returns the raw name (fallback)
+                enum_value_lookup_.erase(it);
+            }
         }
     }
 }
@@ -696,11 +796,7 @@ std::string StructEmitter::resolve_enum_value(const std::string& name) const {
 void StructEmitter::emit_variant_aliases(const std::vector<model::StructChild>& children) {
     for (const auto& child : children) {
         if (auto* c = std::get_if<model::ChoiceDef>(&child)) {
-            std::string base_variant = to_cpp_type_name(c->name) + "Variant";
-            std::string variant_name = base_variant;
-            if (!current_parent_.empty() && emitted_variant_aliases_.count(variant_name)) {
-                variant_name = to_cpp_type_name(current_parent_) + "_" + base_variant;
-            }
+            std::string variant_name = get_variant_alias_name(c->name);
             emitted_variant_aliases_.insert(variant_name);
             std::string cases_str;
             for (size_t i = 0; i < c->cases.size(); i++) {
@@ -748,7 +844,7 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
                     // Analyze outer-scope refs: case children may reference parent struct fields
                     analyze_outer_scope(cs.name, cs.children, children);
                     // Always prefix inline case types to prevent cross-message collisions
-                    emit_synthetic_struct(cs.name, cs.children, parent_name, /*always_prefix=*/true);
+                    emit_synthetic_struct(cs.name, cs.children, parent_name);
                 }
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
@@ -756,7 +852,20 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
                 // Analyze outer-scope refs: otherwise children may reference parent struct fields
                 analyze_outer_scope(otherwise_name, cd->otherwise->children, children);
                 // Always prefix otherwise types to prevent cross-message collisions
-                emit_synthetic_struct(otherwise_name, cd->otherwise->children, parent_name, /*always_prefix=*/true);
+                emit_synthetic_struct(otherwise_name, cd->otherwise->children, parent_name);
+            }
+        } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // Recurse into FX block children to find inline enums and nested types
+            emit_child_class_defs(fx->children, parent_name);
+        } else if (auto* f = std::get_if<model::Field>(&child)) {
+            // Emit inline enum types for fields with enum_values
+            if (!f->enum_values.empty() && f->type_ref.empty()) {
+                std::string enum_name = to_pascal_case(parent_name) + "_" + to_pascal_case(f->name);
+                if (emitted_inline_enums_.insert(enum_name).second) {
+                    int bits = f->bits.value_or(8);
+                    std::string underlying = storage_type_for_bits(bits, false);
+                    emit_enum_class(ctx_, enum_name, underlying, bits, f->endian, f->enum_values);
+                }
             }
         }
     }
@@ -764,17 +873,18 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
 
 void StructEmitter::emit_synthetic_struct(const std::string& bmdl_name,
                                            const std::vector<model::StructChild>& children,
-                                           const std::string& parent_name,
-                                           bool always_prefix) {
-    std::string name = resolve_child_class_name(bmdl_name, parent_name, always_prefix);
+                                           const std::string& parent_name) {
+    std::string name = resolve_child_class_name(bmdl_name, parent_name);
     if (name.empty()) return;
 
     if (!emitted_classes_.insert(name).second) return;
 
     auto prev_parent = current_parent_;
-    current_parent_ = bmdl_name;
+    auto prev_bmdl = current_bmdl_name_;
+    current_parent_ = name;
+    current_bmdl_name_ = bmdl_name;
 
-    emit_child_class_defs(children, bmdl_name);
+    emit_child_class_defs(children, name);
     emit_variant_aliases(children);
 
     // Set outer-scope params if this struct has any
@@ -802,6 +912,7 @@ void StructEmitter::emit_synthetic_struct(const std::string& bmdl_name,
     emit_plain_struct(children, name);
 
     current_parent_ = prev_parent;
+    current_bmdl_name_ = prev_bmdl;
     outer_scope_params_ = prev_outer;
 
     ctx_.dedent();
@@ -832,9 +943,11 @@ void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& p
     if (!emitted_classes_.insert(name).second) return;
 
     auto prev_parent = current_parent_;
-    current_parent_ = sd.name;
+    auto prev_bmdl = current_bmdl_name_;
+    current_parent_ = name;
+    current_bmdl_name_ = sd.name;
 
-    emit_child_class_defs(sd.children, sd.name);
+    emit_child_class_defs(sd.children, name);
     emit_variant_aliases(sd.children);
 
     if (!sd.doc.empty()) {
@@ -871,6 +984,7 @@ void StructEmitter::emit_struct(const model::StructDef& sd, const std::string& p
     }
 
     current_parent_ = prev_parent;
+    current_bmdl_name_ = prev_bmdl;
     outer_scope_params_ = prev_outer;
 
     ctx_.dedent();
@@ -889,9 +1003,11 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     }
 
     auto prev_parent = current_parent_;
-    current_parent_ = md.name;
+    auto prev_bmdl = current_bmdl_name_;
+    current_parent_ = name;
+    current_bmdl_name_ = md.name;
 
-    emit_child_class_defs(md.children, md.name);
+    emit_child_class_defs(md.children, name);
     emit_variant_aliases(md.children);
 
     if (!md.doc.empty()) {
@@ -978,6 +1094,7 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     ctx_.line("}");
 
     current_parent_ = prev_parent;
+    current_bmdl_name_ = prev_bmdl;
     current_session_ = prev_session;
 
     ctx_.dedent();
@@ -1038,9 +1155,9 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
     for (const auto& fi : fields) {
         if (fi.is_optional) {
             emit_optional_accessors(fi.name, fi.cpp_type, fi.default_value,
-                                     fi.constraint, fi.is_signed, fi.max_length);
+                                     fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
         } else {
-            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length);
+            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
         }
     }
 
@@ -1082,8 +1199,8 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
         std::string decl_type = qualify_type_if_shadowed(fi.name, fi.cpp_type);
         if (fi.is_optional) {
             ctx_.line("std::optional<" + decl_type + "> " + to_member_name(fi.name) + ";");
-        } else if (fi.initial_value) {
-            ctx_.line(decl_type + " " + to_member_name(fi.name) + "{" + *fi.initial_value + "};");
+        } else if (fi.default_value) {
+            ctx_.line(decl_type + " " + to_member_name(fi.name) + "{" + *fi.default_value + "};");
         } else {
             ctx_.line(decl_type + " " + to_member_name(fi.name) + "{};");
         }
@@ -1107,20 +1224,50 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                 auto fti = resolve_field_type(c, index_);
                 fi.cpp_type = fti.cpp_type;
                 fi.is_signed = fti.is_signed;
+                // Override type for inline enum fields
+                if (!c.enum_values.empty() && c.type_ref.empty()) {
+                    std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
+                    fi.cpp_type = enum_name;
+                    fti.cpp_type = enum_name;
+                    fti.is_enum = true;
+                    // Initialize to first enum value
+                    if (!c.enum_values.empty()) {
+                        fi.default_value = enum_name + "::" + to_enum_value_name(c.enum_values[0].name);
+                    }
+                }
+                fi.is_enum = fti.is_enum;
                 fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
-                fi.initial_value = c.initial_value;
-                // Enum fields: qualify initial value with type prefix
-                if (fi.initial_value && fti.is_enum && !c.type_ref.empty()) {
-                    fi.initial_value = fti.cpp_type + "::" +
-                        to_enum_value_name(*fi.initial_value);
-                } else if (!fi.initial_value && fti.is_enum && !c.type_ref.empty()) {
+                if (!fi.default_value) fi.default_value = c.default_value;
+                // Warn when both default and constraint equals are specified
+                if (fi.default_value && c.constraint && c.constraint->equals) {
+                    Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                        "': both 'default' and 'constraint equals' specified; "
+                        "constraint value (" + *c.constraint->equals + ") wins, "
+                        "default value (" + *fi.default_value + ") is ignored");
+                    fi.default_value = *c.constraint->equals;
+                }
+                // constraint equals="X" implies default="X"
+                if (!fi.default_value && c.constraint && c.constraint->equals) {
+                    fi.default_value = *c.constraint->equals;
+                }
+                // Bool fields: normalize "0"/"1" to "false"/"true"
+                if (fi.default_value && fti.is_bool) {
+                    if (*fi.default_value == "0") fi.default_value = "false";
+                    else if (*fi.default_value == "1") fi.default_value = "true";
+                }
+                // Enum fields: qualify default value with type prefix
+                if (fi.default_value && fti.is_enum && !c.type_ref.empty()) {
+                    fi.default_value = fti.cpp_type + "::" +
+                        to_enum_value_name(*fi.default_value);
+                } else if (!fi.default_value && fti.is_enum && !c.type_ref.empty()) {
+                    // No default — initialize to first enum value
                     auto resolved = index_.find(c.type_ref);
                     if (resolved) {
                         std::visit([&](const auto* def) {
                             using DT = std::decay_t<decltype(*def)>;
                             if constexpr (std::is_same_v<DT, model::TypeDef>) {
                                 if (!def->enum_values.empty()) {
-                                    fi.initial_value = fti.cpp_type + "::" +
+                                    fi.default_value = fti.cpp_type + "::" +
                                         to_enum_value_name(def->enum_values[0].name);
                                 }
                             }
@@ -1128,7 +1275,6 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                     }
                 }
                 fi.constraint = c.constraint ? &*c.constraint : nullptr;
-                fi.default_value = c.default_value;
                 fi.max_length = c.max_length;
                 if (c.is_inline) {
                     auto resolved = index_.find(c.type_ref);
@@ -1231,19 +1377,29 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
 void StructEmitter::emit_plain_accessors(const std::string& name, const std::string& cpp_type,
                                            const model::Constraint* constraint,
                                            bool is_signed,
-                                           std::optional<int> max_length) {
+                                           std::optional<int> max_length,
+                                           bool is_enum) {
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
                             ? "::" + ns_ + "::" + cpp_type : cpp_type;
-    ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + "; }");
+    bool by_value = (cpp_type == "bool") || is_enum;
+    if (by_value) {
+        ctx_.line(qual_type + " " + acc + "() const { return " + member + "; }");
+    } else {
+        ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + "; }");
+    }
     ctx_.line(qual_type + "& mutable_" + acc + "() { return " + member + "; }");
     // Only validate immediate constraints in setters; deferred constraints are checked at validate()
     bool has_constraint = constraint
         && constraint->validate != model::ValidateTiming::Deferred
         && (constraint->equals || constraint->min || constraint->max);
     if (has_constraint || max_length) {
-        ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        if (by_value) {
+            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(" + qual_type + " v) {");
+        } else {
+            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
             has_constraint ? constraint : nullptr, is_signed, max_length);
@@ -1252,7 +1408,11 @@ void StructEmitter::emit_plain_accessors(const std::string& name, const std::str
         ctx_.dedent();
         ctx_.line("}");
     } else {
-        ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+        if (by_value) {
+            ctx_.line("void set_" + acc + "(" + qual_type + " v) { " + member + " = v; }");
+        } else {
+            ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+        }
     }
     ctx_.line();
 }
@@ -1261,15 +1421,19 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
                                               const std::optional<std::string>& default_value,
                                               const model::Constraint* constraint,
                                               bool is_signed,
-                                              std::optional<int> max_length) {
+                                              std::optional<int> max_length,
+                                              bool is_enum) {
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
                             ? "::" + ns_ + "::" + cpp_type : cpp_type;
+    bool by_value = (cpp_type == "bool") || is_enum;
     ctx_.line("bool has_" + acc + "() const { return " + member + ".has_value(); }");
     if (default_value) {
-        ctx_.line("const " + qual_type + " " + acc + "() const { return " + member +
+        ctx_.line(qual_type + " " + acc + "() const { return " + member +
                  ".value_or(" + qual_type + "{" + *default_value + "}); }");
+    } else if (by_value) {
+        ctx_.line(qual_type + " " + acc + "() const { return " + member + ".value(); }");
     } else {
         ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + ".value(); }");
     }
@@ -1278,7 +1442,11 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
         && constraint->validate != model::ValidateTiming::Deferred
         && (constraint->equals || constraint->min || constraint->max);
     if (has_constraint || max_length) {
-        ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        if (by_value) {
+            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(" + qual_type + " v) {");
+        } else {
+            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+        }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
             has_constraint ? constraint : nullptr, is_signed, max_length);
@@ -1287,7 +1455,11 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
         ctx_.dedent();
         ctx_.line("}");
     } else {
-        ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+        if (by_value) {
+            ctx_.line("void set_" + acc + "(" + qual_type + " v) { " + member + " = v; }");
+        } else {
+            ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+        }
     }
     ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
     ctx_.line();
@@ -1309,6 +1481,12 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
                     BitmapField bf;
                     bf.name = c.name;
                     auto fti = resolve_field_type(c, index_);
+                    // Override for inline enums
+                    if (!c.enum_values.empty() && c.type_ref.empty()) {
+                        std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
+                        fti.cpp_type = enum_name;
+                        fti.is_enum = true;
+                    }
                     bf.cpp_type = fti.cpp_type;
                     bf.bit = *c.bit;
                     bf.is_struct = fti.is_struct;
@@ -1368,15 +1546,35 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         std::string qual_type = (acc == bf.cpp_type && !ns_.empty())
                                 ? "::" + ns_ + "::" + bf.cpp_type : bf.cpp_type;
 
+        bool bm_by_value = bf.is_enum || (bf.cpp_type == "bool");
+        // Compute effective default: explicit default or constraint equals
+        std::optional<std::string> bm_default;
+        if (bf.source_field) {
+            if (bf.source_field->default_value)
+                bm_default = bf.source_field->default_value;
+            else if (bf.source_field->constraint && bf.source_field->constraint->equals)
+                bm_default = bf.source_field->constraint->equals;
+        }
         ctx_.line("bool has_" + acc + "() const { return " + member + ".has_value(); }");
-        ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + ".value(); }");
+        if (bm_default) {
+            ctx_.line(qual_type + " " + acc + "() const { return " + member +
+                     ".value_or(" + qual_type + "{" + *bm_default + "}); }");
+        } else if (bm_by_value) {
+            ctx_.line(qual_type + " " + acc + "() const { return " + member + ".value(); }");
+        } else {
+            ctx_.line("const " + qual_type + "& " + acc + "() const { return " + member + ".value(); }");
+        }
         ctx_.line(qual_type + "& mutable_" + acc + "() { if (!" + member + ") " + member + ".emplace(); return *" + member + "; }");
         const model::Constraint* bm_constraint = (bf.source_field && bf.source_field->constraint)
                                                   ? &*bf.source_field->constraint : nullptr;
         bool bm_has_constraint = bm_constraint && (bm_constraint->equals || bm_constraint->min || bm_constraint->max);
         std::optional<int> bm_max_length = bf.source_field ? bf.source_field->max_length : std::nullopt;
         if (bm_has_constraint || bm_max_length) {
-            ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+            if (bm_by_value) {
+                ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(" + qual_type + " v) {");
+            } else {
+                ctx_.line("[[nodiscard]] conduit::VoidResult set_" + acc + "(const " + qual_type + "& v) {");
+            }
             ctx_.indent();
             emit_setter_constraint_checks(bf.name, qual_type,
                 bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length);
@@ -1385,7 +1583,11 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.dedent();
             ctx_.line("}");
         } else {
-            ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+            if (bm_by_value) {
+                ctx_.line("void set_" + acc + "(" + qual_type + " v) { " + member + " = v; }");
+            } else {
+                ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
+            }
         }
         ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
         ctx_.line();
@@ -1748,11 +1950,13 @@ std::string generate_structs(const model::Protocol& protocol,
     }
     ctx.line("#include <algorithm>");
     ctx.line("#include <array>");
+    ctx.line("#include <bitset>");
     ctx.line("#include <cstdint>");
     ctx.line("#include <optional>");
     ctx.line("#include <span>");
     ctx.line("#include <sstream>");
     ctx.line("#include <string>");
+    ctx.line("#include <utility>");
     ctx.line("#include <variant>");
     ctx.line("#include <vector>");
     ctx.line();
@@ -1828,11 +2032,14 @@ std::string generate_messages(const model::Protocol& protocol,
     ctx.line("#include <algorithm>");
     ctx.line("#include <any>");
     ctx.line("#include <array>");
+    ctx.line("#include <bitset>");
     ctx.line("#include <cstdint>");
     ctx.line("#include <optional>");
     ctx.line("#include <span>");
     ctx.line("#include <sstream>");
+    ctx.line("#include <string>");
     ctx.line("#include <string_view>");
+    ctx.line("#include <utility>");
     ctx.line("#include <variant>");
     ctx.line("#include <vector>");
     ctx.line();

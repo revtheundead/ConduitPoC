@@ -49,8 +49,7 @@ When `type` is omitted but `bits` and/or `bytes` is present, an anonymous intege
 | `length-includes-prefix` | Length value includes prefix size | `"true"` |
 | `bit` | Bitmap bit position (bitmap structs only) | `"7"` |
 | `present-when` | Condition for field presence | `"flags & 0x80"` |
-| `default` | Default value when absent on decode (optional fields only) | `"0"` |
-| `initial` | Construction default (non-optional fields only) | `"0"`, `"online"` |
+| `default` | Default value (see [Default Values](#default-values)) | `"0"`, `"online"` |
 | `inline` | Flatten struct/message fields into parent | `"true"` |
 | `endian` | Byte order override | `"little"` |
 | `format` | Display format hint | `"hex"`, `"octal"`, `"binary"` |
@@ -116,11 +115,12 @@ The `base` attribute allows defining a field's primitive type inline, without a 
 | `uint` | Unsigned integer | `bits` |
 | `string` | Character string | `length`, or `length-from`/`terminated` |
 | `bool` | Boolean (1-bit unsigned) | `bits` (default 1) |
+| `bytes` | Raw byte data | `length`, `length-from`, `bytes`, or `length="*"` |
 
 **Rules:**
 - `base` and `type` are mutually exclusive -- `base` is for inline definitions only
 - `base="float"` cannot combine with `signed`, `wire-encoding`, inline `<enum>`, or `<flags>`
-- For raw byte data, use `bytes="N"` instead of `base="bytes"`
+- `base="bytes"` cannot have `bits`; use `length`, `length-from`, `bytes`, or `length="*"` for sizing
 
 A field referencing a named type that already has `<scale>` or `<offset>` **cannot** redefine them.
 
@@ -162,40 +162,65 @@ Optional fields support the following operations:
 
 ## Default Values
 
-The `default` attribute provides a decode-time fallback for optional fields:
+The `default` attribute sets a field's initial value. Its effect depends on whether the field is optional:
+
+### Non-Optional Fields
+
+For non-optional fields, `default` sets the C++ member initializer:
+
+```xml
+<field name="version" type="uint8" default="1"/>
+<field name="status" type="device-status" default="online"/>
+```
+
+The generated member declaration uses the default as its initializer:
+
+```cpp
+uint8_t version_{1};          // instead of version_{}
+DeviceStatus status_{DeviceStatus::Online};
+```
+
+When omitted, non-optional fields are zero-initialized (integers: 0, bools: false, enums: first declared value, strings: empty).
+
+### Optional Fields
+
+For optional fields, `default` provides a decode-time fallback via `value_or()`:
 
 ```xml
 <field name="version" type="uint8" present-when="has-version" default="1"/>
 ```
 
 On decode, if the field is absent:
-- Presence check returns false
-- Accessing the value returns `1` (the default)
+- `has_version()` returns false
+- `version()` returns `1` (the default, via `value_or()`)
 
-On encode, absent fields are omitted from the wire regardless of their default value. The `default` attribute only affects decode-time behavior.
+On encode, absent fields are omitted from the wire regardless of their default value.
 
 The `default` attribute applies to any optional field regardless of its presence mechanism (`present-when`, `bit`, or FX extension).
 
-`default` accepts decimal literals, hex literals (`0x`), enum value names, named constants, or string literals.
+### Interaction with Constraints
 
-## Construction Defaults (Initial Values)
-
-The `initial` attribute sets the value a newly constructed object starts with:
+When a field has `<constraint equals="X"/>`, the constraint value automatically implies `default="X"`. This means the field's member initializer (or `value_or()` for optional fields) uses the constrained value:
 
 ```xml
-<field name="status" type="device-status" initial="online"/>
-<field name="cpu-load" type="uint8" initial="0">
-  <constraint max="100"/>
+<!-- Explicit default not needed — constraint equals implies default="42" -->
+<field name="sync" type="uint8">
+  <constraint equals="42"/>
 </field>
 ```
 
-**Rules:**
-- When omitted, fields are zero-initialized (integers: 0, bools: false, strings: empty)
-- `initial` is valid on non-optional fields with primitive or enum types
-- Not valid on optional fields (use `default` instead), struct fields, array fields, or bytes fields
-- `initial` and `default` are mutually exclusive on the same field
-- Accepts decimal, hex, enum value names, named constants, or string literals
-- Can be specified as an attribute (`initial="value"`) or as a child element (`<initial>value</initial>`). When both are present, the attribute takes priority.
+If both `default` and `constraint equals` are specified on the same field, the constraint value takes priority and a generation-time warning is emitted:
+
+```xml
+<!-- Warning: constraint value (42) wins, default value (0) is ignored -->
+<field name="sync" type="uint8" default="0">
+  <constraint equals="42"/>
+</field>
+```
+
+### Accepted Values
+
+`default` accepts decimal literals, hex literals (`0x`), enum value names, named constants, or string literals.
 
 ## Inline Struct Fields
 
@@ -229,8 +254,9 @@ The `auto` attribute marks fields for automatic management by frames and session
 <field name="length" type="uint16" auto="length - 3"/>
 <field name="system-id" type="uint8" auto="config(system-id)"/>
 
-<!-- Session fields (valid inside <message>) -->
+<!-- Session fields (valid inside <frame> or <message>) -->
 <field name="sequence" type="uint8" auto="increment"/>
+<field name="station-id" type="uint8" auto="config(station-id)"/>
 ```
 
 ### Auto Expression Reference
@@ -244,7 +270,7 @@ The `auto` attribute marks fields for automatic management by frames and session
 | `auto="length(field) {op} N"` | Frame, Struct, Message | Byte length of a sibling field with arithmetic modifier (literal operand). |
 | `auto="length(field) {op} other"` | Struct, Message | Byte length with field operand (see below). |
 | `auto="count(field)"` | Frame, Struct, Message | Element count of a sibling array field. Auto-computed during encode. Does not support arithmetic modifiers. |
-| `auto="config(key)"` | Frame | Value from session configuration. |
+| `auto="config(key)"` | Frame, Struct, Message | Value from session configuration. Set during encode wrapping. |
 | `auto="increment"` | Session | Auto-incrementing counter, wrapping at type maximum. |
 | `auto="timestamp"` | Session | Milliseconds since Unix epoch (system clock), masked to field bit width. Unsigned integer only. |
 
@@ -271,7 +297,8 @@ The wire value is computed as: `computed_byte_length {op} operand`.
 - Division or modulo by zero is a validation error. Multiplication by zero is also rejected.
 - Field operands must reference existing sibling fields in the same scope.
 - `auto="length"` is not valid inside `<fx>` blocks (dynamic FX layout would corrupt backpatch offsets).
-- `auto="id"` and `auto="config(key)"` are only valid inside `<frame>` definitions.
+- `auto="id"` is only valid inside `<frame>` definitions.
+- `auto="config(key)"` is valid inside `<frame>`, `<message>`, and `<struct>` definitions. Config keys must be unique across the frame and all messages within a protocol.
 
 ### Frame Auto Fields
 
@@ -285,6 +312,7 @@ The wire value is computed as: `computed_byte_length {op} operand`.
 
 - `auto="count(field)"` -- Auto-computes the size of a sibling array during encode. The field reference must name a sibling array in the same struct/message. Example: `<field name="count" type="uint8" auto="count(items)"/>` followed by `<array name="items" ... count-from="count"/>`.
 - `auto="length(field)"` -- Auto-computes the byte length of a sibling field during encode. Uses a zero-placeholder and backpatch approach. Supports arithmetic modifiers including field operands. Example: `<field name="len" type="uint8" auto="length(data) / 2"/>`.
+- `auto="config(key)"` -- Values provided via the session's Config struct. The session sets the field value during encode wrapping, before the message is encoded into the frame. Useful for per-message metadata like station identifiers. Config fields in inlined structs are also supported.
 
 ### Session Auto Fields
 
@@ -321,7 +349,7 @@ Inside a `presence="bitmap"` struct, `<reserved>` does not take a `bit` attribut
 <field name="value" type="uint32"/>
 ```
 
-- The `to` attribute specifies the byte alignment boundary (must be a positive power of 2)
+- The `to` attribute specifies the byte alignment boundary (must be a positive power of 2, maximum 8)
 - On decode: bits are consumed to reach the boundary
 - On encode: zero-padding is written to reach the boundary
 - Valid anywhere `<field>` is valid
@@ -330,11 +358,11 @@ Inside a `presence="bitmap"` struct, `<reserved>` does not take a `bit` attribut
 
 - Use `<reserved>` for protocol-specified padding/unused bits -- it is self-documenting and ensures correct wire layout.
 - Prefer named types over inline `bits`/`bytes` for fields that appear more than once.
-- Use `initial` for enum fields that don't have a zero-valued member.
+- Use `default` for enum fields that don't have a zero-valued member.
 
 ## Common Pitfalls
 
-- `initial` and `default` are mutually exclusive AND serve different purposes: `initial` is the construction-time value (non-optional fields), `default` is the decode-time fallback (optional fields only).
+- `default` serves dual purposes depending on field optionality: for non-optional fields it sets the C++ member initializer, for optional fields it provides a decode-time fallback via `value_or()`. Both behaviors can coexist on a field that becomes optional through a bitmap bit position.
 - BMDL uses tight packing -- there is no implicit alignment between fields. A 3-bit field followed by a 16-bit field packs at bit offset 3, not byte-aligned. Use `<align to="1"/>` for explicit byte alignment.
 - `inline="true"` flattens a struct's fields into the parent. If the inlined struct has a field with the same name as an existing parent field, it is a validation error.
 - `bit` and `present-when` are mutually exclusive on the same element.

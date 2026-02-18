@@ -106,7 +106,7 @@ err.is_transceiver_error(); // false
 err.is_recoverable();       // depends on code
 
 // Formatting
-err.format();        // "[ERROR] BufferUnderrun: need 4 bytes, have 2 (file.cpp:42)"
+err.format();        // "[WARNING] BufferUnderrun: need 4 bytes, have 2 (file.cpp:42)"
 err.format_short();  // "BufferUnderrun: need 4 bytes, have 2"
 
 // Static helpers

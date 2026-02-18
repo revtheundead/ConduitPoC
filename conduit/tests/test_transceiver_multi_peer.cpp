@@ -130,7 +130,7 @@ public:
         return std::vector<traits::DecodedMessage>{std::move(dm)};
     }
 
-    Result<std::vector<uint8_t>>
+    Result<traits::EncodeResult>
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id != TestMsg::TYPE_ID) {
             return std::unexpected(
@@ -139,7 +139,9 @@ public:
         auto& msg = std::any_cast<const TestMsg&>(payload);
         io::BitWriter writer;
         msg.encode(writer);
-        return writer.finish();
+        auto bytes = writer.finish();
+        if (!bytes) return std::unexpected(bytes.error());
+        return traits::EncodeResult{std::move(*bytes), {}};
     }
 
     std::span<const uint8_t> sync_pattern() const override { return sync_; }

@@ -5,6 +5,7 @@
 #include "cpp_structs_helpers.hpp"
 #include "emit_context.hpp"
 #include "name_utils.hpp"
+#include <map>
 #include <sstream>
 
 namespace bgen::codegen {
@@ -37,8 +38,17 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
 
     ctx.line("// Session for frame: " + si.frame->name);
 
-    // Config struct if there are config fields
-    bool has_config = !si.config_fields.empty();
+    // Build merged config fields: frame-level + all message-level (de-duplicated by key)
+    std::map<std::string, analyzer::ConfigField> all_config;
+    for (const auto& cf : si.config_fields) {
+        all_config.try_emplace(cf.key, cf);
+    }
+    for (const auto& lt : si.leaf_types) {
+        for (const auto& cf : lt.config_fields) {
+            all_config.try_emplace(cf.key, cf);
+        }
+    }
+    bool has_config = !all_config.empty();
 
     ctx.line("class " + session_class + " : public conduit::traits::ISession {");
     ctx.line("public:");
@@ -46,10 +56,9 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
 
     // Constructor
     if (has_config) {
-        // Config struct defined in protocol.hpp; forward-reference here via ProtocolDescriptor::Config
         ctx.line("struct Config {");
         ctx.indent();
-        for (const auto& cf : si.config_fields) {
+        for (const auto& [key, cf] : all_config) {
             std::string cpp_type;
             if (!cf.type_ref.empty()) {
                 cpp_type = to_cpp_type_name(cf.type_ref);
@@ -133,7 +142,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
     ctx.line();
 
     // encode_wrap
-    ctx.line("[[nodiscard]] conduit::Result<std::vector<uint8_t>>");
+    ctx.line("[[nodiscard]] conduit::Result<conduit::traits::EncodeResult>");
     ctx.line("encode_wrap(uint64_t type_id, const std::any& payload) override {");
     ctx.indent();
 
@@ -148,33 +157,64 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
         ctx.line("auto* msg = std::any_cast<" + leaf_type + ">(&payload);");
         ctx.line("if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,");
         ctx.line("    \"payload type mismatch for " + lt.name + "\"));");
-        ctx.line("auto frame = " + frame_class + "::wrap(*msg);");
-        // Set config fields on the frame
-        for (const auto& cf : si.config_fields) {
-            ctx.line("frame.set_" + to_accessor_name(cf.field_name) + "(config_." + to_accessor_name(cf.key) + ");");
+        ctx.line("conduit::traits::EncodeResult result;");
+        // Set message-level config fields on a mutable copy before wrapping
+        if (!lt.config_fields.empty()) {
+            ctx.line("auto msg_copy = *msg;");
+            for (const auto& cf : lt.config_fields) {
+                std::string config_acc = "config_." + to_accessor_name(cf.key);
+                ctx.line("msg_copy.set_" + to_accessor_name(cf.field_name) + "(" + config_acc + ");");
+                ctx.line("result.auto_fields.push_back({\"" + cf.field_name + "\", std::to_string(static_cast<int64_t>(" + config_acc + "))});");
+            }
+            ctx.line("auto frame = " + frame_class + "::wrap(msg_copy);");
+        } else {
+            ctx.line("auto frame = " + frame_class + "::wrap(*msg);");
         }
-        // Set auto-increment fields
+        // Set frame-level config fields on the frame
+        for (const auto& cf : si.config_fields) {
+            std::string config_acc = "config_." + to_accessor_name(cf.key);
+            ctx.line("frame.set_" + to_accessor_name(cf.field_name) + "(" + config_acc + ");");
+            ctx.line("result.auto_fields.push_back({\"" + cf.field_name + "\", std::to_string(static_cast<int64_t>(" + config_acc + "))});");
+        }
+        // Set auto-increment fields and record their values
         for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
             int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
             uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
             std::string mask = "0x" + to_hex64(mask_val);
-            ctx.line("frame.set_" + to_accessor_name(lt.auto_fields[ai]) +
-                     "(sequence_counter_++ & " + mask + ");");
+            std::string cast_type = storage_type_for_bits(bits, false);
+            std::string field_acc = to_accessor_name(lt.auto_fields[ai]);
+            ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counter_++ & " + mask + ");");
+            ctx.line("  frame.set_" + field_acc + "(seq_val);");
+            ctx.line("  result.auto_fields.push_back({\"" + lt.auto_fields[ai] + "\", std::to_string(seq_val)}); }");
         }
-        // Set auto-timestamp fields
+        // Set auto-timestamp fields and record their values
         for (size_t ti = 0; ti < lt.timestamp_fields.size(); ++ti) {
             int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
             std::string cast_type = storage_type_for_bits(bits, false);
             uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
             std::string mask = "0x" + to_hex64(mask_val);
-            ctx.line("frame.set_" + to_accessor_name(lt.timestamp_fields[ti]) +
-                     "(static_cast<" + cast_type + ">("
+            std::string field_acc = to_accessor_name(lt.timestamp_fields[ti]);
+            ctx.line("{ auto ts_val = static_cast<" + cast_type + ">("
                      "static_cast<uint64_t>("
                      "std::chrono::duration_cast<std::chrono::milliseconds>("
                      "std::chrono::system_clock::now().time_since_epoch()).count())"
-                     " & " + mask + "));");
+                     " & " + mask + ");");
+            ctx.line("  frame.set_" + field_acc + "(ts_val);");
+            ctx.line("  result.auto_fields.push_back({\"" + lt.timestamp_fields[ti] + "\", std::to_string(ts_val)}); }");
         }
-        ctx.line("return frame.encode_bytes();");
+        // Record auto-id field
+        if (!si.id_field_name.empty()) {
+            ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(" + leaf_type + "::ID_VALUE)});");
+        }
+        ctx.line("auto enc = frame.encode_bytes();");
+        ctx.line("if (!enc) return std::unexpected(enc.error());");
+        // Record auto-length (wire value, with arithmetic modifier applied)
+        if (!si.length_field_name.empty()) {
+            std::string len_expr = apply_arith("enc->size()", si.frame_length_modifier);
+            ctx.line("result.auto_fields.push_back({\"" + si.length_field_name + "\", std::to_string(" + len_expr + ")});");
+        }
+        ctx.line("result.bytes = std::move(*enc);");
+        ctx.line("return result;");
         ctx.dedent();
     }
     if (!first_branch) {
@@ -192,7 +232,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
 
     // encode_batch — only for array-payload sessions
     if (si.payload_is_array) {
-        ctx.line("[[nodiscard]] conduit::Result<std::vector<uint8_t>>");
+        ctx.line("[[nodiscard]] conduit::Result<conduit::traits::EncodeResult>");
         ctx.line("encode_batch(uint64_t type_id, std::span<const std::any> payloads) override {");
         ctx.indent();
 
@@ -205,6 +245,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line(prefix + " (type_id == " + tid_hex + ") {");
             ctx.indent();
             ctx.line(frame_class + " frame;");
+            ctx.line("conduit::traits::EncodeResult result;");
             // Set constraint-equals header fields (e.g., sync words)
             if (si.frame) {
                 for (const auto& hc : si.frame->header_fields) {
@@ -217,6 +258,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             }
             if (!si.id_field_name.empty()) {
                 ctx.line("frame.set_" + to_accessor_name(si.id_field_name) + "(" + leaf_type + "::ID_VALUE);");
+                ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(" + leaf_type + "::ID_VALUE)});");
             }
             ctx.line("frame.payload().reserve(payloads.size());");
             ctx.line("for (const auto& p : payloads) {");
@@ -224,20 +266,40 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line("auto* msg = std::any_cast<" + leaf_type + ">(&p);");
             ctx.line("if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,");
             ctx.line("    \"payload type mismatch for " + lt.name + "\"));");
-            ctx.line("frame.payload().push_back(*msg);");
+            // Set message-level config fields on a mutable copy before adding to payload
+            if (!lt.config_fields.empty()) {
+                ctx.line("auto msg_copy = *msg;");
+                for (const auto& cf : lt.config_fields) {
+                    std::string config_acc = "config_." + to_accessor_name(cf.key);
+                    ctx.line("msg_copy.set_" + to_accessor_name(cf.field_name) + "(" + config_acc + ");");
+                }
+                ctx.line("frame.payload().push_back(msg_copy);");
+            } else {
+                ctx.line("frame.payload().push_back(*msg);");
+            }
             ctx.dedent();
             ctx.line("}");
-            // Set config fields
+            // Record message-level config fields in auto_fields
+            for (const auto& cf : lt.config_fields) {
+                std::string config_acc = "config_." + to_accessor_name(cf.key);
+                ctx.line("result.auto_fields.push_back({\"" + cf.field_name + "\", std::to_string(static_cast<int64_t>(" + config_acc + "))});");
+            }
+            // Set frame-level config fields
             for (const auto& cf : si.config_fields) {
-                ctx.line("frame.set_" + to_accessor_name(cf.field_name) + "(config_." + to_accessor_name(cf.key) + ");");
+                std::string config_acc = "config_." + to_accessor_name(cf.key);
+                ctx.line("frame.set_" + to_accessor_name(cf.field_name) + "(" + config_acc + ");");
+                ctx.line("result.auto_fields.push_back({\"" + cf.field_name + "\", std::to_string(static_cast<int64_t>(" + config_acc + "))});");
             }
             // Set auto-increment fields
             for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
                 int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                 uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                 std::string mask = "0x" + to_hex64(mask_val);
-                ctx.line("frame.set_" + to_accessor_name(lt.auto_fields[ai]) +
-                         "(sequence_counter_++ & " + mask + ");");
+                std::string cast_type = storage_type_for_bits(bits, false);
+                std::string field_acc = to_accessor_name(lt.auto_fields[ai]);
+                ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counter_++ & " + mask + ");");
+                ctx.line("  frame.set_" + field_acc + "(seq_val);");
+                ctx.line("  result.auto_fields.push_back({\"" + lt.auto_fields[ai] + "\", std::to_string(seq_val)}); }");
             }
             // Set auto-timestamp fields
             for (size_t ti = 0; ti < lt.timestamp_fields.size(); ++ti) {
@@ -245,14 +307,23 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
                 std::string cast_type = storage_type_for_bits(bits, false);
                 uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                 std::string mask = "0x" + to_hex64(mask_val);
-                ctx.line("frame.set_" + to_accessor_name(lt.timestamp_fields[ti]) +
-                         "(static_cast<" + cast_type + ">("
+                std::string field_acc = to_accessor_name(lt.timestamp_fields[ti]);
+                ctx.line("{ auto ts_val = static_cast<" + cast_type + ">("
                          "static_cast<uint64_t>("
                          "std::chrono::duration_cast<std::chrono::milliseconds>("
                          "std::chrono::system_clock::now().time_since_epoch()).count())"
-                         " & " + mask + "));");
+                         " & " + mask + ");");
+                ctx.line("  frame.set_" + field_acc + "(ts_val);");
+                ctx.line("  result.auto_fields.push_back({\"" + lt.timestamp_fields[ti] + "\", std::to_string(ts_val)}); }");
             }
-            ctx.line("return frame.encode_bytes();");
+            ctx.line("auto enc = frame.encode_bytes();");
+            ctx.line("if (!enc) return std::unexpected(enc.error());");
+            if (!si.length_field_name.empty()) {
+                std::string len_expr = apply_arith("enc->size()", si.frame_length_modifier);
+                ctx.line("result.auto_fields.push_back({\"" + si.length_field_name + "\", std::to_string(" + len_expr + ")});");
+            }
+            ctx.line("result.bytes = std::move(*enc);");
+            ctx.line("return result;");
             ctx.dedent();
         }
         if (!batch_first) {
@@ -425,6 +496,33 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.indent();
             ctx.line("auto* m = std::any_cast<" + leaf_type + ">(&payload);");
             ctx.line("return m ? m->to_string() : std::string{};");
+            ctx.dedent();
+        }
+        if (!first) {
+            ctx.line("}");
+        }
+    }
+    ctx.line("return {};");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // format_outbound
+    ctx.line("[[nodiscard]] std::string format_outbound(");
+    ctx.line("    uint64_t type_id, const std::any& payload,");
+    ctx.line("    std::span<const std::pair<std::string, std::string>> auto_fields) const override {");
+    ctx.indent();
+    {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_type = to_cpp_type_name(lt.name);
+            std::string tid_hex = type_id_literal(lt.type_id);
+            std::string prefix = first ? "if" : "} else if";
+            first = false;
+            ctx.line(prefix + " (type_id == " + tid_hex + ") {");
+            ctx.indent();
+            ctx.line("auto* m = std::any_cast<" + leaf_type + ">(&payload);");
+            ctx.line("return m ? m->to_string(auto_fields) : std::string{};");
             ctx.dedent();
         }
         if (!first) {

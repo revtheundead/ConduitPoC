@@ -65,12 +65,12 @@ This produces 7 files in `generated/`:
 | `messages.hpp` | Message classes with `TYPE_ID`, `encode_bytes()`, `decode_bytes()`; Frame class with `wrap()` |
 | `sessions.hpp` | Session classes implementing `ISession` for frame-based dispatch |
 | `protocol.hpp` | `ProtocolDescriptor` with type registry and session factory |
-| `my-protocol.hpp` | Umbrella header that includes all of the above |
+| `my_protocol.hpp` | Umbrella header that includes all of the above |
 
 Include the umbrella header in your application:
 
 ```cpp
-#include "generated/my-protocol.hpp"
+#include "generated/my_protocol.hpp"
 
 // Decode a message
 auto msg = my_protocol::Heartbeat::decode_bytes(data);

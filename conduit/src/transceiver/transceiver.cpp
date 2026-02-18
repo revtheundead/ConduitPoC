@@ -240,7 +240,7 @@ void Transceiver::set_handler(MessageHandler handler) {
 
 CallbackId Transceiver::on_state_change(ConnectionStateCallback cb) {
     std::lock_guard lock(state_cb_mutex_);
-    auto id = CallbackId{next_callback_id_++};
+    auto id = CallbackId{next_callback_id_.fetch_add(1)};
     state_callbacks_.push_back({id, std::move(cb)});
     return id;
 }
@@ -252,6 +252,51 @@ bool Transceiver::remove_state_change(CallbackId id) {
     if (it == state_callbacks_.end()) return false;
     state_callbacks_.erase(it);
     return true;
+}
+
+CallbackId Transceiver::on_error(ErrorCallback cb) {
+    std::lock_guard lock(error_cb_mutex_);
+    auto id = CallbackId{next_callback_id_.fetch_add(1)};
+    error_callbacks_.push_back({id, std::move(cb)});
+    return id;
+}
+
+bool Transceiver::remove_error_callback(CallbackId id) {
+    std::lock_guard lock(error_cb_mutex_);
+    auto it = std::find_if(error_callbacks_.begin(), error_callbacks_.end(),
+        [id](const ErrorCallbackEntry& e) { return e.id == id; });
+    if (it == error_callbacks_.end()) return false;
+    error_callbacks_.erase(it);
+    return true;
+}
+
+void Transceiver::fire_error(PeerId peer, Error error) {
+    std::string name, endpoint;
+    {
+        std::shared_lock lock(peers_mutex_);
+        if (auto* ctx = find_peer(peer)) {
+            name = ctx->name;
+            endpoint = ctx->remote_endpoint;
+        }
+    }
+    fire_error_event(ErrorEvent{peer, std::move(name), std::move(endpoint), std::move(error)});
+}
+
+void Transceiver::fire_error_event(ErrorEvent event) {
+    std::vector<ErrorCallbackEntry> cbs;
+    {
+        std::lock_guard lock(error_cb_mutex_);
+        cbs = error_callbacks_;
+    }
+    for (auto& entry : cbs) {
+        try {
+            entry.cb(event);
+        } catch (const std::exception& e) {
+            LOG_ERRORF("Error callback threw: {}", e.what());
+        } catch (...) {
+            LOG_ERROR("Error callback threw unknown exception");
+        }
+    }
 }
 
 // ============================================================================
@@ -423,19 +468,13 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
         std::lock_guard ctx_lock(ctx->ctx_mutex);
         CONDUIT_TRY_ASSIGN(auto, enc,
                            ctx->session->encode_wrap(type_id, payload));
-        encoded = std::move(enc);
+        encoded = std::move(enc.bytes);
 
         if (message_log_) {
-            // Decode the encoded bytes to get actual wire values (frame fields populated)
-            auto decoded = ctx->session->decode_frame(encoded);
-            if (decoded && !decoded->empty()) {
-                log_type_name = std::string(decoded->front().type_name);
-                if (config_.message_log.include_message_content) {
-                    log_content = ctx->session->format_message(
-                        decoded->front().type_id, decoded->front().payload);
-                }
-            } else {
-                log_type_name = std::string(ctx->session->type_name(type_id));
+            log_type_name = std::string(ctx->session->type_name(type_id));
+            if (config_.message_log.include_message_content) {
+                log_content = ctx->session->format_outbound(
+                    type_id, payload, enc.auto_fields);
             }
             log_protocol = std::string(ctx->session->protocol_name());
             log_peer_name = ctx->name;
@@ -489,22 +528,16 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
         std::lock_guard ctx_lock(ctx->ctx_mutex);
         CONDUIT_TRY_ASSIGN(auto, enc,
                            ctx->session->encode_batch(type_id, payloads));
-        encoded = std::move(enc);
+        encoded = std::move(enc.bytes);
 
         if (message_log_) {
-            auto decoded = ctx->session->decode_frame(encoded);
-            if (decoded && !decoded->empty()) {
-                log_type_name = std::string(decoded->front().type_name);
-                if (config_.message_log.include_message_content) {
-                    // Format all decoded messages from the batch
-                    for (size_t i = 0; i < decoded->size(); ++i) {
-                        if (i > 0) log_content += '\n';
-                        log_content += ctx->session->format_message(
-                            (*decoded)[i].type_id, (*decoded)[i].payload);
-                    }
+            log_type_name = std::string(ctx->session->type_name(type_id));
+            if (config_.message_log.include_message_content) {
+                for (size_t i = 0; i < payloads.size(); ++i) {
+                    if (i > 0) log_content += '\n';
+                    log_content += ctx->session->format_outbound(
+                        type_id, payloads[i], enc.auto_fields);
                 }
-            } else {
-                log_type_name = std::string(ctx->session->type_name(type_id));
             }
             log_protocol = std::string(ctx->session->protocol_name());
             log_peer_name = ctx->name;
@@ -550,6 +583,9 @@ void Transceiver::handle_data_received(PeerId peer,
     };
     std::vector<RecvLogEntry> log_entries;
 
+    // Collect error events under lock; fire them after releasing all locks.
+    std::vector<ErrorEvent> deferred_errors;
+
     {
         std::shared_lock lock(peers_mutex_);
         auto* ctx = find_peer(peer);
@@ -587,31 +623,41 @@ void Transceiver::handle_data_received(PeerId peer,
             }
         };
 
+        // Helper to defer an error event (safe under lock — no callback invocation)
+        auto defer_error = [&](Error err) {
+            deferred_errors.push_back(ErrorEvent{peer, ctx->name, ctx->remote_endpoint, std::move(err)});
+        };
+
         if (ctx->framer) {
             // Stream transport: extract frames via framer
             auto frames_result = ctx->framer->push_data(data);
             if (!frames_result) {
                 stats_.decode_errors.fetch_add(1, std::memory_order_relaxed);
-                LOG_WARNF("Framing error for peer {}: {} — resetting framer",
-                         peer.value(),
+                LOG_ERRORF("Framing error: peer='{}' remote={} proto={} error={}",
+                         ctx->name, ctx->remote_endpoint,
+                         ctx->session->protocol_name(),
                          frames_result.error().format_short());
+                defer_error(frames_result.error().with_context("framing"));
                 ctx->framer->reset();
-                return;
-            }
-
-            for (auto& frame : *frames_result) {
-                auto decoded = ctx->session->decode_frame(frame);
-                if (!decoded) {
-                    stats_.decode_errors.fetch_add(1, std::memory_order_relaxed);
-                    LOG_WARNF("Decode error for peer {}: {}",
-                             peer.value(),
-                             decoded.error().format_short());
-                    continue;
-                }
-                log_decoded_messages(*decoded, frame.size());
-                for (auto& msg : *decoded) {
-                    stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
-                    to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
+                // Fall through to fire deferred errors after lock release
+            } else {
+                for (auto& frame : *frames_result) {
+                    auto decoded = ctx->session->decode_frame(frame);
+                    if (!decoded) {
+                        stats_.decode_errors.fetch_add(1, std::memory_order_relaxed);
+                        LOG_ERRORF("Decode error: peer='{}' remote={} proto={} frame_bytes={} error={}",
+                                 ctx->name, ctx->remote_endpoint,
+                                 ctx->session->protocol_name(),
+                                 frame.size(),
+                                 decoded.error().format_short());
+                        defer_error(decoded.error().with_context("decode"));
+                        continue;
+                    }
+                    log_decoded_messages(*decoded, frame.size());
+                    for (auto& msg : *decoded) {
+                        stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
+                        to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
+                    }
                 }
             }
         } else {
@@ -619,17 +665,26 @@ void Transceiver::handle_data_received(PeerId peer,
             auto decoded = ctx->session->decode_frame(data);
             if (!decoded) {
                 stats_.decode_errors.fetch_add(1, std::memory_order_relaxed);
-                LOG_WARNF("Decode error for peer {}: {}",
-                         peer.value(),
+                LOG_ERRORF("Decode error: peer='{}' remote={} proto={} frame_bytes={} error={}",
+                         ctx->name, ctx->remote_endpoint,
+                         ctx->session->protocol_name(),
+                         data.size(),
                          decoded.error().format_short());
-                return;
-            }
-            log_decoded_messages(*decoded, data.size());
-            for (auto& msg : *decoded) {
-                stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
-                to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
+                defer_error(decoded.error().with_context("decode"));
+                // Fall through to fire deferred errors after lock release
+            } else {
+                log_decoded_messages(*decoded, data.size());
+                for (auto& msg : *decoded) {
+                    stats_.messages_received.fetch_add(1, std::memory_order_relaxed);
+                    to_enqueue.push_back(InboundMessage{peer, std::move(msg)});
+                }
             }
         }
+    }
+
+    // Fire deferred error events outside all locks
+    for (auto& evt : deferred_errors) {
+        fire_error_event(std::move(evt));
     }
 
     // Log outside all locks
@@ -646,6 +701,8 @@ void Transceiver::handle_data_received(PeerId peer,
             stats_.messages_dropped.fetch_add(1, std::memory_order_relaxed);
             LOG_WARNF("Dispatch queue dropped message type_id={} from peer {}",
                       type_id, peer.value());
+            fire_error(peer, Error(ErrorCode::QueueFull,
+                std::format("dispatch queue dropped message type_id={}", type_id)));
         }
     }
 
@@ -691,6 +748,10 @@ PeerId Transceiver::handle_peer_connected(transport::ITransport* transport,
         auto session = entry->session_factory();
         if (!session) {
             LOG_ERROR("Session factory returned null");
+            std::string name = entry->name;
+            lock.unlock();  // Release lock before firing error callback
+            fire_error_event(ErrorEvent{PeerId{}, std::move(name), {},
+                Error(ErrorCode::InternalError, "session factory returned null")});
             return PeerId{};
         }
 
@@ -829,10 +890,12 @@ void Transceiver::worker_loop() {
             auto elapsed = std::chrono::steady_clock::now() - before;
             if (elapsed > handler_timeout) {
                 stats_.handler_timeouts.fetch_add(1, std::memory_order_relaxed);
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
                 LOG_WARNF("Handler for type_id={} took {}ms (timeout={}ms)",
-                          msg->decoded.type_id,
-                          std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(),
-                          handler_timeout.count());
+                          msg->decoded.type_id, ms, handler_timeout.count());
+                fire_error(msg->peer, Error(ErrorCode::Timeout,
+                    std::format("handler exceeded timeout for type_id={} ({}ms > {}ms)",
+                        msg->decoded.type_id, ms, handler_timeout.count())));
             }
         }
 
@@ -842,6 +905,8 @@ void Transceiver::worker_loop() {
             break;
         case DispatchResult::Error:
             stats_.handler_errors.fetch_add(1, std::memory_order_relaxed);
+            fire_error(msg->peer, Error(ErrorCode::InternalError,
+                std::format("handler threw exception for type_id={}", msg->decoded.type_id)));
             break;
         case DispatchResult::NotFound:
             LOG_DEBUGF("Unhandled message type_id={} from peer {}",

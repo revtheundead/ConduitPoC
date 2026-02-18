@@ -419,7 +419,7 @@ TEST_CASE("FxChoiceMsg case A roundtrip", "[roundtrip][fx][choice]") {
     msg.set_tag(static_cast<fx_choice::tag_type>(fx_choice::TAG_A));
     fx_choice::CaseABody case_a;
     case_a.set_x(0xABCD);
-    msg.set_payload(fx_choice::payloadVariant{case_a});
+    msg.set_payload(fx_choice::FxChoiceMsg_payloadVariant{case_a});
     msg.set_item3(0xFF);
 
     auto enc_result = msg.encode_bytes();
@@ -446,7 +446,7 @@ TEST_CASE("FxChoiceMsg case B roundtrip", "[roundtrip][fx][choice]") {
     msg.set_tag(static_cast<fx_choice::tag_type>(fx_choice::TAG_B));
     fx_choice::CaseBBody case_b;
     case_b.set_y(0xDEADBEEF);
-    msg.set_payload(fx_choice::payloadVariant{case_b});
+    msg.set_payload(fx_choice::FxChoiceMsg_payloadVariant{case_b});
     msg.set_item3(0x77);
 
     auto enc_result = msg.encode_bytes();
@@ -494,7 +494,7 @@ TEST_CASE("FxChoiceMsg first case type (index 0) roundtrip - B2 regression", "[r
     msg.set_tag(static_cast<fx_choice::tag_type>(fx_choice::TAG_A));
     fx_choice::CaseABody case_a;
     case_a.set_x(0x4242);
-    msg.set_payload(fx_choice::payloadVariant{case_a});
+    msg.set_payload(fx_choice::FxChoiceMsg_payloadVariant{case_a});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -531,7 +531,7 @@ TEST_CASE("FxChoiceMsg wire size with FX items", "[roundtrip][fx][choice][wire]"
     msg_full.set_tag(static_cast<fx_choice::tag_type>(fx_choice::TAG_A));
     fx_choice::CaseABody case_a;
     case_a.set_x(0);
-    msg_full.set_payload(fx_choice::payloadVariant{case_a});
+    msg_full.set_payload(fx_choice::FxChoiceMsg_payloadVariant{case_a});
     msg_full.set_item3(0);
     auto enc2 = msg_full.encode_bytes();
     REQUIRE(enc2.has_value());

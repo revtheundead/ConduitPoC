@@ -135,6 +135,20 @@ inline bool is_cpp_keyword(std::string_view name) {
     return keywords.count(name) > 0;
 }
 
+// Check if name forms a valid C++ identifier after conversion
+inline bool is_valid_cpp_identifier(std::string_view name) {
+    if (name.empty()) return false;
+    // Must not start with a digit
+    if (std::isdigit(static_cast<unsigned char>(name[0]))) return false;
+    // Must not start with double underscore (reserved)
+    if (name.size() >= 2 && name[0] == '_' && name[1] == '_') return false;
+    // All characters must be alphanumeric or underscore
+    for (char c : name) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') return false;
+    }
+    return true;
+}
+
 // Format uint32 as lowercase hex string (no "0x" prefix)
 inline std::string to_hex(uint32_t val) {
     char buf[16];

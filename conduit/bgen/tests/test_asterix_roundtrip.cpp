@@ -38,7 +38,7 @@ TEST_CASE("Cat001Record all fields present roundtrip", "[roundtrip][asterix]") {
     items.set_i010(dsid);
 
     // FRN 2: I020 - Target Report Descriptor
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::track);
     items.set_i020(trd);
 
@@ -55,7 +55,7 @@ TEST_CASE("Cat001Record all fields present roundtrip", "[roundtrip][asterix]") {
     items.set_i042(cart);
 
     // FRN 5: I070 - Mode 3/A Code
-    asterix::i070 mode3a;
+    asterix::Cat001Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(1);
@@ -63,7 +63,7 @@ TEST_CASE("Cat001Record all fields present roundtrip", "[roundtrip][asterix]") {
     items.set_i070(mode3a);
 
     // FRN 6: I090 - Flight Level
-    asterix::i090 fl;
+    asterix::Cat001Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0); // FL350
@@ -151,7 +151,7 @@ TEST_CASE("Cat001Record minimal fields roundtrip", "[roundtrip][asterix]") {
     dsid.set_sic(2);
     items.set_i010(dsid);
 
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::plot);
     items.set_i020(trd);
 
@@ -384,16 +384,16 @@ TEST_CASE("Cat048Record multiple FSPEC items roundtrip", "[roundtrip][asterix]")
     polar.set_theta(180.0);
     items.set_i040(polar);
 
-    // I070 - Mode 3/A (Cat048 inline type collides with Cat001 → items_i070)
-    asterix::items_i070 mode3a;
+    // I070 - Mode 3/A (Cat048 inline type)
+    asterix::Cat048Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(0x567);
     items.set_i070(mode3a);
 
-    // I090 - Flight Level (Cat048 inline type collides with Cat001 → items_i090)
-    asterix::items_i090 fl;
+    // I090 - Flight Level (Cat048 inline type)
+    asterix::Cat048Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(100.0); // FL100
@@ -546,7 +546,7 @@ TEST_CASE("Cat048Record I130 nested bitmap all sub-fields", "[roundtrip][asterix
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i130 radar_plot;
+    asterix::Cat048Record_items_i130 radar_plot;
     auto& s = radar_plot.mutable_sub();
     s.set_srl(200);
     s.set_srr(50);
@@ -585,7 +585,7 @@ TEST_CASE("Cat048Record I130 nested bitmap partial sub-fields", "[roundtrip][ast
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i130 radar_plot;
+    asterix::Cat048Record_items_i130 radar_plot;
     auto& s = radar_plot.mutable_sub();
     // Only set srl and pam (non-contiguous bits)
     s.set_srl(100);
@@ -619,12 +619,12 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i250 mb;
+    asterix::Cat048Record_items_i250 mb;
     mb.set_rep(3);
     auto& bds = mb.mutable_bds();
 
     // BDS register 1
-    asterix::bdsElement e1;
+    asterix::Cat048Record_items_i250_bdsElement e1;
     std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
     e1.set_data(data1);
     e1.set_bds1(4);
@@ -632,7 +632,7 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
     bds.push_back(e1);
 
     // BDS register 2
-    asterix::bdsElement e2;
+    asterix::Cat048Record_items_i250_bdsElement e2;
     std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
     e2.set_data(data2);
     e2.set_bds1(5);
@@ -640,7 +640,7 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
     bds.push_back(e2);
 
     // BDS register 3
-    asterix::bdsElement e3;
+    asterix::Cat048Record_items_i250_bdsElement e3;
     std::array<uint8_t, 7> data3 = {0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99};
     e3.set_data(data3);
     e3.set_bds1(6);
@@ -716,7 +716,7 @@ TEST_CASE("Cat048Record I220 aircraft address and I200 velocity", "[roundtrip][a
     items.set_i220(0xABCDEF);
 
     // I200 - Calculated Track Velocity
-    asterix::i200 vel;
+    asterix::Cat048Record_items_i200 vel;
     vel.set_ground_speed(500.0 * 0.00006103515625); // ~0.0305 NM/s
     vel.set_heading(270.0);
     items.set_i200(vel);
@@ -771,7 +771,7 @@ TEST_CASE("DataBlock Cat048 multiple records roundtrip", "[roundtrip][asterix]")
         cat_records.mutable_items().push_back(rec);
     }
 
-    db.set_records(asterix::recordsVariant{cat_records});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_records});
 
     // Compute correct length
     conduit::io::BitWriter lw;
@@ -824,7 +824,7 @@ TEST_CASE("AsterixFrame wrap Cat048Record roundtrip", "[roundtrip][asterix]") {
     db.set_cat(asterix::CAT048);
     asterix::DataBlock_cat048 cat_recs;
     cat_recs.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cat_recs});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
@@ -860,7 +860,7 @@ TEST_CASE("Cat001Record Flight Level boundary values", "[roundtrip][asterix]") {
     {
         asterix::Cat001Record rec;
         auto& items = rec.mutable_items();
-        asterix::i090 fl;
+        asterix::Cat001Record_items_i090 fl;
         fl.set_v(1);
         fl.set_g(0);
         fl.set_fl(0.0);
@@ -879,7 +879,7 @@ TEST_CASE("Cat001Record Flight Level boundary values", "[roundtrip][asterix]") {
     {
         asterix::Cat001Record rec;
         auto& items = rec.mutable_items();
-        asterix::i090 fl;
+        asterix::Cat001Record_items_i090 fl;
         fl.set_v(1);
         fl.set_g(0);
         fl.set_fl(-10.0);
@@ -904,7 +904,7 @@ TEST_CASE("Cat001Record Mode 3/A code values", "[roundtrip][asterix]") {
     {
         asterix::Cat001Record rec;
         auto& items = rec.mutable_items();
-        asterix::i070 mode3a;
+        asterix::Cat001Record_items_i070 mode3a;
         mode3a.set_v(0);
         mode3a.set_g(0);
         mode3a.set_l(0);
@@ -923,7 +923,7 @@ TEST_CASE("Cat001Record Mode 3/A code values", "[roundtrip][asterix]") {
     {
         asterix::Cat001Record rec;
         auto& items = rec.mutable_items();
-        asterix::i070 mode3a;
+        asterix::Cat001Record_items_i070 mode3a;
         mode3a.set_v(1);
         mode3a.set_g(1);
         mode3a.set_l(1);
@@ -984,7 +984,7 @@ TEST_CASE("Cat048Record I200 track velocity roundtrip", "[roundtrip][asterix]") 
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i200 vel;
+    asterix::Cat048Record_items_i200 vel;
     // ground-speed: scale = 0.00006103515625 NM/s
     vel.set_ground_speed(1000.0 * 0.00006103515625);
     // heading: scale = 0.0054931640625 degrees

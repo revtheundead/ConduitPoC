@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>msg_config_inline</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <struct name="SourceId">
+      <field name="sac" type="uint8" auto="config(sac)"/>
+      <field name="sic" type="uint8" auto="config(sic)"/>
+    </struct>
+  </types>
+
+  <frame name="Frame">
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <!-- Config fields accessed through an inlined struct -->
+    <message id="1" name="Report">
+      <field name="source" type="SourceId" inline="true"/>
+      <field name="value" type="uint16"/>
+    </message>
+
+    <message id="2" name="Status">
+      <field name="code" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

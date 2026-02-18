@@ -123,6 +123,15 @@ In `<frame>` context, `<constraint equals="..."/>` has special semantics:
 
 This differs from struct/message-level `equals` constraints, which validate on both encode and decode.
 
+## Equals Constraints and Default Values
+
+A `constraint equals="X"` automatically implies `default="X"` for the field. This means:
+
+- **Non-optional fields:** The generated C++ member initializer uses the constrained value (e.g., `uint16_t sync_{0xEB90};`).
+- **Optional fields:** The `value_or()` accessor returns the constrained value when the field is absent.
+
+This eliminates the need to specify both `default` and `constraint equals` with the same value. If both are specified with different values, the constraint value takes priority and a generation-time warning is emitted. See [Fields: Default Values](fields.md#default-values) for details.
+
 ## Best Practices
 
 - Use `equals` constraints on sync/magic fields. These are used to extract sync patterns for stream framing (see [Sessions](sessions.md)).

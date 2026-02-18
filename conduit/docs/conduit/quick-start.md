@@ -59,7 +59,7 @@ BMDL names are converted to C++ identifiers: hyphens become underscores, and the
 ## Step 3: Create a Receiver
 
 ```cpp
-#include "generated/my-protocol.hpp"
+#include "generated/my_protocol.hpp"
 
 #include <conduit/transceiver/transceiver.hpp>
 #include <conduit/transceiver/transport/udp.hpp>
@@ -122,7 +122,7 @@ int main() {
 ## Step 4: Create a Sender
 
 ```cpp
-#include "generated/my-protocol.hpp"
+#include "generated/my_protocol.hpp"
 
 #include <conduit/transceiver/transceiver.hpp>
 #include <conduit/transceiver/transport/udp.hpp>

@@ -59,7 +59,7 @@ static std::optional<GeneratedCode> generate_from(const std::string& fixture_nam
     gc.messages = bgen::codegen::generate_messages(protocol, index, sizes, sessions, ns);
     gc.sessions = bgen::codegen::generate_sessions(protocol, index, sessions, ns);
     gc.protocol = bgen::codegen::generate_protocol(protocol, sessions, ns);
-    gc.umbrella = bgen::codegen::generate_umbrella(protocol.name);
+    gc.umbrella = bgen::codegen::generate_umbrella(bgen::codegen::to_lower_snake_case(protocol.name));
     return gc;
 }
 
@@ -218,13 +218,20 @@ TEST_CASE("FX block codegen succeeds", "[codegen]") {
     CHECK(gc->messages.find("FxMessage") != std::string::npos);
 }
 
-TEST_CASE("Default/initial value codegen", "[codegen]") {
+TEST_CASE("Default value codegen", "[codegen]") {
     auto gc = generate_from("default_initial.bmdl.xml");
     REQUIRE(gc.has_value());
 
-    // Generated structs or messages should reference default/initial values
+    // Generated structs or messages should reference default values
     CHECK(gc->messages.find("DefaultMsg") != std::string::npos);
     CHECK(gc->messages.find("InitialMsg") != std::string::npos);
+    // Default values should appear in member declarations
+    CHECK(gc->messages.find("{1}") != std::string::npos);  // version default
+    CHECK(gc->messages.find("{100}") != std::string::npos); // counter default
+    // ConstraintDefaultMsg: constraint equals="42" implies default="42"
+    CHECK(gc->messages.find("magic_{42}") != std::string::npos);
+    // ConstraintDefaultMsg: inline field (bytes+bits) with explicit default
+    CHECK(gc->messages.find("tag_{37}") != std::string::npos);
 }
 
 TEST_CASE("Expression codegen", "[codegen]") {
@@ -417,8 +424,8 @@ TEST_CASE("ASTERIX bitmap-controlled choice codegen", "[codegen]") {
 
     // Cat253Record's bitmap struct should contain the i100 choice variant
     // The bitmap is a child of the message, so it appears in messages output
-    // to_cpp_type_name preserves case: "i100" -> "i100"
-    CHECK(messages.find("i100Variant") != std::string::npos);
+    // Always-prefixed: parent bitmap struct "items" + "_" + "i100Variant"
+    CHECK(messages.find("items_i100Variant") != std::string::npos);
 
     // The choice should use std::visit for encoding (not Variant::encode)
     CHECK(messages.find("std::visit") != std::string::npos);
@@ -435,7 +442,7 @@ TEST_CASE("ASTERIX bitmap-controlled choice codegen", "[codegen]") {
     CHECK(messages.find("Cat253I100FormatE") != std::string::npos);
 
     // Should NOT contain Variant::decode (the old broken pattern)
-    CHECK(messages.find("i100Variant::decode") == std::string::npos);
+    CHECK(messages.find("items_i100Variant::decode") == std::string::npos);
 }
 
 TEST_CASE("ASTERIX FSPEC bitmap structs", "[codegen]") {
@@ -707,6 +714,25 @@ TEST_CASE("generate_umbrella for hyphenated protocol name", "[codegen][umbrella]
     CHECK(gc->umbrella.find("#include \"messages.hpp\"") != std::string::npos);
     CHECK(gc->umbrella.find("#include \"sessions.hpp\"") != std::string::npos);
     CHECK(gc->umbrella.find("#include \"protocol.hpp\"") != std::string::npos);
+}
+
+TEST_CASE("generate_umbrella uses snake_case name", "[codegen][umbrella]") {
+    auto gc = generate_from("inline_field_types.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Umbrella should reference the snake_cased protocol name
+    CHECK(gc->umbrella.find("inline_field_types") != std::string::npos);
+    CHECK(gc->umbrella.find("#pragma once") != std::string::npos);
+}
+
+TEST_CASE("generate_umbrella does not contain hyphens for hyphenated names", "[codegen][umbrella]") {
+    // sentry_link fixture — protocol name is "sentry-link" which should become "sentry_link"
+    auto gc = generate_from("sentry_link.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Should not contain a hyphenated name in the umbrella
+    // The comment line should use the snake_cased name
+    CHECK(gc->umbrella.find("sentry_link") != std::string::npos);
 }
 
 // ============================================================================
@@ -1014,6 +1040,66 @@ TEST_CASE("SourceLoc shows line:column in error messages", "[parser]") {
 }
 
 // ============================================================================
+// Section: Bool type generation
+// ============================================================================
+
+TEST_CASE("Bool field generates bool getter and setter", "[codegen][bool]") {
+    auto gc = generate_from("inline_field_types.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Getter should return bool, not uint8_t
+    CHECK(gc->messages.find("bool active()") != std::string::npos);
+    CHECK(gc->messages.find("uint8_t active()") == std::string::npos);
+
+    // Setter should take bool by value
+    CHECK(gc->messages.find("set_active(bool") != std::string::npos);
+}
+
+// ============================================================================
+// Section: Inline enum codegen
+// ============================================================================
+
+TEST_CASE("Inline enum generates enum class", "[codegen][inline_enum]") {
+    auto gc = generate_from("inline_enum.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Should generate enum class for inline enum field
+    CHECK(gc->messages.find("enum class InlineEnumMsg_Mode") != std::string::npos);
+    CHECK(gc->messages.find("enum class InlineEnumMsg_Priority") != std::string::npos);
+
+    // Should generate encode/decode functions
+    CHECK(gc->messages.find("encode_InlineEnumMsg_Mode") != std::string::npos);
+    CHECK(gc->messages.find("decode_InlineEnumMsg_Mode") != std::string::npos);
+
+    // Field accessor should return the enum type
+    CHECK(gc->messages.find("InlineEnumMsg_Mode mode()") != std::string::npos);
+}
+
+// ============================================================================
+// Section: Always-prefix child class naming
+// ============================================================================
+
+TEST_CASE("Child classes always have parent prefix", "[codegen][child_prefix]") {
+    auto gc = generate_from("asterix.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // All child classes should have parent prefix — no bare "items", "sub", "spf"
+    // at struct namespace scope
+    CHECK(gc->messages.find("Cat001Record_items") != std::string::npos);
+    // Verify no bare "class items" at namespace scope (would appear as "class items {")
+    // The bare name should not appear without a parent prefix
+}
+
+TEST_CASE("Child class of arrays_choices has parent prefix", "[codegen][child_prefix]") {
+    auto gc = generate_from("arrays_choices.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // All generated code should compile and child classes should have prefixed names
+    CHECK(!gc->structs.empty());
+    CHECK(!gc->messages.empty());
+}
+
+// ============================================================================
 // Section: Outer-scope field access + auto-length (outer_scope fixture)
 // ============================================================================
 
@@ -1034,4 +1120,82 @@ TEST_CASE("Outer scope: auto-length backpatch in encode", "[codegen][outer_scope
     CHECK(gc->structs.find("struct_start_pos_") != std::string::npos);
     CHECK(gc->structs.find("length_byte_pos_") != std::string::npos);
     CHECK(gc->structs.find("patch_u8") != std::string::npos);
+}
+
+// ============================================================================
+// Section: Fix verification tests (C3, inline enum value semantics)
+// ============================================================================
+
+TEST_CASE("to_string overload always generated", "[codegen][C3]") {
+    // C3 fix: the span-accepting to_string overload must be generated for every
+    // struct/message regardless of whether it has auto-managed frame fields.
+    // This allows format_outbound to call to_string(overrides) on any message.
+    auto gc = generate_from("minimal.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // The messages output should contain the span-accepting overload signature
+    auto& code = gc->messages;
+    CHECK(code.find("to_string(std::span<const std::pair<std::string, std::string>>") != std::string::npos);
+}
+
+TEST_CASE("enum accessor returns by value not reference", "[codegen][inline_enum]") {
+    // Inline enum accessors should return by value (not const ref) since enums
+    // are small scalar types.
+    auto gc = generate_from("inline_enum.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    auto& code = gc->messages;
+
+    // Getter should return InlineEnumMsg_Mode by value
+    CHECK(code.find("InlineEnumMsg_Mode mode()") != std::string::npos);
+    // Getter should NOT return by const reference
+    CHECK(code.find("const InlineEnumMsg_Mode& mode()") == std::string::npos);
+    CHECK(code.find("const InlineEnumMsg_Mode &mode()") == std::string::npos);
+
+    // Setter should take InlineEnumMsg_Mode by value
+    CHECK(code.find("set_mode(InlineEnumMsg_Mode") != std::string::npos);
+    // Setter should NOT take by const reference
+    CHECK(code.find("set_mode(const InlineEnumMsg_Mode&") == std::string::npos);
+}
+
+// ============================================================================
+// Payload length-from codegen
+// ============================================================================
+
+TEST_CASE("payload length-from generates sub_reader in decode", "[codegen][payload_length_from]") {
+    auto gc = generate_from("frame_payload_length_from.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // The messages file should contain the Frame class with decode
+    auto& code = gc->messages;
+    CHECK(code.find("class ExprFrame") != std::string::npos);
+
+    // decode() should create a bounded sub_reader from body-size expression
+    CHECK(code.find("sub_reader") != std::string::npos);
+    CHECK(code.find("body_size") != std::string::npos);
+}
+
+// ============================================================================
+// format="binary" codegen
+// ============================================================================
+
+TEST_CASE("format binary generates bitset in to_string", "[codegen][format_binary]") {
+    auto gc = generate_from("format_binary.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // The generated code should use std::bitset for binary-formatted fields
+    auto& code = gc->messages;
+    CHECK(code.find("std::bitset<64>") != std::string::npos);
+    // Should include the 0b prefix in the to_string output
+    CHECK(code.find("0b") != std::string::npos);
+}
+
+TEST_CASE("generated structs header includes bitset", "[codegen][format_binary]") {
+    auto gc = generate_from("format_binary.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // The structs header should include <bitset>
+    CHECK(gc->structs.find("#include <bitset>") != std::string::npos);
+    // The messages header should include <bitset>
+    CHECK(gc->messages.find("#include <bitset>") != std::string::npos);
 }

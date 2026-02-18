@@ -356,7 +356,7 @@ static std::vector<uint8_t> encode_body(
             result.error().message().c_str());
         return {};
     }
-    return std::move(*result);
+    return std::move(result->bytes);
 }
 
 // ============================================================================

@@ -156,7 +156,7 @@ TEST_CASE("ASTERIX Cat001Record I010 + I020 + I040", "[asterix][cat001][bitmap]"
     dsid.set_sic(0xBB);
     items.set_i010(dsid);
 
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::track);
     items.set_i020(trd);
 
@@ -185,7 +185,7 @@ TEST_CASE("ASTERIX Cat001Record Mode 3/A code (I070)", "[asterix][cat001][bitfie
     asterix::Cat001Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i070 mode3a;
+    asterix::Cat001Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(1);
@@ -212,7 +212,7 @@ TEST_CASE("ASTERIX Cat001Record Flight Level I090 positive", "[asterix][cat001][
     asterix::Cat001Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i090 fl;
+    asterix::Cat001Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0); // FL350 -- scale=0.25 maps physical FL to raw 1/4 FL units
@@ -232,7 +232,7 @@ TEST_CASE("ASTERIX Cat001Record Flight Level I090 negative", "[asterix][cat001][
     asterix::Cat001Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i090 fl;
+    asterix::Cat001Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(-20); // Below sea level
@@ -319,7 +319,7 @@ TEST_CASE("ASTERIX Cat001Record all first-octet items", "[asterix][cat001][bitma
     dsid.set_sac(1); dsid.set_sic(2);
     items.set_i010(dsid);
 
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::plot);
     items.set_i020(trd);
 
@@ -331,12 +331,12 @@ TEST_CASE("ASTERIX Cat001Record all first-octet items", "[asterix][cat001][bitma
     cart.set_x(50); cart.set_y(-50);
     items.set_i042(cart);
 
-    asterix::i070 mode3a;
+    asterix::Cat001Record_items_i070 mode3a;
     mode3a.set_v(1); mode3a.set_g(0); mode3a.set_l(0);
     mode3a.set_code(0x123);
     items.set_i070(mode3a);
 
-    asterix::i090 fl;
+    asterix::Cat001Record_items_i090 fl;
     fl.set_v(1); fl.set_g(0); fl.set_fl(400);
     items.set_i090(fl);
 
@@ -471,7 +471,7 @@ TEST_CASE("ASTERIX Cat253Record I100 FormatA choice", "[asterix][cat253][choice]
     std::array<uint8_t, 16> payload{};
     payload[0] = 0xDE; payload[1] = 0xAD;
     fmt_a.set_payload(payload);
-    items.set_i100(asterix::i100Variant{fmt_a});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_a});
 
     auto enc_result = rec.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -508,7 +508,7 @@ TEST_CASE("ASTERIX Cat253Record I100 FormatD position data", "[asterix][cat253][
     fmt_d.set_altitude(10000.0);       // 10000 feet -- scale=0.25
     fmt_d.set_ground_speed(250.0);     // 250 knots -- scale=0.1
     fmt_d.set_heading(18000 * 0.0054931640625);  // degrees -- scale=0.0054931640625
-    items.set_i100(asterix::i100Variant{fmt_d});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_d});
 
     auto enc_result = rec.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -541,7 +541,7 @@ TEST_CASE("ASTERIX Cat253Record I100 FormatC structured records", "[asterix][cat
     fmt_c.set_record_count(2);
 
     auto& recs = fmt_c.mutable_records();
-    asterix::recordsElement r1;
+    asterix::Cat253I100FormatC_recordsElement r1;
     r1.set_id(1001);
     r1.set_value(0xDEADBEEF);
     asterix::time_of_day t1;
@@ -549,7 +549,7 @@ TEST_CASE("ASTERIX Cat253Record I100 FormatC structured records", "[asterix][cat
     r1.set_timestamp(t1);
     recs.push_back(r1);
 
-    asterix::recordsElement r2;
+    asterix::Cat253I100FormatC_recordsElement r2;
     r2.set_id(2002);
     r2.set_value(0xCAFEBABE);
     asterix::time_of_day t2;
@@ -557,7 +557,7 @@ TEST_CASE("ASTERIX Cat253Record I100 FormatC structured records", "[asterix][cat
     r2.set_timestamp(t2);
     recs.push_back(r2);
 
-    items.set_i100(asterix::i100Variant{fmt_c});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_c});
 
     auto enc_result = rec.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -628,7 +628,7 @@ TEST_CASE("ASTERIX Cat253Record RE expansion field", "[asterix][cat253][fspec_ex
     asterix::Cat253Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::re re_field;
+    asterix::Cat253Record_items_re re_field;
     re_field.set_len(5); // len includes itself: 5 = 1 + 4 bytes of data
     re_field.set_data({0xAA, 0xBB, 0xCC, 0xDD});
     items.set_re(re_field);
@@ -690,7 +690,7 @@ TEST_CASE("ASTERIX DataBlock Cat001 roundtrip", "[asterix][datablock]") {
     items.set_i010(dsid);
     cat_records.mutable_items().push_back(rec);
 
-    db.set_records(asterix::recordsVariant{cat_records});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_records});
 
     // Compute length: header(3) + record payload
     conduit::io::BitWriter lw;
@@ -730,7 +730,7 @@ TEST_CASE("ASTERIX DataBlock Cat253 roundtrip", "[asterix][datablock]") {
     items.set_i030(static_cast<asterix::uint16>(42));
     cat_records.mutable_items().push_back(rec);
 
-    db.set_records(asterix::recordsVariant{cat_records});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_records});
 
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) {
@@ -793,7 +793,7 @@ TEST_CASE("ASTERIX AsterixFrame multiple DataBlocks roundtrip", "[asterix][frame
         asterix::Cat001Record rec;
         rec.mutable_items().set_i161(100);
         cat_recs.mutable_items().push_back(rec);
-        db.set_records(asterix::recordsVariant{cat_recs});
+        db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
         conduit::io::BitWriter lw;
         std::visit([&lw](const auto& v) {
             auto enc_r = v.encode(lw);
@@ -811,7 +811,7 @@ TEST_CASE("ASTERIX AsterixFrame multiple DataBlocks roundtrip", "[asterix][frame
         asterix::Cat253Record rec;
         rec.mutable_items().set_i050(static_cast<asterix::uint8>(7));
         cat_recs.mutable_items().push_back(rec);
-        db.set_records(asterix::recordsVariant{cat_recs});
+        db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
         conduit::io::BitWriter lw;
         std::visit([&lw](const auto& v) {
             auto enc_r = v.encode(lw);
@@ -856,13 +856,13 @@ TEST_CASE("ASTERIX wrap Cat253Record auto-sets DataBlock len", "[asterix][wrap]"
     std::array<uint8_t, 16> payload{};
     payload.fill(0xAB);
     fmt_a.set_payload(payload);
-    items.set_i100(asterix::i100Variant{fmt_a});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_a});
 
     asterix::DataBlock db;
     db.set_cat(asterix::CAT253);
     asterix::DataBlock_cat253 cat_recs;
     cat_recs.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cat_recs});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
@@ -910,13 +910,13 @@ TEST_CASE("ASTERIX wrap Cat253Record FormatD position data round-trips", "[aster
     fmt_d.set_altitude(2000.0);        // 2000 feet -- scale=0.25
     fmt_d.set_ground_speed(150.0);     // 150 knots -- scale=0.1
     fmt_d.set_heading(9000 * 0.0054931640625);  // degrees
-    items.set_i100(asterix::i100Variant{fmt_d});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_d});
 
     asterix::DataBlock db;
     db.set_cat(asterix::CAT253);
     asterix::DataBlock_cat253 cat_recs;
     cat_recs.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cat_recs});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
@@ -1001,7 +1001,7 @@ TEST_CASE("ASTERIX Cat048Record I130 compound sub-fields", "[asterix][cat048][ne
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i130 radar_plot;
+    asterix::Cat048Record_items_i130 radar_plot;
     auto& s = radar_plot.mutable_sub();
     s.set_srl(100);
     s.set_sam(static_cast<asterix::int8>(-50));
@@ -1029,18 +1029,18 @@ TEST_CASE("ASTERIX Cat048Record I250 Mode S BDS data", "[asterix][cat048][array]
     asterix::Cat048Record rec;
     auto& items = rec.mutable_items();
 
-    asterix::i250 mb;
+    asterix::Cat048Record_items_i250 mb;
     mb.set_rep(2);
     auto& bds = mb.mutable_bds();
 
-    asterix::bdsElement e1;
+    asterix::Cat048Record_items_i250_bdsElement e1;
     std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
     e1.set_data(data1);
     e1.set_bds1(4);
     e1.set_bds2(0);
     bds.push_back(e1);
 
-    asterix::bdsElement e2;
+    asterix::Cat048Record_items_i250_bdsElement e2;
     std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
     e2.set_data(data2);
     e2.set_bds1(5);
@@ -1096,7 +1096,7 @@ TEST_CASE("ASTERIX DataBlock wire format header bytes", "[asterix][wire]") {
     asterix::Cat048Record rec;
     // Empty record - just FSPEC byte 0x00
     cat_recs.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cat_recs});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
 
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) {

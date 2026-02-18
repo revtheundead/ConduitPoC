@@ -1,0 +1,31 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>inline_enum</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="InlineEnumMsg">
+      <field name="mode" bits="4" base="uint">
+        <enum>
+          <value id="0" name="off"/>
+          <value id="1" name="standby"/>
+          <value id="2" name="active"/>
+        </enum>
+      </field>
+      <field name="priority" bits="2" base="uint">
+        <enum>
+          <value id="0" name="low"/>
+          <value id="1" name="medium"/>
+          <value id="2" name="high"/>
+        </enum>
+      </field>
+      <reserved bits="2"/>
+      <field name="data" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

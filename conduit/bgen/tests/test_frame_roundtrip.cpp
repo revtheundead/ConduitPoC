@@ -114,7 +114,7 @@ TEST_CASE("frame_basic: session decode_frame roundtrip", "[frame][session]") {
     REQUIRE(encoded.has_value());
 
     // Decode via session
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -150,8 +150,8 @@ TEST_CASE("frame_basic: session extract_frame_length", "[frame][session]") {
     REQUIRE(encoded.has_value());
 
     // Extract length from partial header
-    auto len = session->extract_frame_length(*encoded);
-    CHECK(len == encoded->size());
+    auto len = session->extract_frame_length(encoded->bytes);
+    CHECK(len == encoded->bytes.size());
 }
 
 TEST_CASE("frame_basic: protocol descriptor", "[frame][protocol]") {
@@ -176,12 +176,12 @@ TEST_CASE("frame_config: config field set during encode", "[frame][config]") {
 
     // Verify the config field is in the wire data
     // Wire: [system-id:1][msg-type:1][length:2][seq:2] = 6 bytes
-    REQUIRE(encoded->size() == 6);
-    CHECK((*encoded)[0] == 7);   // system-id from config
-    CHECK((*encoded)[1] == 1);   // msg-type = Ping::ID_VALUE
+    REQUIRE(encoded->bytes.size() == 6);
+    CHECK(encoded->bytes[0] == 7);   // system-id from config
+    CHECK(encoded->bytes[1] == 1);   // msg-type = Ping::ID_VALUE
 
     // Decode and verify
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -201,10 +201,10 @@ TEST_CASE("frame_config: Pong roundtrip with config", "[frame][config]") {
     msg.set_seq(200);
     auto encoded = session->encode_wrap(frame_config::Pong::TYPE_ID, msg);
     REQUIRE(encoded.has_value());
-    CHECK((*encoded)[0] == 42);  // system-id from config
-    CHECK((*encoded)[1] == 2);   // msg-type = Pong::ID_VALUE
+    CHECK(encoded->bytes[0] == 42);  // system-id from config
+    CHECK(encoded->bytes[1] == 2);   // msg-type = Pong::ID_VALUE
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
     CHECK(decoded->at(0).type_id == frame_config::Pong::TYPE_ID);
@@ -296,7 +296,7 @@ TEST_CASE("frame_footer: session roundtrip", "[frame][session][footer]") {
     auto encoded = session->encode_wrap(frame_footer::Data::TYPE_ID, msg);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -399,7 +399,7 @@ TEST_CASE("frame_direction: session decode prefers receive type", "[frame][sessi
     auto encoded = session->encode_wrap(frame_direction::Heartbeat::TYPE_ID, hb);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
     CHECK(decoded->at(0).type_id == frame_direction::Heartbeat::TYPE_ID);
@@ -488,7 +488,7 @@ TEST_CASE("frame_array: session decode_frame", "[frame][session][array]") {
     auto encoded = session->encode_wrap(frame_array::Record::TYPE_ID, rec);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     // Session returns one DecodedMessage per record in the array
     REQUIRE(decoded->size() >= 1);
@@ -548,7 +548,7 @@ TEST_CASE("frame_array: session encode_batch", "[frame][session][array][batch]")
     auto encoded = session->encode_batch(frame_array::Record::TYPE_ID, payloads);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 3);
     for (uint8_t i = 0; i < 3; i++) {
@@ -704,7 +704,7 @@ TEST_CASE("frame_basic: session decode populates frame fields", "[frame][frame-f
     auto encoded = session->encode_wrap(frame_basic::Status::TYPE_ID, msg);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 

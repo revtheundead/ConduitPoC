@@ -140,6 +140,33 @@ CallbackId id = xcvr.on_state_change([](PeerId peer, net::ConnectionState state)
 xcvr.remove_state_change(id);
 ```
 
+### Error Callbacks
+
+```cpp
+#include <conduit/transceiver/error_event.hpp>
+
+CallbackId id = xcvr.on_error([](const ErrorEvent& event) {
+    std::cerr << event.peer_name << ": " << event.error.format() << "\n";
+});
+
+xcvr.remove_error_callback(id);
+```
+
+Error callbacks fire for decode errors, queue drops, handler exceptions/timeouts, and session factory failures. The `ErrorEvent` struct provides full context:
+
+```cpp
+struct ErrorEvent {
+    PeerId peer;                    // Which peer (may be invalid for global errors)
+    std::string peer_name;          // Human-readable peer name
+    std::string remote_endpoint;    // "ip:port" or serial device path
+    Error error;                    // The full conduit Error
+};
+```
+
+`ErrorCallback` is defined as `std::function<void(const ErrorEvent&)>`.
+
+Error callbacks are invoked synchronously from the thread that encountered the error (I/O thread for decode errors, worker thread for handler errors). Callbacks should be fast and non-blocking.
+
 ## Sending Messages
 
 ```cpp

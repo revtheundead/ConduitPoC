@@ -1,0 +1,19 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_enum_name_digit</namespace>
+  </defaults>
+  <types>
+    <!-- Enum value starting with digit should be rejected -->
+    <type name="mode" base="uint" bits="8">
+      <enum>
+        <value id="0" name="0invalid"/>
+        <value id="1" name="valid"/>
+      </enum>
+    </type>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="mode" type="mode"/>
+    </message>
+  </messages>
+</bmdl>

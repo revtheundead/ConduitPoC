@@ -42,7 +42,6 @@ enum class StringTrim { Left, Right, Both, None };
 enum class DisplayFormat { Decimal, Hex, Octal, Binary };
 enum class ValidateTiming { Immediate, Deferred };
 enum class Direction { Both, Send, Receive };
-enum class Dispatch { Batch, PerRecord };
 enum class WireEncoding { Default, CB2, BNR, BNR_S, BCD, BCD_S };
 enum class AutoKind { Id, Length, Count, Increment, Config, Timestamp };
 enum class ArithOp { None, Add, Sub, Mul, Div, Mod };
@@ -254,7 +253,6 @@ struct Field {
     std::optional<WireEncoding> wire_encoding;
     bool is_inline = false;
     std::optional<std::string> default_value;
-    std::optional<std::string> initial_value;
     std::optional<std::string> auto_attr;
     std::optional<AutoExpr> auto_expr;
 
@@ -301,8 +299,6 @@ struct ArrayDef {
 
     std::optional<int> bit;
     std::unique_ptr<Expr> present_when;
-
-    std::optional<Dispatch> dispatch;  // nullopt = use default (batch for session arrays)
 
     std::vector<Annotation> annotations;
     std::string doc;

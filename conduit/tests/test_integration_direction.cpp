@@ -21,7 +21,7 @@ TEST_CASE("direction: common case full roundtrip",
         direction_qualified::CommonPayload::TYPE_ID, std::any(common));
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 

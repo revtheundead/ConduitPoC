@@ -80,7 +80,7 @@ struct QueueConfig {
 
     // Back-pressure: pause transport reading when queue fill exceeds threshold.
     // 0.0 = disabled (default), 0.8 = pause at 80% full.
-    // Resumes when fill drops below (threshold - 0.1).
+    // Resumes when fill drops below (threshold * 0.8).
     double back_pressure_threshold = 0.0;
 };
 

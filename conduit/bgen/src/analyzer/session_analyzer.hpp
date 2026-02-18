@@ -12,6 +12,15 @@
 
 namespace bgen::analyzer {
 
+// A config field from auto="config(key)"
+struct ConfigField {
+    std::string key;          // BMDL key (e.g. "system-id")
+    std::string field_name;   // BMDL field name
+    std::string type_ref;
+    int bits = 0;
+    bool is_signed = false;
+};
+
 // Information about a leaf type reachable from an entry-point/frame
 struct LeafTypeInfo {
     std::string name;
@@ -22,19 +31,11 @@ struct LeafTypeInfo {
     std::vector<int> auto_field_bits;                               // per-field bit widths (parallel to auto_fields)
     std::vector<std::string> timestamp_fields;                      // auto="timestamp" fields
     std::vector<int> timestamp_field_bits;                          // per-field bit widths (parallel to timestamp_fields)
+    std::vector<ConfigField> config_fields;                         // auto="config" fields in this message
     bool send_only = false;
     bool receive_only = false;
     // Annotations from the source message definition (key -> value)
     std::vector<std::pair<std::string, std::string>> annotations;
-};
-
-// A config field from auto="config(key)" in a frame
-struct ConfigField {
-    std::string key;          // BMDL key (e.g. "system-id")
-    std::string field_name;   // BMDL field name
-    std::string type_ref;
-    int bits = 0;
-    bool is_signed = false;
 };
 
 // Session metadata for an entry-point message
@@ -60,6 +61,7 @@ struct SessionInfo {
     std::string length_field_name;
     std::string frame_length_field_ref;  // empty = total frame, "payload" = payload only
     std::string count_field_name;
+    const model::Expr* payload_length_from = nullptr;  // <payload length-from="expr"/>
     size_t frame_footer_size = 0;
     std::vector<ConfigField> config_fields;
 };

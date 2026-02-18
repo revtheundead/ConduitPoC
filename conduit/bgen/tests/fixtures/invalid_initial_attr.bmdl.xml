@@ -1,0 +1,14 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_initial_attr</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- initial attribute should be rejected -->
+      <field name="counter" type="uint8" initial="5"/>
+    </message>
+  </messages>
+</bmdl>

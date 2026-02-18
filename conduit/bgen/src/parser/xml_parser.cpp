@@ -61,8 +61,8 @@ public:
                 if (std::string_view(attr.name()) == k) { found = true; break; }
             }
             if (!found) {
-                warn(node, std::string("unrecognized attribute '") + attr.name() +
-                     "' on <" + node.name() + "> element, ignored");
+                error(node, std::string("unrecognized attribute '") + attr.name() +
+                     "' on <" + node.name() + "> element");
             }
         }
     }
@@ -162,7 +162,7 @@ public:
             model::Annotation a;
             a.name = ann.attribute("name").value();
             if (a.name.empty()) {
-                warn(ann, "<annotation> element missing 'name' attribute");
+                error(ann, "<annotation> element missing 'name' attribute");
             }
             a.value = ann.attribute("value").value();
             if (a.value.empty()) a.value = ann.text().get();
@@ -208,7 +208,7 @@ public:
             if (b) {
                 fd.bit = *b;
             } else {
-                warn(flag, "<flag> '" + fd.name + "' missing 'bit' attribute, defaulting to 0");
+                error(flag, "<flag> '" + fd.name + "' missing required 'bit' attribute");
             }
             fd.loc = loc(flag);
             result.push_back(std::move(fd));
@@ -235,7 +235,7 @@ public:
             if (v == "deferred") c.validate = model::ValidateTiming::Deferred;
             else if (v == "immediate") c.validate = model::ValidateTiming::Immediate;
             else {
-                warn(node, "unknown validate value '" + std::string(v) + "', defaulting to 'immediate'");
+                error(node, "unknown validate value '" + std::string(v) + "'; expected 'immediate' or 'deferred'");
                 c.validate = model::ValidateTiming::Immediate;
             }
         }
@@ -251,7 +251,7 @@ public:
             std::string_view v = attr.value();
             if (v == "little") return {model::Endian::Little, true};
             if (v == "big") return {model::Endian::Big, true};
-            warn(node, "unknown endian value '" + std::string(v) + "', defaulting to 'big'");
+            error(node, "unknown endian value '" + std::string(v) + "'; expected 'little' or 'big'");
             return {model::Endian::Big, true};
         }
         return {model::Endian::Big, false};
@@ -266,7 +266,7 @@ public:
             if (v == "octal") return {model::DisplayFormat::Octal, true};
             if (v == "binary") return {model::DisplayFormat::Binary, true};
             if (v == "decimal") return {model::DisplayFormat::Decimal, true};
-            warn(node, "unknown format value '" + std::string(v) + "', defaulting to 'decimal'");
+            error(node, "unknown format value '" + std::string(v) + "'; expected 'hex', 'octal', 'binary', or 'decimal'");
             return {model::DisplayFormat::Decimal, true};
         }
         return {model::DisplayFormat::Decimal, false};
@@ -278,7 +278,7 @@ public:
         if (v == "utf8") return model::StringEncoding::Utf8;
         if (v == "ia5") return model::StringEncoding::Ia5;
         if (v == "ebcdic") return model::StringEncoding::Ebcdic;
-        warn(node, "unknown encoding value '" + std::string(v) + "', defaulting to 'ascii'");
+        error(node, "unknown encoding value '" + std::string(v) + "'; expected 'ascii', 'utf8', 'ia5', or 'ebcdic'");
         return model::StringEncoding::Ascii;
     }
 
@@ -286,7 +286,7 @@ public:
         if (v == "null") return model::StringPadding::Null;
         if (v == "space") return model::StringPadding::Space;
         if (v == "none") return model::StringPadding::None;
-        warn(node, "unknown padding value '" + std::string(v) + "', defaulting to 'null'");
+        error(node, "unknown padding value '" + std::string(v) + "'; expected 'null', 'space', or 'none'");
         return model::StringPadding::Null;
     }
 
@@ -295,7 +295,7 @@ public:
         if (v == "left") return model::StringTrim::Left;
         if (v == "both") return model::StringTrim::Both;
         if (v == "none") return model::StringTrim::None;
-        warn(node, "unknown trim value '" + std::string(v) + "', defaulting to 'right'");
+        error(node, "unknown trim value '" + std::string(v) + "'; expected 'right', 'left', 'both', or 'none'");
         return model::StringTrim::Right;
     }
 
@@ -305,7 +305,7 @@ public:
         if (v == "bnr-s" || v == "bnr_s") return model::WireEncoding::BNR_S;
         if (v == "bcd") return model::WireEncoding::BCD;
         if (v == "bcd-s" || v == "bcd_s") return model::WireEncoding::BCD_S;
-        warn(node, "unknown wire-encoding '" + std::string(v) + "', using default");
+        error(node, "unknown wire-encoding '" + std::string(v) + "'; expected 'cb2', 'bnr', 'bnr-s', 'bcd', or 'bcd-s'");
         return model::WireEncoding::Default;
     }
 
@@ -316,19 +316,8 @@ public:
         if (v == "bool") return model::PrimitiveBase::Bool;
         if (v == "bytes") return model::PrimitiveBase::Bytes;
         if (v == "string") return model::PrimitiveBase::String;
-        warn(node, "unknown base value '" + std::string(v) + "', defaulting to 'uint'");
+        error(node, "unknown base value '" + std::string(v) + "'; expected 'uint', 'int', 'float', 'bool', 'bytes', or 'string'");
         return model::PrimitiveBase::Uint;
-    }
-
-    // Parse dispatch attribute
-    std::optional<model::Dispatch> parse_dispatch(const pugi::xml_node& node) {
-        auto attr = node.attribute("dispatch");
-        if (!attr) return std::nullopt;
-        std::string_view v = attr.value();
-        if (v == "batch") return model::Dispatch::Batch;
-        if (v == "per-record") return model::Dispatch::PerRecord;
-        warn(node, "unknown dispatch value '" + std::string(v) + "', defaulting to 'batch'");
-        return model::Dispatch::Batch;
     }
 
     // Parse direction attribute
@@ -339,7 +328,7 @@ public:
             if (v == "send") return model::Direction::Send;
             if (v == "receive") return model::Direction::Receive;
             if (v == "both") return model::Direction::Both;
-            warn(node, "unknown direction value '" + std::string(v) + "', defaulting to 'both'");
+            error(node, "unknown direction value '" + std::string(v) + "'; expected 'send', 'receive', or 'both'");
         }
         return model::Direction::Both;
     }
@@ -572,14 +561,18 @@ public:
         auto inline_attr = node.attribute("inline");
         if (inline_attr) f.is_inline = std::string_view(inline_attr.value()) == "true";
 
-        // Default/initial/auto
+        // Default/auto
         auto def_attr = node.attribute("default");
         if (def_attr) f.default_value = def_attr.value();
         auto init_attr = node.attribute("initial");
-        if (init_attr) f.initial_value = init_attr.value();
-        // Also check child element <initial>
+        if (init_attr) {
+            error(node, "attribute 'initial' is not supported; use 'default' instead");
+        }
+        // Reject <initial> child element
         auto init_node = node.child("initial");
-        if (init_node && !f.initial_value) f.initial_value = init_node.text().get();
+        if (init_node) {
+            error(node, "element <initial> is not supported; use the 'default' attribute instead");
+        }
 
         auto auto_attr = node.attribute("auto");
         if (auto_attr) {
@@ -599,7 +592,7 @@ public:
             "name", "type", "bits", "bytes", "signed", "base", "bit", "present-when",
             "length", "length-from", "length-prefix", "length-includes-prefix",
             "encoding", "padding", "trim", "terminated", "max-length", "char-bits",
-            "endian", "format", "wire-encoding", "inline", "default", "initial", "auto"
+            "endian", "format", "wire-encoding", "inline", "default", "auto"
         });
 
         return f;
@@ -639,7 +632,7 @@ public:
                     if (ext_val) {
                         sd.bitmap_ext = *ext_val;
                     } else {
-                        warn(bitmap_node, "<bitmap> ext attribute must be 'none' or a valid integer, got '" +
+                        error(bitmap_node, "<bitmap> ext attribute must be 'none' or a valid integer, got '" +
                              std::string(v) + "'");
                     }
                 }
@@ -715,14 +708,12 @@ public:
             ad.children = parse_struct_children(node);
         }
 
-        ad.dispatch = parse_dispatch(node);
-
         ad.doc = get_doc(node);
         ad.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
             "name", "type", "count", "count-from", "length", "length-from",
-            "bit", "present-when", "dispatch"
+            "bit", "present-when"
         });
 
         return ad;
@@ -828,12 +819,12 @@ public:
             cd.otherwise = std::move(od);
         }
 
-        // Warn on unrecognized children inside <choice>
+        // Error on unrecognized children inside <choice>
         for (auto child : node.children()) {
             std::string_view cname = child.name();
             if (cname != "case" && cname != "otherwise" &&
                 cname != "doc" && cname != "annotation") {
-                warn(child, "unrecognized element <" + std::string(cname) + "> inside <choice>, ignored");
+                error(child, "unrecognized element <" + std::string(cname) + "> inside <choice>");
             }
         }
 
@@ -977,7 +968,7 @@ public:
             std::string_view v = endian_node.text().get();
             if (v == "little") d.endian = model::Endian::Little;
             else if (v == "big") d.endian = model::Endian::Big;
-            else warn(endian_node, "unknown endian value '" + std::string(v) + "', defaulting to 'big'");
+            else error(endian_node, "unknown endian value '" + std::string(v) + "'; expected 'little' or 'big'");
         }
         auto enc_node = node.child("string-encoding");
         if (enc_node) d.string_encoding = parse_encoding(enc_node, enc_node.text().get());
@@ -993,7 +984,7 @@ public:
             if (cname != "endian" && cname != "string-encoding" &&
                 cname != "string-padding" && cname != "string-trim" &&
                 cname != "namespace") {
-                warn(child, "unrecognized element <" + std::string(cname) + "> inside <defaults>, ignored");
+                error(child, "unrecognized element <" + std::string(cname) + "> inside <defaults>");
             }
         }
         return d;
@@ -1051,7 +1042,7 @@ public:
                     fd.footer_fields.push_back(std::move(sc));
                 }
             } else if (cname != "doc" && cname != "annotation" && !cname.empty()) {
-                warn(child, "unrecognized element <" + std::string(cname) + "> inside <frame>, ignored");
+                error(child, "unrecognized element <" + std::string(cname) + "> inside <frame>");
             }
         }
 
@@ -1096,9 +1087,6 @@ std::vector<model::StructChild> XmlParseContext::parse_struct_children(const pug
         } else if (name == "align") {
             children.push_back(parse_align(child));
         } else if (name != "doc" && name != "annotation" && name != "bitmap" &&
-                   name != "constraint" && name != "scale" && name != "offset" &&
-                   name != "unit" && name != "enum" && name != "flags" &&
-                   name != "value" && name != "flag" && name != "initial" &&
                    !name.empty()) {
             error(child, "unrecognized child element <" + std::string(name) + ">");
         }
@@ -1192,7 +1180,7 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
                 if (cname == "const") {
                     bmdl.constants.push_back(ctx.parse_const(c));
                 } else {
-                    ctx.warn(c, "unrecognized element <" + std::string(cname) + "> inside <constants>, ignored");
+                    ctx.error(c, "unrecognized element <" + std::string(cname) + "> inside <constants>");
                 }
             }
         }
@@ -1205,7 +1193,7 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
                 } else if (cname == "struct") {
                     bmdl.structs.push_back(ctx.parse_struct(child));
                 } else {
-                    ctx.warn(child, "unrecognized element <" + std::string(cname) + "> inside <types>, ignored");
+                    ctx.error(child, "unrecognized element <" + std::string(cname) + "> inside <types>");
                 }
             }
         }
@@ -1216,7 +1204,7 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
                 if (cname == "message") {
                     bmdl.messages.push_back(ctx.parse_message(m));
                 } else {
-                    ctx.warn(m, "unrecognized element <" + std::string(cname) + "> inside <messages>, ignored");
+                    ctx.error(m, "unrecognized element <" + std::string(cname) + "> inside <messages>");
                 }
             }
         }
@@ -1258,12 +1246,12 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         // Parse all definitions under <protocol>
         parse_definitions(protocol);
 
-        // Warn on unrecognized child elements inside <protocol>
+        // Error on unrecognized child elements inside <protocol>
         for (auto child : protocol.children()) {
             std::string_view cname = child.name();
             if (cname != "defaults" && cname != "import" && cname != "constants" &&
                 cname != "types" && cname != "messages" && cname != "frame" && cname != "doc") {
-                ctx.warn(child, "unrecognized element <" + std::string(cname) + "> inside <protocol>, ignored");
+                ctx.error(child, "unrecognized element <" + std::string(cname) + "> inside <protocol>");
             }
         }
     } else if (root.child("defaults")) {
@@ -1316,7 +1304,8 @@ XmlParseResult parse_bmdl_file(const std::string& file_path) {
         for (auto child : root.children()) {
             std::string_view cname = child.name();
             if (cname != "import" && cname != "constants" &&
-                cname != "types" && cname != "messages" && cname != "frame") {
+                cname != "types" && cname != "messages" && cname != "frame" &&
+                cname != "doc" && cname != "annotation") {
                 ctx.error(child, "unrecognized element <" + std::string(cname) + "> in library file");
             }
         }

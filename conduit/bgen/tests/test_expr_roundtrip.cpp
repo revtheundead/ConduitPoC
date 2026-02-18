@@ -22,7 +22,7 @@ TEST_CASE("ArithmeticLengthMsg TypeA roundtrip", "[roundtrip][expr]") {
     msg.set_tag(expr_features::TYPE_A);
     expr_features::ItemA item;
     item.set_val(0x1234);
-    msg.set_body(expr_features::bodyVariant{item});
+    msg.set_body(expr_features::ArithmeticLengthMsg_bodyVariant{item});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -43,7 +43,7 @@ TEST_CASE("ArithmeticLengthMsg TypeB roundtrip", "[roundtrip][expr]") {
     msg.set_tag(expr_features::TYPE_B);
     expr_features::ItemB item;
     item.set_tag(0xDEADBEEF);
-    msg.set_body(expr_features::bodyVariant{item});
+    msg.set_body(expr_features::ArithmeticLengthMsg_bodyVariant{item});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -210,7 +210,7 @@ TEST_CASE("ArithmeticLengthMsg TypeA wire bytes", "[wire][expr]") {
     msg.set_tag(expr_features::TYPE_A); // 0x01
     expr_features::ItemA item;
     item.set_val(0x1234);      // BE16: 0x12, 0x34
-    msg.set_body(expr_features::bodyVariant{item});
+    msg.set_body(expr_features::ArithmeticLengthMsg_bodyVariant{item});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());

@@ -33,8 +33,9 @@
 
 TEST_CASE("DefaultMsg roundtrip", "[roundtrip][default_initial]") {
     default_initial::DefaultMsg msg;
-    msg.set_version(1);
-    msg.set_priority(0);
+    // Verify defaults are applied on construction (version=1, priority=0)
+    CHECK(msg.version() == 1);
+    CHECK(msg.priority() == 0);
     msg.set_data(0x12345678);
 
     auto enc_result = msg.encode_bytes();
@@ -63,8 +64,8 @@ TEST_CASE("DefaultMsg wire format", "[roundtrip][default_initial][wire]") {
     CHECK(bytes[2] == 0);  // data high byte
 }
 
-TEST_CASE("InitialMsg has initial values", "[roundtrip][default_initial]") {
-    // InitialMsg should have counter=100 and status=0 by default
+TEST_CASE("InitialMsg has default values on construction", "[roundtrip][default_initial]") {
+    // InitialMsg should have counter=100 and status=0 from default attribute
     default_initial::InitialMsg msg;
     CHECK(msg.counter() == 100);
     CHECK(msg.status() == 0);
@@ -86,7 +87,7 @@ TEST_CASE("InitialMsg roundtrip", "[roundtrip][default_initial]") {
     CHECK(decoded->payload() == 0xAABBCCDD);
 }
 
-TEST_CASE("InitialMsg override initial values", "[roundtrip][default_initial]") {
+TEST_CASE("InitialMsg override default values", "[roundtrip][default_initial]") {
     default_initial::InitialMsg msg;
     msg.set_counter(999);
     msg.set_status(42);
@@ -99,6 +100,28 @@ TEST_CASE("InitialMsg override initial values", "[roundtrip][default_initial]") 
     REQUIRE(decoded.has_value());
     CHECK(decoded->counter() == 999);
     CHECK(decoded->status() == 42);
+}
+
+TEST_CASE("ConstraintDefaultMsg has constraint-implied default on construction", "[roundtrip][default_initial]") {
+    // constraint equals="42" on magic should imply default=42
+    default_initial::ConstraintDefaultMsg msg;
+    CHECK(msg.magic() == 42);
+    CHECK(msg.tag() == 37);   // explicit default="37"
+}
+
+TEST_CASE("ConstraintDefaultMsg roundtrip", "[roundtrip][default_initial]") {
+    default_initial::ConstraintDefaultMsg msg;
+    // magic already has correct default from constraint; tag from explicit default
+    msg.set_payload(0x1234);
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    auto decoded = default_initial::ConstraintDefaultMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->magic() == 42);
+    CHECK(decoded->tag() == 37);
+    CHECK(decoded->payload() == 0x1234);
 }
 
 // ============================================================================
@@ -222,21 +245,21 @@ TEST_CASE("Auto-sequence session increments sequence", "[roundtrip][auto_seq][se
     // First encode: seq should be 0
     auto wrap1 = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrap1.has_value());
-    auto dec1 = auto_seq::Frame::decode_bytes(*wrap1);
+    auto dec1 = auto_seq::Frame::decode_bytes(wrap1->bytes);
     REQUIRE(dec1.has_value());
     CHECK(dec1->seq() == 0);
 
     // Second encode: seq should be 1
     auto wrap2 = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrap2.has_value());
-    auto dec2 = auto_seq::Frame::decode_bytes(*wrap2);
+    auto dec2 = auto_seq::Frame::decode_bytes(wrap2->bytes);
     REQUIRE(dec2.has_value());
     CHECK(dec2->seq() == 1);
 
     // Third encode: seq should be 2
     auto wrap3 = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrap3.has_value());
-    auto dec3 = auto_seq::Frame::decode_bytes(*wrap3);
+    auto dec3 = auto_seq::Frame::decode_bytes(wrap3->bytes);
     REQUIRE(dec3.has_value());
     CHECK(dec3->seq() == 2);
 }
@@ -266,7 +289,7 @@ TEST_CASE("Auto-sequence session reset resets sequence", "[roundtrip][auto_seq][
     // Next encode should restart at 0
     auto wrapped = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrapped.has_value());
-    auto decoded = auto_seq::Frame::decode_bytes(*wrapped);
+    auto decoded = auto_seq::Frame::decode_bytes(wrapped->bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->seq() == 0);
 }
@@ -289,7 +312,7 @@ TEST_CASE("Auto-sequence session decode_frame roundtrip", "[roundtrip][auto_seq]
     auto wrapped = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrapped.has_value());
 
-    auto decoded = session->decode_frame(*wrapped);
+    auto decoded = session->decode_frame(wrapped->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(!decoded->empty());
     CHECK(decoded->front().type_name == "BodyA");
@@ -317,14 +340,14 @@ TEST_CASE("Auto-sequence session decode_frame populates raw bytes", "[roundtrip]
     auto wrapped = session->encode_wrap(body_a_id, std::any{body});
     REQUIRE(wrapped.has_value());
 
-    auto decoded = session->decode_frame(*wrapped);
+    auto decoded = session->decode_frame(wrapped->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(!decoded->empty());
 
     // M8: DecodedMessage.raw should be populated with the frame bytes
     CHECK_FALSE(decoded->front().raw.empty());
-    CHECK(decoded->front().raw.size() == wrapped->size());
-    CHECK(decoded->front().raw == *wrapped);
+    CHECK(decoded->front().raw.size() == wrapped->bytes.size());
+    CHECK(decoded->front().raw == wrapped->bytes);
 }
 
 TEST_CASE("Auto-sequence Frame wrong sync decodes successfully", "[roundtrip][auto_seq]") {

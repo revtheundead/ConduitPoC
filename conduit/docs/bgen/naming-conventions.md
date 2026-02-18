@@ -20,7 +20,7 @@ The conversion:
 - **`to_snake_case(name)`**: Replaces all hyphens with underscores
 - **`to_member_name(name)`**: `to_snake_case(name) + "_"` (trailing underscore)
 - **`to_accessor_name(name)`**: `to_snake_case(name)` (no trailing underscore)
-- **`to_pascal_case(name)`**: Capitalizes each segment separated by hyphens/underscores (e.g., `"my-field"` -> `"MyField"`, `"heartbeat"` -> `"Heartbeat"`). Defined in `name_utils.hpp` but not currently used by codegen.
+- **`to_pascal_case(name)`**: Capitalizes each segment separated by hyphens/underscores (e.g., `"my-field"` -> `"MyField"`, `"heartbeat"` -> `"Heartbeat"`). Used by codegen for inline enum type names (see [Inline Enum Names](#inline-enum-names)).
 
 ## Type Names
 
@@ -104,22 +104,58 @@ The session class uses `to_cpp_type_name(name) + "Session"`. The factory functio
 
 ## Child Class Names
 
-Inline structs, array elements, and choice cases that define children inline generate child classes. The naming uses the parent context to avoid collisions:
+Inline structs, array elements, and choice cases that define children inline generate child classes. Child names are **always** prefixed with the parent's resolved C++ class name using `resolve_child_class_name()`:
 
-- Inline struct children: `to_cpp_type_name(bmdl_name)` (with parent disambiguation if needed)
-- Array elements: `to_cpp_type_name(array_name + "Element")`
-- Otherwise cases: `to_cpp_type_name(choice_name + "Otherwise")`
+```
+parent_cpp_name + "_" + to_cpp_type_name(child_bmdl_name)
+```
+
+This applies recursively -- a grandchild inherits the fully-qualified parent name:
+
+| Context | BMDL Name | Resolved C++ Name |
+|---------|-----------|-------------------|
+| Top-level struct `items` | `items` | `items` |
+| Child struct `spf` inside message `Cat007UplinkRecord` | `spf` inside `items` | `Cat007UplinkRecord_items_spf` |
+| Array element inside message `MyMessage` | `records` (array) | `MyMessage_recordsElement` |
+| Otherwise case of choice `payload` in `MyMessage` | `payload` (otherwise) | `MyMessage_payloadOtherwise` |
+
+Specific patterns:
+- **Inline struct children:** `parent + "_" + to_cpp_type_name(bmdl_name)`
+- **Array elements:** `parent + "_" + to_cpp_type_name(array_name + "Element")`
+- **Otherwise cases:** `parent + "_" + to_cpp_type_name(choice_name + "Otherwise")`
+
+Top-level structs and messages (with empty `parent_name`) use `to_cpp_type_name(bmdl_name)` directly.
+
+## Inline Enum Names
+
+Fields with inline `<enum>` definitions generate a standalone enum type. The name uses `to_pascal_case` on both the parent class name and the field name:
+
+```
+to_pascal_case(current_parent) + "_" + to_pascal_case(field_name)
+```
+
+| Parent Class | Field Name | Enum Type Name |
+|-------------|------------|----------------|
+| `Cat048Record` | `msg-type` | `Cat048Record_MsgType` |
+| `Heartbeat` | `status` | `Heartbeat_Status` |
+| `Cat007UplinkRecord_items` | `code` | `Cat007UplinkRecordItems_Code` |
+
+Note that `to_pascal_case` converts underscores to word boundaries, so `Cat007UplinkRecord_items` becomes `Cat007UplinkRecordItems` in the enum prefix.
 
 ## Variant Type Aliases
 
-Choice fields generate a `using` alias for their `std::variant`:
+Choice fields generate a namespace-scope `using` alias for their `std::variant`. The alias is always prefixed with the parent class name:
 
-| BMDL Choice Name | C++ Variant Alias |
-|-------------------|------------------|
-| `payload` | `payloadVariant` |
-| `msg-body` | `msg_bodyVariant` |
+```
+to_cpp_type_name(current_parent) + "_" + to_cpp_type_name(choice_name) + "Variant"
+```
 
-The alias is `to_cpp_type_name(choice_name) + "Variant"`.
+| Parent Class | BMDL Choice Name | C++ Variant Alias |
+|-------------|-------------------|------------------|
+| `MyMessage` | `payload` | `MyMessage_payloadVariant` |
+| `Cat048Record` | `msg-body` | `Cat048Record_msg_bodyVariant` |
+
+The alias is emitted as a namespace-scope `using` declaration before the parent class definition. When `current_parent_` is empty (top-level), the alias omits the prefix (e.g., `payloadVariant`).
 
 ## C++ Keyword Avoidance
 

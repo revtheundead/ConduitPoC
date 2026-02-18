@@ -1,0 +1,16 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_auto_increment_max</namespace>
+  </defaults>
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- auto="increment" + constraint max should be rejected -->
+      <field name="seq" type="uint16" auto="increment">
+        <constraint max="1000"/>
+      </field>
+    </message>
+  </messages>
+</bmdl>

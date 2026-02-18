@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>uint64_max_default</namespace></defaults>
+  <types>
+    <type name="uint64" base="uint" bits="64"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+
+  <messages>
+    <message name="Big64Msg">
+      <!-- M6: 64-bit uint default with max value should not crash or error -->
+      <field name="big-value" type="uint64" default="18446744073709551615"/>
+      <field name="normal" type="uint32"/>
+    </message>
+  </messages>
+</bmdl>

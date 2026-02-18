@@ -26,9 +26,9 @@ public:
         return std::vector<traits::DecodedMessage>{};
     }
 
-    Result<std::vector<uint8_t>>
+    Result<traits::EncodeResult>
     encode_wrap(uint64_t /*type_id*/, const std::any& /*payload*/) override {
-        return std::vector<uint8_t>{};
+        return traits::EncodeResult{{}, {}};
     }
 
     std::span<const uint8_t> sync_pattern() const override {

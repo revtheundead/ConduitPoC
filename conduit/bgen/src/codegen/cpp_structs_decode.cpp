@@ -23,7 +23,7 @@ void StructEmitter::emit_decode(const std::vector<model::StructChild>& children,
 
     // Build decode signature with outer-scope params if any
     std::string decode_params = "conduit::io::BitReader& r";
-    auto osp_it = struct_decode_params_.find(current_parent_);
+    auto osp_it = struct_decode_params_.find(current_bmdl_name_);
     if (osp_it != struct_decode_params_.end()) {
         for (const auto& p : osp_it->second) {
             if (p.pass_by_ref) {
@@ -50,8 +50,32 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
                                     const std::string& class_name,
                                     const std::vector<FrameFieldInfo>& header_frame_fields,
                                     const std::vector<FrameFieldInfo>& footer_frame_fields) {
-    ctx_.line("std::string to_string() const {");
+    // Check if any frame field is auto-managed — if so, generate the overload
+    bool has_auto_managed = false;
+    for (const auto& ffi : header_frame_fields) {
+        if (ffi.fi.is_auto_managed) { has_auto_managed = true; break; }
+    }
+    if (!has_auto_managed) {
+        for (const auto& ffi : footer_frame_fields) {
+            if (ffi.fi.is_auto_managed) { has_auto_managed = true; break; }
+        }
+    }
+
+    // Always generate the span-accepting overload so format_outbound can call it
+    // regardless of whether this message has auto-managed frame fields.
+    ctx_.line("std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {");
     ctx_.indent();
+
+    if (has_auto_managed) {
+        // Lambda to look up override value by field name
+        ctx_.line("auto ov = [&](std::string_view n) -> const std::string* {");
+        ctx_.line("    for (const auto& [k, v] : overrides) if (k == n) return &v;");
+        ctx_.line("    return nullptr;");
+        ctx_.line("};");
+    } else {
+        ctx_.line("(void)overrides;");
+    }
+
     ctx_.line("std::ostringstream oss;");
     ctx_.line("oss << \"" + class_name + "{\"");
     ctx_.indent();
@@ -64,7 +88,20 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
         std::string member = to_member_name(ffi.fi.name);
         first = false;
 
-        if (ffi.fti.is_enum) {
+        if (has_auto_managed && ffi.fi.is_auto_managed) {
+            // Auto-managed: use override if present, else member value
+            ctx_.line("<< \"" + sep + ffi.fi.name + "=\"");
+            ctx_.line(";");
+            ctx_.line("if (auto* ov_val = ov(\"" + ffi.fi.name + "\")) oss << *ov_val;");
+            if (ffi.fti.is_enum) {
+                ctx_.line("else oss << ::" + ns_ + "::to_string(" + member + ");");
+            } else if (ffi.fti.is_struct) {
+                ctx_.line("else oss << +(" + member + ".raw());");
+            } else {
+                ctx_.line("else oss << +(" + member + ");");
+            }
+            ctx_.line("oss");
+        } else if (ffi.fti.is_enum) {
             ctx_.line("<< \"" + sep + ffi.fi.name + "=\" << ::" + ns_ + "::to_string(" + member + ")");
         } else if (ffi.fti.is_struct) {
             // Typedef wrapper — use .raw() with unary + for safe uint8_t display
@@ -90,6 +127,7 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
         bool is_string = false;
         bool is_bytes = false;
         bool is_enum = false;
+        bool is_bool = false;
         bool is_struct_type = false;
         bool is_simple_numeric = false;
         bool is_inner_struct = false;
@@ -99,17 +137,24 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
         bool is_string_wrapper = false;
         bool is_typedef_wrapper = false;
         bool is_array_of_structs = false;
+        int field_bits = 0;
         auto find_field_info = [&](const std::vector<model::StructChild>& cs, auto&& self) -> bool {
             for (const auto& child : cs) {
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (f->name == fi.name) {
                         fmt = f->format;
                         auto fti = resolve_field_type(*f, index_);
+                        // Override for inline enums
+                        if (!f->enum_values.empty() && f->type_ref.empty()) {
+                            fti.is_enum = true;
+                        }
                         is_string = fti.is_string;
                         is_bytes = fti.is_bytes;
                         is_enum = fti.is_enum;
+                        is_bool = fti.is_bool;
                         is_struct_type = fti.is_struct;
                         is_field_scale = fti.has_field_scale;
+                        field_bits = fti.bits;
                         is_simple_numeric = !fti.is_struct && !fti.is_enum && !fti.is_string && !fti.is_bytes && (fti.bits > 0 || fti.has_field_scale);
                         // Classify wrapped type for to_string output
                         if (is_struct_type && !f->type_ref.empty()) {
@@ -161,7 +206,10 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
 
         if (fi.is_optional) {
             std::string deref = "*" + member;
-            if (is_simple_numeric) {
+            if (is_bool) {
+                ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member +
+                         ".has_value() ? (" + deref + " ? \"true\" : \"false\") : \"<none>\")");
+            } else if (is_simple_numeric) {
                 ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member +
                          ".has_value() ? std::to_string(" + deref + ") : std::string(\"<none>\"))");
             } else if (is_string) {
@@ -207,6 +255,8 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
                 ctx_.line("<< \"" + sep + fi.name + "=\" << +(" + member + ".raw())");
             else
                 ctx_.line("<< \"" + sep + fi.name + "=\" << " + member + ".to_string()");
+        } else if (is_bool) {
+            ctx_.line("<< \"" + sep + fi.name + "=\" << (" + member + " ? \"true\" : \"false\")");
         } else if (is_simple_numeric) {
             switch (fmt) {
                 case model::DisplayFormat::Hex:
@@ -214,6 +264,14 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
                     break;
                 case model::DisplayFormat::Octal:
                     ctx_.line("<< \"" + sep + fi.name + "=0\" << std::oct << static_cast<uint64_t>(" + member + ") << std::dec");
+                    break;
+                case model::DisplayFormat::Binary:
+                    if (field_bits > 0) {
+                        ctx_.line("<< \"" + sep + fi.name + "=0b\" << std::bitset<64>(static_cast<uint64_t>(" +
+                                 member + ")).to_string().substr(64 - " + std::to_string(field_bits) + ")");
+                    } else {
+                        ctx_.line("<< \"" + sep + fi.name + "=\" << +(" + member + ")");
+                    }
                     break;
                 default:
                     // Unary + promotes uint8_t/int8_t to int for numeric display
@@ -250,6 +308,9 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
     ctx_.line("return oss.str();");
     ctx_.dedent();
     ctx_.line("}");
+
+    // Always generate the no-arg delegate
+    ctx_.line("std::string to_string() const { return to_string({}); }");
     ctx_.line();
 }
 
@@ -323,6 +384,23 @@ void StructEmitter::emit_bitmap_to_string(const std::vector<BitmapField>& bfield
                 case model::DisplayFormat::Octal:
                     ctx_.line("oss << \"" + bf.name + "=0\" << std::oct << static_cast<uint64_t>(*" + member + ") << std::dec;");
                     break;
+                case model::DisplayFormat::Binary: {
+                    int bf_bits = 0;
+                    if (bf.source_field) {
+                        auto bf_fti = resolve_field_type(*bf.source_field, index_);
+                        bf_bits = bf_fti.bits;
+                    }
+                    if (bf_bits > 0) {
+                        ctx_.line("oss << \"" + bf.name + "=0b\" << std::bitset<64>(static_cast<uint64_t>(*" +
+                                 member + ")).to_string().substr(64 - " + std::to_string(bf_bits) + ");");
+                    } else {
+                        if (bf.is_signed)
+                            ctx_.line("oss << \"" + bf.name + "=\" << static_cast<int64_t>(*" + member + ");");
+                        else
+                            ctx_.line("oss << \"" + bf.name + "=\" << static_cast<uint64_t>(*" + member + ");");
+                    }
+                    break;
+                }
                 default:
                     if (bf.is_signed)
                         ctx_.line("oss << \"" + bf.name + "=\" << static_cast<int64_t>(*" + member + ");");
@@ -620,6 +698,13 @@ void StructEmitter::emit_decode_field(const model::Field& f, const std::string& 
 void StructEmitter::emit_decode_field_body(const model::Field& f, const std::string& result_var) {
     std::string member = result_var + "." + to_member_name(f.name);
     auto fti = resolve_field_type(f, index_);
+
+    // Override for inline enums (fields with <enum> values but no type_ref)
+    if (!f.enum_values.empty() && f.type_ref.empty()) {
+        std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(f.name);
+        fti.cpp_type = enum_name;
+        fti.is_enum = true;
+    }
 
     if (f.is_inline) {
         // Inline: decode struct/message fields directly into result
@@ -1399,6 +1484,12 @@ void StructEmitter::emit_decode_fx_children(const std::vector<model::StructChild
             if constexpr (std::is_same_v<T, model::Field>) {
                 std::string member = result_var + "." + to_member_name(c.name);
                 auto fti = resolve_field_type(c, index_);
+                // Override for inline enums
+                if (!c.enum_values.empty() && c.type_ref.empty()) {
+                    std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
+                    fti.cpp_type = enum_name;
+                    fti.is_enum = true;
+                }
                 if (fti.is_enum) {
                     ctx_.line("{");
                     ctx_.indent();

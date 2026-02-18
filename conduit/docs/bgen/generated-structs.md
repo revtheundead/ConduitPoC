@@ -23,6 +23,24 @@ Every struct/message generates a C++ class with:
 
 See [Naming Conventions](naming-conventions.md) for the full mapping rules.
 
+## Default Values and Member Initializers
+
+Non-optional fields with a `default` attribute use the default value as their C++ member initializer:
+
+```cpp
+// BMDL: <field name="version" type="uint8" default="1"/>
+uint8_t version_{1};  // initialized to 1 instead of 0
+```
+
+Fields with `<constraint equals="X"/>` automatically use the constrained value as the member initializer, even without an explicit `default` attribute:
+
+```cpp
+// BMDL: <field name="sync" type="uint8"><constraint equals="42"/></field>
+uint8_t sync_{42};  // constraint implies default
+```
+
+For optional fields, the `default` value is used in the getter via `value_or()` — see [Optional Field Accessors](#optional-field-accessors).
+
 ## Plain Field Accessors
 
 For a non-optional field `status` of type `uint8_t`:
@@ -125,18 +143,18 @@ BMDL `<choice>` elements generate `std::variant`-based types:
 </choice>
 ```
 
-Generated:
+Generated (assuming parent class is `MyMessage`):
 
-- **`using payloadVariant = std::variant<HeartbeatMsg, DataMsg, RawPayload>;`** -- Type alias (variant name = `to_cpp_type_name(choice_name) + "Variant"`)
-- **`const payloadVariant& payload() const`** -- Returns the variant
-- **`void set_payload(const payloadVariant& v)`** -- Sets the variant
-- **`payloadVariant& mutable_payload()`** -- Mutable variant access
+- **`using MyMessage_payloadVariant = std::variant<HeartbeatMsg, DataMsg, RawPayload>;`** -- Namespace-scope type alias (see [Naming Conventions: Variant Type Aliases](naming-conventions.md#variant-type-aliases))
+- **`const MyMessage_payloadVariant& payload() const`** -- Returns the variant
+- **`void set_payload(const MyMessage_payloadVariant& v)`** -- Sets the variant
+- **`MyMessage_payloadVariant& mutable_payload()`** -- Mutable variant access
 
 There are no per-case convenience accessors. Use `std::holds_alternative<T>()` and `std::get<T>()` from `<variant>` to inspect and extract specific cases.
 
 If the choice is optional (has a `bit` or `present-when` attribute), it gets optional accessors instead (`has_payload()`, `clear_payload()`, etc.).
 
-Inline cases (cases with `<field>` children instead of a `type` attribute) generate synthetic child classes before the parent class. Inline case types are always prefixed with the parent class name to prevent cross-message collisions: `<case name="Data">` inside message `Request` generates class `Request_Data`.
+Inline cases (cases with `<field>` children instead of a `type` attribute) generate synthetic child classes before the parent class. Inline case types are always prefixed with the parent's fully-qualified C++ class name to prevent cross-message collisions: `<case name="Data">` inside message `Request` generates class `Request_Data`. This nesting is recursive — a grandchild gets multiply-prefixed (e.g., `Request_Data_Detail`). See [Naming Conventions: Child Class Names](naming-conventions.md#child-class-names).
 
 ## Arrays
 

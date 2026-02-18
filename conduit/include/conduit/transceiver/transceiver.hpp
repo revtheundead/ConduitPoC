@@ -8,6 +8,7 @@
 #include <conduit/queue/bounded_queue.hpp>
 #include <conduit/traits/codec_traits.hpp>
 #include <conduit/traits/session_traits.hpp>
+#include <conduit/transceiver/error_event.hpp>
 #include <conduit/transceiver/handler.hpp>
 #include <conduit/transceiver/message_handler.hpp>
 #include <conduit/transceiver/message_log.hpp>
@@ -110,6 +111,13 @@ public:
 
     // Remove a previously registered state change callback.
     bool remove_state_change(CallbackId id);
+
+    // Register error callback. Fires for decode errors, queue drops, handler
+    // exceptions/timeouts, and session factory failures. Returns an ID for removal.
+    [[nodiscard]] CallbackId on_error(ErrorCallback cb);
+
+    // Remove a previously registered error callback.
+    bool remove_error_callback(CallbackId id);
 
     // ========================================================================
     // Send
@@ -248,7 +256,20 @@ private:
     };
     std::vector<StateCallbackEntry> state_callbacks_;
     std::mutex state_cb_mutex_;
-    uint32_t next_callback_id_{1};
+    std::atomic<uint32_t> next_callback_id_{1};
+
+    struct ErrorCallbackEntry {
+        CallbackId id;
+        ErrorCallback cb;
+    };
+    std::vector<ErrorCallbackEntry> error_callbacks_;
+    std::mutex error_cb_mutex_;
+
+    // Fire error event to all registered error callbacks.
+    // fire_error: looks up peer context — must NOT be called while holding peers_mutex_.
+    // fire_error_event: fires a pre-constructed event — safe to call from any context.
+    void fire_error(PeerId peer, Error error);
+    void fire_error_event(ErrorEvent event);
 
     std::unique_ptr<MessageLog> message_log_;
 

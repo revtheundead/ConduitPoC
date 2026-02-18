@@ -189,7 +189,14 @@ std::string generate_protocol(const model::Protocol& protocol,
         if (first_session.is_frame_based && first_session.frame) {
             std::string factory_func = "create_" + to_lower_snake_case(first_session.frame->name) + "_session";
             std::string session_class = to_cpp_type_name(first_session.frame->name) + "Session";
-            if (!first_session.config_fields.empty()) {
+            // Check if session has any config fields (frame-level or message-level)
+            bool has_any_config = !first_session.config_fields.empty();
+            if (!has_any_config) {
+                for (const auto& lt : first_session.leaf_types) {
+                    if (!lt.config_fields.empty()) { has_any_config = true; break; }
+                }
+            }
+            if (has_any_config) {
                 // Config-parameterized factory
                 ctx.line("static std::unique_ptr<conduit::traits::ISession> create_session(const "
                          + session_class + "::Config& config) {");

@@ -301,8 +301,9 @@ int main(int argc, char* argv[]) {
     auto protocol_code = bgen::codegen::generate_protocol(protocol, sessions, ns);
     ok &= write_file(output_dir / "protocol.hpp", protocol_code);
 
-    auto umbrella_code = bgen::codegen::generate_umbrella(protocol.name);
-    ok &= write_file(output_dir / (protocol.name + ".hpp"), umbrella_code);
+    auto umbrella_name = bgen::codegen::to_lower_snake_case(protocol.name);
+    auto umbrella_code = bgen::codegen::generate_umbrella(umbrella_name);
+    ok &= write_file(output_dir / (umbrella_name + ".hpp"), umbrella_code);
 
     if (!ok) {
         bgen::Logger::error("I/O errors occurred");

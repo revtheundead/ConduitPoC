@@ -29,6 +29,7 @@ public:
                 si.is_frame_based = true;
                 si.frame = &frame;
                 si.payload_is_array = frame.payload.is_array;
+                si.payload_length_from = frame.payload.length_from.get();
 
                 // Scan header fields for auto expressions
                 size_t header_bit_offset = 0;
@@ -73,6 +74,20 @@ public:
                                     cf.type_ref = f->type_ref;
                                     cf.bits = field_bits;
                                     cf.is_signed = f->is_signed;
+                                    // Resolve signedness through TypeDef if not explicit on field
+                                    if (!cf.is_signed && !f->type_ref.empty()) {
+                                        auto resolved = index_.find(f->type_ref);
+                                        if (resolved) {
+                                            std::visit([&](const auto* def) {
+                                                using D = std::decay_t<std::remove_pointer_t<decltype(def)>>;
+                                                if constexpr (std::is_same_v<D, model::TypeDef>) {
+                                                    if (def->base == model::PrimitiveBase::Int) {
+                                                        cf.is_signed = true;
+                                                    }
+                                                }
+                                            }, *resolved);
+                                        }
+                                    }
                                     si.config_fields.push_back(std::move(cf));
                                     break;
                                 }
@@ -211,6 +226,8 @@ private:
                         }
                     } else if (f->bits) {
                         bits = *f->bits;
+                    } else if (f->bytes_attr) {
+                        bits = std::max(0, *f->bytes_attr) * 8;
                     }
                     leaf.auto_field_bits.push_back(bits);
                 }
@@ -224,8 +241,33 @@ private:
                         }
                     } else if (f->bits) {
                         bits = *f->bits;
+                    } else if (f->bytes_attr) {
+                        bits = std::max(0, *f->bytes_attr) * 8;
                     }
                     leaf.timestamp_field_bits.push_back(bits);
+                }
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Config) {
+                    ConfigField cf;
+                    cf.key = f->auto_expr->key;
+                    cf.field_name = f->name;
+                    cf.type_ref = f->type_ref;
+                    cf.bits = resolve_field_bits(*f);
+                    cf.is_signed = f->is_signed;
+                    // Resolve signedness through TypeDef if not explicit on field
+                    if (!cf.is_signed && !f->type_ref.empty()) {
+                        auto resolved = index_.find(f->type_ref);
+                        if (resolved) {
+                            std::visit([&](const auto* def) {
+                                using D = std::decay_t<std::remove_pointer_t<decltype(def)>>;
+                                if constexpr (std::is_same_v<D, model::TypeDef>) {
+                                    if (def->base == model::PrimitiveBase::Int) {
+                                        cf.is_signed = true;
+                                    }
+                                }
+                            }, *resolved);
+                        }
+                    }
+                    leaf.config_fields.push_back(std::move(cf));
                 }
                 // Recurse into inline fields
                 if (f->is_inline && !f->type_ref.empty()) {
@@ -265,7 +307,7 @@ private:
         // Determine byte count from type
         size_t bytes = 1;
         auto it = index_.types.find(type_ref);
-        if (it != index_.types.end()) {
+        if (it != index_.types.end() && it->second->bits > 0) {
             bytes = (static_cast<size_t>(it->second->bits) + 7) / 8;
         }
 

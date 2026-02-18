@@ -19,8 +19,8 @@ public:
     [[nodiscard]] virtual Result<std::vector<DecodedMessage>>
         decode_frame(std::span<const uint8_t> data) = 0;
 
-    // Encode a typed message (by type_id) into wire bytes
-    [[nodiscard]] virtual Result<std::vector<uint8_t>>
+    // Encode a typed message (by type_id) into wire bytes + metadata
+    [[nodiscard]] virtual Result<EncodeResult>
         encode_wrap(uint64_t type_id, const std::any& payload) = 0;
 
     // Stream framing metadata
@@ -41,6 +41,11 @@ public:
     // Message logging support (optional)
     [[nodiscard]] virtual std::string format_message(uint64_t type_id,
                                                       const std::any& payload) const { return {}; }
+    [[nodiscard]] virtual std::string format_outbound(
+        uint64_t type_id, const std::any& payload,
+        std::span<const std::pair<std::string, std::string>> auto_fields) const {
+        return format_message(type_id, payload);
+    }
     [[nodiscard]] virtual std::string_view protocol_name() const { return "unknown"; }
 };
 
@@ -54,7 +59,7 @@ Users do not implement `ISession` -- bgen generates implementations. You only in
 ```cpp
 // Default implementation returns BatchNotSupported.
 // Array-payload sessions override this to pack multiple messages into one frame.
-[[nodiscard]] virtual Result<std::vector<uint8_t>>
+[[nodiscard]] virtual Result<EncodeResult>
     encode_batch(uint64_t type_id, std::span<const std::any> payloads);
 ```
 
@@ -74,6 +79,20 @@ struct DecodedMessage {
 The `raw` field contains a copy of the entire frame byte buffer passed to `decode_frame()`. For array-payload frames with multiple messages, each `DecodedMessage` receives the same frame bytes. This is useful for forwarding/relay scenarios where the original wire bytes must be preserved.
 
 The `Transceiver` unwraps the `std::any` payload using `std::any_cast<const T&>` when dispatching to typed handlers. You rarely interact with `DecodedMessage` directly.
+
+## EncodeResult
+
+`encode_wrap()` and `encode_batch()` return an `EncodeResult` containing both the encoded bytes and metadata about auto-managed fields:
+
+```cpp
+struct EncodeResult {
+    std::vector<uint8_t> bytes;                               // Encoded frame bytes
+    std::vector<std::pair<std::string, std::string>> auto_fields; // name-value pairs
+};
+```
+
+- **`bytes`**: The fully encoded frame ready for transmission.
+- **`auto_fields`**: Name-value pairs of auto-managed fields set during encoding (id, length, sequence counter, timestamp). Used by the transceiver for outbound message logging via `ISession::format_outbound()`.
 
 ## Codec Concepts
 

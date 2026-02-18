@@ -92,6 +92,12 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                     ctx_.line("if (" + member + ".has_value()) {");
                     ctx_.indent();
                     auto fti = resolve_field_type(c, index_);
+                    // Override for inline enums (fields with <enum> values but no type_ref)
+                    if (!c.enum_values.empty() && c.type_ref.empty()) {
+                        std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
+                        fti.cpp_type = enum_name;
+                        fti.is_enum = true;
+                    }
                     // I2: Constraint check for optional field (dereference the optional)
                     if (c.constraint && !fti.is_struct && !fti.is_enum) {
                         emit_encode_constraint_check(*c.constraint, "*" + member, c.name, fti.is_signed);
@@ -254,6 +260,13 @@ void StructEmitter::emit_encode_constraint_check(const model::Constraint& c, con
 void StructEmitter::emit_encode_field(const model::Field& f) {
     std::string member = to_member_name(f.name);
     auto fti = resolve_field_type(f, index_);
+
+    // Override for inline enums (fields with <enum> values but no type_ref)
+    if (!f.enum_values.empty() && f.type_ref.empty()) {
+        std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(f.name);
+        fti.cpp_type = enum_name;
+        fti.is_enum = true;
+    }
 
     // Auto-length: write zero placeholder for later backpatch
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length &&
@@ -721,6 +734,12 @@ void StructEmitter::emit_encode_fx_children(const std::vector<model::StructChild
             if constexpr (std::is_same_v<T, model::Field>) {
                 std::string member = to_member_name(c.name);
                 auto fti = resolve_field_type(c, index_);
+                // Override for inline enums
+                if (!c.enum_values.empty() && c.type_ref.empty()) {
+                    std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
+                    fti.cpp_type = enum_name;
+                    fti.is_enum = true;
+                }
                 // Within an FX extension, ALL fields must be written at their fixed
                 // bit positions unconditionally. Use value_or(0) for primitives/enums
                 // and conditional with zero-fill for structs.

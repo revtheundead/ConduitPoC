@@ -74,7 +74,7 @@ TEST_CASE("frame_length_offset: session decode_frame roundtrip", "[frame][sessio
     auto encoded = session->encode_wrap(frame_len_offset::Ping::TYPE_ID, msg);
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -97,8 +97,8 @@ TEST_CASE("frame_length_offset: session extract_frame_length reverses offset", "
 
     // extract_frame_length should return the total frame size
     // by reversing the offset: wire_length + 3 = 2 + 3 = 5
-    auto len = session->extract_frame_length(*encoded);
-    CHECK(len == encoded->size());
+    auto len = session->extract_frame_length(encoded->bytes);
+    CHECK(len == encoded->bytes.size());
 }
 
 TEST_CASE("frame_length_offset: session metadata", "[frame][session][offset]") {

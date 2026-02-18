@@ -128,7 +128,9 @@ The `<annotation>` element attaches custom metadata (key-value pairs) to named c
 
 It is **not** valid on: `<reserved>`, `<align>`, `<bitmap>`, `<fx>`, or `<import>`.
 
-Annotations are passed through to generated code as metadata. The `name` attribute is required.
+Annotations on `<message>` elements are passed through to generated session code as metadata (accessible via `LeafTypeInfo::annotations` in the `ProtocolDescriptor`). Annotations on other elements are accepted by the parser but not currently emitted in generated code. The `name` attribute is required.
+
+The `group` annotation has special behavior: when set on a `<message>` (e.g., `<annotation name="group" value="tracking"/>`), the codegen groups message types by this value in the generated protocol descriptor. Comma-separated values are supported for assigning a message to multiple groups.
 
 ## Library Files
 

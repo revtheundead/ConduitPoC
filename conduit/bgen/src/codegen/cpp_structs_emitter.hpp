@@ -64,8 +64,7 @@ public:
     // Emit a synthetic struct class from a name and children reference
     void emit_synthetic_struct(const std::string& bmdl_name,
                                const std::vector<model::StructChild>& children,
-                               const std::string& parent_name = {},
-                               bool always_prefix = false);
+                               const std::string& parent_name = {});
 
     void emit_doc_comment(const std::string& doc);
 
@@ -96,13 +95,15 @@ public:
     void emit_plain_accessors(const std::string& name, const std::string& cpp_type,
                                const model::Constraint* constraint = nullptr,
                                bool is_signed = true,
-                               std::optional<int> max_length = std::nullopt);
+                               std::optional<int> max_length = std::nullopt,
+                               bool is_enum = false);
 
     void emit_optional_accessors(const std::string& name, const std::string& cpp_type,
                                   const std::optional<std::string>& default_value = std::nullopt,
                                   const model::Constraint* constraint = nullptr,
                                   bool is_signed = true,
-                                  std::optional<int> max_length = std::nullopt);
+                                  std::optional<int> max_length = std::nullopt,
+                                  bool is_enum = false);
 
     // Emit constraint validation checks for a setter (shared by plain, optional, and bitmap accessors)
     void emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
@@ -188,8 +189,7 @@ public:
                                          const std::string& cpp_type) const;
     std::string resolve_field_cpp_type(const std::string& parent_name,
                                         const std::string& field_name) const;
-    std::string resolve_child_class_name(const std::string& bmdl_name, const std::string& parent_name,
-                                          bool always_prefix = false);
+    std::string resolve_child_class_name(const std::string& bmdl_name, const std::string& parent_name);
     std::string get_child_class_name(const std::string& bmdl_name);
     std::string get_variant_alias_name(const std::string& choice_bmdl_name);
 
@@ -227,8 +227,10 @@ public:
     std::unordered_set<std::string> emitted_classes_;
     // Set of already-emitted variant alias names to detect collisions
     std::unordered_set<std::string> emitted_variant_aliases_;
-    // Current parent context for resolving child names
+    // Current parent context for resolving child names (resolved C++ class name)
     std::string current_parent_;
+    // Current parent BMDL name (for struct_decode_params_ lookup)
+    std::string current_bmdl_name_;
     // Set of optional field member names for the current struct being decoded.
     std::unordered_set<std::string> optional_field_names_;
     // Set of ALL local field BMDL names in the current struct being decoded.
@@ -272,6 +274,9 @@ public:
         std::string target_name;  // BMDL name of the target field/array
     };
     std::optional<AutoLengthFieldRefInfo> pending_auto_length_ref_;
+
+    // Inline enum tracking — enum_name → already emitted
+    std::set<std::string> emitted_inline_enums_;
 };
 
 } // namespace bgen::codegen

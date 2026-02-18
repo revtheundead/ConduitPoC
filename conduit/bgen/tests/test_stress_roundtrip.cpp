@@ -97,7 +97,7 @@ TEST_CASE("StressMsg with case-a roundtrip", "[roundtrip][stress]") {
     msg.set_tag(stress_large::ItemTag::TagA);
     stress_large::CaseA body;
     body.set_val(0xDEADBEEF);
-    msg.set_payload(stress_large::payloadVariant{body});
+    msg.set_payload(stress_large::StressMsg_payloadVariant{body});
 
     auto enc = msg.encode_bytes();
     REQUIRE(enc.has_value());
@@ -116,7 +116,7 @@ TEST_CASE("StressMsg with case-t roundtrip", "[roundtrip][stress]") {
     msg.set_tag(stress_large::ItemTag::TagT);
     stress_large::CaseT body;
     body.set_val(-999999);
-    msg.set_payload(stress_large::payloadVariant{body});
+    msg.set_payload(stress_large::StressMsg_payloadVariant{body});
 
     auto enc = msg.encode_bytes();
     REQUIRE(enc.has_value());

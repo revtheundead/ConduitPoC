@@ -97,7 +97,7 @@ static asterix::Cat001Record make_cat001_full() {
     items.set_i010(dsid);
 
     // FRN 2: Target Report Descriptor
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::track);
     items.set_i020(trd);
 
@@ -114,7 +114,7 @@ static asterix::Cat001Record make_cat001_full() {
     items.set_i042(cart);
 
     // FRN 5: Mode 3/A Code (octal squawk code with validation flags)
-    asterix::i070 mode3a;
+    asterix::Cat001Record_items_i070 mode3a;
     mode3a.set_v(1);                               // validated
     mode3a.set_g(0);                               // not garbled
     mode3a.set_l(1);                               // local
@@ -123,7 +123,7 @@ static asterix::Cat001Record make_cat001_full() {
     items.set_i070(mode3a);
 
     // FRN 6: Flight Level (signed 12-bit, scale=0.25 FL)
-    asterix::i090 fl;
+    asterix::Cat001Record_items_i090 fl;
     fl.set_v(1);                                   // validated
     fl.set_g(0);
     // reserved bits auto-handled
@@ -199,8 +199,8 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i040(polar);
 
     // FRN 5: Mode 3/A Code
-    // Cat048's i070 is named items_i070 to disambiguate from Cat001's i070
-    asterix::items_i070 mode3a;
+    // Cat048's i070 is fully qualified to disambiguate from Cat001's i070
+    asterix::Cat048Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
@@ -208,15 +208,15 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i070(mode3a);
 
     // FRN 6: Flight Level (14-bit signed, scale=0.25)
-    // Cat048's i090 is named items_i090 to disambiguate from Cat001's i090
-    asterix::items_i090 fl;
+    // Cat048's i090 is fully qualified to disambiguate from Cat001's i090
+    asterix::Cat048Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(380.0);                              // FL380
     items.set_i090(fl);
 
     // FRN 7: Radar Plot Characteristics — nested bitmap
-    asterix::i130 radar_plot;
+    asterix::Cat048Record_items_i130 radar_plot;
     auto& sub = radar_plot.mutable_sub();
     sub.set_srl(200);                              // SSR range loss
     sub.set_srr(15);                               // SSR azimuth
@@ -238,18 +238,18 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i240(ident);
 
     // FRN 10: Mode S MB Data (count-from array)
-    asterix::i250 mb;
+    asterix::Cat048Record_items_i250 mb;
     mb.set_rep(2);                                 // 2 BDS registers
     auto& bds = mb.mutable_bds();
 
-    asterix::bdsElement e1;
+    asterix::Cat048Record_items_i250_bdsElement e1;
     std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
     e1.set_data(data1);
     e1.set_bds1(4);                                // BDS 4,0
     e1.set_bds2(0);
     bds.push_back(e1);
 
-    asterix::bdsElement e2;
+    asterix::Cat048Record_items_i250_bdsElement e2;
     std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
     e2.set_data(data2);
     e2.set_bds1(5);                                // BDS 5,0
@@ -268,7 +268,7 @@ static asterix::Cat048Record make_cat048_full() {
     items.set_i042(cart);
 
     // FRN 13: Calculated Track Velocity (scaled physical values)
-    asterix::i200 vel;
+    asterix::Cat048Record_items_i200 vel;
     vel.set_ground_speed(0.027);                   // ~0.027 NM/s ≈ 97 knots
     vel.set_heading(270.0);                        // 270 degrees
     items.set_i200(vel);
@@ -342,7 +342,7 @@ static asterix::Cat253Record make_cat253_format_a() {
     std::array<uint8_t, 16> payload{};
     for (size_t i = 0; i < 16; i++) payload[i] = static_cast<uint8_t>(i * 17);
     fmt_a.set_payload(payload);
-    items.set_i100(asterix::i100Variant{fmt_a});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_a});
 
     return rec;
 }
@@ -379,7 +379,7 @@ static asterix::Cat253Record make_cat253_format_b() {
     fmt_b.set_flags(0xAB);
     fmt_b.set_payload_length(8);
     fmt_b.set_payload({0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE, 0xBA, 0xBE});
-    items.set_i100(asterix::i100Variant{fmt_b});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_b});
 
     return rec;
 }
@@ -426,28 +426,28 @@ static asterix::Cat253Record make_cat253_format_c() {
 
     auto& recs = fmt_c.mutable_records();
 
-    asterix::recordsElement r1;
+    asterix::Cat253I100FormatC_recordsElement r1;
     r1.set_id(100);
     r1.set_value(0xDEADBEEF);
     asterix::time_of_day t1; t1.set_raw(25600);
     r1.set_timestamp(t1);
     recs.push_back(r1);
 
-    asterix::recordsElement r2;
+    asterix::Cat253I100FormatC_recordsElement r2;
     r2.set_id(200);
     r2.set_value(0xCAFEBABE);
     asterix::time_of_day t2; t2.set_raw(51200);
     r2.set_timestamp(t2);
     recs.push_back(r2);
 
-    asterix::recordsElement r3;
+    asterix::Cat253I100FormatC_recordsElement r3;
     r3.set_id(300);
     r3.set_value(0x12345678);
     asterix::time_of_day t3; t3.set_raw(76800);
     r3.set_timestamp(t3);
     recs.push_back(r3);
 
-    items.set_i100(asterix::i100Variant{fmt_c});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_c});
 
     // I110: Text annotation (length-prefixed string)
     asterix::Cat253I110 text;
@@ -506,7 +506,7 @@ static asterix::Cat253Record make_cat253_format_d() {
     // Heading: 90 degrees (scale=0.0054931640625 → raw ≈ 16384)
     fmt_d.set_heading(90.0);
 
-    items.set_i100(asterix::i100Variant{fmt_d});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_d});
 
     // I120: Reference data
     asterix::Cat253I120 ref;
@@ -589,7 +589,7 @@ static asterix::Cat253Record make_cat253_format_e() {
     sub.set_aircraft_addr(static_cast<asterix::aircraft_address>(0x4CA123));
 
     // Sub-item: position (bit 4) — WGS-84 fine lat/lon
-    asterix::position pos;
+    asterix::sub_items_position pos;
     asterix::wgs84_fine plat, plon;
     plat.set_raw(500000000);                       // ~41.9°N
     plon.set_raw(-100000000);                      // ~-8.38°W
@@ -606,12 +606,12 @@ static asterix::Cat253Record make_cat253_format_e() {
     sub.set_track_number(8888);
 
     // Sub-item: velocity (bit 1) — signed 16-bit vx/vy
-    asterix::velocity vel;
+    asterix::sub_items_velocity vel;
     vel.set_vx(-200);
     vel.set_vy(300);
     sub.set_velocity(vel);
 
-    items.set_i100(asterix::i100Variant{fmt_e});
+    items.set_i100(asterix::Cat253Record_items_i100Variant{fmt_e});
 
     // I110: Text annotation
     asterix::Cat253I110 text;
@@ -619,13 +619,13 @@ static asterix::Cat253Record make_cat253_format_e() {
     items.set_i110(text);
 
     // Third FSPEC octet: RE expansion field
-    asterix::re re_field;
+    asterix::Cat253Record_items_re re_field;
     re_field.set_len(6);                           // 1 + 5 bytes
     re_field.set_data({0x11, 0x22, 0x33, 0x44, 0x55});
     items.set_re(re_field);
 
     // SP: Special Purpose field
-    asterix::sp sp_field;
+    asterix::Cat253Record_items_sp sp_field;
     sp_field.set_len(4);                           // 1 + 3 bytes
     sp_field.set_data({0xAA, 0xBB, 0xCC});
     items.set_sp(sp_field);

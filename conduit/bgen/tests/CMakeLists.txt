@@ -102,6 +102,12 @@ bgen_generate_fixture(frame_payload_length)
 bgen_generate_fixture(constraints_extended)
 bgen_generate_fixture(length_arith)
 bgen_generate_fixture(frame_length_arith)
+bgen_generate_fixture(inline_enum)
+bgen_generate_fixture(frame_payload_length_from)
+bgen_generate_fixture(format_binary)
+bgen_generate_fixture(msg_config)
+bgen_generate_fixture(msg_config_inline)
+bgen_generate_fixture(constants_everywhere)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -152,8 +158,13 @@ add_executable(bgen_tests
     test_constraints_extended.cpp
     test_frame_count.cpp
     test_frame_payload_length.cpp
+    test_frame_payload_length_from.cpp
+    test_format_binary.cpp
     test_length_arith.cpp
     test_frame_length_arith.cpp
+    test_inline_enum.cpp
+    test_msg_config.cpp
+    test_constants_everywhere.cpp
 )
 
 add_dependencies(bgen_tests
@@ -191,9 +202,15 @@ add_dependencies(bgen_tests
     gen_auto_struct_length
     gen_frame_count
     gen_frame_payload_length
+    gen_frame_payload_length_from
+    gen_format_binary
     gen_constraints_extended
     gen_length_arith
     gen_frame_length_arith
+    gen_inline_enum
+    gen_msg_config
+    gen_msg_config_inline
+    gen_constants_everywhere
 )
 
 target_link_libraries(bgen_tests PRIVATE

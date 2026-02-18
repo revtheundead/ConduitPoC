@@ -52,7 +52,7 @@ struct QueueConfig {
 |-------|---------|-------------|
 | `capacity` | 1024 | Maximum number of messages in the dispatch queue |
 | `drop_policy` | `DropOldest` | What happens when the queue is full |
-| `back_pressure_threshold` | 0.0 (disabled) | Pause transport reading when fill exceeds this ratio (e.g., 0.8 = 80%). Resumes at 80% of threshold. |
+| `back_pressure_threshold` | 0.0 (disabled) | Pause transport reading when fill exceeds this ratio (e.g., 0.8 = 80%). Resumes when fill drops below threshold x 0.8 (multiplicative hysteresis). |
 
 ### Drop Policies
 
@@ -188,7 +188,7 @@ config.add_peer("link",
 
 Set `back_pressure_threshold` to a value between 0.0 and 1.0 to automatically pause transport reading when the queue fills beyond that ratio. The threshold uses multiplicative hysteresis: transports are paused when fill exceeds the threshold, and **all** transports resume when fill drops below `threshold × 0.8`. For example, with `threshold = 0.8` and `capacity = 1024`, transports pause at 820+ messages and resume when the queue drops below 656 messages (fill ratio 0.64).
 
-When back-pressure activates, all transports are paused (not just the one that produced the overflow). This is intentional -- since all transports share the same dispatch queue, pausing only one could still allow overflow from others.
+When back-pressure activates, only the transport that triggered the threshold crossing is paused. On resume (when fill drops below `threshold x 0.8`), **all** transports are resumed, since multiple transports may have been individually paused.
 
 ### Shutdown
 

@@ -207,7 +207,7 @@ stress::SurveillanceRecord make_surveillance_maximal() {
     ri.set_rep(3);
     auto& entries = ri.mutable_entries();
     for (uint8_t ch = 0; ch < 3; ++ch) {
-        stress::entriesElement e;
+        stress::ReadingsItem_entriesElement e;
         e.set_channel(ch);
         e.set_value(static_cast<stress::int16>(1000 + ch * 100));
         e.set_quality(static_cast<stress::uint8>(90 + ch));

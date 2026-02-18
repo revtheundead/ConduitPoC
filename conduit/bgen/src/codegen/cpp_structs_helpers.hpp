@@ -22,6 +22,7 @@ struct FieldTypeInfo {
     bool is_string = false;
     bool is_bytes = false;
     bool is_float = false;     // A4: True if float type
+    bool is_bool = false;      // True if bool type
     int bits = 0;              // Bit width (for inline bits)
     bool is_signed = false;
     // Field-level scale/offset (inline scaled access)
@@ -40,11 +41,11 @@ struct FieldInfo {
     bool is_optional = false;
     bool is_variant = false;                        // choice/variant fields
     bool is_signed = false;                         // for skipping unsigned min=0 checks
-    std::optional<std::string> initial_value;
     const model::Constraint* constraint = nullptr;  // A9: for setter validation
     std::optional<std::string> default_value;       // A10: for optional default
     std::optional<int> max_length;                   // G2: for setter length validation
     bool is_auto_managed = false;                    // frame field with auto_expr → deprecated setter
+    bool is_enum = false;                            // enum types → pass by value in accessors
 };
 
 struct BitmapField {

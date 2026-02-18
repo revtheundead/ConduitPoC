@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>msg_config</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+
+  <frame name="Frame">
+    <field name="system-id" type="uint8" auto="config(system-id)"/>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <!-- Message with auto="config" on a direct field -->
+  <messages>
+    <message id="1" name="Telemetry">
+      <field name="station-id" type="uint8" auto="config(station-id)"/>
+      <field name="value" type="uint16"/>
+    </message>
+
+    <!-- Message with auto="config" on a different key -->
+    <message id="2" name="Command">
+      <field name="operator-id" type="uint16" auto="config(operator-id)"/>
+      <field name="code" type="uint8"/>
+    </message>
+
+    <!-- Message with no config fields (uses only frame-level config) -->
+    <message id="3" name="Heartbeat">
+      <field name="seq" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

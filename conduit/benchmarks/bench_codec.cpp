@@ -50,7 +50,7 @@ asterix::Cat001Record make_cat001_typical() {
     ds.set_sic(20);
     it.set_i010(ds);
 
-    asterix::i020 trd;
+    asterix::Cat001Record_items_i020 trd;
     trd.set_typ(asterix::cat001_report_type::track);
     it.set_i020(trd);
 
@@ -59,7 +59,7 @@ asterix::Cat001Record make_cat001_typical() {
     pos.set_theta(180.0);
     it.set_i040(pos);
 
-    asterix::i070 mode3a;
+    asterix::Cat001Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
@@ -108,14 +108,14 @@ asterix::Cat048Record make_cat048_typical() {
     pos.set_theta(90.0);
     it.set_i040(pos);
 
-    asterix::items_i070 mode3a;
+    asterix::Cat048Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(07700);
     it.set_i070(mode3a);
 
-    asterix::items_i090 fl;
+    asterix::Cat048Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0);
@@ -134,7 +134,7 @@ asterix::Cat048Record make_cat048_typical() {
     cart.set_y(-5678);
     it.set_i042(cart);
 
-    asterix::i200 vel;
+    asterix::Cat048Record_items_i200 vel;
     vel.set_ground_speed(0.25);
     vel.set_heading(45.0);
     it.set_i200(vel);
@@ -279,7 +279,7 @@ asterix::AsterixFrame wrap_asterix(const asterix::Cat001Record& rec) {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT001);
     asterix::DataBlock_cat001 cr; cr.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cr});
+    db.set_records(asterix::DataBlock_recordsVariant{cr});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
@@ -289,7 +289,7 @@ asterix::AsterixFrame wrap_asterix(const asterix::Cat048Record& rec) {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT048);
     asterix::DataBlock_cat048 cr; cr.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cr});
+    db.set_records(asterix::DataBlock_recordsVariant{cr});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
@@ -299,7 +299,7 @@ asterix::AsterixFrame wrap_asterix(const asterix::Cat253Record& rec) {
     asterix::DataBlock db;
     db.set_cat(asterix::CAT253);
     asterix::DataBlock_cat253 cr; cr.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cr});
+    db.set_records(asterix::DataBlock_recordsVariant{cr});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));

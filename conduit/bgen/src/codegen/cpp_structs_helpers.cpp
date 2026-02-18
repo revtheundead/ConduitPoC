@@ -42,7 +42,8 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 case model::PrimitiveBase::Bool:
                     info.bits = f.bits.value_or(1);
                     info.is_signed = false;
-                    info.cpp_type = storage_type_for_bits(info.bits, false);
+                    info.cpp_type = "bool";
+                    info.is_bool = true;
                     if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;
                     return info;
                 case model::PrimitiveBase::Int:
@@ -122,6 +123,7 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 info.cpp_type = to_cpp_type_name(def->name);
                 info.bits = (def->bits > 0) ? def->bits : 1;
                 info.is_signed = false;
+                info.is_bool = true;
             } else if (def->base == model::PrimitiveBase::Float) {
                 // A4: Float type
                 info.cpp_type = to_cpp_type_name(def->name);
@@ -334,7 +336,9 @@ void emit_write_stmt(EmitContext& ctx, const std::string& value, const FieldType
             return;
         }
     }
-    if (fti.is_signed) {
+    if (fti.is_bool) {
+        ctx.line("w.write_bits(static_cast<uint8_t>(" + value + "), " + std::to_string(fti.bits) + ");");
+    } else if (fti.is_signed) {
         ctx.line("w.write_signed_bits(" + value + ", " + std::to_string(fti.bits) + ");");
     } else {
         ctx.line("w.write_bits(" + value + ", " + std::to_string(fti.bits) + ");");

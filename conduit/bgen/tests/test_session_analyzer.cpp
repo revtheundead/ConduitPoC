@@ -549,6 +549,68 @@ TEST_CASE("Frame-based session with config fields", "[session_analyzer][frame]")
     CHECK(si.config_fields[0].bits == 8);
 }
 
+TEST_CASE("Message-level config fields collected per leaf type", "[session_analyzer][frame][config]") {
+    auto [protocol, sessions] = analyze_fixture("msg_config.bmdl.xml");
+
+    REQUIRE(sessions.size() == 1);
+    const auto& si = sessions[0];
+
+    CHECK(si.is_frame_based);
+    // Frame-level config: system-id
+    REQUIRE(si.config_fields.size() == 1);
+    CHECK(si.config_fields[0].key == "system-id");
+
+    // Three leaf types: Telemetry, Command, Heartbeat
+    REQUIRE(si.leaf_types.size() == 3);
+
+    for (const auto& lt : si.leaf_types) {
+        if (lt.name == "Telemetry") {
+            REQUIRE(lt.config_fields.size() == 1);
+            CHECK(lt.config_fields[0].key == "station-id");
+            CHECK(lt.config_fields[0].field_name == "station-id");
+            CHECK(lt.config_fields[0].bits == 8);
+        }
+        if (lt.name == "Command") {
+            REQUIRE(lt.config_fields.size() == 1);
+            CHECK(lt.config_fields[0].key == "operator-id");
+            CHECK(lt.config_fields[0].field_name == "operator-id");
+            CHECK(lt.config_fields[0].bits == 16);
+        }
+        if (lt.name == "Heartbeat") {
+            CHECK(lt.config_fields.empty());
+        }
+    }
+}
+
+TEST_CASE("Inline struct config fields collected per leaf type", "[session_analyzer][frame][config]") {
+    auto [protocol, sessions] = analyze_fixture("msg_config_inline.bmdl.xml");
+
+    REQUIRE(sessions.size() == 1);
+    const auto& si = sessions[0];
+
+    CHECK(si.is_frame_based);
+    // No frame-level config fields
+    CHECK(si.config_fields.empty());
+
+    REQUIRE(si.leaf_types.size() == 2);
+
+    for (const auto& lt : si.leaf_types) {
+        if (lt.name == "Report") {
+            // Config fields from inlined SourceId struct: sac and sic
+            REQUIRE(lt.config_fields.size() == 2);
+            CHECK(lt.config_fields[0].key == "sac");
+            CHECK(lt.config_fields[0].field_name == "sac");
+            CHECK(lt.config_fields[0].bits == 8);
+            CHECK(lt.config_fields[1].key == "sic");
+            CHECK(lt.config_fields[1].field_name == "sic");
+            CHECK(lt.config_fields[1].bits == 8);
+        }
+        if (lt.name == "Status") {
+            CHECK(lt.config_fields.empty());
+        }
+    }
+}
+
 TEST_CASE("Frame-based session with footer", "[session_analyzer][frame]") {
     auto [protocol, sessions] = analyze_fixture("frame_footer.bmdl.xml");
 
@@ -623,4 +685,78 @@ TEST_CASE("Frame-based session with array payload", "[session_analyzer][frame]")
 
     REQUIRE(si.leaf_types.size() == 1);
     CHECK(si.leaf_types[0].name == "Record");
+}
+
+// ============================================================================
+// Payload length-from expression
+// ============================================================================
+
+TEST_CASE("Frame-based session captures payload length-from", "[session_analyzer][frame][payload_length_from]") {
+    auto [protocol, sessions] = analyze_fixture("frame_payload_length_from.bmdl.xml");
+
+    REQUIRE(sessions.size() == 1);
+    const auto& si = sessions[0];
+
+    CHECK(si.is_frame_based);
+    CHECK(si.session_name == "ExprFrame");
+    CHECK_FALSE(si.payload_is_array);
+
+    // payload_length_from should be set (from <payload length-from="body-size"/>)
+    REQUIRE(si.payload_length_from != nullptr);
+    CHECK(si.payload_length_from->op == bgen::model::ExprOp::FieldRef);
+    CHECK(si.payload_length_from->name == "body-size");
+
+    // No auto="length" field, so length_field_name should be empty
+    CHECK(si.length_field_name.empty());
+
+    // Two leaf types: Ping and Data
+    REQUIRE(si.leaf_types.size() == 2);
+    bool found_ping = false, found_data = false;
+    for (const auto& lt : si.leaf_types) {
+        if (lt.name == "Ping") found_ping = true;
+        if (lt.name == "Data") found_data = true;
+    }
+    CHECK(found_ping);
+    CHECK(found_data);
+}
+
+TEST_CASE("Frame without payload length-from has null pointer", "[session_analyzer][frame][payload_length_from]") {
+    auto [protocol, sessions] = analyze_fixture("frame_basic.bmdl.xml");
+
+    REQUIRE(sessions.size() == 1);
+    const auto& si = sessions[0];
+
+    // frame_basic has no <payload length-from="..."/>, so field should be null
+    CHECK(si.payload_length_from == nullptr);
+}
+
+// ============================================================================
+// Annotation scope: only message annotations propagate to leaf types
+// ============================================================================
+
+TEST_CASE("Only message annotations propagate to leaf types", "[session_analyzer][frame][annotations]") {
+    auto [protocol, sessions] = analyze_fixture("annotation_scope.bmdl.xml");
+
+    REQUIRE(sessions.size() == 1);
+    const auto& si = sessions[0];
+    REQUIRE(si.leaf_types.size() == 2);
+
+    for (const auto& lt : si.leaf_types) {
+        if (lt.name == "MsgWithAnnotations") {
+            // Message-level annotation should propagate
+            REQUIRE(lt.annotations.size() == 1);
+            CHECK(lt.annotations[0].first == "msg-ann");
+            CHECK(lt.annotations[0].second == "propagated");
+            // Type-level annotation on annotated-type should NOT appear
+            bool found_type_ann = false;
+            for (const auto& ann : lt.annotations) {
+                if (ann.first == "type-level") found_type_ann = true;
+            }
+            CHECK_FALSE(found_type_ann);
+        }
+        if (lt.name == "MsgNoAnnotations") {
+            // No annotations on this message
+            CHECK(lt.annotations.empty());
+        }
+    }
 }

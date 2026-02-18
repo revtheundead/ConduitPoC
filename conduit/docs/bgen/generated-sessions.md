@@ -52,11 +52,11 @@ Direction-constrained types (`direction="send"`) generate a log warning when dec
 ### encode_wrap
 
 ```cpp
-[[nodiscard]] conduit::Result<std::vector<uint8_t>>
+[[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
 encode_wrap(uint64_t type_id, const std::any& payload) override;
 ```
 
-Takes a `type_id` and an `std::any`-wrapped leaf payload, wraps it into a frame, encodes, and returns raw bytes.
+Takes a `type_id` and an `std::any`-wrapped leaf payload, wraps it into a frame, encodes, and returns an `EncodeResult` (see [EncodeResult](#encoderesult)).
 
 For each known leaf type:
 1. Switches on `type_id`
@@ -74,7 +74,7 @@ Direction-constrained types (`direction="receive"`) generate a log warning when 
 ### encode_batch (array payload)
 
 ```cpp
-[[nodiscard]] conduit::Result<std::vector<uint8_t>>
+[[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
 encode_batch(uint64_t type_id, std::span<const std::any> payloads) override;
 ```
 
@@ -156,6 +156,46 @@ void reset() override;
 ```
 
 Resets session state. If any leaf type has auto-increment fields, this resets the sequence counter to 0. Auto-timestamp fields are unaffected by reset (they are stateless).
+
+### format_message
+
+```cpp
+[[nodiscard]] std::string format_message(uint64_t type_id, const std::any& payload) const override;
+```
+
+Formats a decoded message payload as a human-readable string by switching on `type_id`, extracting the concrete type via `std::any_cast`, and calling its `to_string()` method. Returns an empty string for unrecognized type IDs.
+
+### format_outbound
+
+```cpp
+[[nodiscard]] std::string format_outbound(
+    uint64_t type_id, const std::any& payload,
+    std::span<const std::pair<std::string, std::string>> auto_fields) const override;
+```
+
+Formats an outbound message with auto-field overrides (id, length, timestamp, etc.). The default implementation delegates to `format_message()`, ignoring `auto_fields`.
+
+### protocol_name
+
+```cpp
+[[nodiscard]] std::string_view protocol_name() const override;
+```
+
+Returns the protocol name (the BMDL namespace). For example, `"asterix"` or `"my_protocol"`.
+
+## EncodeResult
+
+The `EncodeResult` struct is returned by `encode_wrap()` and `encode_batch()`:
+
+```cpp
+struct EncodeResult {
+    std::vector<uint8_t> bytes;                              // Encoded frame bytes
+    std::vector<std::pair<std::string, std::string>> auto_fields; // name-value pairs
+};
+```
+
+- **`bytes`**: The fully encoded frame ready for transmission.
+- **`auto_fields`**: Metadata about auto-managed fields that were set during encoding (e.g., id, length, sequence counter, timestamp values). Each entry is a `{field_name, string_value}` pair. Used by the transceiver for message logging (`format_outbound()`).
 
 ## Auto-Increment Counter
 

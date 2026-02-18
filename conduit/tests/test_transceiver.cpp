@@ -111,7 +111,7 @@ public:
         return std::vector<traits::DecodedMessage>{std::move(dm)};
     }
 
-    Result<std::vector<uint8_t>>
+    Result<traits::EncodeResult>
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id != TestMsg::TYPE_ID) {
             return std::unexpected(
@@ -120,7 +120,9 @@ public:
         auto& msg = std::any_cast<const TestMsg&>(payload);
         io::BitWriter writer;
         msg.encode(writer);
-        return writer.finish();
+        auto bytes = writer.finish();
+        if (!bytes) return std::unexpected(bytes.error());
+        return traits::EncodeResult{std::move(*bytes), {}};
     }
 
     std::span<const uint8_t> sync_pattern() const override { return sync_; }
@@ -618,17 +620,19 @@ public:
         return msgs;
     }
 
-    Result<std::vector<uint8_t>>
+    Result<traits::EncodeResult>
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id != BatchTestMsg::TYPE_ID)
             return std::unexpected(CONDUIT_ERROR(ErrorCode::UnknownTypeId, "Unknown type"));
         auto& msg = std::any_cast<const BatchTestMsg&>(payload);
         io::BitWriter w;
         msg.encode(w);
-        return w.finish();
+        auto bytes = w.finish();
+        if (!bytes) return std::unexpected(bytes.error());
+        return traits::EncodeResult{std::move(*bytes), {}};
     }
 
-    Result<std::vector<uint8_t>>
+    Result<traits::EncodeResult>
     encode_batch(uint64_t type_id, std::span<const std::any> payloads) override {
         if (type_id != BatchTestMsg::TYPE_ID)
             return std::unexpected(CONDUIT_ERROR(ErrorCode::UnknownTypeId, "Unknown type"));
@@ -639,7 +643,9 @@ public:
                 return std::unexpected(CONDUIT_ERROR(ErrorCode::InvalidArgument, "type mismatch"));
             msg->encode(w);
         }
-        return w.finish();
+        auto bytes = w.finish();
+        if (!bytes) return std::unexpected(bytes.error());
+        return traits::EncodeResult{std::move(*bytes), {}};
     }
 
     std::span<const uint8_t> sync_pattern() const override { return {}; }

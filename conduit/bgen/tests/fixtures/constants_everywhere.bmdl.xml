@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>constants_everywhere</namespace>
+  </defaults>
+
+  <constants>
+    <const name="SYNC" type="uint16" value="0xCAFE"/>
+    <const name="VERSION" type="uint8" value="3"/>
+    <const name="MAX_ITEMS" type="uint8" value="10"/>
+    <const name="HEADER_MAGIC" type="uint8" value="0xAA"/>
+  </constants>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+
+  <frame name="Frame">
+    <field name="sync" type="uint16">
+      <constraint equals="SYNC"/>
+    </field>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <!-- Constant in a constraint-equals on a message field -->
+    <message id="1" name="Versioned">
+      <field name="version" type="uint8">
+        <constraint equals="VERSION"/>
+      </field>
+      <field name="data" type="uint16"/>
+    </message>
+
+    <!-- Constant in a constraint-equals inside a nested struct -->
+    <message id="2" name="WithHeader">
+      <struct name="hdr">
+        <field name="magic" type="uint8">
+          <constraint equals="HEADER_MAGIC"/>
+        </field>
+        <field name="flags" type="uint8"/>
+      </struct>
+      <field name="payload-data" type="uint32"/>
+    </message>
+
+    <!-- Numeric default value (constants not supported in default= attribute) -->
+    <message id="3" name="DefaultVersion">
+      <field name="version" type="uint8" default="3"/>
+      <field name="count" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

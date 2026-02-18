@@ -13,9 +13,16 @@
       <field name="priority" type="uint8" default="0"/>
       <field name="data" type="uint32"/>
     </message>
+    <message name="ConstraintDefaultMsg">
+      <field name="magic" type="uint8">
+        <constraint equals="42"/>
+      </field>
+      <field name="tag" bytes="1" bits="1" default="37"/>
+      <field name="payload" type="uint16"/>
+    </message>
     <message name="InitialMsg">
-      <field name="counter" type="uint16" initial="100"/>
-      <field name="status" type="uint8" initial="0"/>
+      <field name="counter" type="uint16" default="100"/>
+      <field name="status" type="uint8" default="0"/>
       <field name="payload" type="uint32"/>
     </message>
   </messages>

@@ -516,7 +516,21 @@ TEST_CASE("Parse default attribute on field", "[parser]") {
     }
 }
 
-TEST_CASE("Parse initial attribute on field", "[parser]") {
+TEST_CASE("Parse initial attribute on field is rejected", "[parser]") {
+    auto result = bgen::parser::parse_bmdl_file(fixture_path("invalid_initial_attr.bmdl.xml"));
+    REQUIRE_FALSE(result.has_value());
+    bool found = false;
+    for (const auto& e : result.error()) {
+        if (e.message.find("initial") != std::string::npos &&
+            e.message.find("not supported") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Parse default attribute on InitialMsg fields (migrated from initial)", "[parser]") {
     auto result = bgen::parser::parse_bmdl_file(fixture_path("default_initial.bmdl.xml"));
     REQUIRE(result.has_value());
 
@@ -526,15 +540,15 @@ TEST_CASE("Parse initial attribute on field", "[parser]") {
             for (const auto& child : msg.children) {
                 if (auto* f = std::get_if<bgen::model::Field>(&child)) {
                     if (f->name == "counter") {
-                        REQUIRE(f->initial_value.has_value());
-                        CHECK(*f->initial_value == "100");
+                        REQUIRE(f->default_value.has_value());
+                        CHECK(*f->default_value == "100");
                     }
                     if (f->name == "status") {
-                        REQUIRE(f->initial_value.has_value());
-                        CHECK(*f->initial_value == "0");
+                        REQUIRE(f->default_value.has_value());
+                        CHECK(*f->default_value == "0");
                     }
                     if (f->name == "payload") {
-                        CHECK_FALSE(f->initial_value.has_value());
+                        CHECK_FALSE(f->default_value.has_value());
                     }
                 }
             }
@@ -742,4 +756,52 @@ TEST_CASE("Parse namespace in defaults", "[parser][frame]") {
     REQUIRE(result.has_value());
     CHECK(result->defaults.namespace_.has_value());
     CHECK(*result->defaults.namespace_ == "frame_basic");
+}
+
+// ============================================================================
+// Dispatch attribute removed
+// ============================================================================
+
+TEST_CASE("dispatch attribute on array is rejected as unknown", "[parser][dispatch]") {
+    // After removing dispatch support, the parser should report it as an unknown attribute
+    auto result = bgen::parser::parse_bmdl_file(fixture_path("invalid_dispatch_removed.bmdl.xml"));
+    REQUIRE_FALSE(result.has_value());
+    // The parse errors should mention "dispatch" as unrecognized
+    bool found_dispatch_error = false;
+    for (const auto& e : result.error()) {
+        if (e.message.find("dispatch") != std::string::npos) {
+            found_dispatch_error = true;
+            break;
+        }
+    }
+    CHECK(found_dispatch_error);
+}
+
+// ============================================================================
+// Payload length-from expression on <payload> element
+// ============================================================================
+
+TEST_CASE("Parse payload length-from expression", "[parser][frame][payload_length_from]") {
+    auto result = bgen::parser::parse_bmdl_file(fixture_path("frame_payload_length_from.bmdl.xml"));
+    REQUIRE(result.has_value());
+
+    REQUIRE(result->frames.size() == 1);
+    const auto& frame = result->frames[0];
+    CHECK(frame.name == "ExprFrame");
+
+    // payload should have length_from set
+    REQUIRE(frame.payload.length_from != nullptr);
+    CHECK(frame.payload.length_from->op == bgen::model::ExprOp::FieldRef);
+    CHECK(frame.payload.length_from->name == "body-size");
+}
+
+TEST_CASE("Parse payload without length-from has null expression", "[parser][frame][payload_length_from]") {
+    auto result = bgen::parser::parse_bmdl_file(fixture_path("frame_basic.bmdl.xml"));
+    REQUIRE(result.has_value());
+
+    REQUIRE(result->frames.size() == 1);
+    const auto& frame = result->frames[0];
+
+    // payload should NOT have length_from set
+    CHECK(frame.payload.length_from == nullptr);
 }

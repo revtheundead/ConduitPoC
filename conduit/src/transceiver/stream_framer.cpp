@@ -75,6 +75,22 @@ StreamFramer::push_data(std::span<const uint8_t> data) {
         auto header_span = std::span<const uint8_t>(buffer_.data() + offset_, min_header);
         size_t frame_length = session_.extract_frame_length(header_span);
 
+        if (frame_length > 0 && frame_length < min_header) {
+            // Frame length too small to contain a valid header — treat as corrupt
+            if (!sync.empty()) {
+                if (available() >= sync.size()) {
+                    offset_ += sync.size();
+                } else {
+                    break;
+                }
+            } else if (available() > 0) {
+                offset_ += 1;
+            } else {
+                break;
+            }
+            continue;
+        }
+
         if (frame_length > max_buffer_size_) {
             // Corrupt frame length — skip past sync and retry
             if (!sync.empty()) {

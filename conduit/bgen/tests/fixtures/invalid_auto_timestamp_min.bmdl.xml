@@ -1,0 +1,16 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_auto_timestamp_min</namespace>
+  </defaults>
+  <types>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <!-- auto="timestamp" + constraint min should be rejected -->
+      <field name="ts" type="uint32" auto="timestamp">
+        <constraint min="1000"/>
+      </field>
+    </message>
+  </messages>
+</bmdl>

@@ -138,7 +138,7 @@ The `id` attribute is **required** on all messages when a frame exists. The fram
 |-------|--------|--------|
 | `both` (default) | Yes | Yes |
 | `receive` | Yes | Warning logged on encode |
-| `send` | Warning logged on decode | Yes |
+| `send` | Skipped in decode switch | Yes |
 
 #### Generated Constants
 

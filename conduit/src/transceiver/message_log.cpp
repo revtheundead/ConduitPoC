@@ -2,6 +2,7 @@
 // Conduit - Message Log Implementation
 
 #include <conduit/transceiver/message_log.hpp>
+#include <conduit/logging/logger.hpp>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
@@ -102,6 +103,9 @@ std::ostream& MessageLog::get_stream(const std::string& key) {
 
     std::string path = config_.directory + "/" + key;
     auto file = std::make_unique<std::ofstream>(path, std::ios::app);
+    if (!file->is_open()) {
+        LOG_WARN("MessageLog: failed to open log file: " + path);
+    }
     auto& ref = *file;
     files_.emplace(key, std::move(file));
     return ref;

@@ -21,7 +21,7 @@ namespace conduit::transceiver::transport {
 
 struct TransportCallbacks {
     std::function<void(PeerId, std::span<const uint8_t>)> on_data_received;
-    // remote_endpoint: "ip:port" for TCP/UDP, empty for serial/single-peer
+    // remote_endpoint: "ip:port" for TCP/UDP, device path for serial
     std::function<PeerId(std::string remote_endpoint)> on_peer_connected;
     std::function<void(PeerId)> on_peer_disconnected;
     std::function<void(PeerId, net::ConnectionState)> on_state_changed;

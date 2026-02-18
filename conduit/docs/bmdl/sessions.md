@@ -33,7 +33,7 @@ A frame consists of:
 - Exactly one `auto="id"` field (for message dispatch)
 - At most one `auto="length"` field (for frame sizing); must be <= 32 bits
 - At least one header field before `<payload/>`
-- Header and footer may only contain scalar fields (no inline structs, arrays, or choices)
+- Header and footer may only contain scalar fields (no inline structs, arrays, or choices); additionally, frame fields cannot use `present-when`, `terminated`, `length-prefix`, `length-from`, or `length="*"`
 - `auto="config(key)"` keys must be unique within the frame
 - At least one `<message>` must exist when a `<frame>` is defined
 
@@ -56,7 +56,7 @@ The frame generates a class with:
 
 ### Config Fields
 
-`auto="config(key)"` fields are populated from a Config struct provided at session creation:
+`auto="config(key)"` fields are populated from a Config struct provided at session creation. Config fields are valid in both frame headers and message definitions:
 
 ```xml
 <frame name="ConfigFrame">
@@ -65,9 +65,18 @@ The frame generates a class with:
   <field name="length" type="uint16" auto="length"/>
   <payload/>
 </frame>
+
+<messages>
+  <message id="1" name="Telemetry">
+    <field name="station-id" type="uint8" auto="config(station-id)"/>
+    <field name="value" type="uint16"/>
+  </message>
+</messages>
 ```
 
-This generates a nested `Config` struct with a `system_id` member. The session factory function accepts a `Config` parameter.
+This generates a nested `Config` struct with members for all config keys (e.g., `system_id` and `station_id`). The session factory function accepts a `Config` parameter. Frame-level config fields are set on the frame during encode wrapping. Message-level config fields are set on a copy of the message before wrapping it in the frame.
+
+Config keys must be unique across the frame and all messages. Config fields in inlined structs are also supported.
 
 ### Length Arithmetic
 

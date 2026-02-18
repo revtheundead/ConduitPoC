@@ -54,14 +54,14 @@ asterix::Cat048Record make_cat048() {
     pos.set_theta(90.0);
     it.set_i040(pos);
 
-    asterix::items_i070 mode3a;
+    asterix::Cat048Record_items_i070 mode3a;
     mode3a.set_v(1);
     mode3a.set_g(0);
     mode3a.set_l(0);
     mode3a.set_code(07700);
     it.set_i070(mode3a);
 
-    asterix::items_i090 fl;
+    asterix::Cat048Record_items_i090 fl;
     fl.set_v(1);
     fl.set_g(0);
     fl.set_fl(350.0);
@@ -80,7 +80,7 @@ asterix::Cat048Record make_cat048() {
     cart.set_y(-5678);
     it.set_i042(cart);
 
-    asterix::i200 vel;
+    asterix::Cat048Record_items_i200 vel;
     vel.set_ground_speed(0.25);
     vel.set_heading(45.0);
     it.set_i200(vel);
@@ -101,7 +101,7 @@ asterix::AsterixFrame wrap_cat048(const asterix::Cat048Record& rec) {
     db.set_cat(asterix::CAT048);
     asterix::DataBlock_cat048 cat_recs;
     cat_recs.mutable_items().push_back(rec);
-    db.set_records(asterix::recordsVariant{cat_recs});
+    db.set_records(asterix::DataBlock_recordsVariant{cat_recs});
     conduit::io::BitWriter lw;
     std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));

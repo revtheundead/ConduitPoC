@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>format_binary</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="bin8" base="uint" bits="8" format="binary"/>
+  </types>
+
+  <messages>
+    <message name="BinaryMsg">
+      <!-- Type-level format="binary" -->
+      <field name="flags" type="bin8"/>
+      <!-- Inline format="binary" -->
+      <field name="mask" bits="4" base="uint" format="binary"/>
+      <field name="tag" bits="4" base="uint"/>
+      <field name="value" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

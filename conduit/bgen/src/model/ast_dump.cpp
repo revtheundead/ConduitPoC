@@ -229,7 +229,6 @@ static void dump_field(const Field& f, std::ostream& out, int level) {
     if (f.char_bits) out << " char-bits=" << *f.char_bits;
     if (f.is_inline) out << " inline";
     if (f.default_value) out << " default=\"" << *f.default_value << "\"";
-    if (f.initial_value) out << " initial=\"" << *f.initial_value << "\"";
     if (f.auto_attr) out << " auto=\"" << *f.auto_attr << "\"";
     if (f.bit) out << " bit=" << *f.bit;
     if (f.present_when) out << " present-when=" << expr_to_string(*f.present_when);

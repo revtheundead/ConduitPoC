@@ -1,0 +1,16 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_inline_enum_keyword</namespace>
+  </defaults>
+  <messages>
+    <message name="Msg">
+      <!-- Inline enum with C++ keyword should be rejected -->
+      <field name="mode" bits="4" base="uint">
+        <enum>
+          <value id="0" name="class"/>
+          <value id="1" name="standby"/>
+        </enum>
+      </field>
+    </message>
+  </messages>
+</bmdl>

@@ -735,13 +735,13 @@
 
       <choice name="records" switch="cat" length-from="len - 3">
         <case name="cat001" value="CAT001">
-          <array name="items" count="*" type="Cat001Record" dispatch="per-record"/>
+          <array name="items" count="*" type="Cat001Record"/>
         </case>
         <case name="cat048" value="CAT048">
-          <array name="items" count="*" type="Cat048Record" dispatch="per-record"/>
+          <array name="items" count="*" type="Cat048Record"/>
         </case>
         <case name="cat253" value="CAT253">
-          <array name="items" count="*" type="Cat253Record" dispatch="per-record"/>
+          <array name="items" count="*" type="Cat253Record"/>
         </case>
         <otherwise name="unknown">
           <field name="data" type="bytes" length="*"/>

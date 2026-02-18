@@ -272,11 +272,10 @@ std::string StructEmitter::resolve_field_cpp_type(const std::string& parent_name
 }
 
 std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name,
-                                                      const std::string& parent_name,
-                                                      bool always_prefix) {
+                                                      const std::string& parent_name) {
     std::string name = to_cpp_type_name(bmdl_name);
     if (name.empty()) return {};
-    if (!parent_name.empty() && (always_prefix || emitted_classes_.count(name))) {
+    if (!parent_name.empty()) {
         name = to_cpp_type_name(parent_name) + "_" + name;
     }
     return name;
@@ -285,8 +284,7 @@ std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name
 std::string StructEmitter::get_child_class_name(const std::string& bmdl_name) {
     std::string name = to_cpp_type_name(bmdl_name);
     if (!current_parent_.empty()) {
-        std::string qualified = to_cpp_type_name(current_parent_) + "_" + name;
-        if (emitted_classes_.count(qualified)) return qualified;
+        return to_cpp_type_name(current_parent_) + "_" + name;
     }
     return name;
 }
@@ -294,8 +292,7 @@ std::string StructEmitter::get_child_class_name(const std::string& bmdl_name) {
 std::string StructEmitter::get_variant_alias_name(const std::string& choice_bmdl_name) {
     std::string base = to_cpp_type_name(choice_bmdl_name) + "Variant";
     if (!current_parent_.empty()) {
-        std::string qualified = to_cpp_type_name(current_parent_) + "_" + base;
-        if (emitted_variant_aliases_.count(qualified)) return qualified;
+        return to_cpp_type_name(current_parent_) + "_" + base;
     }
     return base;
 }

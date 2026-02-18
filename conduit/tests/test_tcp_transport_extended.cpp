@@ -545,7 +545,7 @@ public:
         return std::vector<conduit::traits::DecodedMessage>{std::move(dm)};
     }
 
-    conduit::Result<std::vector<uint8_t>>
+    conduit::Result<conduit::traits::EncodeResult>
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id != XcvrTestMsg::TYPE_ID) {
             return std::unexpected(
@@ -554,7 +554,9 @@ public:
         auto& msg = std::any_cast<const XcvrTestMsg&>(payload);
         conduit::io::BitWriter writer;
         msg.encode(writer);
-        return writer.finish();
+        auto bytes = writer.finish();
+        if (!bytes) return std::unexpected(bytes.error());
+        return conduit::traits::EncodeResult{std::move(*bytes), {}};
     }
 
     std::span<const uint8_t> sync_pattern() const override { return sync_; }

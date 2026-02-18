@@ -9,10 +9,14 @@
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <span>
 #include <string>
+#include <utility>
 
+#include "all_types/messages.hpp"
 #include "bitmap_advanced/messages.hpp"
 #include "bitmap_fx/messages.hpp"
+#include "inline_field_types/messages.hpp"
 #include "struct_features/messages.hpp"
 
 // ============================================================================
@@ -160,4 +164,90 @@ TEST_CASE("Bitmap to_string after roundtrip", "[to_string][roundtrip]") {
     CHECK(s.find("status=critical") != std::string::npos);
     CHECK(s.find("label=RndTrip") != std::string::npos);
     CHECK(s.find("counter=7777") != std::string::npos);
+}
+
+// ============================================================================
+// Display format: hex and octal in to_string (type-level and inline)
+// ============================================================================
+
+TEST_CASE("to_string: hex format on type-level field", "[to_string][format]") {
+    // all_types::AllTypesMessage has a "hex" field using type hex-id (format="hex")
+    // hex-id is a simple uint32 alias with format="hex", so to_string uses
+    // the is_simple_numeric / DisplayFormat::Hex path.
+    all_types::AllTypesMessage msg;
+    msg.set_u8(0);
+    msg.set_u16(0);
+    msg.set_u32(0);
+    msg.set_u64(0);
+    msg.set_i8(0);
+    msg.set_i16(0);
+    msg.set_i32(0);
+    msg.set_f32(0);
+    msg.set_f64(0);
+    msg.set_flag(false);
+
+    all_types::ascii_str ascii;
+    ascii.set_value("");
+    msg.set_ascii(ascii);
+
+    all_types::utf8_str utf8;
+    utf8.set_value("");
+    msg.set_utf8(utf8);
+
+    msg.set_le16(0);
+    msg.set_le32(0);
+
+    all_types::scaled_temp temp;
+    temp.set_raw(0);
+    msg.set_temp(temp);
+
+    msg.set_hex(0xCAFE0001);
+    msg.set_color(all_types::color_enum::red);
+
+    all_types::status_flags status;
+    status.set_raw(0);
+    msg.set_status(status);
+
+    auto str = msg.to_string();
+    // hex-id with format="hex": 0xCAFE0001 should display with 0x prefix
+    CHECK(str.find("hex=0xcafe0001") != std::string::npos);
+}
+
+TEST_CASE("to_string: octal format on inline field", "[to_string][format]") {
+    // inline_field_types::InlineMsg has mode3a with format="octal"
+    inline_field_types::InlineMsg msg;
+    msg.set_temperature(0.0f);
+    msg.set_latitude(0.0);
+    msg.set_offset(0);
+    msg.set_callsign("");
+    msg.set_active(false);
+    msg.set_mode3a(0123); // 83 decimal = 0123 octal
+    msg.set_tag(0);
+
+    auto str = msg.to_string();
+    CHECK(str.find("mode3a=0123") != std::string::npos);
+}
+
+// ============================================================================
+// C3 fix: to_string always accepts overrides span
+// ============================================================================
+
+TEST_CASE("to_string always accepts overrides span", "[to_string][C3]") {
+    // C3 fix: every generated message must have the span-accepting to_string
+    // overload so that format_outbound can call it uniformly, even when the
+    // message has no auto-managed frame fields.
+    // Use ConstrainedMessage (struct_features) which has no frame fields.
+    struct_features::ConstrainedMessage msg;
+    (void)msg.set_magic(0xCAFE);
+    (void)msg.set_version(3);
+    (void)msg.set_value(100);
+    msg.mutable_position().set_latitude(12345);
+    msg.mutable_position().set_longitude(67890);
+
+    // Call to_string() with an empty overrides span — must compile and match
+    // the no-arg to_string() result.
+    std::span<const std::pair<std::string, std::string>> empty_span{};
+    auto with_span = msg.to_string(empty_span);
+    auto without_span = msg.to_string();
+    CHECK(with_span == without_span);
 }

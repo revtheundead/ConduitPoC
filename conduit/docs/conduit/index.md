@@ -39,8 +39,8 @@ conduit is the C++20 runtime library that powers protocol communication. It prov
 |-----------|---------|
 | `conduit` | Core types: `Error`, `ErrorCode`, `Result<T>`, `VoidResult`, `Timestamp`, `SteadyTimestamp`, `Duration`, `byte_t` |
 | `conduit::io` | `BitReader`, `BitWriter`, `Endian`, byte-swap utilities |
-| `conduit::traits` | `ISession`, `DecodedMessage`, `Encodable`, `Decodable`, `Message` concepts |
-| `conduit::transceiver` | `Transceiver`, `TransceiverConfig`, `TransceiverStats`, `PeerId`, `InboundMessage`, `MessageHandler`, `HandlerRegistry`, `ErasedHandler`, `StreamFramer`, `CallbackId` |
+| `conduit::traits` | `ISession`, `DecodedMessage`, `EncodeResult`, `Encodable`, `Decodable`, `Message` concepts |
+| `conduit::transceiver` | `Transceiver`, `TransceiverConfig`, `TransceiverStats`, `PeerId`, `InboundMessage`, `MessageHandler`, `HandlerRegistry`, `ErasedHandler`, `StreamFramer`, `CallbackId`, `ErrorEvent`, `ErrorCallback`, `ConnectionStateCallback` |
 | `conduit::transceiver::transport` | `ITransport`, `TcpClientTransport`, `TcpServerTransport`, `UdpTransport`, `SerialTransport` |
 | `conduit::net` | `ConnectionState` enum |
 | `conduit::queue` | `BoundedQueue<T>`, `DropPolicy`, `QueueStats` |

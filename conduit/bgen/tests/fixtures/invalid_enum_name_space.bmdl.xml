@@ -1,0 +1,19 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_enum_name_space</namespace>
+  </defaults>
+  <types>
+    <!-- Enum value with space in name should be rejected -->
+    <type name="mode" base="uint" bits="8">
+      <enum>
+        <value id="0" name="active mode"/>
+        <value id="1" name="standby"/>
+      </enum>
+    </type>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="mode" type="mode"/>
+    </message>
+  </messages>
+</bmdl>

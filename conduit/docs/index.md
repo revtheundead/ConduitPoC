@@ -27,7 +27,7 @@ NIIS Transceiver is a three-part system for working with binary protocols in C++
 ## Quick Example
 
 ```cpp
-#include "generated/my-protocol.hpp"
+#include "generated/my_protocol.hpp"
 #include <conduit/transceiver/transceiver.hpp>
 #include <conduit/transceiver/transport/udp.hpp>
 

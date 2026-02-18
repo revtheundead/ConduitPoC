@@ -121,7 +121,7 @@
         <doc>Unix epoch seconds</doc>
       </field>
       <field name="uptime-hours" type="uint16"/>
-      <field name="status" type="device-status" initial="online"/>
+      <field name="status" type="device-status" default="online"/>
       <field name="cpu-load" type="uint8">
         <doc>CPU usage percentage</doc>
         <constraint max="100"/>
@@ -159,7 +159,7 @@
     <message id="4" name="AlertBody" direction="receive">
       <field name="timestamp" type="uint32"/>
       <field name="source-id" type="uint16"/>
-      <field name="severity" type="severity-level" initial="info"/>
+      <field name="severity" type="severity-level" default="info"/>
       <field name="category" bits="5">
         <doc>Alert category (0-31)</doc>
       </field>

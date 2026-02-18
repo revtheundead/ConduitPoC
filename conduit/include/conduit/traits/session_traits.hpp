@@ -10,6 +10,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace conduit::traits {
@@ -26,6 +27,18 @@ struct DecodedMessage {
     std::string_view type_name;        // e.g., "Cat048Record"
     std::any payload;                  // The typed message object
     std::vector<uint8_t> raw;          // Raw bytes for forwarding (owned copy)
+};
+
+// ============================================================================
+// EncodeResult: Result of encoding a message
+//
+// Carries the encoded bytes plus metadata about auto-managed fields
+// (id, length, timestamp, etc.) that were set during encoding.
+// ============================================================================
+
+struct EncodeResult {
+    std::vector<uint8_t> bytes;
+    std::vector<std::pair<std::string, std::string>> auto_fields; // name, value
 };
 
 // ============================================================================
@@ -48,8 +61,8 @@ public:
     [[nodiscard]] virtual Result<std::vector<DecodedMessage>>
         decode_frame(std::span<const uint8_t> data) = 0;
 
-    // Wrap leaf message -> entry-point wire bytes
-    [[nodiscard]] virtual Result<std::vector<uint8_t>>
+    // Wrap leaf message -> entry-point wire bytes + auto-field metadata
+    [[nodiscard]] virtual Result<EncodeResult>
         encode_wrap(uint64_t type_id, const std::any& payload) = 0;
 
     // Stream framing metadata
@@ -65,7 +78,7 @@ public:
     // Encode multiple messages of the same type into a single frame.
     // Only supported for array-payload protocols (<payload count="*"/>).
     // Default: returns BatchNotSupported error.
-    [[nodiscard]] virtual Result<std::vector<uint8_t>>
+    [[nodiscard]] virtual Result<EncodeResult>
         encode_batch(uint64_t type_id, std::span<const std::any> payloads) {
         (void)type_id; (void)payloads;
         return std::unexpected(
@@ -81,6 +94,14 @@ public:
     // Format a decoded message payload as a human-readable string.
     [[nodiscard]] virtual std::string format_message(uint64_t type_id, const std::any& payload) const {
         (void)type_id; (void)payload; return {};
+    }
+
+    // Format an outbound message with auto-field overrides (id, length, timestamp, etc.)
+    [[nodiscard]] virtual std::string format_outbound(
+        uint64_t type_id, const std::any& payload,
+        std::span<const std::pair<std::string, std::string>> auto_fields) const {
+        (void)auto_fields;
+        return format_message(type_id, payload); // default: ignore auto fields
     }
 
     // Return the protocol name (e.g., "asterix", "sentry-link").

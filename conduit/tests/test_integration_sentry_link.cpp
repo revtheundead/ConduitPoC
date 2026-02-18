@@ -37,7 +37,7 @@ TEST_CASE("sentry_link: send ConfigBody preserves all fields",
     REQUIRE(encoded.has_value());
 
     // Decode and verify
-    auto frame = sentry_link::Frame::decode_bytes(*encoded);
+    auto frame = sentry_link::Frame::decode_bytes(encoded->bytes);
     REQUIRE(frame.has_value());
     CHECK(frame->sync() == 0xAA55);
 
@@ -64,7 +64,7 @@ TEST_CASE("sentry_link: receive HeartbeatBody with exact values",
     auto encoded = session->encode_wrap(sentry_link::HeartbeatBody::TYPE_ID, std::any(hb));
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -94,7 +94,7 @@ TEST_CASE("sentry_link: receive SensorBody with nested bit-fields",
     auto encoded = session->encode_wrap(sentry_link::SensorBody::TYPE_ID, std::any(sensor));
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -121,7 +121,7 @@ TEST_CASE("sentry_link: receive AlertBody with string and enum",
     auto encoded = session->encode_wrap(sentry_link::AlertBody::TYPE_ID, std::any(alert));
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -176,10 +176,10 @@ TEST_CASE("sentry_link: dispatch all 4 types",
 
     session->reset();
 
-    auto d_hb = session->decode_frame(*e_hb);
-    auto d_sensor = session->decode_frame(*e_sensor);
-    auto d_config = session->decode_frame(*e_config);
-    auto d_alert = session->decode_frame(*e_alert);
+    auto d_hb = session->decode_frame(e_hb->bytes);
+    auto d_sensor = session->decode_frame(e_sensor->bytes);
+    auto d_config = session->decode_frame(e_config->bytes);
+    auto d_alert = session->decode_frame(e_alert->bytes);
 
     REQUIRE(d_hb.has_value());
     REQUIRE(d_sensor.has_value());
@@ -205,7 +205,7 @@ TEST_CASE("sentry_link: stream framing HeartbeatBody split at byte 5",
 
     auto encoded = session->encode_wrap(sentry_link::HeartbeatBody::TYPE_ID, std::any(hb));
     REQUIRE(encoded.has_value());
-    auto& bytes = *encoded;
+    auto& bytes = encoded->bytes;
     REQUIRE(bytes.size() == 14);
 
     // Split at byte 5
@@ -237,12 +237,12 @@ TEST_CASE("sentry_link: wrong sync recovery",
 
     // Prepend wrong sync bytes
     std::vector<uint8_t> data = {0xDE, 0xAD};
-    data.insert(data.end(), encoded->begin(), encoded->end());
+    data.insert(data.end(), encoded->bytes.begin(), encoded->bytes.end());
 
     auto result = framer.push_data(data);
     REQUIRE(result.has_value());
     REQUIRE(result->size() == 1);
-    CHECK((*result)[0] == *encoded);
+    CHECK((*result)[0] == encoded->bytes);
 }
 
 TEST_CASE("sentry_link: send+loopback roundtrip ConfigBody",
@@ -263,7 +263,7 @@ TEST_CASE("sentry_link: send+loopback roundtrip ConfigBody",
     REQUIRE(encoded.has_value());
 
     session->reset();
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 
@@ -290,8 +290,8 @@ TEST_CASE("sentry_link: auto-sequence increments",
     REQUIRE(e0.has_value());
     REQUIRE(e1.has_value());
 
-    auto f0 = sentry_link::Frame::decode_bytes(*e0);
-    auto f1 = sentry_link::Frame::decode_bytes(*e1);
+    auto f0 = sentry_link::Frame::decode_bytes(e0->bytes);
+    auto f1 = sentry_link::Frame::decode_bytes(e1->bytes);
     REQUIRE(f0.has_value());
     REQUIRE(f1.has_value());
 
@@ -317,7 +317,7 @@ TEST_CASE("sentry_link: scaled field roundtrip",
     auto encoded = session->encode_wrap(sentry_link::SensorBody::TYPE_ID, std::any(sensor));
     REQUIRE(encoded.has_value());
 
-    auto decoded = session->decode_frame(*encoded);
+    auto decoded = session->decode_frame(encoded->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
 

@@ -23,7 +23,7 @@ static std::vector<uint8_t> encode_sentry_heartbeat(uint32_t ts, uint16_t uptime
     auto session = sentry_link::create_frame_session();
     auto result = session->encode_wrap(sentry_link::HeartbeatBody::TYPE_ID, std::any(hb));
     REQUIRE(result.has_value());
-    return *result;
+    return std::move(result->bytes);
 }
 
 static std::vector<uint8_t> encode_sentry_alert(const std::string& msg) {
@@ -37,7 +37,7 @@ static std::vector<uint8_t> encode_sentry_alert(const std::string& msg) {
     auto session = sentry_link::create_frame_session();
     auto result = session->encode_wrap(sentry_link::AlertBody::TYPE_ID, std::any(alert));
     REQUIRE(result.has_value());
-    return *result;
+    return std::move(result->bytes);
 }
 
 static std::vector<uint8_t> encode_sentry_sensor(uint16_t sensor_id, double raw_value) {
@@ -55,7 +55,7 @@ static std::vector<uint8_t> encode_sentry_sensor(uint16_t sensor_id, double raw_
     auto session = sentry_link::create_frame_session();
     auto result = session->encode_wrap(sentry_link::SensorBody::TYPE_ID, std::any(sensor));
     REQUIRE(result.has_value());
-    return *result;
+    return std::move(result->bytes);
 }
 
 // ============================================================================

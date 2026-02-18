@@ -795,13 +795,13 @@ TEST_CASE("ChoiceMsg TypeA case roundtrip", "[roundtrip][choice]") {
     body.set_sub_type(10); // SUB_X
     arrays_choices::SubX subx;
     subx.set_val(0xDEAD);
-    body.set_sub_body(arrays_choices::sub_bodyVariant{subx});
+    body.set_sub_body(arrays_choices::TypeABody_sub_bodyVariant{subx});
 
     arrays_choices::ChoiceMsg msg;
     msg.set_msg_type(1); // TYPE_A
     // length = size of TypeABody: sub-type(1) + SubX(4) = 5
     msg.set_length(5);
-    msg.set_body(arrays_choices::bodyVariant{body});
+    msg.set_body(arrays_choices::ChoiceMsg_bodyVariant{body});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -824,7 +824,7 @@ TEST_CASE("ChoiceMsg TypeB case roundtrip", "[roundtrip][choice]") {
     arrays_choices::ChoiceMsg msg;
     msg.set_msg_type(2); // TYPE_B
     msg.set_length(4);   // TypeBBody = uint32 = 4 bytes
-    msg.set_body(arrays_choices::bodyVariant{body});
+    msg.set_body(arrays_choices::ChoiceMsg_bodyVariant{body});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -845,7 +845,7 @@ TEST_CASE("ChoiceMsg otherwise fallback roundtrip", "[roundtrip][choice]") {
     arrays_choices::ChoiceMsg msg;
     msg.set_msg_type(99); // Unknown type -> otherwise
     msg.set_length(4);
-    msg.set_body(arrays_choices::bodyVariant{body});
+    msg.set_body(arrays_choices::ChoiceMsg_bodyVariant{body});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -863,12 +863,12 @@ TEST_CASE("ChoiceMsg nested choice TypeA->SubY roundtrip", "[roundtrip][choice]"
     arrays_choices::SubY suby;
     suby.set_a(0x1111);
     suby.set_b(0x2222);
-    body.set_sub_body(arrays_choices::sub_bodyVariant{suby});
+    body.set_sub_body(arrays_choices::TypeABody_sub_bodyVariant{suby});
 
     arrays_choices::ChoiceMsg msg;
     msg.set_msg_type(1); // TYPE_A
     msg.set_length(5);   // sub-type(1) + SubY(4) = 5
-    msg.set_body(arrays_choices::bodyVariant{body});
+    msg.set_body(arrays_choices::ChoiceMsg_bodyVariant{body});
 
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());

@@ -7,6 +7,7 @@
 #include "../logger.hpp"
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <set>
 #include <unordered_set>
 
@@ -269,6 +270,13 @@ private:
                     error(ev.loc, "enum value has empty name in type '" + t.name + "'");
                 }
                 check_keyword_collision(ev.loc, ev.name, "enum value");
+                {
+                    auto converted = codegen::to_enum_value_name(ev.name);
+                    if (!codegen::is_valid_cpp_identifier(converted)) {
+                        error(ev.loc, "enum value name '" + ev.name +
+                              "' is not a valid C++ identifier after conversion");
+                    }
+                }
                 if (!ids.insert(ev.id).second) {
                     error(ev.loc, "duplicate enum id " + std::to_string(ev.id) + " in type '" + t.name + "'");
                 }
@@ -289,7 +297,7 @@ private:
                 if (f.name.empty()) {
                     error(f.loc, "flag has empty name in type '" + t.name + "'");
                 }
-                if (f.bit < 0 || f.bit >= t.bits) {
+                if (t.bits > 0 && (f.bit < 0 || f.bit >= t.bits)) {
                     error(f.loc, "flag bit " + std::to_string(f.bit) +
                         " out of range [0, " + std::to_string(t.bits - 1) +
                         "] in type '" + t.name + "'");
@@ -580,6 +588,11 @@ private:
                         check_inline_duplicates(c, field_names, parent_name, visiting);
                     }
                 } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                    // Check that no data elements follow a length="*" or count="*" field
+                    if (seen_star_field) {
+                        error(c.loc, "struct '" + c.name + "' follows '" + star_field_name +
+                              "' which consumes remaining bytes; it must be the last element");
+                    }
                     // Forward reference check on present-when
                     check_no_forward_refs(c.present_when.get(), field_names,
                                         "struct '" + c.name + "' present-when", parent_scope);
@@ -629,11 +642,6 @@ private:
                         error(c.loc, "array '" + c.name +
                               "': count=\"*\" requires a bounded container (message, length-delimited array/choice)");
                     }
-                    // dispatch only valid on arrays inside inline choice cases
-                    if (c.dispatch.has_value() && !in_choice) {
-                        error(c.loc, "array '" + c.name +
-                              "': dispatch attribute is only valid on arrays inside inline choice cases");
-                    }
                     validate_array(c, parent_name);
                     if (!c.name.empty()) {
                         if (!field_names.insert(c.name).second) {
@@ -652,6 +660,11 @@ private:
                                      array_bounded || in_bounded_container,
                                      nullptr, in_fx, in_frame);
                 } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                    // Check that no data elements follow a length="*" or count="*" field
+                    if (seen_star_field) {
+                        error(c.loc, "choice '" + c.name + "' follows '" + star_field_name +
+                              "' which consumes remaining bytes; it must be the last element");
+                    }
                     // Forward reference checks on choice expressions
                     check_no_forward_refs(c.switch_expr.get(), field_names,
                                         "choice '" + c.name + "' switch", parent_scope);
@@ -836,7 +849,9 @@ private:
                     break;
                 case model::PrimitiveBase::Int:
                 case model::PrimitiveBase::Uint:
-                    // Fall through — these are just explicit ways to spell signed/unsigned inline
+                    if (f.bits && *f.bits == 0) {
+                        error(f.loc, "field '" + f.name + "': inline numeric type must have bits > 0");
+                    }
                     break;
             }
         }
@@ -851,11 +866,6 @@ private:
             error(f.loc, "field '" + f.name + "': 'bit' only valid inside presence=\"bitmap\" struct");
         }
 
-        // initial and default mutually exclusive
-        if (f.initial_value && f.default_value) {
-            error(f.loc, "field '" + f.name + "': 'initial' and 'default' are mutually exclusive");
-        }
-
         // Auto field validation (5a)
         if (f.auto_attr) {
             if (!f.auto_expr) {
@@ -868,8 +878,8 @@ private:
                         if (base != model::PrimitiveBase::Uint) {
                             error(f.loc, "field '" + f.name + "': auto=\"increment\" only valid on unsigned integer fields");
                         }
-                        if (f.constraint && f.constraint->equals) {
-                            error(f.loc, "field '" + f.name + "': auto-increment fields cannot have constraint equals");
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
+                            error(f.loc, "field '" + f.name + "': auto=\"increment\" fields cannot have constraints");
                         }
                         break;
                     }
@@ -895,9 +905,9 @@ private:
                         if (auto_bits > 32) {
                             error(f.loc, "field '" + f.name + "': auto=\"length\" maximum supported is 32 bits");
                         }
-                        if (f.constraint && f.constraint->equals) {
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
                             error(f.loc, "field '" + f.name +
-                                  "': auto=\"length\" fields cannot have constraint equals");
+                                  "': auto=\"length\" fields cannot have constraints");
                         }
                         // Validate arithmetic modifier
                         if (f.auto_expr->modifier.has_modifier()) {
@@ -920,10 +930,13 @@ private:
                         if (!in_frame) {
                             error(f.loc, "field '" + f.name + "': auto=\"id\" is only valid inside <frame> definitions");
                         }
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
+                            error(f.loc, "field '" + f.name + "': auto=\"id\" fields cannot have constraints");
+                        }
                         break;
                     case model::AutoKind::Config:
-                        if (!in_frame) {
-                            error(f.loc, "field '" + f.name + "': auto=\"config\" is only valid inside <frame> definitions");
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
+                            error(f.loc, "field '" + f.name + "': auto=\"config\" fields cannot have constraints");
                         }
                         break;
                     case model::AutoKind::Count: {
@@ -931,8 +944,8 @@ private:
                         if (base != model::PrimitiveBase::Uint && base != model::PrimitiveBase::Int) {
                             error(f.loc, "field '" + f.name + "': auto=\"count\" requires integer type");
                         }
-                        if (f.constraint && f.constraint->equals) {
-                            error(f.loc, "field '" + f.name + "': auto-count fields cannot have constraint equals");
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
+                            error(f.loc, "field '" + f.name + "': auto=\"count\" fields cannot have constraints");
                         }
                         if (f.auto_expr->field_ref.empty()) {
                             error(f.loc, "field '" + f.name + "': auto=\"count\" requires a field reference, e.g. auto=\"count(items)\"");
@@ -944,8 +957,8 @@ private:
                         if (base != model::PrimitiveBase::Uint) {
                             error(f.loc, "field '" + f.name + "': auto=\"timestamp\" only valid on unsigned integer fields");
                         }
-                        if (f.constraint && f.constraint->equals) {
-                            error(f.loc, "field '" + f.name + "': auto-timestamp fields cannot have constraint equals");
+                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
+                            error(f.loc, "field '" + f.name + "': auto=\"timestamp\" fields cannot have constraints");
                         }
                         break;
                     }
@@ -953,16 +966,117 @@ private:
             }
         }
 
-        // initial not valid on optional or struct/array/bytes fields (5b)
-        if (f.initial_value) {
-            if (f.present_when || f.bit) {
-                error(f.loc, "field '" + f.name + "': 'initial' not valid on optional fields");
-            }
+        // default not valid on struct/message/bytes fields
+        if (f.default_value) {
             if (!f.type_ref.empty() && is_struct_or_message_type(f.type_ref)) {
-                error(f.loc, "field '" + f.name + "': 'initial' not valid on struct/message fields");
+                error(f.loc, "field '" + f.name + "': 'default' not valid on struct/message fields");
             }
             if (f.type_ref == "bytes" || f.bytes_attr) {
-                error(f.loc, "field '" + f.name + "': 'initial' not valid on bytes fields");
+                error(f.loc, "field '" + f.name + "': 'default' not valid on bytes fields");
+            }
+            // Type compatibility checks for default value
+            // First check if field type is an enum — enum defaults are validated by name
+            bool is_enum_type = false;
+            if (!f.type_ref.empty()) {
+                auto resolved = index_.find(f.type_ref);
+                if (resolved) {
+                    std::visit([&](const auto* def) {
+                        using DT = std::decay_t<decltype(*def)>;
+                        if constexpr (std::is_same_v<DT, model::TypeDef>) {
+                            if (!def->enum_values.empty()) {
+                                is_enum_type = true;
+                                bool found_enum = false;
+                                for (const auto& ev : def->enum_values) {
+                                    if (ev.name == *f.default_value) {
+                                        found_enum = true;
+                                        break;
+                                    }
+                                }
+                                if (!found_enum) {
+                                    error(f.loc, "field '" + f.name + "': default value '" +
+                                          *f.default_value + "' does not match any enum value");
+                                }
+                            }
+                        }
+                    }, *resolved);
+                }
+            }
+            // Also check inline enum values
+            if (!is_enum_type && !f.enum_values.empty()) {
+                is_enum_type = true;
+                bool found_enum = false;
+                for (const auto& ev : f.enum_values) {
+                    if (ev.name == *f.default_value) {
+                        found_enum = true;
+                        break;
+                    }
+                }
+                if (!found_enum) {
+                    error(f.loc, "field '" + f.name + "': default value '" +
+                          *f.default_value + "' does not match any enum value");
+                }
+            }
+            // Non-enum type compatibility checks
+            if (!is_enum_type) {
+                auto base = resolve_base(f);
+                if (base == model::PrimitiveBase::Uint || base == model::PrimitiveBase::Int) {
+                    try {
+                        // Support hex (0x...) and decimal default values
+                        int field_bits = 0;
+                        if (f.bits) field_bits = *f.bits;
+                        else if (f.bytes_attr) field_bits = *f.bytes_attr * 8;
+                        else if (!f.type_ref.empty()) {
+                            auto it = index_.types.find(f.type_ref);
+                            if (it != index_.types.end()) field_bits = it->second->bits;
+                        }
+                        if (field_bits > 0) {
+                            if (base == model::PrimitiveBase::Uint) {
+                                // Use stoull for unsigned to handle values > LLONG_MAX (e.g. UINT64_MAX)
+                                auto uv = std::stoull(*f.default_value, nullptr, 0);
+                                if (field_bits >= 64) {
+                                    (void)uv; // Any value fits in uint64_t if it parsed
+                                } else if (uv >= (1ULL << field_bits)) {
+                                    error(f.loc, "field '" + f.name + "': default value " +
+                                          *f.default_value + " out of range for " +
+                                          std::to_string(field_bits) + "-bit unsigned field");
+                                }
+                            } else {
+                                long long v = std::stoll(*f.default_value, nullptr, 0);
+                                if (field_bits < 64) {
+                                    long long max_val = (1LL << (field_bits - 1)) - 1;
+                                    long long min_val = -(1LL << (field_bits - 1));
+                                    if (v < min_val || v > max_val) {
+                                        error(f.loc, "field '" + f.name + "': default value " +
+                                              *f.default_value + " out of range for " +
+                                              std::to_string(field_bits) + "-bit signed field");
+                                    }
+                                }
+                            }
+                        } else {
+                            // No bits known — just verify it parses as an integer
+                            if (base == model::PrimitiveBase::Uint)
+                                std::stoull(*f.default_value, nullptr, 0);
+                            else
+                                std::stoll(*f.default_value, nullptr, 0);
+                        }
+                    } catch (...) {
+                        error(f.loc, "field '" + f.name + "': default value '" +
+                              *f.default_value + "' is not a valid integer");
+                    }
+                } else if (base == model::PrimitiveBase::Bool) {
+                    auto& dv = *f.default_value;
+                    if (dv != "true" && dv != "false" && dv != "0" && dv != "1") {
+                        error(f.loc, "field '" + f.name + "': default value '" +
+                              dv + "' is not valid for a bool field (use true/false/0/1)");
+                    }
+                } else if (base == model::PrimitiveBase::Float) {
+                    try {
+                        std::stod(*f.default_value);
+                    } catch (...) {
+                        error(f.loc, "field '" + f.name + "': default value '" +
+                              *f.default_value + "' is not a valid float");
+                    }
+                }
             }
         }
 
@@ -1126,13 +1240,21 @@ private:
             }
         }
 
-        // V33: Validate inline enums - duplicate ids, duplicate names, negative ids
+        // V33: Validate inline enums - duplicate ids, duplicate names, negative ids, keywords, identifiers
         if (!f.enum_values.empty()) {
             std::set<int64_t> ids;
             std::set<std::string> names;
             for (const auto& ev : f.enum_values) {
                 if (ev.name.empty()) {
                     error(ev.loc, "enum value has empty name in field '" + f.name + "'");
+                }
+                check_keyword_collision(ev.loc, ev.name, "inline enum value");
+                {
+                    auto converted = codegen::to_enum_value_name(ev.name);
+                    if (!codegen::is_valid_cpp_identifier(converted)) {
+                        error(ev.loc, "enum value name '" + ev.name +
+                              "' is not a valid C++ identifier after conversion");
+                    }
                 }
                 if (!ids.insert(ev.id).second) {
                     error(ev.loc, "duplicate enum id " + std::to_string(ev.id) +
@@ -1287,22 +1409,6 @@ private:
             // Duplicate case name detection
             if (!cs.name.empty() && !case_names.insert(cs.name).second) {
                 error(cs.loc, "duplicate case name '" + cs.name + "' in choice '" + c.name + "'");
-            }
-
-            // Mixed dispatch within a single inline case is ambiguous
-            if (cs.type_ref.empty()) {
-                bool saw_batch = false, saw_per_record = false;
-                for (const auto& ch : cs.children) {
-                    if (auto* ad = std::get_if<model::ArrayDef>(&ch)) {
-                        auto eff = ad->dispatch.value_or(model::Dispatch::Batch);
-                        if (eff == model::Dispatch::Batch) saw_batch = true;
-                        else saw_per_record = true;
-                    }
-                }
-                if (saw_batch && saw_per_record) {
-                    error(cs.loc, "case '" + cs.name +
-                          "': arrays within a single case must all use the same dispatch mode");
-                }
             }
 
             bool choice_bounded = c.length_from != nullptr || c.length;
@@ -1583,9 +1689,9 @@ private:
                                               "' is " + std::to_string(length_field_bits) +
                                               " bits; maximum supported is 32 bits");
                                     }
-                                    if (f->constraint && f->constraint->equals) {
+                                    if (f->constraint && (f->constraint->equals || f->constraint->min || f->constraint->max)) {
                                         error(f->loc, "field '" + f->name +
-                                              "': auto=\"length\" fields cannot have constraint equals");
+                                              "': auto=\"length\" fields cannot have constraints");
                                     }
                                     // Frame-level restrictions on arithmetic modifiers:
                                     // - Field operands disallowed (extract_frame_length only reads raw bytes)
@@ -1605,9 +1711,9 @@ private:
                                     break;
                                 }
                                 case model::AutoKind::Config: {
-                                    if (f->constraint && f->constraint->equals) {
+                                    if (f->constraint && (f->constraint->equals || f->constraint->min || f->constraint->max)) {
                                         error(f->loc, "field '" + f->name +
-                                              "': auto=\"config\" fields cannot have constraint equals");
+                                              "': auto=\"config\" fields cannot have constraints");
                                     }
                                     auto [_, inserted] = config_keys.insert(f->auto_expr->key);
                                     if (!inserted) {
@@ -1626,6 +1732,39 @@ private:
 
             check_auto_fields(frame.header_fields);
             check_auto_fields(frame.footer_fields);
+
+            // Also check for duplicate config keys across messages
+            // (all config keys share a single Config struct in the session)
+            std::function<void(const std::vector<model::StructChild>&)> scan_msg_configs;
+            scan_msg_configs = [&](const std::vector<model::StructChild>& children) {
+                for (const auto& child : children) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Config) {
+                            auto [_, inserted] = config_keys.insert(f->auto_expr->key);
+                            if (!inserted) {
+                                error(f->loc, "duplicate config key '" + f->auto_expr->key +
+                                      "' (keys must be unique across frame and all messages)");
+                            }
+                        }
+                        // Recurse into inline fields
+                        if (f->is_inline && !f->type_ref.empty()) {
+                            auto resolved = index_.find(f->type_ref);
+                            if (resolved) {
+                                std::visit([&](const auto* def) {
+                                    using DT = std::decay_t<decltype(*def)>;
+                                    if constexpr (std::is_same_v<DT, model::StructDef> ||
+                                                 std::is_same_v<DT, model::MessageDef>) {
+                                        scan_msg_configs(def->children);
+                                    }
+                                }, *resolved);
+                            }
+                        }
+                    }
+                }
+            };
+            for (const auto& msg : proto_.messages) {
+                scan_msg_configs(msg.children);
+            }
 
             // Rule: exactly one auto="id" field
             if (auto_id_count == 0) {

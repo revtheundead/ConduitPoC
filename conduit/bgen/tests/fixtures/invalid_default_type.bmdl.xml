@@ -1,0 +1,23 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_default_type</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="mybool" base="bool" bits="1"/>
+  </types>
+  <messages>
+    <message name="BadDefaultMsg">
+      <!-- default="hello" on uint field should be rejected -->
+      <field name="count" type="uint8" default="hello"/>
+    </message>
+    <message name="BadRangeMsg">
+      <!-- default="999" on uint8 should be rejected (max 255) -->
+      <field name="value" type="uint8" default="999"/>
+    </message>
+    <message name="BadBoolMsg">
+      <!-- default="abc" on bool field should be rejected -->
+      <field name="flag" type="mybool" default="abc"/>
+    </message>
+  </messages>
+</bmdl>

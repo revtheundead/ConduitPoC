@@ -1,0 +1,24 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>invalid_msg_config_dup_key</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <frame name="Frame">
+    <field name="sysid" type="uint8" auto="config(sysid)"/>
+    <field name="msg-type" type="uint8" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Msg">
+      <!-- Duplicate config key "sysid" (already in frame) should be rejected -->
+      <field name="sysid2" type="uint8" auto="config(sysid)"/>
+      <field name="data" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

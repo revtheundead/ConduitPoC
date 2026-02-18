@@ -159,7 +159,7 @@ These are mutually exclusive. The same rule applies to inline type definitions o
 
 - Define reusable types for values that appear in multiple messages (e.g., `Altitude`, `Heading`, `CallSign`) rather than repeating `bits`/`scale` inline on each field.
 - Prefer `<scale>` + `<offset>` on types over manual conversion in application code -- it keeps the conversion close to the wire format definition.
-- For enums without a zero-valued member, use `initial` on fields to set a valid starting value, otherwise the default-constructed value (0) may be invalid for the enum.
+- For enums without a zero-valued member, use `default` on fields to set a valid starting value, otherwise the default-constructed value (0) may be invalid for the enum.
 
 ## Common Pitfalls
 

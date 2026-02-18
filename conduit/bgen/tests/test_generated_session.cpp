@@ -191,7 +191,7 @@ TEST_CASE("encode_wrap PingBody roundtrip", "[session][wrap]") {
     REQUIRE(wrapped.has_value());
 
     // Decode back
-    auto decoded = session->decode_frame(*wrapped);
+    auto decoded = session->decode_frame(wrapped->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(!decoded->empty());
     CHECK(decoded->front().type_name == "PingBody");
@@ -220,7 +220,7 @@ TEST_CASE("encode_wrap DataBody roundtrip", "[session][wrap]") {
     auto wrapped = session->encode_wrap(data_type_id, std::any{data});
     REQUIRE(wrapped.has_value());
 
-    auto decoded = session->decode_frame(*wrapped);
+    auto decoded = session->decode_frame(wrapped->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(!decoded->empty());
     CHECK(decoded->front().type_name == "DataBody");
@@ -253,8 +253,8 @@ TEST_CASE("encode_wrap auto-sequence increments", "[session][wrap]") {
     REQUIRE(wrap2.has_value());
 
     // Decode both and check seq differs by 1
-    auto dec1 = session_test::Packet::decode_bytes(*wrap1);
-    auto dec2 = session_test::Packet::decode_bytes(*wrap2);
+    auto dec1 = session_test::Packet::decode_bytes(wrap1->bytes);
+    auto dec2 = session_test::Packet::decode_bytes(wrap2->bytes);
     REQUIRE(dec1.has_value());
     REQUIRE(dec2.has_value());
     CHECK(dec2->seq() == dec1->seq() + 1);
@@ -287,7 +287,7 @@ TEST_CASE("reset resets sequence counter", "[session][reset]") {
     auto wrapped = session->encode_wrap(ping_type_id, std::any{ping});
     REQUIRE(wrapped.has_value());
 
-    auto decoded = session_test::Packet::decode_bytes(*wrapped);
+    auto decoded = session_test::Packet::decode_bytes(wrapped->bytes);
     REQUIRE(decoded.has_value());
     // After reset, sequence should restart at 0
     CHECK(decoded->seq() == 0);
@@ -354,7 +354,7 @@ TEST_CASE("Inline struct encode_wrap auto-seq", "[session][inline]") {
     auto wrapped = session->encode_wrap(bodyx_id, std::any{body});
     REQUIRE(wrapped.has_value());
 
-    auto decoded = inline_struct::Frame::decode_bytes(*wrapped);
+    auto decoded = inline_struct::Frame::decode_bytes(wrapped->bytes);
     REQUIRE(decoded.has_value());
     // First encode should have seq = 0
     CHECK(decoded->seq() == 0);
@@ -362,7 +362,7 @@ TEST_CASE("Inline struct encode_wrap auto-seq", "[session][inline]") {
     // Second encode should increment
     auto wrapped2 = session->encode_wrap(bodyx_id, std::any{body});
     REQUIRE(wrapped2.has_value());
-    auto decoded2 = inline_struct::Frame::decode_bytes(*wrapped2);
+    auto decoded2 = inline_struct::Frame::decode_bytes(wrapped2->bytes);
     REQUIRE(decoded2.has_value());
     CHECK(decoded2->seq() == 1);
 }
@@ -445,7 +445,7 @@ TEST_CASE("Choice protocol encode_wrap AlphaBody full roundtrip", "[session][cho
     auto wrapped = session->encode_wrap(alpha_id, std::any{alpha});
     REQUIRE(wrapped.has_value());
 
-    auto result = session->decode_frame(*wrapped);
+    auto result = session->decode_frame(wrapped->bytes);
     REQUIRE(result.has_value());
     REQUIRE(!result->empty());
     CHECK(result->front().type_name == "AlphaBody");
@@ -552,7 +552,7 @@ TEST_CASE("decode_frame via encode_wrap roundtrip preserves payload data", "[ses
     REQUIRE(wrapped.has_value());
 
     // Decode through decode_frame and verify ALL payload fields
-    auto decoded = session->decode_frame(*wrapped);
+    auto decoded = session->decode_frame(wrapped->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(!decoded->empty());
     CHECK(decoded->front().type_name == "DataBody");
@@ -711,7 +711,7 @@ TEST_CASE("auto-increment wraps at counter width", "[session][auto][increment]")
     for (int i = 0; i < 5; i++) {
         auto wrapped = session->encode_wrap(ping_type_id, std::any{ping});
         REQUIRE(wrapped.has_value());
-        auto decoded = session_test::Packet::decode_bytes(*wrapped);
+        auto decoded = session_test::Packet::decode_bytes(wrapped->bytes);
         REQUIRE(decoded.has_value());
         seqs.push_back(decoded->seq());
     }
@@ -741,17 +741,17 @@ TEST_CASE("auto-increment is per-session not per-type", "[session][auto][increme
     // Encode PingBody (seq=0), DataBody (seq=1), PingBody (seq=2)
     auto w1 = session->encode_wrap(ping_id, std::any{ping});
     REQUIRE(w1.has_value());
-    auto d1 = session_test::Packet::decode_bytes(*w1);
+    auto d1 = session_test::Packet::decode_bytes(w1->bytes);
     REQUIRE(d1.has_value());
 
     auto w2 = session->encode_wrap(data_id, std::any{data});
     REQUIRE(w2.has_value());
-    auto d2 = session_test::Packet::decode_bytes(*w2);
+    auto d2 = session_test::Packet::decode_bytes(w2->bytes);
     REQUIRE(d2.has_value());
 
     auto w3 = session->encode_wrap(ping_id, std::any{ping});
     REQUIRE(w3.has_value());
-    auto d3 = session_test::Packet::decode_bytes(*w3);
+    auto d3 = session_test::Packet::decode_bytes(w3->bytes);
     REQUIRE(d3.has_value());
 
     // Counter should be shared: 0, 1, 2
@@ -823,8 +823,8 @@ TEST_CASE("config field survives session reset", "[session][config][reset]") {
     ping.set_seq(100);
     auto encoded = session->encode_wrap(frame_config::Ping::TYPE_ID, ping);
     REQUIRE(encoded.has_value());
-    REQUIRE(encoded->size() >= 1);
-    CHECK((*encoded)[0] == 42); // system-id from config
+    REQUIRE(encoded->bytes.size() >= 1);
+    CHECK(encoded->bytes[0] == 42); // system-id from config
 
     // Reset the session
     session->reset();
@@ -834,11 +834,11 @@ TEST_CASE("config field survives session reset", "[session][config][reset]") {
     ping2.set_seq(200);
     auto encoded2 = session->encode_wrap(frame_config::Ping::TYPE_ID, ping2);
     REQUIRE(encoded2.has_value());
-    REQUIRE(encoded2->size() >= 1);
-    CHECK((*encoded2)[0] == 42); // config survives reset
+    REQUIRE(encoded2->bytes.size() >= 1);
+    CHECK(encoded2->bytes[0] == 42); // config survives reset
 
     // Decode and verify payload
-    auto decoded = session->decode_frame(*encoded2);
+    auto decoded = session->decode_frame(encoded2->bytes);
     REQUIRE(decoded.has_value());
     REQUIRE(decoded->size() == 1);
     auto* payload = std::any_cast<frame_config::Ping>(&decoded->at(0).payload);
@@ -865,7 +865,7 @@ TEST_CASE("auto-increment 8-bit wrap-around", "[session][auto][increment][wrap]"
     for (int i = 0; i < 256; i++) {
         auto wrapped = session->encode_wrap(sentry_link::HeartbeatBody::TYPE_ID, hb);
         REQUIRE(wrapped.has_value());
-        auto decoded = sentry_link::Frame::decode_bytes(*wrapped);
+        auto decoded = sentry_link::Frame::decode_bytes(wrapped->bytes);
         REQUIRE(decoded.has_value());
         CHECK(decoded->sequence() == static_cast<uint8_t>(i));
     }
@@ -873,7 +873,7 @@ TEST_CASE("auto-increment 8-bit wrap-around", "[session][auto][increment][wrap]"
     // 257th encode should wrap to 0
     auto wrapped = session->encode_wrap(sentry_link::HeartbeatBody::TYPE_ID, hb);
     REQUIRE(wrapped.has_value());
-    auto decoded = sentry_link::Frame::decode_bytes(*wrapped);
+    auto decoded = sentry_link::Frame::decode_bytes(wrapped->bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->sequence() == 0);
 }

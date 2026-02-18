@@ -28,7 +28,7 @@ TEST_CASE("frame_timestamp: session sets timestamp on encode_wrap", "[frame][tim
         & 0xffffffffULL);
 
     // Decode and check timestamp is in [before, after] range
-    auto decoded = frame_timestamp::TsFrame::decode_bytes(*encoded);
+    auto decoded = frame_timestamp::TsFrame::decode_bytes(encoded->bytes);
     REQUIRE(decoded.has_value());
     CHECK(decoded->msg_type() == 1);
 
@@ -52,7 +52,7 @@ TEST_CASE("frame_timestamp: reset does not affect timestamp", "[frame][timestamp
     auto encoded = session->encode_wrap(frame_timestamp::Ping::TYPE_ID, msg);
     REQUIRE(encoded.has_value());
 
-    auto decoded = frame_timestamp::TsFrame::decode_bytes(*encoded);
+    auto decoded = frame_timestamp::TsFrame::decode_bytes(encoded->bytes);
     REQUIRE(decoded.has_value());
     // Timestamp is still set (reset only affects sequence counters, not timestamps)
     CHECK(decoded->ts() != 0);
