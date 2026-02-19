@@ -204,7 +204,12 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                 emit_encode_fx(c);
                 advance_bits_variable();
             } else if constexpr (std::is_same_v<T, model::Reserved>) {
-                ctx_.line("w.write_bits(0, " + std::to_string(c.bits) + ");");
+                int remaining = c.bits;
+                while (remaining > 64) {
+                    ctx_.line("w.write_bits(0, 64);");
+                    remaining -= 64;
+                }
+                ctx_.line("w.write_bits(0, " + std::to_string(remaining) + ");");
                 advance_bits(c.bits);
             } else if constexpr (std::is_same_v<T, model::Align>) {
                 ctx_.line("w.align_to(" + std::to_string(c.to) + ");");
@@ -854,7 +859,12 @@ void StructEmitter::emit_encode_fx_children(const std::vector<model::StructChild
                 ctx_.line("w.align_to(" + std::to_string(c.to) + ");");
                 bit_mod8_ = 0;
             } else if constexpr (std::is_same_v<T, model::Reserved>) {
-                ctx_.line("w.write_bits(0, " + std::to_string(c.bits) + ");");
+                int remaining = c.bits;
+                while (remaining > 64) {
+                    ctx_.line("w.write_bits(0, 64);");
+                    remaining -= 64;
+                }
+                ctx_.line("w.write_bits(0, " + std::to_string(remaining) + ");");
                 advance_bits(c.bits);
             } else if constexpr (std::is_same_v<T, model::FxBlock>) {
                 has_nested_fx = true;
