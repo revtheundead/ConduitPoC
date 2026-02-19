@@ -296,8 +296,9 @@
         <!-- FRN 20: SPF - Special Purpose Field -->
         <struct name="spf" bit="18">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8" auto="length">
+          <field name="len" type="uint8">
             <doc>Length of SPF including this length byte</doc>
+            <constraint equals="29"/>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
         </struct>

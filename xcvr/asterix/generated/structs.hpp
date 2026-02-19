@@ -9,11 +9,13 @@
 #include <conduit/string/encoding.hpp>
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -167,7 +169,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "DataSourceId{"
             << "sac=" << +(sac_)
@@ -175,6 +178,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 sac_{};
@@ -218,7 +222,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I040{"
             << "rho=" << +(rho_)
@@ -226,6 +231,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double rho_{};
@@ -269,7 +275,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I042{"
             << "x=" << +(x_)
@@ -277,6 +284,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double x_{};
@@ -312,13 +320,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I161{"
             << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t trackNumber_{};
@@ -361,7 +371,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I200{"
             << "groundSpeed=" << +(groundSpeed_)
@@ -369,6 +380,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double groundSpeed_{};
@@ -412,7 +424,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I400{"
             << "pri=" << +(pri_)
@@ -420,6 +433,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t pri_{};
@@ -462,13 +476,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I410{"
             << "msgType=" << +(msgType_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 msgType_{};
@@ -632,7 +648,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I020{"
             << "typ=" << +(typ_)
@@ -649,6 +666,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t typ_{};
@@ -744,7 +762,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I030{"
             << "we=" << +(we_)
@@ -753,6 +772,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t we_{};
@@ -819,7 +839,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I050{"
             << "v=" << +(v_)
@@ -829,6 +850,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -894,7 +916,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I055{"
             << "v=" << +(v_)
@@ -904,6 +927,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -941,13 +965,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I060{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t qxi_{};
@@ -982,13 +1008,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I065{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t qxi_{};
@@ -1053,7 +1081,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I070{"
             << "v=" << +(v_)
@@ -1063,6 +1092,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -1100,13 +1130,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I080{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t qxi_{};
@@ -1201,7 +1233,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Sum{"
             << "m5=" << +(m5_)
@@ -1214,6 +1247,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t m5_{};
@@ -1278,7 +1312,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Pmn{"
             << "pin=" << +(pin_)
@@ -1287,6 +1322,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t pin_{};
@@ -1331,7 +1367,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Pos{"
             << "latitude=" << +(latitude_)
@@ -1339,6 +1376,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double latitude_{};
@@ -1384,7 +1422,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Ga{"
             << "res=" << +(res_)
@@ -1392,6 +1431,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t res_{};
@@ -1457,7 +1497,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Em1{"
             << "v=" << +(v_)
@@ -1467,6 +1508,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -1544,7 +1586,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085Xp{"
             << "x5=" << +(x5_)
@@ -1555,6 +1598,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t x5_{};
@@ -1564,7 +1608,7 @@ private:
     uint8_t x1_{};
 };
 
-class sub {
+class Cat007I085_sub {
 public:
     bool has_sum() const { return sum_.has_value(); }
     const Cat007I085Sum& sum() const { return sum_.value(); }
@@ -1608,7 +1652,7 @@ public:
     void set_xp(const Cat007I085Xp& v) { xp_ = v; }
     void clear_xp() { xp_.reset(); }
 
-    bool operator==(const sub&) const = default;
+    bool operator==(const Cat007I085_sub&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -1654,8 +1698,8 @@ public:
         return {};
     }
 
-    static conduit::Result<sub> decode(conduit::io::BitReader& r) {
-        sub result;
+    static conduit::Result<Cat007I085_sub> decode(conduit::io::BitReader& r) {
+        Cat007I085_sub result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 1> fspec{};
@@ -1709,7 +1753,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "sub{";
+        oss << "Cat007I085_sub{";
         bool first = true;
         if (sum_.has_value()) {
             if (!first) oss << ", ";
@@ -1765,9 +1809,9 @@ private:
 // controlling up to 7 subfields.
 class Cat007I085 {
 public:
-    const ::asterix::sub& sub() const { return sub_; }
-    ::asterix::sub& mutable_sub() { return sub_; }
-    void set_sub(const ::asterix::sub& v) { sub_ = v; }
+    const Cat007I085_sub& sub() const { return sub_; }
+    Cat007I085_sub& mutable_sub() { return sub_; }
+    void set_sub(const Cat007I085_sub& v) { sub_ = v; }
 
     bool operator==(const Cat007I085&) const = default;
 
@@ -1780,23 +1824,25 @@ public:
     static conduit::Result<Cat007I085> decode(conduit::io::BitReader& r) {
         Cat007I085 result;
         {
-            auto val = sub::decode(r);
+            auto val = Cat007I085_sub::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sub_ = std::move(*val);
         }
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I085{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
-    ::asterix::sub sub_{};
+    Cat007I085_sub sub_{};
 };
 
 // I007/090 - Flight Level in Binary Representation
@@ -1846,7 +1892,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I090{"
             << "v=" << +(v_)
@@ -1855,6 +1902,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -1923,7 +1971,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I100{"
             << "v=" << +(v_)
@@ -1933,6 +1982,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -1970,13 +2020,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I110{"
             << "height3d=" << +(height3d_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double height3d_{};
@@ -2021,7 +2073,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I120Cal{"
             << "d=" << +(d_)
@@ -2029,13 +2082,14 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t d_{};
     int16_t cal_{};
 };
 
-class dopplerElement {
+class Cat007I120Rds_dopplerElement {
 public:
     const int16& dop() const { return dop_; }
     int16& mutable_dop() { return dop_; }
@@ -2049,7 +2103,7 @@ public:
     uint16& mutable_frq() { return frq_; }
     void set_frq(const uint16& v) { frq_ = v; }
 
-    bool operator==(const dopplerElement&) const = default;
+    bool operator==(const Cat007I120Rds_dopplerElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_signed_bits(dop_, 16);
@@ -2059,8 +2113,8 @@ public:
         return {};
     }
 
-    static conduit::Result<dopplerElement> decode(conduit::io::BitReader& r) {
-        dopplerElement result;
+    static conduit::Result<Cat007I120Rds_dopplerElement> decode(conduit::io::BitReader& r) {
+        Cat007I120Rds_dopplerElement result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
             if (!val) return std::unexpected(val.error().with_context("field 'dop'"));
@@ -2079,15 +2133,17 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "dopplerElement{"
+        oss << "Cat007I120Rds_dopplerElement{"
             << "dop=" << +(dop_)
             << ", amb=" << +(amb_)
             << ", frq=" << +(frq_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     int16 dop_{};
@@ -2102,9 +2158,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<dopplerElement>& doppler() const { return doppler_; }
-    std::vector<dopplerElement>& mutable_doppler() { return doppler_; }
-    void set_doppler(const std::vector<dopplerElement>& v) { doppler_ = v; }
+    const std::vector<Cat007I120Rds_dopplerElement>& doppler() const { return doppler_; }
+    std::vector<Cat007I120Rds_dopplerElement>& mutable_doppler() { return doppler_; }
+    void set_doppler(const std::vector<Cat007I120Rds_dopplerElement>& v) { doppler_ = v; }
 
     bool operator==(const Cat007I120Rds&) const = default;
 
@@ -2129,7 +2185,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'doppler'"));
             result.doppler_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = dopplerElement::decode(r);
+                auto elem = Cat007I120Rds_dopplerElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'doppler'"));
                 result.doppler_.push_back(std::move(*elem));
             }
@@ -2137,7 +2193,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I120Rds{"
             << "rep=" << +(rep_)
@@ -2151,10 +2208,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<dopplerElement> doppler_{};
+    std::vector<Cat007I120Rds_dopplerElement> doppler_{};
 };
 
 class Cat007I120_sub {
@@ -2270,13 +2328,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I120{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat007I120_sub sub_{};
@@ -2505,13 +2565,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I130{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat007I130_sub sub_{};
@@ -2651,7 +2713,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I170{"
             << "cnf=" << +(cnf_)
@@ -2666,6 +2729,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t cnf_{};
@@ -2736,7 +2800,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I210{"
             << "sigmaX=" << +(sigmaX_)
@@ -2746,6 +2811,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double sigmaX_{};
@@ -2853,7 +2919,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I230{"
             << "com=" << +(com_)
@@ -2867,6 +2934,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t com_{};
@@ -2879,7 +2947,7 @@ private:
     uint8_t b1b_{};
 };
 
-class bdsElement {
+class Cat007I250_bdsElement {
 public:
     const std::array<uint8_t, 7>& mbData() const { return mbData_; }
     std::array<uint8_t, 7>& mutable_mbData() { return mbData_; }
@@ -2893,7 +2961,7 @@ public:
     uint8_t& mutable_bds2() { return bds2_; }
     void set_bds2(const uint8_t& v) { bds2_ = v; }
 
-    bool operator==(const bdsElement&) const = default;
+    bool operator==(const Cat007I250_bdsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(mbData_.data(), mbData_.size()));
@@ -2903,8 +2971,8 @@ public:
         return {};
     }
 
-    static conduit::Result<bdsElement> decode(conduit::io::BitReader& r) {
-        bdsElement result;
+    static conduit::Result<Cat007I250_bdsElement> decode(conduit::io::BitReader& r) {
+        Cat007I250_bdsElement result;
         {
             auto span = r.read_bytes(7);
             if (!span) return std::unexpected(span.error().with_context("field 'mbData'"));
@@ -2923,15 +2991,17 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "bdsElement{"
+        oss << "Cat007I250_bdsElement{"
             << "mbData=[bytes]"
             << ", bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 7> mbData_{};
@@ -2946,9 +3016,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<bdsElement>& bds() const { return bds_; }
-    std::vector<bdsElement>& mutable_bds() { return bds_; }
-    void set_bds(const std::vector<bdsElement>& v) { bds_ = v; }
+    const std::vector<Cat007I250_bdsElement>& bds() const { return bds_; }
+    std::vector<Cat007I250_bdsElement>& mutable_bds() { return bds_; }
+    void set_bds(const std::vector<Cat007I250_bdsElement>& v) { bds_ = v; }
 
     bool operator==(const Cat007I250&) const = default;
 
@@ -2973,7 +3043,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = bdsElement::decode(r);
+                auto elem = Cat007I250_bdsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
                 result.bds_.push_back(std::move(*elem));
             }
@@ -2981,7 +3051,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I250{"
             << "rep=" << +(rep_)
@@ -2995,10 +3066,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<bdsElement> bds_{};
+    std::vector<Cat007I250_bdsElement> bds_{};
 };
 
 // I007/260 - ACAS Resolution Advisory Report (BDS 3,0)
@@ -3028,13 +3100,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I260{"
             << "mbData=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 7> mbData_{};
@@ -3099,7 +3173,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I450Tr{"
             << "n=" << +(n_)
@@ -3109,6 +3184,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t n_{};
@@ -3156,7 +3232,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I450Ms{"
             << "lo=" << +(lo_)
@@ -3164,6 +3241,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t lo_{};
@@ -3376,13 +3454,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I450{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat007I450_sub sub_{};
@@ -3739,7 +3819,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I415Rim{"
             << "lo=" << +(lo_)
@@ -3778,6 +3859,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t lo_{};
@@ -3929,13 +4011,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I415{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat007I415_sub sub_{};
@@ -3998,7 +4082,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I420{"
             << "rhoStart=" << +(rhoStart_)
@@ -4008,6 +4093,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double rhoStart_{};
@@ -4016,7 +4102,7 @@ private:
     double thetaEnd_{};
 };
 
-class registersElement {
+class Cat007I440_registersElement {
 public:
     const uint8_t& bds1() const { return bds1_; }
     uint8_t& mutable_bds1() { return bds1_; }
@@ -4026,7 +4112,7 @@ public:
     uint8_t& mutable_bds2() { return bds2_; }
     void set_bds2(const uint8_t& v) { bds2_ = v; }
 
-    bool operator==(const registersElement&) const = default;
+    bool operator==(const Cat007I440_registersElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(bds1_, 4);
@@ -4035,8 +4121,8 @@ public:
         return {};
     }
 
-    static conduit::Result<registersElement> decode(conduit::io::BitReader& r) {
-        registersElement result;
+    static conduit::Result<Cat007I440_registersElement> decode(conduit::io::BitReader& r) {
+        Cat007I440_registersElement result;
         {
             auto val = r.read_bits(4);
             if (!val) return std::unexpected(val.error().with_context("field 'bds1'"));
@@ -4050,14 +4136,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "registersElement{"
+        oss << "Cat007I440_registersElement{"
             << "bds1=" << +(bds1_)
             << ", bds2=" << +(bds2_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t bds1_{};
@@ -4071,9 +4159,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<registersElement>& registers() const { return registers_; }
-    std::vector<registersElement>& mutable_registers() { return registers_; }
-    void set_registers(const std::vector<registersElement>& v) { registers_ = v; }
+    const std::vector<Cat007I440_registersElement>& registers() const { return registers_; }
+    std::vector<Cat007I440_registersElement>& mutable_registers() { return registers_; }
+    void set_registers(const std::vector<Cat007I440_registersElement>& v) { registers_ = v; }
 
     bool operator==(const Cat007I440&) const = default;
 
@@ -4098,7 +4186,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'registers'"));
             result.registers_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = registersElement::decode(r);
+                auto elem = Cat007I440_registersElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'registers'"));
                 result.registers_.push_back(std::move(*elem));
             }
@@ -4106,7 +4194,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I440{"
             << "rep=" << +(rep_)
@@ -4120,10 +4209,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<registersElement> registers_{};
+    std::vector<Cat007I440_registersElement> registers_{};
 };
 
 // I021/008 - Aircraft Operational Status
@@ -4213,7 +4303,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I008{"
             << "ra=" << +(ra_)
@@ -4226,6 +4317,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t ra_{};
@@ -4264,13 +4356,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I016{"
             << "rp=" << +(rp_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double rp_{};
@@ -4523,7 +4617,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I040{"
             << "atp=" << +(atp_)
@@ -4545,6 +4640,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t atp_{};
@@ -4594,13 +4690,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I070{"
             << "code=" << +(code_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t code_{};
@@ -4643,7 +4741,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I074{"
             << "fsi=" << +(fsi_)
@@ -4651,6 +4750,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t fsi_{};
@@ -4694,7 +4794,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I076{"
             << "fsi=" << +(fsi_)
@@ -4702,6 +4803,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t fsi_{};
@@ -4884,7 +4986,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I090{"
             << "nucrNacv=" << +(nucrNacv_)
@@ -4899,6 +5002,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t nucrNacv_{};
@@ -4966,7 +5070,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I110Tis{"
             << "nav=" << +(nav_)
@@ -4974,13 +5079,14 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t nav_{};
     uint8_t nvb_{};
 };
 
-class pointsElement {
+class Cat021I110Tid_pointsElement {
 public:
     const uint8_t& tca() const { return tca_; }
     uint8_t& mutable_tca() { return tca_; }
@@ -5030,7 +5136,7 @@ public:
     double& mutable_ttr() { return ttr_; }
     void set_ttr(const double& v) { ttr_ = v; }
 
-    bool operator==(const pointsElement&) const = default;
+    bool operator==(const Cat021I110Tid_pointsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bits(tca_, 1);
@@ -5049,8 +5155,8 @@ public:
         return {};
     }
 
-    static conduit::Result<pointsElement> decode(conduit::io::BitReader& r) {
-        pointsElement result;
+    static conduit::Result<Cat021I110Tid_pointsElement> decode(conduit::io::BitReader& r) {
+        Cat021I110Tid_pointsElement result;
         {
             auto val = r.read_bits(1);
             if (!val) return std::unexpected(val.error().with_context("field 'tca'"));
@@ -5114,9 +5220,10 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "pointsElement{"
+        oss << "Cat021I110Tid_pointsElement{"
             << "tca=" << +(tca_)
             << ", nc=" << +(nc_)
             << ", tcpNumber=" << +(tcpNumber_)
@@ -5132,6 +5239,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t tca_{};
@@ -5155,9 +5263,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<pointsElement>& points() const { return points_; }
-    std::vector<pointsElement>& mutable_points() { return points_; }
-    void set_points(const std::vector<pointsElement>& v) { points_ = v; }
+    const std::vector<Cat021I110Tid_pointsElement>& points() const { return points_; }
+    std::vector<Cat021I110Tid_pointsElement>& mutable_points() { return points_; }
+    void set_points(const std::vector<Cat021I110Tid_pointsElement>& v) { points_ = v; }
 
     bool operator==(const Cat021I110Tid&) const = default;
 
@@ -5182,7 +5290,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'points'"));
             result.points_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = pointsElement::decode(r);
+                auto elem = Cat021I110Tid_pointsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'points'"));
                 result.points_.push_back(std::move(*elem));
             }
@@ -5190,7 +5298,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I110Tid{"
             << "rep=" << +(rep_)
@@ -5204,10 +5313,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<pointsElement> points_{};
+    std::vector<Cat021I110Tid_pointsElement> points_{};
 };
 
 class Cat021I110_sub {
@@ -5324,13 +5434,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I110{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat021I110_sub sub_{};
@@ -5373,7 +5485,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I130{"
             << "latitude=" << +(latitude_)
@@ -5381,6 +5494,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double latitude_{};
@@ -5424,7 +5538,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I131{"
             << "latitude=" << +(latitude_)
@@ -5432,6 +5547,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double latitude_{};
@@ -5465,13 +5581,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I140{"
             << "gh=" << +(gh_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double gh_{};
@@ -5504,13 +5622,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I145{"
             << "fl=" << +(fl_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double fl_{};
@@ -5563,7 +5683,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I146{"
             << "sas=" << +(sas_)
@@ -5572,6 +5693,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t sas_{};
@@ -5636,7 +5758,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I148{"
             << "mv=" << +(mv_)
@@ -5646,6 +5769,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t mv_{};
@@ -5691,7 +5815,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I150{"
             << "im=" << +(im_)
@@ -5699,6 +5824,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t im_{};
@@ -5742,7 +5868,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I151{"
             << "re=" << +(re_)
@@ -5750,6 +5877,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t re_{};
@@ -5783,13 +5911,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I152{"
             << "magneticHeading=" << +(magneticHeading_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double magneticHeading_{};
@@ -5832,7 +5962,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I155{"
             << "re=" << +(re_)
@@ -5840,6 +5971,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t re_{};
@@ -5883,7 +6015,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I157{"
             << "re=" << +(re_)
@@ -5891,6 +6024,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t re_{};
@@ -5944,7 +6078,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I160{"
             << "re=" << +(re_)
@@ -5953,6 +6088,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t re_{};
@@ -5989,13 +6125,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I161{"
             << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t trackNumber_{};
@@ -6030,13 +6168,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I165{"
             << "tar=" << +(tar_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double tar_{};
@@ -6109,7 +6249,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I200{"
             << "icf=" << +(icf_)
@@ -6120,6 +6261,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t icf_{};
@@ -6178,7 +6320,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I210{"
             << "vns=" << +(vns_)
@@ -6187,6 +6330,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t vns_{};
@@ -6221,13 +6365,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I220Ws{"
             << "windSpeed=" << +(windSpeed_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16 windSpeed_{};
@@ -6260,13 +6406,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I220Wd{"
             << "windDirection=" << +(windDirection_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16 windDirection_{};
@@ -6299,13 +6447,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I220Tmp{"
             << "temperature=" << +(temperature_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double temperature_{};
@@ -6471,13 +6621,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I220{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat021I220_sub sub_{};
@@ -6510,13 +6662,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I230{"
             << "rollAngle=" << +(rollAngle_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double rollAngle_{};
@@ -6566,7 +6720,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I250_bdsElement{"
             << "mbData=[bytes]"
@@ -6575,6 +6730,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 7> mbData_{};
@@ -6624,7 +6780,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I250{"
             << "rep=" << +(rep_)
@@ -6638,6 +6795,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
@@ -6741,7 +6899,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I260{"
             << "typ=" << +(typ_)
@@ -6755,6 +6914,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t typ_{};
@@ -6864,7 +7024,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I271{"
             << "poa=" << +(poa_)
@@ -6876,6 +7037,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t poa_{};
@@ -7461,13 +7623,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I295{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat021I295_sub sub_{};
@@ -7631,7 +7795,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I020{"
             << "typ=" << +(typ_)
@@ -7648,6 +7813,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t typ_{};
@@ -7743,7 +7909,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I030{"
             << "we=" << +(we_)
@@ -7752,6 +7919,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t we_{};
@@ -7796,7 +7964,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I040{"
             << "rho=" << +(rho_)
@@ -7804,6 +7973,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double rho_{};
@@ -7847,7 +8017,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I042{"
             << "x=" << +(x_)
@@ -7855,6 +8026,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double x_{};
@@ -7920,7 +8092,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I050{"
             << "v=" << +(v_)
@@ -7930,6 +8103,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -7995,7 +8169,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I055{"
             << "v=" << +(v_)
@@ -8005,6 +8180,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -8042,13 +8218,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I060{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t qxi_{};
@@ -8083,13 +8261,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I065{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t qxi_{};
@@ -8154,7 +8334,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I070{"
             << "v=" << +(v_)
@@ -8164,6 +8345,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -8201,13 +8383,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I080{"
             << "qxi=" << +(qxi_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t qxi_{};
@@ -8260,7 +8444,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I090{"
             << "v=" << +(v_)
@@ -8269,6 +8454,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -8337,7 +8523,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I100{"
             << "v=" << +(v_)
@@ -8347,6 +8534,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t v_{};
@@ -8384,13 +8572,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I110{"
             << "height3d=" << +(height3d_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double height3d_{};
@@ -8435,7 +8625,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I120Cal{"
             << "d=" << +(d_)
@@ -8443,6 +8634,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t d_{};
@@ -8493,7 +8685,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I120Rds_dopplerElement{"
             << "dop=" << +(dop_)
@@ -8502,6 +8695,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16 dop_{};
@@ -8551,7 +8745,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I120Rds{"
             << "rep=" << +(rep_)
@@ -8565,6 +8760,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
@@ -8684,13 +8880,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I120{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat048I120_sub sub_{};
@@ -8919,13 +9117,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I130{"
             << "sub=" << sub_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat048I130_sub sub_{};
@@ -8960,13 +9160,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I161{"
             << "trackNumber=" << +(trackNumber_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16_t trackNumber_{};
@@ -9106,7 +9308,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I170{"
             << "cnf=" << +(cnf_)
@@ -9121,6 +9324,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t cnf_{};
@@ -9171,7 +9375,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I200{"
             << "groundSpeed=" << +(groundSpeed_)
@@ -9179,6 +9384,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double groundSpeed_{};
@@ -9242,7 +9448,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I210{"
             << "sigmaX=" << +(sigmaX_)
@@ -9252,6 +9459,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     double sigmaX_{};
@@ -9359,7 +9567,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I230{"
             << "com=" << +(com_)
@@ -9373,6 +9582,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t com_{};
@@ -9429,7 +9639,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I250_bdsElement{"
             << "mbData=[bytes]"
@@ -9438,6 +9649,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 7> mbData_{};
@@ -9487,7 +9699,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I250{"
             << "rep=" << +(rep_)
@@ -9501,6 +9714,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
@@ -9534,19 +9748,21 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I260{"
             << "mbData=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 7> mbData_{};
 };
 
-class destinationsElement {
+class Cat253I025_destinationsElement {
 public:
     const uint8& sac() const { return sac_; }
     uint8& mutable_sac() { return sac_; }
@@ -9560,7 +9776,7 @@ public:
     uint8& mutable_localId() { return localId_; }
     void set_localId(const uint8& v) { localId_ = v; }
 
-    bool operator==(const destinationsElement&) const = default;
+    bool operator==(const Cat253I025_destinationsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(sac_));
@@ -9570,8 +9786,8 @@ public:
         return {};
     }
 
-    static conduit::Result<destinationsElement> decode(conduit::io::BitReader& r) {
-        destinationsElement result;
+    static conduit::Result<Cat253I025_destinationsElement> decode(conduit::io::BitReader& r) {
+        Cat253I025_destinationsElement result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'sac'"));
@@ -9590,15 +9806,17 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "destinationsElement{"
+        oss << "Cat253I025_destinationsElement{"
             << "sac=" << +(sac_)
             << ", sic=" << +(sic_)
             << ", localId=" << +(localId_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 sac_{};
@@ -9613,9 +9831,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<destinationsElement>& destinations() const { return destinations_; }
-    std::vector<destinationsElement>& mutable_destinations() { return destinations_; }
-    void set_destinations(const std::vector<destinationsElement>& v) { destinations_ = v; }
+    const std::vector<Cat253I025_destinationsElement>& destinations() const { return destinations_; }
+    std::vector<Cat253I025_destinationsElement>& mutable_destinations() { return destinations_; }
+    void set_destinations(const std::vector<Cat253I025_destinationsElement>& v) { destinations_ = v; }
 
     bool operator==(const Cat253I025&) const = default;
 
@@ -9640,7 +9858,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'destinations'"));
             result.destinations_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = destinationsElement::decode(r);
+                auto elem = Cat253I025_destinationsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'destinations'"));
                 result.destinations_.push_back(std::move(*elem));
             }
@@ -9648,7 +9866,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I025{"
             << "rep=" << +(rep_)
@@ -9662,10 +9881,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<destinationsElement> destinations_{};
+    std::vector<Cat253I025_destinationsElement> destinations_{};
 };
 
 // I253/035 - Data Origin Identifier
@@ -9715,7 +9935,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I035{"
             << "oac=" << +(oac_)
@@ -9724,6 +9945,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 oac_{};
@@ -9742,9 +9964,9 @@ public:
     uint8_t& mutable_d() { return d_; }
     void set_d(const uint8_t& v) { d_ = v; }
 
-    const Cat253MsgType& mit() const { return mit_; }
+    Cat253MsgType mit() const { return mit_; }
     Cat253MsgType& mutable_mit() { return mit_; }
-    void set_mit(const Cat253MsgType& v) { mit_ = v; }
+    void set_mit(Cat253MsgType v) { mit_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
@@ -9778,7 +10000,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I040{"
             << "pi=" << +(pi_)
@@ -9787,6 +10010,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8_t pi_{};
@@ -9794,13 +10018,13 @@ private:
     Cat253MsgType mit_{Cat253MsgType::TimeAndDay};
 };
 
-class sequencesElement {
+class Cat253I050_sequencesElement {
 public:
     const uint16& msid() const { return msid_; }
     uint16& mutable_msid() { return msid_; }
     void set_msid(const uint16& v) { msid_ = v; }
 
-    bool operator==(const sequencesElement&) const = default;
+    bool operator==(const Cat253I050_sequencesElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u16(static_cast<uint16_t>(msid_), conduit::io::Endian::Big);
@@ -9808,8 +10032,8 @@ public:
         return {};
     }
 
-    static conduit::Result<sequencesElement> decode(conduit::io::BitReader& r) {
-        sequencesElement result;
+    static conduit::Result<Cat253I050_sequencesElement> decode(conduit::io::BitReader& r) {
+        Cat253I050_sequencesElement result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
             if (!val) return std::unexpected(val.error().with_context("field 'msid'"));
@@ -9818,13 +10042,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "sequencesElement{"
+        oss << "Cat253I050_sequencesElement{"
             << "msid=" << +(msid_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16 msid_{};
@@ -9837,9 +10063,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<sequencesElement>& sequences() const { return sequences_; }
-    std::vector<sequencesElement>& mutable_sequences() { return sequences_; }
-    void set_sequences(const std::vector<sequencesElement>& v) { sequences_ = v; }
+    const std::vector<Cat253I050_sequencesElement>& sequences() const { return sequences_; }
+    std::vector<Cat253I050_sequencesElement>& mutable_sequences() { return sequences_; }
+    void set_sequences(const std::vector<Cat253I050_sequencesElement>& v) { sequences_ = v; }
 
     bool operator==(const Cat253I050&) const = default;
 
@@ -9864,7 +10090,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'sequences'"));
             result.sequences_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = sequencesElement::decode(r);
+                auto elem = Cat253I050_sequencesElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'sequences'"));
                 result.sequences_.push_back(std::move(*elem));
             }
@@ -9872,7 +10098,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I050{"
             << "rep=" << +(rep_)
@@ -9886,10 +10113,11 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<sequencesElement> sequences_{};
+    std::vector<Cat253I050_sequencesElement> sequences_{};
 };
 
 // I253/060 - Blocking Information
@@ -9929,7 +10157,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I060{"
             << "tnb=" << +(tnb_)
@@ -9937,6 +10166,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 tnb_{};
@@ -10319,7 +10549,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I080{"
             << "startIndex=" << +(startIndex_)
@@ -10349,6 +10580,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint16 startIndex_{};
@@ -10377,13 +10609,13 @@ private:
     std::optional<uint8_t> dataIncluded3_;
 };
 
-class dataItemsElement {
+class Cat253I090_dataItemsElement {
 public:
     const std::array<uint8_t, 16>& data() const { return data_; }
     std::array<uint8_t, 16>& mutable_data() { return data_; }
     void set_data(const std::array<uint8_t, 16>& v) { data_ = v; }
 
-    bool operator==(const dataItemsElement&) const = default;
+    bool operator==(const Cat253I090_dataItemsElement&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
@@ -10391,8 +10623,8 @@ public:
         return {};
     }
 
-    static conduit::Result<dataItemsElement> decode(conduit::io::BitReader& r) {
-        dataItemsElement result;
+    static conduit::Result<Cat253I090_dataItemsElement> decode(conduit::io::BitReader& r) {
+        Cat253I090_dataItemsElement result;
         {
             auto span = r.read_bytes(16);
             if (!span) return std::unexpected(span.error().with_context("field 'data'"));
@@ -10401,13 +10633,15 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "dataItemsElement{"
+        oss << "Cat253I090_dataItemsElement{"
             << "data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::array<uint8_t, 16> data_{};
@@ -10420,9 +10654,9 @@ public:
     uint8& mutable_rep() { return rep_; }
     void set_rep(const uint8& v) { rep_ = v; }
 
-    const std::vector<dataItemsElement>& dataItems() const { return dataItems_; }
-    std::vector<dataItemsElement>& mutable_dataItems() { return dataItems_; }
-    void set_dataItems(const std::vector<dataItemsElement>& v) { dataItems_ = v; }
+    const std::vector<Cat253I090_dataItemsElement>& dataItems() const { return dataItems_; }
+    std::vector<Cat253I090_dataItemsElement>& mutable_dataItems() { return dataItems_; }
+    void set_dataItems(const std::vector<Cat253I090_dataItemsElement>& v) { dataItems_ = v; }
 
     bool operator==(const Cat253I090&) const = default;
 
@@ -10447,7 +10681,7 @@ public:
             if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'dataItems'"));
             result.dataItems_.reserve(count);
             for (size_t i = 0; i < count; i++) {
-                auto elem = dataItemsElement::decode(r);
+                auto elem = Cat253I090_dataItemsElement::decode(r);
                 if (!elem) return std::unexpected(elem.error().with_context("array 'dataItems'"));
                 result.dataItems_.push_back(std::move(*elem));
             }
@@ -10455,7 +10689,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I090{"
             << "rep=" << +(rep_)
@@ -10469,22 +10704,23 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 rep_{};
-    std::vector<dataItemsElement> dataItems_{};
+    std::vector<Cat253I090_dataItemsElement> dataItems_{};
 };
 
 // I253/100 variant: Multipath data (1 data byte, excluding length)
 class Cat253Multipath {
 public:
-    const Cat253MpDetection& detection() const { return detection_; }
+    Cat253MpDetection detection() const { return detection_; }
     Cat253MpDetection& mutable_detection() { return detection_; }
-    void set_detection(const Cat253MpDetection& v) { detection_ = v; }
+    void set_detection(Cat253MpDetection v) { detection_ = v; }
 
-    const Cat253MpLevel& level() const { return level_; }
+    Cat253MpLevel level() const { return level_; }
     Cat253MpLevel& mutable_level() { return level_; }
-    void set_level(const Cat253MpLevel& v) { level_ = v; }
+    void set_level(Cat253MpLevel v) { level_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
@@ -10512,7 +10748,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253Multipath{"
             << "detection=" << ::asterix::to_string(detection_)
@@ -10520,6 +10757,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat253MpDetection detection_{Cat253MpDetection::disabled};
@@ -10529,17 +10767,17 @@ private:
 // I253/100 variant: Squitter data (1 data byte, excluding length)
 class Cat253Squitter {
 public:
-    const Cat253SqRxChannel& rxChannel() const { return rxChannel_; }
+    Cat253SqRxChannel rxChannel() const { return rxChannel_; }
     Cat253SqRxChannel& mutable_rxChannel() { return rxChannel_; }
-    void set_rxChannel(const Cat253SqRxChannel& v) { rxChannel_ = v; }
+    void set_rxChannel(Cat253SqRxChannel v) { rxChannel_ = v; }
 
-    const Cat253SqMsSquitter& msSquitter() const { return msSquitter_; }
+    Cat253SqMsSquitter msSquitter() const { return msSquitter_; }
     Cat253SqMsSquitter& mutable_msSquitter() { return msSquitter_; }
-    void set_msSquitter(const Cat253SqMsSquitter& v) { msSquitter_ = v; }
+    void set_msSquitter(Cat253SqMsSquitter v) { msSquitter_ = v; }
 
-    const Cat253SqM5Squitter& m5Squitter() const { return m5Squitter_; }
+    Cat253SqM5Squitter m5Squitter() const { return m5Squitter_; }
     Cat253SqM5Squitter& mutable_m5Squitter() { return m5Squitter_; }
-    void set_m5Squitter(const Cat253SqM5Squitter& v) { m5Squitter_ = v; }
+    void set_m5Squitter(Cat253SqM5Squitter v) { m5Squitter_ = v; }
 
     static constexpr size_t WIRE_SIZE = 1;
 
@@ -10575,7 +10813,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253Squitter{"
             << "rxChannel=" << ::asterix::to_string(rxChannel_)
@@ -10584,6 +10823,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat253SqRxChannel rxChannel_{Cat253SqRxChannel::sum};
@@ -10594,117 +10834,117 @@ private:
 // I253/100 variant: BIT Report data (16 data bytes, excluding length)
 class Cat253BitReport {
 public:
-    const Cat253BrBitType& bitType() const { return bitType_; }
+    Cat253BrBitType bitType() const { return bitType_; }
     Cat253BrBitType& mutable_bitType() { return bitType_; }
-    void set_bitType(const Cat253BrBitType& v) { bitType_ = v; }
+    void set_bitType(Cat253BrBitType v) { bitType_ = v; }
 
-    const Cat253BrSuccessState& successState() const { return successState_; }
+    Cat253BrSuccessState successState() const { return successState_; }
     Cat253BrSuccessState& mutable_successState() { return successState_; }
-    void set_successState(const Cat253BrSuccessState& v) { successState_ = v; }
+    void set_successState(Cat253BrSuccessState v) { successState_ = v; }
 
-    const Cat253BrAntennaGeneral& antennaGeneral() const { return antennaGeneral_; }
+    Cat253BrAntennaGeneral antennaGeneral() const { return antennaGeneral_; }
     Cat253BrAntennaGeneral& mutable_antennaGeneral() { return antennaGeneral_; }
-    void set_antennaGeneral(const Cat253BrAntennaGeneral& v) { antennaGeneral_ = v; }
+    void set_antennaGeneral(Cat253BrAntennaGeneral v) { antennaGeneral_ = v; }
 
-    const Cat253BrAntennaScanError& antennaScanError() const { return antennaScanError_; }
+    Cat253BrAntennaScanError antennaScanError() const { return antennaScanError_; }
     Cat253BrAntennaScanError& mutable_antennaScanError() { return antennaScanError_; }
-    void set_antennaScanError(const Cat253BrAntennaScanError& v) { antennaScanError_ = v; }
+    void set_antennaScanError(Cat253BrAntennaScanError v) { antennaScanError_ = v; }
 
-    const Cat253BrPowerSourceGeneral& powerSourceGeneral() const { return powerSourceGeneral_; }
+    Cat253BrPowerSourceGeneral powerSourceGeneral() const { return powerSourceGeneral_; }
     Cat253BrPowerSourceGeneral& mutable_powerSourceGeneral() { return powerSourceGeneral_; }
-    void set_powerSourceGeneral(const Cat253BrPowerSourceGeneral& v) { powerSourceGeneral_ = v; }
+    void set_powerSourceGeneral(Cat253BrPowerSourceGeneral v) { powerSourceGeneral_ = v; }
 
-    const Cat253BrCtrlUnitGeneral& ctrlUnitGeneral() const { return ctrlUnitGeneral_; }
+    Cat253BrCtrlUnitGeneral ctrlUnitGeneral() const { return ctrlUnitGeneral_; }
     Cat253BrCtrlUnitGeneral& mutable_ctrlUnitGeneral() { return ctrlUnitGeneral_; }
-    void set_ctrlUnitGeneral(const Cat253BrCtrlUnitGeneral& v) { ctrlUnitGeneral_ = v; }
+    void set_ctrlUnitGeneral(Cat253BrCtrlUnitGeneral v) { ctrlUnitGeneral_ = v; }
 
-    const Cat253BrKbCryptoComm& kbCryptoComm() const { return kbCryptoComm_; }
+    Cat253BrKbCryptoComm kbCryptoComm() const { return kbCryptoComm_; }
     Cat253BrKbCryptoComm& mutable_kbCryptoComm() { return kbCryptoComm_; }
-    void set_kbCryptoComm(const Cat253BrKbCryptoComm& v) { kbCryptoComm_ = v; }
+    void set_kbCryptoComm(Cat253BrKbCryptoComm v) { kbCryptoComm_ = v; }
 
-    const Cat253BrKbRtc& kbRtc() const { return kbRtc_; }
+    Cat253BrKbRtc kbRtc() const { return kbRtc_; }
     Cat253BrKbRtc& mutable_kbRtc() { return kbRtc_; }
-    void set_kbRtc(const Cat253BrKbRtc& v) { kbRtc_ = v; }
+    void set_kbRtc(Cat253BrKbRtc v) { kbRtc_ = v; }
 
-    const Cat253BrKbHeatWarning& kbHeatWarning() const { return kbHeatWarning_; }
+    Cat253BrKbHeatWarning kbHeatWarning() const { return kbHeatWarning_; }
     Cat253BrKbHeatWarning& mutable_kbHeatWarning() { return kbHeatWarning_; }
-    void set_kbHeatWarning(const Cat253BrKbHeatWarning& v) { kbHeatWarning_ = v; }
+    void set_kbHeatWarning(Cat253BrKbHeatWarning v) { kbHeatWarning_ = v; }
 
-    const Cat253BrBottomBandGeneral& bottomBandGeneral() const { return bottomBandGeneral_; }
+    Cat253BrBottomBandGeneral bottomBandGeneral() const { return bottomBandGeneral_; }
     Cat253BrBottomBandGeneral& mutable_bottomBandGeneral() { return bottomBandGeneral_; }
-    void set_bottomBandGeneral(const Cat253BrBottomBandGeneral& v) { bottomBandGeneral_ = v; }
+    void set_bottomBandGeneral(Cat253BrBottomBandGeneral v) { bottomBandGeneral_ = v; }
 
-    const Cat253BrTbCtrlComm& tbCtrlComm() const { return tbCtrlComm_; }
+    Cat253BrTbCtrlComm tbCtrlComm() const { return tbCtrlComm_; }
     Cat253BrTbCtrlComm& mutable_tbCtrlComm() { return tbCtrlComm_; }
-    void set_tbCtrlComm(const Cat253BrTbCtrlComm& v) { tbCtrlComm_ = v; }
+    void set_tbCtrlComm(Cat253BrTbCtrlComm v) { tbCtrlComm_ = v; }
 
-    const Cat253BrTbConfigUpload& tbConfigUpload() const { return tbConfigUpload_; }
+    Cat253BrTbConfigUpload tbConfigUpload() const { return tbConfigUpload_; }
     Cat253BrTbConfigUpload& mutable_tbConfigUpload() { return tbConfigUpload_; }
-    void set_tbConfigUpload(const Cat253BrTbConfigUpload& v) { tbConfigUpload_ = v; }
+    void set_tbConfigUpload(Cat253BrTbConfigUpload v) { tbConfigUpload_ = v; }
 
-    const Cat253BrVswrGeneral& vswrGeneral() const { return vswrGeneral_; }
+    Cat253BrVswrGeneral vswrGeneral() const { return vswrGeneral_; }
     Cat253BrVswrGeneral& mutable_vswrGeneral() { return vswrGeneral_; }
-    void set_vswrGeneral(const Cat253BrVswrGeneral& v) { vswrGeneral_ = v; }
+    void set_vswrGeneral(Cat253BrVswrGeneral v) { vswrGeneral_ = v; }
 
-    const Cat253BrVswrSum& vswrSum() const { return vswrSum_; }
+    Cat253BrVswrSum vswrSum() const { return vswrSum_; }
     Cat253BrVswrSum& mutable_vswrSum() { return vswrSum_; }
-    void set_vswrSum(const Cat253BrVswrSum& v) { vswrSum_ = v; }
+    void set_vswrSum(Cat253BrVswrSum v) { vswrSum_ = v; }
 
-    const Cat253BrVswrDiff& vswrDiff() const { return vswrDiff_; }
+    Cat253BrVswrDiff vswrDiff() const { return vswrDiff_; }
     Cat253BrVswrDiff& mutable_vswrDiff() { return vswrDiff_; }
-    void set_vswrDiff(const Cat253BrVswrDiff& v) { vswrDiff_ = v; }
+    void set_vswrDiff(Cat253BrVswrDiff v) { vswrDiff_ = v; }
 
-    const Cat253BrVswrOmni& vswrOmni() const { return vswrOmni_; }
+    Cat253BrVswrOmni vswrOmni() const { return vswrOmni_; }
     Cat253BrVswrOmni& mutable_vswrOmni() { return vswrOmni_; }
-    void set_vswrOmni(const Cat253BrVswrOmni& v) { vswrOmni_ = v; }
+    void set_vswrOmni(Cat253BrVswrOmni v) { vswrOmni_ = v; }
 
-    const Cat253BrAfbGeneral& afbGeneral() const { return afbGeneral_; }
+    Cat253BrAfbGeneral afbGeneral() const { return afbGeneral_; }
     Cat253BrAfbGeneral& mutable_afbGeneral() { return afbGeneral_; }
-    void set_afbGeneral(const Cat253BrAfbGeneral& v) { afbGeneral_ = v; }
+    void set_afbGeneral(Cat253BrAfbGeneral v) { afbGeneral_ = v; }
 
-    const Cat253BrAfbMainSynth& afbMainSynth() const { return afbMainSynth_; }
+    Cat253BrAfbMainSynth afbMainSynth() const { return afbMainSynth_; }
     Cat253BrAfbMainSynth& mutable_afbMainSynth() { return afbMainSynth_; }
-    void set_afbMainSynth(const Cat253BrAfbMainSynth& v) { afbMainSynth_ = v; }
+    void set_afbMainSynth(Cat253BrAfbMainSynth v) { afbMainSynth_ = v; }
 
-    const Cat253BrAfbBitSynth& afbBitSynth() const { return afbBitSynth_; }
+    Cat253BrAfbBitSynth afbBitSynth() const { return afbBitSynth_; }
     Cat253BrAfbBitSynth& mutable_afbBitSynth() { return afbBitSynth_; }
-    void set_afbBitSynth(const Cat253BrAfbBitSynth& v) { afbBitSynth_ = v; }
+    void set_afbBitSynth(Cat253BrAfbBitSynth v) { afbBitSynth_ = v; }
 
-    const Cat253BrAfbTotalCh& afbTotalCh() const { return afbTotalCh_; }
+    Cat253BrAfbTotalCh afbTotalCh() const { return afbTotalCh_; }
     Cat253BrAfbTotalCh& mutable_afbTotalCh() { return afbTotalCh_; }
-    void set_afbTotalCh(const Cat253BrAfbTotalCh& v) { afbTotalCh_ = v; }
+    void set_afbTotalCh(Cat253BrAfbTotalCh v) { afbTotalCh_ = v; }
 
-    const Cat253BrAfbDiffCh& afbDiffCh() const { return afbDiffCh_; }
+    Cat253BrAfbDiffCh afbDiffCh() const { return afbDiffCh_; }
     Cat253BrAfbDiffCh& mutable_afbDiffCh() { return afbDiffCh_; }
-    void set_afbDiffCh(const Cat253BrAfbDiffCh& v) { afbDiffCh_ = v; }
+    void set_afbDiffCh(Cat253BrAfbDiffCh v) { afbDiffCh_ = v; }
 
-    const Cat253BrAfbOmniCh& afbOmniCh() const { return afbOmniCh_; }
+    Cat253BrAfbOmniCh afbOmniCh() const { return afbOmniCh_; }
     Cat253BrAfbOmniCh& mutable_afbOmniCh() { return afbOmniCh_; }
-    void set_afbOmniCh(const Cat253BrAfbOmniCh& v) { afbOmniCh_ = v; }
+    void set_afbOmniCh(Cat253BrAfbOmniCh v) { afbOmniCh_ = v; }
 
-    const Cat253BrRfgybGeneral& rfgybGeneral() const { return rfgybGeneral_; }
+    Cat253BrRfgybGeneral rfgybGeneral() const { return rfgybGeneral_; }
     Cat253BrRfgybGeneral& mutable_rfgybGeneral() { return rfgybGeneral_; }
-    void set_rfgybGeneral(const Cat253BrRfgybGeneral& v) { rfgybGeneral_ = v; }
+    void set_rfgybGeneral(Cat253BrRfgybGeneral v) { rfgybGeneral_ = v; }
 
-    const Cat253BrRfgybTotalPwr& rfgybTotalPwr() const { return rfgybTotalPwr_; }
+    Cat253BrRfgybTotalPwr rfgybTotalPwr() const { return rfgybTotalPwr_; }
     Cat253BrRfgybTotalPwr& mutable_rfgybTotalPwr() { return rfgybTotalPwr_; }
-    void set_rfgybTotalPwr(const Cat253BrRfgybTotalPwr& v) { rfgybTotalPwr_ = v; }
+    void set_rfgybTotalPwr(Cat253BrRfgybTotalPwr v) { rfgybTotalPwr_ = v; }
 
-    const Cat253BrRfgybDiffPwr& rfgybDiffPwr() const { return rfgybDiffPwr_; }
+    Cat253BrRfgybDiffPwr rfgybDiffPwr() const { return rfgybDiffPwr_; }
     Cat253BrRfgybDiffPwr& mutable_rfgybDiffPwr() { return rfgybDiffPwr_; }
-    void set_rfgybDiffPwr(const Cat253BrRfgybDiffPwr& v) { rfgybDiffPwr_ = v; }
+    void set_rfgybDiffPwr(Cat253BrRfgybDiffPwr v) { rfgybDiffPwr_ = v; }
 
-    const Cat253BrRfgybOmniPwr& rfgybOmniPwr() const { return rfgybOmniPwr_; }
+    Cat253BrRfgybOmniPwr rfgybOmniPwr() const { return rfgybOmniPwr_; }
     Cat253BrRfgybOmniPwr& mutable_rfgybOmniPwr() { return rfgybOmniPwr_; }
-    void set_rfgybOmniPwr(const Cat253BrRfgybOmniPwr& v) { rfgybOmniPwr_ = v; }
+    void set_rfgybOmniPwr(Cat253BrRfgybOmniPwr v) { rfgybOmniPwr_ = v; }
 
-    const Cat253BrRfgybHeatWarning& rfgybHeatWarning() const { return rfgybHeatWarning_; }
+    Cat253BrRfgybHeatWarning rfgybHeatWarning() const { return rfgybHeatWarning_; }
     Cat253BrRfgybHeatWarning& mutable_rfgybHeatWarning() { return rfgybHeatWarning_; }
-    void set_rfgybHeatWarning(const Cat253BrRfgybHeatWarning& v) { rfgybHeatWarning_ = v; }
+    void set_rfgybHeatWarning(Cat253BrRfgybHeatWarning v) { rfgybHeatWarning_ = v; }
 
-    const Cat253BrCryptoGeneral& cryptoGeneral() const { return cryptoGeneral_; }
+    Cat253BrCryptoGeneral cryptoGeneral() const { return cryptoGeneral_; }
     Cat253BrCryptoGeneral& mutable_cryptoGeneral() { return cryptoGeneral_; }
-    void set_cryptoGeneral(const Cat253BrCryptoGeneral& v) { cryptoGeneral_ = v; }
+    void set_cryptoGeneral(Cat253BrCryptoGeneral v) { cryptoGeneral_ = v; }
 
     static constexpr size_t WIRE_SIZE = 16;
 
@@ -10894,7 +11134,8 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
         oss << "Cat253BitReport{"
             << "bitType=" << ::asterix::to_string(bitType_)
@@ -10928,6 +11169,7 @@ public:
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     Cat253BrBitType bitType_{Cat253BrBitType::ok};

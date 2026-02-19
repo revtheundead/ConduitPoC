@@ -88,7 +88,7 @@ inline void rand_fill_destinations(std::mt19937& rng, asterix_alt::Cat253I025& i
     int n = std::uniform_int_distribution<int>(1, 3)(rng);
     i025.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
-        asterix_alt::destinationsElement elem;
+        asterix_alt::Cat253I025_destinationsElement elem;
         elem.set_sac(rand_u8(rng));
         elem.set_sic(rand_u8(rng));
         elem.set_local_id(rand_u8(rng));
@@ -100,7 +100,7 @@ inline void rand_fill_sequences(std::mt19937& rng, asterix_alt::Cat253I050& i050
     int n = std::uniform_int_distribution<int>(1, 4)(rng);
     i050.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
-        asterix_alt::sequencesElement elem;
+        asterix_alt::Cat253I050_sequencesElement elem;
         elem.set_msid(rand_u16(rng));
         i050.mutable_sequences().push_back(elem);
     }

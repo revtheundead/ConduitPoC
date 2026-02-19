@@ -40,49 +40,81 @@ public:
         return messages;
     }
 
-    [[nodiscard]] conduit::Result<std::vector<uint8_t>>
+    [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id == 0x526296abfa532d01ULL) {
             auto* msg = std::any_cast<Cat007DownlinkRecord>(&payload);
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat007DownlinkRecord"));
+            conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            return frame.encode_bytes();
+            result.auto_fields.push_back({"cat", std::to_string(Cat007DownlinkRecord::ID_VALUE)});
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x8d0fb175aeb7de98ULL) {
             auto* msg = std::any_cast<Cat007UplinkRecord>(&payload);
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat007UplinkRecord"));
+            conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            return frame.encode_bytes();
+            result.auto_fields.push_back({"cat", std::to_string(Cat007UplinkRecord::ID_VALUE)});
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0xd597a1ab87dbb779ULL) {
             auto* msg = std::any_cast<Cat021Record>(&payload);
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat021Record"));
+            conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            return frame.encode_bytes();
+            result.auto_fields.push_back({"cat", std::to_string(Cat021Record::ID_VALUE)});
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
             auto* msg = std::any_cast<Cat048Record>(&payload);
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat048Record"));
+            conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            return frame.encode_bytes();
+            result.auto_fields.push_back({"cat", std::to_string(Cat048Record::ID_VALUE)});
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x7f7b50444b289e0eULL) {
             auto* msg = std::any_cast<Cat253Record>(&payload);
             if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "payload type mismatch for Cat253Record"));
+            conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            return frame.encode_bytes();
+            result.auto_fields.push_back({"cat", std::to_string(Cat253Record::ID_VALUE)});
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else {
             return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownTypeId,
                 "unknown type_id: " + std::to_string(type_id)));
         }
     }
 
-    [[nodiscard]] conduit::Result<std::vector<uint8_t>>
+    [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
     encode_batch(uint64_t type_id, std::span<const std::any> payloads) override {
         if (type_id == 0x526296abfa532d01ULL) {
             AsterixDataBlock frame;
+            conduit::traits::EncodeResult result;
             frame.set_cat(Cat007DownlinkRecord::ID_VALUE);
+            result.auto_fields.push_back({"cat", std::to_string(Cat007DownlinkRecord::ID_VALUE)});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007DownlinkRecord>(&p);
@@ -90,10 +122,16 @@ public:
                     "payload type mismatch for Cat007DownlinkRecord"));
                 frame.payload().push_back(*msg);
             }
-            return frame.encode_bytes();
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x8d0fb175aeb7de98ULL) {
             AsterixDataBlock frame;
+            conduit::traits::EncodeResult result;
             frame.set_cat(Cat007UplinkRecord::ID_VALUE);
+            result.auto_fields.push_back({"cat", std::to_string(Cat007UplinkRecord::ID_VALUE)});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007UplinkRecord>(&p);
@@ -101,10 +139,16 @@ public:
                     "payload type mismatch for Cat007UplinkRecord"));
                 frame.payload().push_back(*msg);
             }
-            return frame.encode_bytes();
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0xd597a1ab87dbb779ULL) {
             AsterixDataBlock frame;
+            conduit::traits::EncodeResult result;
             frame.set_cat(Cat021Record::ID_VALUE);
+            result.auto_fields.push_back({"cat", std::to_string(Cat021Record::ID_VALUE)});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat021Record>(&p);
@@ -112,10 +156,16 @@ public:
                     "payload type mismatch for Cat021Record"));
                 frame.payload().push_back(*msg);
             }
-            return frame.encode_bytes();
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
             AsterixDataBlock frame;
+            conduit::traits::EncodeResult result;
             frame.set_cat(Cat048Record::ID_VALUE);
+            result.auto_fields.push_back({"cat", std::to_string(Cat048Record::ID_VALUE)});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat048Record>(&p);
@@ -123,10 +173,16 @@ public:
                     "payload type mismatch for Cat048Record"));
                 frame.payload().push_back(*msg);
             }
-            return frame.encode_bytes();
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else if (type_id == 0x7f7b50444b289e0eULL) {
             AsterixDataBlock frame;
+            conduit::traits::EncodeResult result;
             frame.set_cat(Cat253Record::ID_VALUE);
+            result.auto_fields.push_back({"cat", std::to_string(Cat253Record::ID_VALUE)});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat253Record>(&p);
@@ -134,7 +190,11 @@ public:
                     "payload type mismatch for Cat253Record"));
                 frame.payload().push_back(*msg);
             }
-            return frame.encode_bytes();
+            auto enc = frame.encode_bytes();
+            if (!enc) return std::unexpected(enc.error());
+            result.auto_fields.push_back({"len", std::to_string(enc->size())});
+            result.bytes = std::move(*enc);
+            return result;
         } else {
             return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownTypeId,
                 "unknown type_id: " + std::to_string(type_id)));
@@ -207,6 +267,28 @@ public:
         } else if (type_id == 0x7f7b50444b289e0eULL) {
             auto* m = std::any_cast<Cat253Record>(&payload);
             return m ? m->to_string() : std::string{};
+        }
+        return {};
+    }
+
+    [[nodiscard]] std::string format_outbound(
+        uint64_t type_id, const std::any& payload,
+        std::span<const std::pair<std::string, std::string>> auto_fields) const override {
+        if (type_id == 0x526296abfa532d01ULL) {
+            auto* m = std::any_cast<Cat007DownlinkRecord>(&payload);
+            return m ? m->to_string(auto_fields) : std::string{};
+        } else if (type_id == 0x8d0fb175aeb7de98ULL) {
+            auto* m = std::any_cast<Cat007UplinkRecord>(&payload);
+            return m ? m->to_string(auto_fields) : std::string{};
+        } else if (type_id == 0xd597a1ab87dbb779ULL) {
+            auto* m = std::any_cast<Cat021Record>(&payload);
+            return m ? m->to_string(auto_fields) : std::string{};
+        } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
+            auto* m = std::any_cast<Cat048Record>(&payload);
+            return m ? m->to_string(auto_fields) : std::string{};
+        } else if (type_id == 0x7f7b50444b289e0eULL) {
+            auto* m = std::any_cast<Cat253Record>(&payload);
+            return m ? m->to_string(auto_fields) : std::string{};
         }
         return {};
     }

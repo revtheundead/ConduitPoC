@@ -11,11 +11,14 @@
 #include <algorithm>
 #include <any>
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <sstream>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -28,7 +31,7 @@ class Cat048Record;
 class Cat253Record;
 
 // Special Purpose Field
-class spf {
+class Cat007DownlinkRecord_items_spf {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -38,7 +41,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const spf&) const = default;
+    bool operator==(const Cat007DownlinkRecord_items_spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -47,8 +50,8 @@ public:
         return {};
     }
 
-    static conduit::Result<spf> decode(conduit::io::BitReader& r) {
-        spf result;
+    static conduit::Result<Cat007DownlinkRecord_items_spf> decode(conduit::io::BitReader& r) {
+        Cat007DownlinkRecord_items_spf result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -63,14 +66,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "spf{"
+        oss << "Cat007DownlinkRecord_items_spf{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -78,7 +83,7 @@ private:
 };
 
 // Reserved Expansion Field
-class ref {
+class Cat007DownlinkRecord_items_ref {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -88,7 +93,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const ref&) const = default;
+    bool operator==(const Cat007DownlinkRecord_items_ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -97,8 +102,8 @@ public:
         return {};
     }
 
-    static conduit::Result<ref> decode(conduit::io::BitReader& r) {
-        ref result;
+    static conduit::Result<Cat007DownlinkRecord_items_ref> decode(conduit::io::BitReader& r) {
+        Cat007DownlinkRecord_items_ref result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -113,21 +118,23 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "ref{"
+        oss << "Cat007DownlinkRecord_items_ref{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
     std::vector<uint8_t> data_{};
 };
 
-class items {
+class Cat007DownlinkRecord_items {
 public:
     bool has_i010() const { return i010_.has_value(); }
     const DataSourceId& i010() const { return i010_.value(); }
@@ -316,18 +323,18 @@ public:
     void clear_i085() { i085_.reset(); }
 
     bool has_spf() const { return spf_.has_value(); }
-    const ::asterix_alt::spf& spf() const { return spf_.value(); }
-    ::asterix_alt::spf& mutable_spf() { if (!spf_) spf_.emplace(); return *spf_; }
-    void set_spf(const ::asterix_alt::spf& v) { spf_ = v; }
+    const Cat007DownlinkRecord_items_spf& spf() const { return spf_.value(); }
+    Cat007DownlinkRecord_items_spf& mutable_spf() { if (!spf_) spf_.emplace(); return *spf_; }
+    void set_spf(const Cat007DownlinkRecord_items_spf& v) { spf_ = v; }
     void clear_spf() { spf_.reset(); }
 
     bool has_ref() const { return ref_.has_value(); }
-    const ::asterix_alt::ref& ref() const { return ref_.value(); }
-    ::asterix_alt::ref& mutable_ref() { if (!ref_) ref_.emplace(); return *ref_; }
-    void set_ref(const ::asterix_alt::ref& v) { ref_ = v; }
+    const Cat007DownlinkRecord_items_ref& ref() const { return ref_.value(); }
+    Cat007DownlinkRecord_items_ref& mutable_ref() { if (!ref_) ref_.emplace(); return *ref_; }
+    void set_ref(const Cat007DownlinkRecord_items_ref& v) { ref_ = v; }
     void clear_ref() { ref_.reset(); }
 
-    bool operator==(const items&) const = default;
+    bool operator==(const Cat007DownlinkRecord_items&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         int last_octet = 0;
@@ -503,8 +510,8 @@ public:
         return {};
     }
 
-    static conduit::Result<items> decode(conduit::io::BitReader& r) {
-        items result;
+    static conduit::Result<Cat007DownlinkRecord_items> decode(conduit::io::BitReader& r) {
+        Cat007DownlinkRecord_items result;
 
         // Read FSPEC bitmap
         std::array<uint8_t, 5> fspec{};
@@ -673,12 +680,12 @@ public:
             result.i085_ = std::move(*val);
         }
         if (fspec_len > 4 && (fspec[4] & (1 << 2))) {
-            auto val = ::asterix_alt::spf::decode(r);
+            auto val = Cat007DownlinkRecord_items_spf::decode(r);
             if (!val) return std::unexpected(val.error());
             result.spf_ = std::move(*val);
         }
         if (fspec_len > 4 && (fspec[4] & (1 << 1))) {
-            auto val = ::asterix_alt::ref::decode(r);
+            auto val = Cat007DownlinkRecord_items_ref::decode(r);
             if (!val) return std::unexpected(val.error());
             result.ref_ = std::move(*val);
         }
@@ -688,7 +695,7 @@ public:
 
     std::string to_string() const {
         std::ostringstream oss;
-        oss << "items{";
+        oss << "Cat007DownlinkRecord_items{";
         bool first = true;
         if (i010_.has_value()) {
             if (!first) oss << ", ";
@@ -891,8 +898,8 @@ private:
     std::optional<Cat007I060> i060_;
     std::optional<Cat007I450> i450_;
     std::optional<Cat007I085> i085_;
-    std::optional<::asterix_alt::spf> spf_;
-    std::optional<::asterix_alt::ref> ref_;
+    std::optional<Cat007DownlinkRecord_items_spf> spf_;
+    std::optional<Cat007DownlinkRecord_items_ref> ref_;
 };
 
 // CAT007 Downlink Record (Downlink UAP, Table 2)
@@ -912,9 +919,9 @@ public:
     [[deprecated("auto-managed: value is set automatically during frame encoding")]]
     void set_len(uint16 v) { len_ = v; }
 
-    const ::asterix_alt::items& items() const { return items_; }
-    ::asterix_alt::items& mutable_items() { return items_; }
-    void set_items(const ::asterix_alt::items& v) { items_ = v; }
+    const Cat007DownlinkRecord_items& items() const { return items_; }
+    Cat007DownlinkRecord_items& mutable_items() { return items_; }
+    void set_items(const Cat007DownlinkRecord_items& v) { items_ = v; }
 
     bool operator==(const Cat007DownlinkRecord&) const = default;
 
@@ -927,29 +934,42 @@ public:
     static conduit::Result<Cat007DownlinkRecord> decode(conduit::io::BitReader& r) {
         Cat007DownlinkRecord result;
         {
-            auto val = items::decode(r);
+            auto val = Cat007DownlinkRecord_items::decode(r);
             if (!val) return std::unexpected(val.error());
             result.items_ = std::move(*val);
         }
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        auto ov = [&](std::string_view n) -> const std::string* {
+            for (const auto& [k, v] : overrides) if (k == n) return &v;
+            return nullptr;
+        };
         std::ostringstream oss;
         oss << "Cat007DownlinkRecord{"
-            << "cat=" << +(cat_)
-            << ", len=" << +(len_)
+            << "cat="
+            ;
+            if (auto* ov_val = ov("cat")) oss << *ov_val;
+            else oss << +(cat_);
+            oss
+            << ", len="
+            ;
+            if (auto* ov_val = ov("len")) oss << *ov_val;
+            else oss << +(len_);
+            oss
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     friend class AsterixDataBlock;
 
     uint8 cat_{};
     uint16 len_{};
-    ::asterix_alt::items items_{};
+    Cat007DownlinkRecord_items items_{};
 public:
     conduit::Result<std::vector<uint8_t>> encode_bytes() const {
         conduit::io::BitWriter w;
@@ -968,7 +988,7 @@ public:
 };
 
 // Special Purpose Field
-class items_spf {
+class Cat007UplinkRecord_items_spf {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -978,7 +998,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const items_spf&) const = default;
+    bool operator==(const Cat007UplinkRecord_items_spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -987,8 +1007,8 @@ public:
         return {};
     }
 
-    static conduit::Result<items_spf> decode(conduit::io::BitReader& r) {
-        items_spf result;
+    static conduit::Result<Cat007UplinkRecord_items_spf> decode(conduit::io::BitReader& r) {
+        Cat007UplinkRecord_items_spf result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -1003,14 +1023,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "items_spf{"
+        oss << "Cat007UplinkRecord_items_spf{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -1018,7 +1040,7 @@ private:
 };
 
 // Reserved Expansion Field
-class items_ref {
+class Cat007UplinkRecord_items_ref {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -1028,7 +1050,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const items_ref&) const = default;
+    bool operator==(const Cat007UplinkRecord_items_ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -1037,8 +1059,8 @@ public:
         return {};
     }
 
-    static conduit::Result<items_ref> decode(conduit::io::BitReader& r) {
-        items_ref result;
+    static conduit::Result<Cat007UplinkRecord_items_ref> decode(conduit::io::BitReader& r) {
+        Cat007UplinkRecord_items_ref result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -1053,14 +1075,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "items_ref{"
+        oss << "Cat007UplinkRecord_items_ref{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -1148,15 +1172,15 @@ public:
     void clear_i440() { i440_.reset(); }
 
     bool has_spf() const { return spf_.has_value(); }
-    const items_spf& spf() const { return spf_.value(); }
-    items_spf& mutable_spf() { if (!spf_) spf_.emplace(); return *spf_; }
-    void set_spf(const items_spf& v) { spf_ = v; }
+    const Cat007UplinkRecord_items_spf& spf() const { return spf_.value(); }
+    Cat007UplinkRecord_items_spf& mutable_spf() { if (!spf_) spf_.emplace(); return *spf_; }
+    void set_spf(const Cat007UplinkRecord_items_spf& v) { spf_ = v; }
     void clear_spf() { spf_.reset(); }
 
     bool has_ref() const { return ref_.has_value(); }
-    const items_ref& ref() const { return ref_.value(); }
-    items_ref& mutable_ref() { if (!ref_) ref_.emplace(); return *ref_; }
-    void set_ref(const items_ref& v) { ref_ = v; }
+    const Cat007UplinkRecord_items_ref& ref() const { return ref_.value(); }
+    Cat007UplinkRecord_items_ref& mutable_ref() { if (!ref_) ref_.emplace(); return *ref_; }
+    void set_ref(const Cat007UplinkRecord_items_ref& v) { ref_ = v; }
     void clear_ref() { ref_.reset(); }
 
     bool operator==(const Cat007UplinkRecord_items&) const = default;
@@ -1325,12 +1349,12 @@ public:
             result.i440_ = std::move(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 2))) {
-            auto val = items_spf::decode(r);
+            auto val = Cat007UplinkRecord_items_spf::decode(r);
             if (!val) return std::unexpected(val.error());
             result.spf_ = std::move(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 1))) {
-            auto val = items_ref::decode(r);
+            auto val = Cat007UplinkRecord_items_ref::decode(r);
             if (!val) return std::unexpected(val.error());
             result.ref_ = std::move(*val);
         }
@@ -1435,8 +1459,8 @@ private:
     std::optional<Cat007I415> i415_;
     std::optional<Cat007I420> i420_;
     std::optional<Cat007I440> i440_;
-    std::optional<items_spf> spf_;
-    std::optional<items_ref> ref_;
+    std::optional<Cat007UplinkRecord_items_spf> spf_;
+    std::optional<Cat007UplinkRecord_items_ref> ref_;
 };
 
 // CAT007 Uplink Record (Uplink UAP, Table 3)
@@ -1478,15 +1502,28 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        auto ov = [&](std::string_view n) -> const std::string* {
+            for (const auto& [k, v] : overrides) if (k == n) return &v;
+            return nullptr;
+        };
         std::ostringstream oss;
         oss << "Cat007UplinkRecord{"
-            << "cat=" << +(cat_)
-            << ", len=" << +(len_)
+            << "cat="
+            ;
+            if (auto* ov_val = ov("cat")) oss << *ov_val;
+            else oss << +(cat_);
+            oss
+            << ", len="
+            ;
+            if (auto* ov_val = ov("len")) oss << *ov_val;
+            else oss << +(len_);
+            oss
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     friend class AsterixDataBlock;
@@ -1512,7 +1549,7 @@ public:
 };
 
 // Reserved Expansion Field
-class re {
+class Cat021Record_items_re {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -1522,7 +1559,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const re&) const = default;
+    bool operator==(const Cat021Record_items_re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -1531,8 +1568,8 @@ public:
         return {};
     }
 
-    static conduit::Result<re> decode(conduit::io::BitReader& r) {
-        re result;
+    static conduit::Result<Cat021Record_items_re> decode(conduit::io::BitReader& r) {
+        Cat021Record_items_re result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -1547,14 +1584,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "re{"
+        oss << "Cat021Record_items_re{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -1562,7 +1601,7 @@ private:
 };
 
 // Special Purpose Field
-class sp {
+class Cat021Record_items_sp {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -1572,7 +1611,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const sp&) const = default;
+    bool operator==(const Cat021Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -1581,8 +1620,8 @@ public:
         return {};
     }
 
-    static conduit::Result<sp> decode(conduit::io::BitReader& r) {
-        sp result;
+    static conduit::Result<Cat021Record_items_sp> decode(conduit::io::BitReader& r) {
+        Cat021Record_items_sp result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -1597,14 +1636,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "sp{"
+        oss << "Cat021Record_items_sp{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -1866,15 +1907,15 @@ public:
     void clear_i295() { i295_.reset(); }
 
     bool has_re() const { return re_.has_value(); }
-    const ::asterix_alt::re& re() const { return re_.value(); }
-    ::asterix_alt::re& mutable_re() { if (!re_) re_.emplace(); return *re_; }
-    void set_re(const ::asterix_alt::re& v) { re_ = v; }
+    const Cat021Record_items_re& re() const { return re_.value(); }
+    Cat021Record_items_re& mutable_re() { if (!re_) re_.emplace(); return *re_; }
+    void set_re(const Cat021Record_items_re& v) { re_ = v; }
     void clear_re() { re_.reset(); }
 
     bool has_sp() const { return sp_.has_value(); }
-    const ::asterix_alt::sp& sp() const { return sp_.value(); }
-    ::asterix_alt::sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
-    void set_sp(const ::asterix_alt::sp& v) { sp_ = v; }
+    const Cat021Record_items_sp& sp() const { return sp_.value(); }
+    Cat021Record_items_sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
+    void set_sp(const Cat021Record_items_sp& v) { sp_ = v; }
     void clear_sp() { sp_.reset(); }
 
     bool operator==(const Cat021Record_items&) const = default;
@@ -2333,12 +2374,12 @@ public:
             result.i295_ = std::move(*val);
         }
         if (fspec_len > 6 && (fspec[6] & (1 << 2))) {
-            auto val = ::asterix_alt::re::decode(r);
+            auto val = Cat021Record_items_re::decode(r);
             if (!val) return std::unexpected(val.error());
             result.re_ = std::move(*val);
         }
         if (fspec_len > 6 && (fspec[6] & (1 << 1))) {
-            auto val = ::asterix_alt::sp::decode(r);
+            auto val = Cat021Record_items_sp::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sp_ = std::move(*val);
         }
@@ -2617,8 +2658,8 @@ private:
     std::optional<Cat021I260> i260_;
     std::optional<uint8> i400_;
     std::optional<Cat021I295> i295_;
-    std::optional<::asterix_alt::re> re_;
-    std::optional<::asterix_alt::sp> sp_;
+    std::optional<Cat021Record_items_re> re_;
+    std::optional<Cat021Record_items_sp> sp_;
 };
 
 // CAT021 Record (ADS-B Target Reports, Edition 2.4)
@@ -2658,15 +2699,28 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        auto ov = [&](std::string_view n) -> const std::string* {
+            for (const auto& [k, v] : overrides) if (k == n) return &v;
+            return nullptr;
+        };
         std::ostringstream oss;
         oss << "Cat021Record{"
-            << "cat=" << +(cat_)
-            << ", len=" << +(len_)
+            << "cat="
+            ;
+            if (auto* ov_val = ov("cat")) oss << *ov_val;
+            else oss << +(cat_);
+            oss
+            << ", len="
+            ;
+            if (auto* ov_val = ov("len")) oss << *ov_val;
+            else oss << +(len_);
+            oss
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     friend class AsterixDataBlock;
@@ -2692,7 +2746,7 @@ public:
 };
 
 // Special Purpose Field
-class items_sp {
+class Cat048Record_items_sp {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -2702,7 +2756,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const items_sp&) const = default;
+    bool operator==(const Cat048Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -2711,8 +2765,8 @@ public:
         return {};
     }
 
-    static conduit::Result<items_sp> decode(conduit::io::BitReader& r) {
-        items_sp result;
+    static conduit::Result<Cat048Record_items_sp> decode(conduit::io::BitReader& r) {
+        Cat048Record_items_sp result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -2727,14 +2781,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "items_sp{"
+        oss << "Cat048Record_items_sp{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -2742,7 +2798,7 @@ private:
 };
 
 // Reserved Expansion Field
-class items_re {
+class Cat048Record_items_re {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -2752,7 +2808,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const items_re&) const = default;
+    bool operator==(const Cat048Record_items_re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -2761,8 +2817,8 @@ public:
         return {};
     }
 
-    static conduit::Result<items_re> decode(conduit::io::BitReader& r) {
-        items_re result;
+    static conduit::Result<Cat048Record_items_re> decode(conduit::io::BitReader& r) {
+        Cat048Record_items_re result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -2777,14 +2833,16 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "items_re{"
+        oss << "Cat048Record_items_re{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -2950,15 +3008,15 @@ public:
     void clear_i060() { i060_.reset(); }
 
     bool has_sp() const { return sp_.has_value(); }
-    const items_sp& sp() const { return sp_.value(); }
-    items_sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
-    void set_sp(const items_sp& v) { sp_ = v; }
+    const Cat048Record_items_sp& sp() const { return sp_.value(); }
+    Cat048Record_items_sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
+    void set_sp(const Cat048Record_items_sp& v) { sp_ = v; }
     void clear_sp() { sp_.reset(); }
 
     bool has_re() const { return re_.has_value(); }
-    const items_re& re() const { return re_.value(); }
-    items_re& mutable_re() { if (!re_) re_.emplace(); return *re_; }
-    void set_re(const items_re& v) { re_ = v; }
+    const Cat048Record_items_re& re() const { return re_.value(); }
+    Cat048Record_items_re& mutable_re() { if (!re_) re_.emplace(); return *re_; }
+    void set_re(const Cat048Record_items_re& v) { re_ = v; }
     void clear_re() { re_.reset(); }
 
     bool operator==(const Cat048Record_items&) const = default;
@@ -3257,12 +3315,12 @@ public:
             result.i060_ = std::move(*val);
         }
         if (fspec_len > 3 && (fspec[3] & (1 << 2))) {
-            auto val = items_sp::decode(r);
+            auto val = Cat048Record_items_sp::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sp_ = std::move(*val);
         }
         if (fspec_len > 3 && (fspec[3] & (1 << 1))) {
-            auto val = items_re::decode(r);
+            auto val = Cat048Record_items_re::decode(r);
             if (!val) return std::unexpected(val.error());
             result.re_ = std::move(*val);
         }
@@ -3445,8 +3503,8 @@ private:
     std::optional<Cat048I050> i050_;
     std::optional<Cat048I065> i065_;
     std::optional<Cat048I060> i060_;
-    std::optional<items_sp> sp_;
-    std::optional<items_re> re_;
+    std::optional<Cat048Record_items_sp> sp_;
+    std::optional<Cat048Record_items_re> re_;
 };
 
 // CAT048 Record (Monoradar Target Reports, Edition 1.23)
@@ -3486,15 +3544,28 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        auto ov = [&](std::string_view n) -> const std::string* {
+            for (const auto& [k, v] : overrides) if (k == n) return &v;
+            return nullptr;
+        };
         std::ostringstream oss;
         oss << "Cat048Record{"
-            << "cat=" << +(cat_)
-            << ", len=" << +(len_)
+            << "cat="
+            ;
+            if (auto* ov_val = ov("cat")) oss << *ov_val;
+            else oss << +(cat_);
+            oss
+            << ", len="
+            ;
+            if (auto* ov_val = ov("len")) oss << *ov_val;
+            else oss << +(len_);
+            oss
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     friend class AsterixDataBlock;
@@ -3519,13 +3590,13 @@ public:
     }
 };
 
-class i100_payloadOtherwise {
+class Cat253Record_items_i100_payloadOtherwise {
 public:
     const std::vector<uint8_t>& data() const { return data_; }
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const i100_payloadOtherwise&) const = default;
+    bool operator==(const Cat253Record_items_i100_payloadOtherwise&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
@@ -3533,8 +3604,8 @@ public:
         return {};
     }
 
-    static conduit::Result<i100_payloadOtherwise> decode(conduit::io::BitReader& r, uint8 len) {
-        i100_payloadOtherwise result;
+    static conduit::Result<Cat253Record_items_i100_payloadOtherwise> decode(conduit::io::BitReader& r, uint8 len) {
+        Cat253Record_items_i100_payloadOtherwise result;
         {
             auto nbytes_ = static_cast<size_t>((len - 1));
             auto span = r.read_bytes(nbytes_);
@@ -3544,31 +3615,33 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "i100_payloadOtherwise{"
+        oss << "Cat253Record_items_i100_payloadOtherwise{"
             << "data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     std::vector<uint8_t> data_{};
 };
 
-using payloadVariant = std::variant<Cat253Multipath, Cat253Squitter, Cat253BitReport, i100_payloadOtherwise>;
+using Cat253Record_items_i100_payloadVariant = std::variant<Cat253Multipath, Cat253Squitter, Cat253BitReport, Cat253Record_items_i100_payloadOtherwise>;
 // I253/100 - Transparent Application Data 1
-class i100 {
+class Cat253Record_items_i100 {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
     void set_len(const uint8& v) { len_ = v; }
 
-    const payloadVariant& payload() const { return payload_; }
-    payloadVariant& mutable_payload() { return payload_; }
-    void set_payload(const payloadVariant& v) { payload_ = v; }
+    const Cat253Record_items_i100_payloadVariant& payload() const { return payload_; }
+    Cat253Record_items_i100_payloadVariant& mutable_payload() { return payload_; }
+    void set_payload(const Cat253Record_items_i100_payloadVariant& v) { payload_ = v; }
 
-    bool operator==(const i100&) const = default;
+    bool operator==(const Cat253Record_items_i100&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         auto struct_start_pos_ = w.size_bytes();
@@ -3584,8 +3657,8 @@ public:
         return {};
     }
 
-    static conduit::Result<i100> decode(conduit::io::BitReader& r, const Cat253I080& i080) {
-        i100 result;
+    static conduit::Result<Cat253Record_items_i100> decode(conduit::io::BitReader& r, const Cat253I080& i080) {
+        Cat253Record_items_i100 result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -3606,7 +3679,7 @@ public:
                 if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
                 result.payload_ = std::move(*val);
             } else {
-                auto val = i100_payloadOtherwise::decode(r, result.len_);
+                auto val = Cat253Record_items_i100_payloadOtherwise::decode(r, result.len_);
                 if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
                 result.payload_ = std::move(*val);
             }
@@ -3614,22 +3687,24 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "i100{"
+        oss << "Cat253Record_items_i100{"
             << "len=" << +(len_)
             << ", payload=" << std::visit([](const auto& v) { return v.to_string(); }, payload_)
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
-    payloadVariant payload_{};
+    Cat253Record_items_i100_payloadVariant payload_{};
 };
 
-// Random Field Sequencing
-class rfs {
+// Special Purpose Field
+class Cat253Record_items_sp {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
@@ -3639,7 +3714,7 @@ public:
     std::vector<uint8_t>& mutable_data() { return data_; }
     void set_data(const std::vector<uint8_t>& v) { data_ = v; }
 
-    bool operator==(const rfs&) const = default;
+    bool operator==(const Cat253Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         w.write_u8(static_cast<uint8_t>(len_));
@@ -3648,8 +3723,8 @@ public:
         return {};
     }
 
-    static conduit::Result<rfs> decode(conduit::io::BitReader& r) {
-        rfs result;
+    static conduit::Result<Cat253Record_items_sp> decode(conduit::io::BitReader& r) {
+        Cat253Record_items_sp result;
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
@@ -3664,14 +3739,68 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
         std::ostringstream oss;
-        oss << "rfs{"
+        oss << "Cat253Record_items_sp{"
             << "len=" << +(len_)
             << ", data=[bytes]"
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
+
+private:
+    uint8 len_{};
+    std::vector<uint8_t> data_{};
+};
+
+// Random Field Sequencing
+class Cat253Record_items_rfs {
+public:
+    const uint8& len() const { return len_; }
+    uint8& mutable_len() { return len_; }
+    void set_len(const uint8& v) { len_ = v; }
+
+    const std::vector<uint8_t>& data() const { return data_; }
+    std::vector<uint8_t>& mutable_data() { return data_; }
+    void set_data(const std::vector<uint8_t>& v) { data_ = v; }
+
+    bool operator==(const Cat253Record_items_rfs&) const = default;
+
+    conduit::VoidResult encode(conduit::io::BitWriter& w) const {
+        w.write_u8(static_cast<uint8_t>(len_));
+        w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (w.has_error()) return std::unexpected(w.error());
+        return {};
+    }
+
+    static conduit::Result<Cat253Record_items_rfs> decode(conduit::io::BitReader& r) {
+        Cat253Record_items_rfs result;
+        {
+            auto val = r.read_u8();
+            if (!val) return std::unexpected(val.error().with_context("field 'len'"));
+            result.len_ = static_cast<uint8>(*val);
+        }
+        {
+            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+            auto span = r.read_bytes(nbytes_);
+            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+            result.data_.assign(span->begin(), span->end());
+        }
+        return result;
+    }
+
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        (void)overrides;
+        std::ostringstream oss;
+        oss << "Cat253Record_items_rfs{"
+            << "len=" << +(len_)
+            << ", data=[bytes]"
+            << "}";
+        return oss.str();
+    }
+    std::string to_string() const { return to_string({}); }
 
 private:
     uint8 len_{};
@@ -3747,21 +3876,21 @@ public:
     void clear_i090() { i090_.reset(); }
 
     bool has_i100() const { return i100_.has_value(); }
-    const ::asterix_alt::i100& i100() const { return i100_.value(); }
-    ::asterix_alt::i100& mutable_i100() { if (!i100_) i100_.emplace(); return *i100_; }
-    void set_i100(const ::asterix_alt::i100& v) { i100_ = v; }
+    const Cat253Record_items_i100& i100() const { return i100_.value(); }
+    Cat253Record_items_i100& mutable_i100() { if (!i100_) i100_.emplace(); return *i100_; }
+    void set_i100(const Cat253Record_items_i100& v) { i100_ = v; }
     void clear_i100() { i100_.reset(); }
 
     bool has_sp() const { return sp_.has_value(); }
-    const items_sp& sp() const { return sp_.value(); }
-    items_sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
-    void set_sp(const items_sp& v) { sp_ = v; }
+    const Cat253Record_items_sp& sp() const { return sp_.value(); }
+    Cat253Record_items_sp& mutable_sp() { if (!sp_) sp_.emplace(); return *sp_; }
+    void set_sp(const Cat253Record_items_sp& v) { sp_ = v; }
     void clear_sp() { sp_.reset(); }
 
     bool has_rfs() const { return rfs_.has_value(); }
-    const ::asterix_alt::rfs& rfs() const { return rfs_.value(); }
-    ::asterix_alt::rfs& mutable_rfs() { if (!rfs_) rfs_.emplace(); return *rfs_; }
-    void set_rfs(const ::asterix_alt::rfs& v) { rfs_ = v; }
+    const Cat253Record_items_rfs& rfs() const { return rfs_.value(); }
+    Cat253Record_items_rfs& mutable_rfs() { if (!rfs_) rfs_.emplace(); return *rfs_; }
+    void set_rfs(const Cat253Record_items_rfs& v) { rfs_ = v; }
     void clear_rfs() { rfs_.reset(); }
 
     bool operator==(const Cat253Record_items&) const = default;
@@ -3917,17 +4046,17 @@ public:
         if (fspec_len > 1 && (fspec[1] & (1 << 3))) {
             if (!result.i080_) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
                 "i100 requires i080"));
-            auto val = ::asterix_alt::i100::decode(r, (*result.i080_));
+            auto val = Cat253Record_items_i100::decode(r, (*result.i080_));
             if (!val) return std::unexpected(val.error());
             result.i100_ = std::move(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 2))) {
-            auto val = items_sp::decode(r);
+            auto val = Cat253Record_items_sp::decode(r);
             if (!val) return std::unexpected(val.error());
             result.sp_ = std::move(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 1))) {
-            auto val = ::asterix_alt::rfs::decode(r);
+            auto val = Cat253Record_items_rfs::decode(r);
             if (!val) return std::unexpected(val.error());
             result.rfs_ = std::move(*val);
         }
@@ -4025,9 +4154,9 @@ private:
     std::optional<Cat253I060> i060_;
     std::optional<Cat253I080> i080_;
     std::optional<Cat253I090> i090_;
-    std::optional<::asterix_alt::i100> i100_;
-    std::optional<items_sp> sp_;
-    std::optional<::asterix_alt::rfs> rfs_;
+    std::optional<Cat253Record_items_i100> i100_;
+    std::optional<Cat253Record_items_sp> sp_;
+    std::optional<Cat253Record_items_rfs> rfs_;
 };
 
 // CAT253 Record (Remote Monitoring and Control, Issue 9.0)
@@ -4067,15 +4196,28 @@ public:
         return result;
     }
 
-    std::string to_string() const {
+    std::string to_string(std::span<const std::pair<std::string, std::string>> overrides) const {
+        auto ov = [&](std::string_view n) -> const std::string* {
+            for (const auto& [k, v] : overrides) if (k == n) return &v;
+            return nullptr;
+        };
         std::ostringstream oss;
         oss << "Cat253Record{"
-            << "cat=" << +(cat_)
-            << ", len=" << +(len_)
+            << "cat="
+            ;
+            if (auto* ov_val = ov("cat")) oss << *ov_val;
+            else oss << +(cat_);
+            oss
+            << ", len="
+            ;
+            if (auto* ov_val = ov("len")) oss << *ov_val;
+            else oss << +(len_);
+            oss
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
+    std::string to_string() const { return to_string({}); }
 
 private:
     friend class AsterixDataBlock;

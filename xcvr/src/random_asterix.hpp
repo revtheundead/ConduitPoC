@@ -43,8 +43,8 @@ inline uint32_t rand_u24(std::mt19937& rng) {
 }
 
 // Random time-of-day raw value (24-bit, ~0 to 86400 seconds range)
-inline asterix::time_of_day rand_time_of_day(std::mt19937& rng) {
-    asterix::time_of_day tod;
+inline asterix::TimeOfDay rand_time_of_day(std::mt19937& rng) {
+    asterix::TimeOfDay tod;
     // Max raw value = 86400 / 0.0078125 = 11059200 (0xA8C000)
     tod.set_raw(rand_u32(rng, 11059200));
     return tod;
@@ -70,8 +70,8 @@ inline std::string rand_icao_str(std::mt19937& rng) {
     return s;
 }
 
-inline asterix::aircraft_ident rand_aircraft_ident(std::mt19937& rng) {
-    asterix::aircraft_ident ai;
+inline asterix::AircraftIdent rand_aircraft_ident(std::mt19937& rng) {
+    asterix::AircraftIdent ai;
     ai.set_value(rand_icao_str(rng));
     return ai;
 }
@@ -87,7 +87,7 @@ inline void rand_fill_bds(std::mt19937& rng, T& i250) {
         ElemType elem;
         std::array<uint8_t, 7> data;
         for (auto& b : data) b = rand_u8(rng);
-        elem.set_mb_data(data);
+        elem.set_mbData(data);
         elem.set_bds1(rand_u8(rng, 15));
         elem.set_bds2(rand_u8(rng, 15));
         i250.mutable_bds().push_back(elem);
@@ -98,7 +98,7 @@ inline void rand_fill_registers(std::mt19937& rng, asterix::Cat007I440& i440) {
     int n = std::uniform_int_distribution<int>(1, 4)(rng);
     i440.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
-        asterix::registersElement elem;
+        asterix::Cat007I440_registersElement elem;
         elem.set_bds1(rand_u8(rng, 15));
         elem.set_bds2(rand_u8(rng, 15));
         i440.mutable_registers().push_back(elem);
@@ -109,10 +109,10 @@ inline void rand_fill_destinations(std::mt19937& rng, asterix::Cat253I025& i025)
     int n = std::uniform_int_distribution<int>(1, 3)(rng);
     i025.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
-        asterix::destinationsElement elem;
+        asterix::Cat253I025_destinationsElement elem;
         elem.set_sac(rand_u8(rng));
         elem.set_sic(rand_u8(rng));
-        elem.set_local_id(rand_u8(rng));
+        elem.set_localId(rand_u8(rng));
         i025.mutable_destinations().push_back(elem);
     }
 }
@@ -121,7 +121,7 @@ inline void rand_fill_sequences(std::mt19937& rng, asterix::Cat253I050& i050) {
     int n = std::uniform_int_distribution<int>(1, 4)(rng);
     i050.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
-        asterix::sequencesElement elem;
+        asterix::Cat253I050_sequencesElement elem;
         elem.set_msid(rand_u16(rng));
         i050.mutable_sequences().push_back(elem);
     }
@@ -157,7 +157,7 @@ inline asterix::Cat007DownlinkRecord random_cat007_downlink(std::mt19937& rng) {
             i020.set_xpp(rand_u8(rng, 1));
             i020.set_me(rand_u8(rng, 1));
             i020.set_mi(rand_u8(rng, 1));
-            i020.set_foe_fri(rand_u8(rng, 3));  // 2 bits
+            i020.set_foeFri(rand_u8(rng, 3));  // 2 bits
         }
     }
     if (rand_bool(rng)) {
@@ -361,12 +361,12 @@ inline asterix::Cat253Record random_cat253(std::mt19937& rng) {
         constexpr uint16_t start_indices[] = {5, 6, 35};
 
         auto& i080 = it.mutable_i080();
-        i080.set_start_index(start_indices[variant]);
+        i080.set_startIndex(start_indices[variant]);
         i080.set_count(rand_u8(rng));
         i080.set_stale(rand_bool(rng) ? 1 : 0);
         i080.set_sim(rand_bool(rng) ? 1 : 0);
-        i080.set_local_ctrl(rand_bool(rng) ? 1 : 0);
-        i080.set_data_included(1);
+        i080.set_localCtrl(rand_bool(rng) ? 1 : 0);
+        i080.set_dataIncluded(1);
 
         auto& i100 = it.mutable_i100();
         switch (variant) {

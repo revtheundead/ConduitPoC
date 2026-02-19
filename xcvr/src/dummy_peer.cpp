@@ -114,11 +114,11 @@ static void send_server_message(Transceiver& tx, std::mt19937& rng) {
     if (!result) {
         auto code = result.error().code();
         if (code == conduit::ErrorCode::DirectionViolation)
-            std::cerr << "[SEND BLOCKED] " << result.error().message() << "\n";
+            std::cerr << "[SEND BLOCKED] " << result.error().format_short() << "\n";
         else if (code == conduit::ErrorCode::EncodeConstraintViolation)
-            std::cerr << "[SEND REJECTED] " << result.error().message() << "\n";
+            std::cerr << "[SEND REJECTED] " << result.error().format_short() << "\n";
         else
-            std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
+            std::cerr << "[SEND ERROR] " << result.error().format_short() << "\n";
     }
 }
 
@@ -155,11 +155,11 @@ static void send_client_message(Transceiver& tx, std::mt19937& rng) {
     if (!result) {
         auto code = result.error().code();
         if (code == conduit::ErrorCode::DirectionViolation)
-            std::cerr << "[SEND BLOCKED] " << result.error().message() << "\n";
+            std::cerr << "[SEND BLOCKED] " << result.error().format_short() << "\n";
         else if (code == conduit::ErrorCode::EncodeConstraintViolation)
-            std::cerr << "[SEND REJECTED] " << result.error().message() << "\n";
+            std::cerr << "[SEND REJECTED] " << result.error().format_short() << "\n";
         else
-            std::cerr << "[SEND ERROR] " << result.error().message() << "\n";
+            std::cerr << "[SEND ERROR] " << result.error().format_short() << "\n";
     }
 }
 
@@ -172,6 +172,7 @@ static void print_stats(const Transceiver& tx) {
               << " dropped=" << s.messages_dropped << "\n"
               << " decode_errors=" << s.decode_errors << "\n"
               << " handler_errors=" << s.handler_errors << "\n"
+              << " handler_timeouts=" << s.handler_timeouts << "\n"
               << " bytes_rx=" << s.bytes_received << "\n"
               << " bytes_tx=" << s.bytes_sent << "\n\n";
 }
@@ -245,12 +246,16 @@ int main(int argc, char* argv[]) {
 
         (void)tx.on_state_change([](PeerId peer, conduit::net::ConnectionState state) {
             std::cout << "[STATE] peer=" << peer.value() << " -> "
-                      << static_cast<int>(state) << "\n";
+                      << conduit::net::to_string(state) << "\n";
+        });
+        (void)tx.on_error([](const ErrorEvent& event) {
+            std::cerr << "[ERROR] peer=" << event.peer_name
+                      << " " << event.error.format_short() << "\n";
         });
 
         auto result = tx.start();
         if (!result) {
-            std::cerr << "[ERROR] Failed to start: " << result.error().message() << "\n";
+            std::cerr << "[ERROR] Failed to start: " << result.error().format_short() << "\n";
             return 1;
         }
 
@@ -305,12 +310,16 @@ int main(int argc, char* argv[]) {
 
         (void)tx.on_state_change([](PeerId peer, conduit::net::ConnectionState state) {
             std::cout << "[STATE] peer=" << peer.value() << " -> "
-                      << static_cast<int>(state) << "\n";
+                      << conduit::net::to_string(state) << "\n";
+        });
+        (void)tx.on_error([](const ErrorEvent& event) {
+            std::cerr << "[ERROR] peer=" << event.peer_name
+                      << " " << event.error.format_short() << "\n";
         });
 
         auto result = tx.start();
         if (!result) {
-            std::cerr << "[ERROR] Failed to start: " << result.error().message() << "\n";
+            std::cerr << "[ERROR] Failed to start: " << result.error().format_short() << "\n";
             return 1;
         }
 

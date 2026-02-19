@@ -100,13 +100,19 @@ int main(int argc, char* argv[]) {
     // Connection state logging
     (void)tx.on_state_change([](PeerId peer, conduit::net::ConnectionState state) {
         std::cout << "[STATE] peer=" << peer.value() << " -> "
-                  << static_cast<int>(state) << "\n";
+                  << conduit::net::to_string(state) << "\n";
+    });
+
+    // Structured error reporting
+    (void)tx.on_error([](const ErrorEvent& event) {
+        std::cerr << "[ERROR] peer=" << event.peer_name
+                  << " " << event.error.format_short() << "\n";
     });
 
     // Start
     auto result = tx.start();
     if (!result) {
-        std::cerr << "[ERROR] Failed to start: " << result.error().message() << "\n";
+        std::cerr << "[ERROR] Failed to start: " << result.error().format_short() << "\n";
         return 1;
     }
 
@@ -152,11 +158,11 @@ int main(int argc, char* argv[]) {
         if (!send_result) {
             auto code = send_result.error().code();
             if (code == conduit::ErrorCode::DirectionViolation)
-                std::cerr << "[SEND BLOCKED] " << send_result.error().message() << "\n";
+                std::cerr << "[SEND BLOCKED] " << send_result.error().format_short() << "\n";
             else if (code == conduit::ErrorCode::EncodeConstraintViolation)
-                std::cerr << "[SEND REJECTED] " << send_result.error().message() << "\n";
+                std::cerr << "[SEND REJECTED] " << send_result.error().format_short() << "\n";
             else
-                std::cerr << "[SEND ERROR] " << send_result.error().message() << "\n";
+                std::cerr << "[SEND ERROR] " << send_result.error().format_short() << "\n";
         }
     }
 
@@ -169,6 +175,7 @@ int main(int argc, char* argv[]) {
               << " dropped=" << s.messages_dropped << "\n"
               << " decode_errors=" << s.decode_errors << "\n"
               << " handler_errors=" << s.handler_errors << "\n"
+              << " handler_timeouts=" << s.handler_timeouts << "\n"
               << " bytes_rx=" << s.bytes_received << "\n"
               << " bytes_tx=" << s.bytes_sent << "\n\n";
 
