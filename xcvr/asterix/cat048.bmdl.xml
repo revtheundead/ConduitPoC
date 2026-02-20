@@ -570,6 +570,299 @@
       </field>
     </struct>
 
+    <!-- =======================================================================
+         CAT048 REF - Reserved Expansion Field (Ed 1.9, 31/07/2017)
+         EUROCONTROL-SPEC-0149-4 Appendix A
+         ======================================================================= -->
+
+    <!-- Shared sub-subfield: Mode 5 Summary (SUM) - 1 octet
+         Used by both MD5 and M5N compound subfields -->
+    <struct name="Cat048ReSum">
+      <doc>Mode 5 Summary</doc>
+      <field name="m5" bits="1">
+        <doc>0 = No Mode 5 interrogation, 1 = Mode 5 interrogation</doc>
+      </field>
+      <field name="id" bits="1">
+        <doc>0 = No authenticated Mode 5 ID reply, 1 = Authenticated Mode 5 ID reply</doc>
+      </field>
+      <field name="da" bits="1">
+        <doc>0 = No authenticated Mode 5 Data reply,
+             1 = Authenticated Mode 5 Data reply</doc>
+      </field>
+      <field name="m1" bits="1">
+        <doc>0 = Mode 1 code not present or not from Mode 5 reply,
+             1 = Mode 1 code from Mode 5 reply</doc>
+      </field>
+      <field name="m2" bits="1">
+        <doc>0 = Mode 2 code not present or not from Mode 5 reply,
+             1 = Mode 2 code from Mode 5 reply</doc>
+      </field>
+      <field name="m3" bits="1">
+        <doc>0 = Mode 3/A code not present or not from Mode 5 reply,
+             1 = Mode 3/A code from Mode 5 reply</doc>
+      </field>
+      <field name="mc" bits="1">
+        <doc>0 = Mode C altitude not present or not from Mode 5 reply,
+             1 = Mode C altitude from Mode 5 reply</doc>
+      </field>
+      <reserved bits="1"/>
+    </struct>
+
+    <!-- Shared sub-subfield: Mode 5 GNSS-derived Position (POS) - 6 octets -->
+    <struct name="Cat048RePos">
+      <doc>Mode 5 GNSS-derived Position</doc>
+      <field name="lat" type="int24">
+        <doc>WGS-84 Latitude, LSB = 180/2^23 degrees (~0.0000215 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="lon" type="int24">
+        <doc>WGS-84 Longitude, LSB = 180/2^23 degrees (~0.0000215 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: Mode 5 GNSS-derived Altitude (GA) - 2 octets -->
+    <struct name="Cat048ReGa">
+      <doc>Mode 5 GNSS-derived Altitude</doc>
+      <reserved bits="1"/>
+      <field name="res" bits="1">
+        <doc>Resolution: 0 = GA reported in 100 ft increments,
+             1 = GA reported in 25 ft increments</doc>
+      </field>
+      <field name="ga" bits="14" signed="true">
+        <doc>GNSS-derived Altitude of target, LSB = 25 ft, 14-bit signed</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: Extended Mode 1 Code (EM1) - 2 octets -->
+    <struct name="Cat048ReEm1">
+      <doc>Extended Mode 1 Code in Octal Representation</doc>
+      <field name="v" bits="1">
+        <doc>0 = Code validated, 1 = Code not validated</doc>
+      </field>
+      <field name="g" bits="1">
+        <doc>0 = Default, 1 = Garbled code</doc>
+      </field>
+      <field name="l" bits="1">
+        <doc>0 = Mode 1 code derived from Mode 5 reply,
+             1 = Mode 1 code not extracted during last scan</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="em1" bits="12">
+        <doc>Mode 1 Code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: X Pulse Presence (XP) - 1 octet -->
+    <struct name="Cat048ReXp">
+      <doc>X Pulse Presence</doc>
+      <reserved bits="2"/>
+      <field name="xp" bits="1">
+        <doc>0 = X-pulse not present, 1 = X-pulse present</doc>
+      </field>
+      <field name="x5" bits="1">
+        <doc>0 = X-pulse set to zero or no authenticated Data reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="xc" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode C reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x3" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 3/A reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x2" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 2 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x1" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 1 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+    </struct>
+
+    <!-- MD5 sub-subfield: PIN/NAV/NAT/MIS (PMN) - 4 octets -->
+    <struct name="Cat048ReMd5Pmn">
+      <doc>Mode 5 PIN/National Origin/Mission Code (MD5 format)</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="nav" bits="1">
+        <doc>0 = National Origin is valid, 1 = National Origin is invalid</doc>
+      </field>
+      <field name="nat" bits="5">
+        <doc>National Origin</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="mis" bits="6">
+        <doc>Mission Code</doc>
+      </field>
+    </struct>
+
+    <!-- MD5: Mode 5 Data reports & Extended Mode 2 Code (compound) -->
+    <struct name="Cat048ReMd5">
+      <doc>
+        MD5 - Mode 5 Data reports &amp; Extended Mode 2 Code.
+        Compound data item with FX-extensible primary subfield,
+        up to 7 subfields: SUM, PMN, POS, GA, EM1, TOS, XP.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sum" bit="7" type="Cat048ReSum">
+          <doc>Mode 5 Summary</doc>
+        </field>
+        <field name="pmn" bit="6" type="Cat048ReMd5Pmn">
+          <doc>Mode 5 PIN/National Origin/Mission Code</doc>
+        </field>
+        <field name="pos" bit="5" type="Cat048RePos">
+          <doc>Mode 5 GNSS-derived Position</doc>
+        </field>
+        <field name="ga" bit="4" type="Cat048ReGa">
+          <doc>Mode 5 GNSS-derived Altitude</doc>
+        </field>
+        <field name="em1" bit="3" type="Cat048ReEm1">
+          <doc>Extended Mode 1 Code in Octal Representation</doc>
+        </field>
+        <field name="tos" bit="2" type="int8">
+          <doc>Time Offset for Mode 5 Data, LSB = 1/128 s, range +/- 1 s</doc>
+          <scale>0.0078125</scale>
+          <unit>seconds</unit>
+        </field>
+        <field name="xp" bit="1" type="Cat048ReXp">
+          <doc>X Pulse Presence</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- M5N sub-subfield: PIN/NOV/NO (PMN) - 4 octets (new format) -->
+    <struct name="Cat048ReM5nPmn">
+      <doc>Mode 5 PIN/National Origin (M5N new format)</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="4"/>
+      <field name="nov" bits="1">
+        <doc>0 = National Origin is valid, 1 = National Origin is invalid</doc>
+      </field>
+      <field name="no" bits="11">
+        <doc>National Origin</doc>
+      </field>
+    </struct>
+
+    <!-- M5N sub-subfield: Figure of Merit (FOM) - 1 octet -->
+    <struct name="Cat048ReM5nFom">
+      <doc>Figure of Merit</doc>
+      <reserved bits="3"/>
+      <field name="fom" bits="5">
+        <doc>Figure of Merit, range 0-31</doc>
+      </field>
+    </struct>
+
+    <!-- M5N: Mode 5 Data reports, New Format (compound, 2-octet primary) -->
+    <struct name="Cat048ReM5n">
+      <doc>
+        M5N - Mode 5 Data reports, New Format.
+        Compound data item with FX-extensible primary subfield (up to 2 octets),
+        up to 8 subfields: SUM, PMN, POS, GA, EM1, TOS, XP, FOM.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap bits="16" ext="0"/>
+        <field name="sum" bit="7" type="Cat048ReSum">
+          <doc>Mode 5 Summary</doc>
+        </field>
+        <field name="pmn" bit="6" type="Cat048ReM5nPmn">
+          <doc>Mode 5 PIN/National Origin (new format)</doc>
+        </field>
+        <field name="pos" bit="5" type="Cat048RePos">
+          <doc>Mode 5 GNSS-derived Position</doc>
+        </field>
+        <field name="ga" bit="4" type="Cat048ReGa">
+          <doc>Mode 5 GNSS-derived Altitude</doc>
+        </field>
+        <field name="em1" bit="3" type="Cat048ReEm1">
+          <doc>Extended Mode 1 Code in Octal Representation</doc>
+        </field>
+        <field name="tos" bit="2" type="int8">
+          <doc>Time Offset for Mode 5 Data, LSB = 1/128 s, range +/- 1 s</doc>
+          <scale>0.0078125</scale>
+          <unit>seconds</unit>
+        </field>
+        <field name="xp" bit="1" type="Cat048ReXp">
+          <doc>X Pulse Presence</doc>
+        </field>
+        <field name="fom" bit="15" type="Cat048ReM5nFom">
+          <doc>Figure of Merit</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- M4E: Extended Mode 4 Report (variable, FX chain) -->
+    <struct name="Cat048ReM4e">
+      <doc>Extended Mode 4 Report</doc>
+      <reserved bits="5"/>
+      <field name="foeFri" bits="2">
+        <doc>
+          Foe/Friend Identification:
+          00 = No Mode 4 interrogation
+          01 = Friendly target
+          10 = Unknown target
+          11 = No reply
+        </doc>
+      </field>
+      <fx>
+        <!-- No extensions defined in Ed 1.9; FX structure preserved -->
+        <reserved bits="7"/>
+      </fx>
+    </struct>
+
+    <!-- RPC: Radar Plot Characteristics (compound) -->
+    <struct name="Cat048ReRpc">
+      <doc>
+        RPC - Radar Plot Characteristics.
+        Compound data item with FX-extensible primary subfield,
+        up to 4 subfields: SCO, SCR, RW, AR.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sco" bit="7" type="uint8">
+          <doc>Score (confidence indicator), range 0-255</doc>
+        </field>
+        <field name="scr" bit="6" type="uint16">
+          <doc>Signal/Clutter Ratio, LSB = 0.1 dB</doc>
+          <scale>0.1</scale>
+          <unit>dB</unit>
+        </field>
+        <field name="rw" bit="5" type="uint16">
+          <doc>Range Width, LSB = 1/256 NM</doc>
+          <scale>0.00390625</scale>
+          <unit>NM</unit>
+        </field>
+        <field name="ar" bit="4" type="uint16">
+          <doc>Ambiguity Range, LSB = 1/256 NM</doc>
+          <scale>0.00390625</scale>
+          <unit>NM</unit>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- ERR: Extended Range Report (fixed, 3 octets) -->
+    <struct name="Cat048ReErr">
+      <doc>Extended Range Report</doc>
+      <field name="rho" type="uint24">
+        <doc>Measured Distance (rho), LSB = 1/256 NM</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+    </struct>
+
   </types>
 
   <messages>
@@ -733,13 +1026,30 @@
           <field name="data" type="bytes" length-from="len - 1"/>
         </struct>
 
-        <!-- FRN 28: RE - Reserved Expansion Field -->
+        <!-- FRN 28: RE - Reserved Expansion Field (Ed 1.9) -->
         <struct name="re" bit="25">
-          <doc>Reserved Expansion Field</doc>
+          <doc>Reserved Expansion Field (ASTERIX Cat048 REF Ed 1.9)</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
-          <field name="data" type="bytes" length-from="len - 1"/>
+          <struct name="items" presence="bitmap">
+            <bitmap bits="8"/>
+            <field name="md5" bit="7" type="Cat048ReMd5">
+              <doc>MD5 - Mode 5 Data reports &amp; Extended Mode 2 Code</doc>
+            </field>
+            <field name="m5n" bit="6" type="Cat048ReM5n">
+              <doc>M5N - Mode 5 Data reports, New Format</doc>
+            </field>
+            <field name="m4e" bit="5" type="Cat048ReM4e">
+              <doc>M4E - Extended Mode 4 Report</doc>
+            </field>
+            <field name="rpc" bit="4" type="Cat048ReRpc">
+              <doc>RPC - Radar Plot Characteristics</doc>
+            </field>
+            <field name="err" bit="3" type="Cat048ReErr">
+              <doc>ERR - Extended Range Report</doc>
+            </field>
+          </struct>
         </struct>
 
       </struct>

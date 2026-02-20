@@ -1573,16 +1573,225 @@ public:
     }
 };
 
-// Reserved Expansion Field
+class Cat021Record_items_re_items {
+public:
+    bool has_bps() const { return bps_.has_value(); }
+    const Cat021ReBps& bps() const { return bps_.value(); }
+    Cat021ReBps& mutable_bps() { if (!bps_) bps_.emplace(); return *bps_; }
+    void set_bps(const Cat021ReBps& v) { bps_ = v; }
+    void clear_bps() { bps_.reset(); }
+
+    bool has_selh() const { return selh_.has_value(); }
+    const Cat021ReSelh& selh() const { return selh_.value(); }
+    Cat021ReSelh& mutable_selh() { if (!selh_) selh_.emplace(); return *selh_; }
+    void set_selh(const Cat021ReSelh& v) { selh_ = v; }
+    void clear_selh() { selh_.reset(); }
+
+    bool has_nav() const { return nav_.has_value(); }
+    const Cat021ReNav& nav() const { return nav_.value(); }
+    Cat021ReNav& mutable_nav() { if (!nav_) nav_.emplace(); return *nav_; }
+    void set_nav(const Cat021ReNav& v) { nav_ = v; }
+    void clear_nav() { nav_.reset(); }
+
+    bool has_gao() const { return gao_.has_value(); }
+    const uint8& gao() const { return gao_.value(); }
+    uint8& mutable_gao() { if (!gao_) gao_.emplace(); return *gao_; }
+    void set_gao(const uint8& v) { gao_ = v; }
+    void clear_gao() { gao_.reset(); }
+
+    bool has_sgv() const { return sgv_.has_value(); }
+    const Cat021ReSgv& sgv() const { return sgv_.value(); }
+    Cat021ReSgv& mutable_sgv() { if (!sgv_) sgv_.emplace(); return *sgv_; }
+    void set_sgv(const Cat021ReSgv& v) { sgv_ = v; }
+    void clear_sgv() { sgv_.reset(); }
+
+    bool has_sta() const { return sta_.has_value(); }
+    const Cat021ReSta& sta() const { return sta_.value(); }
+    Cat021ReSta& mutable_sta() { if (!sta_) sta_.emplace(); return *sta_; }
+    void set_sta(const Cat021ReSta& v) { sta_ = v; }
+    void clear_sta() { sta_.reset(); }
+
+    bool has_tnh() const { return tnh_.has_value(); }
+    const double& tnh() const { return tnh_.value(); }
+    double& mutable_tnh() { if (!tnh_) tnh_.emplace(); return *tnh_; }
+    void set_tnh(const double& v) { tnh_ = v; }
+    uint16_t tnh_raw() const { return tnh_.has_value() ? static_cast<uint16_t>(*tnh_ / 0.0054931640625) : uint16_t{0}; }
+    void set_tnh_raw(uint16_t v) { tnh_ = static_cast<double>(v) * 0.0054931640625 + 0; }
+    void clear_tnh() { tnh_.reset(); }
+
+    bool has_mes() const { return mes_.has_value(); }
+    const Cat021ReMes& mes() const { return mes_.value(); }
+    Cat021ReMes& mutable_mes() { if (!mes_) mes_.emplace(); return *mes_; }
+    void set_mes(const Cat021ReMes& v) { mes_ = v; }
+    void clear_mes() { mes_.reset(); }
+
+    bool operator==(const Cat021Record_items_re_items&) const = default;
+
+    conduit::VoidResult encode(conduit::io::BitWriter& w) const {
+        std::array<uint8_t, 1> fspec{};
+        if (bps_.has_value()) fspec[0] |= (1 << 7);
+        if (selh_.has_value()) fspec[0] |= (1 << 6);
+        if (nav_.has_value()) fspec[0] |= (1 << 5);
+        if (gao_.has_value()) fspec[0] |= (1 << 4);
+        if (sgv_.has_value()) fspec[0] |= (1 << 3);
+        if (sta_.has_value()) fspec[0] |= (1 << 2);
+        if (tnh_.has_value()) fspec[0] |= (1 << 1);
+        if (mes_.has_value()) fspec[0] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), 1));
+        if (bps_.has_value()) {
+            CONDUIT_TRY(bps_->encode(w));
+        }
+        if (selh_.has_value()) {
+            CONDUIT_TRY(selh_->encode(w));
+        }
+        if (nav_.has_value()) {
+            CONDUIT_TRY(nav_->encode(w));
+        }
+        if (gao_.has_value()) {
+            w.write_bits(*gao_, 8);
+        }
+        if (sgv_.has_value()) {
+            CONDUIT_TRY(sgv_->encode(w));
+        }
+        if (sta_.has_value()) {
+            CONDUIT_TRY(sta_->encode(w));
+        }
+        if (tnh_.has_value()) {
+            w.write_bits(static_cast<uint16_t>((*tnh_ - 0) / 0.0054931640625), 16);
+        }
+        if (mes_.has_value()) {
+            CONDUIT_TRY(mes_->encode(w));
+        }
+        if (w.has_error()) return std::unexpected(w.error());
+        return {};
+    }
+
+    static conduit::Result<Cat021Record_items_re_items> decode(conduit::io::BitReader& r) {
+        Cat021Record_items_re_items result;
+
+        // Read FSPEC bitmap
+        std::array<uint8_t, 1> fspec{};
+        size_t fspec_len = 0;
+        for (size_t i = 0; i < 1; i++) {
+            auto byte = r.read_u8();
+            if (!byte) return std::unexpected(byte.error());
+            fspec[i] = *byte;
+        }
+        fspec_len = 1;
+
+        if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
+            auto val = Cat021ReBps::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.bps_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
+            auto val = Cat021ReSelh::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.selh_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
+            auto val = Cat021ReNav::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.nav_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
+            auto val = r.read_bits(8);
+            if (!val) return std::unexpected(val.error());
+            result.gao_ = static_cast<uint8>(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
+            auto val = Cat021ReSgv::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.sgv_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 2))) {
+            auto val = Cat021ReSta::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.sta_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 1))) {
+            auto raw_val = r.read_bits(16);
+            if (!raw_val) return std::unexpected(raw_val.error());
+            result.tnh_ = static_cast<double>(*raw_val) * 0.0054931640625 + 0;
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 0))) {
+            auto val = Cat021ReMes::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.mes_ = std::move(*val);
+        }
+
+        return result;
+    }
+
+    std::string to_string() const {
+        std::ostringstream oss;
+        oss << "Cat021Record_items_re_items{";
+        bool first = true;
+        if (bps_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "bps=" << (*bps_).to_string();
+        }
+        if (selh_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "selh=" << (*selh_).to_string();
+        }
+        if (nav_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "nav=" << (*nav_).to_string();
+        }
+        if (gao_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "gao=" << static_cast<uint64_t>(*gao_);
+        }
+        if (sgv_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "sgv=" << (*sgv_).to_string();
+        }
+        if (sta_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "sta=" << (*sta_).to_string();
+        }
+        if (tnh_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "tnh=" << *tnh_;
+        }
+        if (mes_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "mes=" << (*mes_).to_string();
+        }
+        oss << "}";
+        return oss.str();
+    }
+
+private:
+    std::optional<Cat021ReBps> bps_;
+    std::optional<Cat021ReSelh> selh_;
+    std::optional<Cat021ReNav> nav_;
+    std::optional<uint8> gao_;
+    std::optional<Cat021ReSgv> sgv_;
+    std::optional<Cat021ReSta> sta_;
+    std::optional<double> tnh_;
+    std::optional<Cat021ReMes> mes_;
+};
+
+// Reserved Expansion Field (ASTERIX Cat021 REF Ed 1.3)
 class Cat021Record_items_re {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
     void set_len(const uint8& v) { len_ = v; }
 
-    const std::vector<uint8_t>& data() const { return data_; }
-    std::vector<uint8_t>& mutable_data() { return data_; }
-    void set_data(const std::vector<uint8_t>& v) { data_ = v; }
+    const Cat021Record_items_re_items& items() const { return items_; }
+    Cat021Record_items_re_items& mutable_items() { return items_; }
+    void set_items(const Cat021Record_items_re_items& v) { items_ = v; }
 
     bool operator==(const Cat021Record_items_re&) const = default;
 
@@ -1590,7 +1799,7 @@ public:
         auto struct_start_pos_ = w.size_bytes();
         auto length_byte_pos_ = w.size_bytes();
         w.write_u8(static_cast<uint8_t>(0));
-        w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        CONDUIT_TRY(items_.encode(w));
         if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
             return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
@@ -1605,10 +1814,9 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto val = Cat021Record_items_re_items::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.items_ = std::move(*val);
         }
         return result;
     }
@@ -1618,7 +1826,7 @@ public:
         std::ostringstream oss;
         oss << "Cat021Record_items_re{"
             << "len=" << +(len_)
-            << ", data=[bytes]"
+            << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
@@ -1626,7 +1834,7 @@ public:
 
 private:
     uint8 len_{};
-    std::vector<uint8_t> data_{};
+    Cat021Record_items_re_items items_{};
 };
 
 // Special Purpose Field
@@ -2834,16 +3042,160 @@ private:
     std::vector<uint8_t> data_{};
 };
 
-// Reserved Expansion Field
+class Cat048Record_items_re_items {
+public:
+    bool has_md5() const { return md5_.has_value(); }
+    const Cat048ReMd5& md5() const { return md5_.value(); }
+    Cat048ReMd5& mutable_md5() { if (!md5_) md5_.emplace(); return *md5_; }
+    void set_md5(const Cat048ReMd5& v) { md5_ = v; }
+    void clear_md5() { md5_.reset(); }
+
+    bool has_m5n() const { return m5n_.has_value(); }
+    const Cat048ReM5n& m5n() const { return m5n_.value(); }
+    Cat048ReM5n& mutable_m5n() { if (!m5n_) m5n_.emplace(); return *m5n_; }
+    void set_m5n(const Cat048ReM5n& v) { m5n_ = v; }
+    void clear_m5n() { m5n_.reset(); }
+
+    bool has_m4e() const { return m4e_.has_value(); }
+    const Cat048ReM4e& m4e() const { return m4e_.value(); }
+    Cat048ReM4e& mutable_m4e() { if (!m4e_) m4e_.emplace(); return *m4e_; }
+    void set_m4e(const Cat048ReM4e& v) { m4e_ = v; }
+    void clear_m4e() { m4e_.reset(); }
+
+    bool has_rpc() const { return rpc_.has_value(); }
+    const Cat048ReRpc& rpc() const { return rpc_.value(); }
+    Cat048ReRpc& mutable_rpc() { if (!rpc_) rpc_.emplace(); return *rpc_; }
+    void set_rpc(const Cat048ReRpc& v) { rpc_ = v; }
+    void clear_rpc() { rpc_.reset(); }
+
+    bool has_err() const { return err_.has_value(); }
+    const Cat048ReErr& err() const { return err_.value(); }
+    Cat048ReErr& mutable_err() { if (!err_) err_.emplace(); return *err_; }
+    void set_err(const Cat048ReErr& v) { err_ = v; }
+    void clear_err() { err_.reset(); }
+
+    bool operator==(const Cat048Record_items_re_items&) const = default;
+
+    conduit::VoidResult encode(conduit::io::BitWriter& w) const {
+        std::array<uint8_t, 1> fspec{};
+        if (md5_.has_value()) fspec[0] |= (1 << 7);
+        if (m5n_.has_value()) fspec[0] |= (1 << 6);
+        if (m4e_.has_value()) fspec[0] |= (1 << 5);
+        if (rpc_.has_value()) fspec[0] |= (1 << 4);
+        if (err_.has_value()) fspec[0] |= (1 << 3);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), 1));
+        if (md5_.has_value()) {
+            CONDUIT_TRY(md5_->encode(w));
+        }
+        if (m5n_.has_value()) {
+            CONDUIT_TRY(m5n_->encode(w));
+        }
+        if (m4e_.has_value()) {
+            CONDUIT_TRY(m4e_->encode(w));
+        }
+        if (rpc_.has_value()) {
+            CONDUIT_TRY(rpc_->encode(w));
+        }
+        if (err_.has_value()) {
+            CONDUIT_TRY(err_->encode(w));
+        }
+        if (w.has_error()) return std::unexpected(w.error());
+        return {};
+    }
+
+    static conduit::Result<Cat048Record_items_re_items> decode(conduit::io::BitReader& r) {
+        Cat048Record_items_re_items result;
+
+        // Read FSPEC bitmap
+        std::array<uint8_t, 1> fspec{};
+        size_t fspec_len = 0;
+        for (size_t i = 0; i < 1; i++) {
+            auto byte = r.read_u8();
+            if (!byte) return std::unexpected(byte.error());
+            fspec[i] = *byte;
+        }
+        fspec_len = 1;
+
+        if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
+            auto val = Cat048ReMd5::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.md5_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
+            auto val = Cat048ReM5n::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.m5n_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
+            auto val = Cat048ReM4e::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.m4e_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
+            auto val = Cat048ReRpc::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.rpc_ = std::move(*val);
+        }
+        if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
+            auto val = Cat048ReErr::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.err_ = std::move(*val);
+        }
+
+        return result;
+    }
+
+    std::string to_string() const {
+        std::ostringstream oss;
+        oss << "Cat048Record_items_re_items{";
+        bool first = true;
+        if (md5_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "md5=" << (*md5_).to_string();
+        }
+        if (m5n_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "m5n=" << (*m5n_).to_string();
+        }
+        if (m4e_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "m4e=" << (*m4e_).to_string();
+        }
+        if (rpc_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "rpc=" << (*rpc_).to_string();
+        }
+        if (err_.has_value()) {
+            if (!first) oss << ", ";
+            first = false;
+            oss << "err=" << (*err_).to_string();
+        }
+        oss << "}";
+        return oss.str();
+    }
+
+private:
+    std::optional<Cat048ReMd5> md5_;
+    std::optional<Cat048ReM5n> m5n_;
+    std::optional<Cat048ReM4e> m4e_;
+    std::optional<Cat048ReRpc> rpc_;
+    std::optional<Cat048ReErr> err_;
+};
+
+// Reserved Expansion Field (ASTERIX Cat048 REF Ed 1.9)
 class Cat048Record_items_re {
 public:
     const uint8& len() const { return len_; }
     uint8& mutable_len() { return len_; }
     void set_len(const uint8& v) { len_ = v; }
 
-    const std::vector<uint8_t>& data() const { return data_; }
-    std::vector<uint8_t>& mutable_data() { return data_; }
-    void set_data(const std::vector<uint8_t>& v) { data_ = v; }
+    const Cat048Record_items_re_items& items() const { return items_; }
+    Cat048Record_items_re_items& mutable_items() { return items_; }
+    void set_items(const Cat048Record_items_re_items& v) { items_ = v; }
 
     bool operator==(const Cat048Record_items_re&) const = default;
 
@@ -2851,7 +3203,7 @@ public:
         auto struct_start_pos_ = w.size_bytes();
         auto length_byte_pos_ = w.size_bytes();
         w.write_u8(static_cast<uint8_t>(0));
-        w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        CONDUIT_TRY(items_.encode(w));
         if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
             return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
@@ -2866,10 +3218,9 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto val = Cat048Record_items_re_items::decode(r);
+            if (!val) return std::unexpected(val.error());
+            result.items_ = std::move(*val);
         }
         return result;
     }
@@ -2879,7 +3230,7 @@ public:
         std::ostringstream oss;
         oss << "Cat048Record_items_re{"
             << "len=" << +(len_)
-            << ", data=[bytes]"
+            << ", items=" << items_.to_string()
             << "}";
         return oss.str();
     }
@@ -2887,7 +3238,7 @@ public:
 
 private:
     uint8 len_{};
-    std::vector<uint8_t> data_{};
+    Cat048Record_items_re_items items_{};
 };
 
 class Cat048Record_items {

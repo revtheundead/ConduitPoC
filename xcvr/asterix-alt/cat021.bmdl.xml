@@ -870,6 +870,255 @@
       </struct>
     </struct>
 
+    <!-- =======================================================================
+         CAT021 REF - Reserved Expansion Field (Ed 1.3, 04/09/2015)
+         EUROCONTROL ASTERIX Part 12, Appendix A
+         ======================================================================= -->
+
+    <!-- BPS: Barometric Pressure Setting (2 octets) -->
+    <struct name="Cat021ReBps">
+      <doc>Barometric Pressure Setting (QNH).
+           Actual pressure = 800 + BPS * 0.1 hPa, range 800 to 1209.5 hPa.</doc>
+      <reserved bits="4"/>
+      <field name="bps" bits="12">
+        <doc>Barometric Pressure Setting, LSB = 0.1 hPa (offset from 800 hPa)</doc>
+        <scale>0.1</scale>
+        <unit>hPa</unit>
+      </field>
+    </struct>
+
+    <!-- SelH: Selected Heading (2 octets) -->
+    <struct name="Cat021ReSelh">
+      <doc>Selected Heading</doc>
+      <reserved bits="4"/>
+      <field name="hrd" bits="1">
+        <doc>Horizontal Reference Direction: 0 = True North, 1 = Magnetic North</doc>
+      </field>
+      <field name="stat" bits="1">
+        <doc>Status: 0 = data is not available, 1 = data from autopilot</doc>
+      </field>
+      <field name="selh" bits="10">
+        <doc>Selected Heading, LSB = 360/2^9 = 0.703125 degrees</doc>
+        <scale>0.703125</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- NAV: Navigation Mode (1 octet) -->
+    <struct name="Cat021ReNav">
+      <doc>Navigation Mode</doc>
+      <field name="ap" bits="1">
+        <doc>Autopilot: 0 = not engaged, 1 = engaged</doc>
+      </field>
+      <field name="vn" bits="1">
+        <doc>VNAV Mode: 0 = not engaged, 1 = engaged</doc>
+      </field>
+      <field name="ah" bits="1">
+        <doc>Altitude Hold: 0 = not engaged, 1 = engaged</doc>
+      </field>
+      <field name="am" bits="1">
+        <doc>Approach Mode: 0 = not engaged, 1 = engaged</doc>
+      </field>
+      <reserved bits="4"/>
+    </struct>
+
+    <!-- SGV: Surface Ground Vector (variable, FX chain) -->
+    <struct name="Cat021ReSgv">
+      <doc>Surface Ground Vector.
+           Primary 2 octets + optional 1-octet heading extension.</doc>
+      <field name="stp" bits="1">
+        <doc>Subfield Type: 0 = Ground Speed and Heading are valid,
+             1 = Ground Speed and Heading are NOT valid</doc>
+      </field>
+      <field name="hts" bits="1">
+        <doc>Heading/Track Status: 0 = Heading (HDG), 1 = Track Angle (TA)</doc>
+      </field>
+      <field name="htt" bits="1">
+        <doc>Heading/Track Type: 0 = True North, 1 = Magnetic North</doc>
+      </field>
+      <field name="hrd" bits="1">
+        <doc>Heading Reference Direction: 0 = True North, 1 = Magnetic North</doc>
+      </field>
+      <field name="gss" bits="11">
+        <doc>Ground Speed, LSB = 2^-3 knots = 0.125 knots</doc>
+        <scale>0.125</scale>
+        <unit>knots</unit>
+      </field>
+      <fx>
+        <field name="hgt" bits="7">
+          <doc>Heading/Ground Track, LSB = 360/128 = 2.8125 degrees</doc>
+          <scale>2.8125</scale>
+          <unit>degrees</unit>
+        </field>
+      </fx>
+    </struct>
+
+    <!-- STA: Aircraft Status (variable, FX chain) -->
+    <struct name="Cat021ReSta">
+      <doc>Aircraft Status</doc>
+      <field name="es" bits="1">
+        <doc>Extended Squitter: 0 = target is NOT 1090 ES IN,
+             1 = target is 1090 ES IN</doc>
+      </field>
+      <field name="uat" bits="1">
+        <doc>UAT: 0 = target is NOT UAT IN, 1 = target is UAT IN</doc>
+      </field>
+      <reserved bits="5"/>
+      <fx>
+        <!-- No extensions defined in Ed 1.3; FX structure preserved -->
+        <reserved bits="7"/>
+      </fx>
+    </struct>
+
+    <!-- MES sub-subfield: Summary (SUM) - 1 octet -->
+    <struct name="Cat021ReMesSum">
+      <doc>Military Extended Squitter Summary</doc>
+      <field name="m5" bits="1">
+        <doc>0 = No Mode 5 interrogation, 1 = Mode 5 interrogation</doc>
+      </field>
+      <field name="id" bits="1">
+        <doc>0 = No authenticated Mode 5 ID reply, 1 = Authenticated Mode 5 ID reply</doc>
+      </field>
+      <field name="da" bits="1">
+        <doc>0 = No authenticated Mode 5 Data reply,
+             1 = Authenticated Mode 5 Data reply</doc>
+      </field>
+      <field name="m1" bits="1">
+        <doc>0 = Mode 1 code not present or not from Mode 5 reply,
+             1 = Mode 1 code from Mode 5 reply</doc>
+      </field>
+      <field name="m2" bits="1">
+        <doc>0 = Mode 2 code not present or not from Mode 5 reply,
+             1 = Mode 2 code from Mode 5 reply</doc>
+      </field>
+      <field name="m3" bits="1">
+        <doc>0 = Mode 3/A code not present or not from Mode 5 reply,
+             1 = Mode 3/A code from Mode 5 reply</doc>
+      </field>
+      <field name="mc" bits="1">
+        <doc>0 = Mode C altitude not present or not from Mode 5 reply,
+             1 = Mode C altitude from Mode 5 reply</doc>
+      </field>
+      <field name="po" bits="1">
+        <doc>0 = Position not from Mode 5 report, 1 = Position from Mode 5 report</doc>
+      </field>
+    </struct>
+
+    <!-- MES sub-subfield: PIN/NO (PNO) - 4 octets -->
+    <struct name="Cat021ReMesPno">
+      <doc>Mode 5 PIN/National Origin</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="5"/>
+      <field name="no" bits="11">
+        <doc>National Origin</doc>
+      </field>
+    </struct>
+
+    <!-- MES sub-subfield: Extended Mode 1 Code (EM1) - 2 octets -->
+    <struct name="Cat021ReMesEm1">
+      <doc>Extended Mode 1 Code in Octal Representation</doc>
+      <field name="v" bits="1">
+        <doc>0 = Code validated, 1 = Code not validated</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="l" bits="1">
+        <doc>0 = Mode 1 code derived from Mode 5 reply,
+             1 = Mode 1 code not extracted during last update</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="em1" bits="12">
+        <doc>Mode 1 Code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- MES sub-subfield: X Pulse Presence (XP) - 1 octet -->
+    <struct name="Cat021ReMesXp">
+      <doc>X Pulse Presence</doc>
+      <reserved bits="2"/>
+      <field name="xp" bits="1">
+        <doc>0 = X-pulse not present, 1 = X-pulse present</doc>
+      </field>
+      <field name="x5" bits="1">
+        <doc>0 = X-pulse set to zero or no authenticated Data reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="xc" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode C reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x3" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 3/A reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x2" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 2 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x1" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 1 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+    </struct>
+
+    <!-- MES sub-subfield: Figure of Merit (FOM) - 1 octet -->
+    <struct name="Cat021ReMesFom">
+      <doc>Figure of Merit</doc>
+      <reserved bits="3"/>
+      <field name="fom" bits="5">
+        <doc>Figure of Merit, range 0-31</doc>
+      </field>
+    </struct>
+
+    <!-- MES sub-subfield: Mode 2 Code (M2) - 2 octets -->
+    <struct name="Cat021ReMesM2">
+      <doc>Mode 2 Code in Octal Representation</doc>
+      <field name="v" bits="1">
+        <doc>0 = Code validated, 1 = Code not validated</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="l" bits="1">
+        <doc>0 = Mode 2 code derived from Mode 5 reply,
+             1 = Mode 2 code not extracted during last update</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="mode2" bits="12">
+        <doc>Mode 2 Code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- MES: Military Extended Squitter (compound) -->
+    <struct name="Cat021ReMes">
+      <doc>
+        MES - Military Extended Squitter.
+        Compound data item with FX-extensible primary subfield,
+        up to 6 subfields: SUM, PNO, EM1, XP, FOM, M2.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sum" bit="7" type="Cat021ReMesSum">
+          <doc>Mode 5 Summary</doc>
+        </field>
+        <field name="pno" bit="6" type="Cat021ReMesPno">
+          <doc>Mode 5 PIN/National Origin</doc>
+        </field>
+        <field name="em1" bit="5" type="Cat021ReMesEm1">
+          <doc>Extended Mode 1 Code</doc>
+        </field>
+        <field name="xp" bit="4" type="Cat021ReMesXp">
+          <doc>X Pulse Presence</doc>
+        </field>
+        <field name="fom" bit="3" type="Cat021ReMesFom">
+          <doc>Figure of Merit</doc>
+        </field>
+        <field name="m2" bit="2" type="Cat021ReMesM2">
+          <doc>Mode 2 Code</doc>
+        </field>
+      </struct>
+    </struct>
+
   </types>
 
   <messages>
@@ -1111,13 +1360,42 @@
         <!-- FSPEC Octet 7 (FRN 43-49) -->
         <!-- FRN 43-47: Unused -->
 
-        <!-- FRN 48: RE - Reserved Expansion Field -->
+        <!-- FRN 48: RE - Reserved Expansion Field (Ed 1.3) -->
         <struct name="re" bit="50">
-          <doc>Reserved Expansion Field</doc>
+          <doc>Reserved Expansion Field (ASTERIX Cat021 REF Ed 1.3)</doc>
           <field name="len" type="uint8">
             <doc>Length of RE including this length byte</doc>
           </field>
-          <field name="data" type="bytes" length-from="len - 1"/>
+          <struct name="items" presence="bitmap">
+            <bitmap bits="8"/>
+            <field name="bps" bit="7" type="Cat021ReBps">
+              <doc>BPS - Barometric Pressure Setting</doc>
+            </field>
+            <field name="selh" bit="6" type="Cat021ReSelh">
+              <doc>SelH - Selected Heading</doc>
+            </field>
+            <field name="nav" bit="5" type="Cat021ReNav">
+              <doc>NAV - Navigation Mode</doc>
+            </field>
+            <field name="gao" bit="4" type="uint8">
+              <doc>GAO - GPS Antenna Offset (lateral distance of GPS antenna from
+                   the aircraft nose in metres, positive values are right of centre)</doc>
+            </field>
+            <field name="sgv" bit="3" type="Cat021ReSgv">
+              <doc>SGV - Surface Ground Vector</doc>
+            </field>
+            <field name="sta" bit="2" type="Cat021ReSta">
+              <doc>STA - Aircraft Status</doc>
+            </field>
+            <field name="tnh" bit="1" type="uint16">
+              <doc>TNH - True North Heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+              <scale>0.0054931640625</scale>
+              <unit>degrees</unit>
+            </field>
+            <field name="mes" bit="0" type="Cat021ReMes">
+              <doc>MES - Military Extended Squitter</doc>
+            </field>
+          </struct>
         </struct>
 
         <!-- FRN 49: SP - Special Purpose Field -->
