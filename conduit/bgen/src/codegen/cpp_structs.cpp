@@ -1352,7 +1352,34 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
                                                     const model::Constraint* constraint, bool is_signed,
                                                     std::optional<int> max_length,
                                                     bool is_bytes) {
-    if (constraint && !is_bytes) {
+    if (constraint && is_bytes) {
+        // Byte-array fields: convert to numeric value before checking constraints
+        bool need_check = constraint->equals || constraint->max ||
+            (constraint->min && (*constraint->min != "0" || is_signed));
+        if (need_check) {
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("uint64_t _raw = 0;");
+            ctx_.line("for (size_t i = 0; i < v.size(); ++i) _raw = (_raw << 8) | v[i];");
+            if (constraint->equals) {
+                ctx_.line("if (_raw != static_cast<uint64_t>(" + *constraint->equals + "))");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " constraint: expected " + *constraint->equals + "\"));");
+            }
+            if (constraint->max) {
+                ctx_.line("if (_raw > " + *constraint->max + ")");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " exceeds max " + *constraint->max + "\"));");
+            }
+            if (constraint->min && (*constraint->min != "0" || is_signed)) {
+                ctx_.line("if (_raw < " + *constraint->min + ")");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " below min " + *constraint->min + "\"));");
+            }
+            ctx_.dedent();
+            ctx_.line("}");
+        }
+    } else if (constraint) {
         if (constraint->equals) {
             ctx_.line("if (v != static_cast<" + qual_type + ">(" + *constraint->equals + "))");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
