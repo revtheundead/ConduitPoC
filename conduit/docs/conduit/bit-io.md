@@ -221,6 +221,8 @@ Read multi-byte values directly from a byte buffer without constructing a `BitRe
 | `read_f32(span, offset, Endian)` | `float` | Read IEEE 754 float (via `memcpy`) |
 | `read_f64(span, offset, Endian)` | `double` | Read IEEE 754 double (via `memcpy`) |
 
+**Bounds checking:** If `offset + N` exceeds the span size, integer reads return 0 and float reads return 0.0. No error is signaled -- the caller is responsible for ensuring the offset is valid.
+
 ### Buffer Writes
 
 Write multi-byte values directly to a byte buffer without constructing a `BitWriter`:
@@ -232,6 +234,8 @@ Write multi-byte values directly to a byte buffer without constructing a `BitWri
 | `write_u64(span, offset, uint64_t, Endian)` | Write 8 bytes |
 | `write_f32(span, offset, float, Endian)` | Write IEEE 754 float (via `memcpy`) |
 | `write_f64(span, offset, double, Endian)` | Write IEEE 754 double (via `memcpy`) |
+
+**Bounds checking:** If `offset + N` exceeds the span size, writes are silently skipped (no-op). No error is signaled -- the caller is responsible for ensuring the offset is valid.
 
 ### Example
 
