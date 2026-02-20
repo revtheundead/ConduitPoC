@@ -4,7 +4,6 @@
 #pragma once
 
 #include <bit>
-#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <span>
@@ -63,7 +62,6 @@ enum class Endian {
 // ============================================================================
 
 [[nodiscard]] inline uint16_t read_u16(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
-    assert(offset + 2 <= data.size() && "read_u16: offset out of bounds");
     if (offset + 2 > data.size()) return 0;
     if (e == Endian::Big) {
         return static_cast<uint16_t>(
@@ -77,7 +75,6 @@ enum class Endian {
 }
 
 [[nodiscard]] inline uint32_t read_u32(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
-    assert(offset + 4 <= data.size() && "read_u32: offset out of bounds");
     if (offset + 4 > data.size()) return 0;
     if (e == Endian::Big) {
         return (static_cast<uint32_t>(data[offset])     << 24) |
@@ -93,7 +90,6 @@ enum class Endian {
 }
 
 [[nodiscard]] inline uint64_t read_u64(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
-    assert(offset + 8 <= data.size() && "read_u64: offset out of bounds");
     if (offset + 8 > data.size()) return 0;
     if (e == Endian::Big) {
         return (static_cast<uint64_t>(data[offset])     << 56) |
@@ -121,7 +117,6 @@ enum class Endian {
 // ============================================================================
 
 inline void write_u16(std::span<uint8_t> data, size_t offset, uint16_t value, Endian e) noexcept {
-    assert(offset + 2 <= data.size() && "write_u16: offset out of bounds");
     if (offset + 2 > data.size()) return;
     if (e == Endian::Big) {
         data[offset]     = static_cast<uint8_t>(value >> 8);
@@ -133,7 +128,6 @@ inline void write_u16(std::span<uint8_t> data, size_t offset, uint16_t value, En
 }
 
 inline void write_u32(std::span<uint8_t> data, size_t offset, uint32_t value, Endian e) noexcept {
-    assert(offset + 4 <= data.size() && "write_u32: offset out of bounds");
     if (offset + 4 > data.size()) return;
     if (e == Endian::Big) {
         data[offset]     = static_cast<uint8_t>(value >> 24);
@@ -149,7 +143,6 @@ inline void write_u32(std::span<uint8_t> data, size_t offset, uint32_t value, En
 }
 
 inline void write_u64(std::span<uint8_t> data, size_t offset, uint64_t value, Endian e) noexcept {
-    assert(offset + 8 <= data.size() && "write_u64: offset out of bounds");
     if (offset + 8 > data.size()) return;
     if (e == Endian::Big) {
         data[offset]     = static_cast<uint8_t>(value >> 56);
