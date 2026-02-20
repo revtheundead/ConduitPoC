@@ -320,8 +320,9 @@ inline void rand_fill_bds(std::mt19937& rng, T& i250) {
     i250.set_rep(static_cast<uint8_t>(n));
     for (int j = 0; j < n; ++j) {
         ElemType elem;
-        std::array<uint8_t, 7> data;
-        for (auto& b : data) b = rand_u8(rng);
+        uint64_t data = 0;
+        for (int k = 0; k < 7; ++k)
+            data = (data << 8) | rand_u8(rng);
         elem.set_mbData(data);
         elem.set_bds1(rand_u8(rng, 15));
         elem.set_bds2(rand_u8(rng, 15));
