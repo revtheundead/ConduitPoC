@@ -108,6 +108,7 @@ bgen_generate_fixture(format_binary)
 bgen_generate_fixture(msg_config)
 bgen_generate_fixture(msg_config_inline)
 bgen_generate_fixture(constants_everywhere)
+bgen_generate_fixture(bytes_numeric)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -165,6 +166,7 @@ add_executable(bgen_tests
     test_inline_enum.cpp
     test_msg_config.cpp
     test_constants_everywhere.cpp
+    test_bytes_numeric.cpp
 )
 
 add_dependencies(bgen_tests
@@ -211,6 +213,7 @@ add_dependencies(bgen_tests
     gen_msg_config
     gen_msg_config_inline
     gen_constants_everywhere
+    gen_bytes_numeric
 )
 
 target_link_libraries(bgen_tests PRIVATE

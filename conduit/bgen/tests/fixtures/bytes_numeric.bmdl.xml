@@ -1,0 +1,66 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bytes_numeric</namespace>
+    <endian>big</endian>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+  <messages>
+    <!-- Message with small bytes fields that should resolve to numeric types -->
+    <message name="SmallBytesMsg">
+      <!-- bytes=2 → uint16_t -->
+      <field name="val16" bytes="2"/>
+      <!-- bytes=3 → uint32_t (24-bit) -->
+      <field name="val24" bytes="3"/>
+      <!-- bytes=4 → uint32_t -->
+      <field name="val32" bytes="4"/>
+      <!-- bytes=7 → uint64_t (56-bit) -->
+      <field name="val56" bytes="7"/>
+      <!-- bytes=8 → uint64_t -->
+      <field name="val64" bytes="8"/>
+    </message>
+
+    <!-- Message with bytes field + scale (should now work for bytes<=8) -->
+    <message name="ScaledBytesMsg">
+      <!-- bytes=3 with scale → double (raw is 24-bit unsigned) -->
+      <field name="sensor" bytes="3">
+        <scale>0.01</scale>
+      </field>
+      <!-- bytes=2 with scale + offset → double (raw is 16-bit unsigned) -->
+      <field name="temperature" bytes="2">
+        <scale>0.1</scale>
+        <offset>-50</offset>
+      </field>
+      <field name="tag" type="uint8"/>
+    </message>
+
+    <!-- Message with bytes field + constraint (should work for bytes<=8) -->
+    <message name="ConstrainedBytesMsg">
+      <!-- bytes=3 with range constraint -->
+      <field name="range_val" bytes="3">
+        <constraint min="256" max="65535"/>
+      </field>
+      <!-- bytes=2 with equals constraint -->
+      <field name="magic" bytes="2">
+        <constraint equals="0xBEEF"/>
+      </field>
+      <field name="payload" type="uint16"/>
+    </message>
+
+    <!-- Message with large bytes field (>8) that stays as byte array -->
+    <message name="LargeBytesMsg">
+      <field name="header" type="uint16"/>
+      <!-- bytes=10 → stays std::array<uint8_t, 10>, pass-through -->
+      <field name="blob" bytes="10"/>
+      <field name="footer" type="uint8"/>
+    </message>
+
+    <!-- Message with signed bytes field -->
+    <message name="SignedBytesMsg">
+      <field name="signed_val" bytes="3" signed="true"/>
+      <field name="pad" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

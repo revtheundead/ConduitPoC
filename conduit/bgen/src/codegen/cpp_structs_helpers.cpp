@@ -92,16 +92,6 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 // Too large for native integer — keep as byte array, pass through
                 info.is_bytes = true;
                 info.cpp_type = "std::array<uint8_t, " + std::to_string(*f.bytes_attr) + ">";
-                if (f.scale || f.offset) {
-                    Logger::warn(f.loc.to_string() + ": field '" + f.name +
-                        "': scale/offset ignored for byte array field (bytes=" +
-                        std::to_string(*f.bytes_attr) + " exceeds native integer size)");
-                }
-                if (f.constraint && (f.constraint->min || f.constraint->max || f.constraint->equals)) {
-                    Logger::warn(f.loc.to_string() + ": field '" + f.name +
-                        "': numeric constraints ignored for byte array field (bytes=" +
-                        std::to_string(*f.bytes_attr) + " exceeds native integer size)");
-                }
             }
         }
         // Field-level wire_encoding for inline fields

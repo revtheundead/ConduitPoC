@@ -1288,10 +1288,20 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                         "': 'equals' constraint on floating-point field is unreliable "
                         "due to precision loss; consider using min/max with tolerance instead");
                 }
-                // Suppress numeric constraints for byte arrays > 8 bytes (already warned in resolve_field_type)
-                if (fi.is_bytes && fi.constraint &&
-                    (fi.constraint->min || fi.constraint->max || fi.constraint->equals)) {
-                    fi.constraint = nullptr;
+                // Warn and suppress numeric constraints for byte arrays > 8 bytes
+                if (fi.is_bytes && c.bytes_attr && *c.bytes_attr > 8) {
+                    if (c.scale || c.offset) {
+                        Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                            "': scale/offset ignored for byte array field (bytes=" +
+                            std::to_string(*c.bytes_attr) + " exceeds native integer size)");
+                    }
+                    if (fi.constraint &&
+                        (fi.constraint->min || fi.constraint->max || fi.constraint->equals)) {
+                        Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                            "': numeric constraints ignored for byte array field (bytes=" +
+                            std::to_string(*c.bytes_attr) + " exceeds native integer size)");
+                        fi.constraint = nullptr;
+                    }
                 }
                 fi.max_length = c.max_length;
                 if (c.is_inline) {
