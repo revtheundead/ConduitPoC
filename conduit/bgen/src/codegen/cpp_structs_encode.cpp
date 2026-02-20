@@ -99,7 +99,8 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                         fti.is_enum = true;
                     }
                     // I2: Constraint check for optional field (dereference the optional)
-                    if (c.constraint && !fti.is_struct && !fti.is_enum) {
+                    // Skip for byte-array fields (bytes > 8) — constraints were already warned as ignored
+                    if (c.constraint && !fti.is_struct && !fti.is_enum && !fti.is_bytes) {
                         emit_encode_constraint_check(*c.constraint, "*" + member, c.name, fti.is_signed);
                     }
                     // I2: max_length check for optional strings/bytes
@@ -309,7 +310,8 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
     }
 
     // A8: Constraint check before encoding
-    if (f.constraint && !fti.is_struct && !fti.is_enum) {
+    // Skip for byte-array fields (bytes > 8) — constraints were already warned as ignored
+    if (f.constraint && !fti.is_struct && !fti.is_enum && !fti.is_bytes) {
         emit_encode_constraint_check(*f.constraint, member, f.name, fti.is_signed);
     }
 

@@ -623,9 +623,9 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
     mb.set_rep(3);
     auto& bds = mb.mutable_bds();
 
-    // BDS register 1
+    // BDS register 1 (bytes="7" → uint64_t, big-endian)
     asterix::Cat048Record_items_i250_bdsElement e1;
-    std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
+    uint64_t data1 = 0x10203040506070ULL;
     e1.set_data(data1);
     e1.set_bds1(4);
     e1.set_bds2(0);
@@ -633,7 +633,7 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
 
     // BDS register 2
     asterix::Cat048Record_items_i250_bdsElement e2;
-    std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
+    uint64_t data2 = 0xA1B2C3D4E5F607ULL;
     e2.set_data(data2);
     e2.set_bds1(5);
     e2.set_bds2(0);
@@ -641,7 +641,7 @@ TEST_CASE("Cat048Record I250 Mode S data roundtrip", "[roundtrip][asterix]") {
 
     // BDS register 3
     asterix::Cat048Record_items_i250_bdsElement e3;
-    std::array<uint8_t, 7> data3 = {0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99};
+    uint64_t data3 = 0xFFEEDDCCBBAA99ULL;
     e3.set_data(data3);
     e3.set_bds1(6);
     e3.set_bds2(0);

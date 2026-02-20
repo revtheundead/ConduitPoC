@@ -92,20 +92,9 @@ public:
                        std::vector<FieldInfo>& fields, bool& has_fx,
                        bool in_fx, int fx_depth);
 
-    void emit_plain_accessors(const std::string& name, const std::string& cpp_type,
-                               const model::Constraint* constraint = nullptr,
-                               bool is_signed = true,
-                               std::optional<int> max_length = std::nullopt,
-                               bool is_enum = false,
-                               bool is_bytes = false);
+    void emit_plain_accessors(const FieldInfo& fi);
 
-    void emit_optional_accessors(const std::string& name, const std::string& cpp_type,
-                                  const std::optional<std::string>& default_value = std::nullopt,
-                                  const model::Constraint* constraint = nullptr,
-                                  bool is_signed = true,
-                                  std::optional<int> max_length = std::nullopt,
-                                  bool is_enum = false,
-                                  bool is_bytes = false);
+    void emit_optional_accessors(const FieldInfo& fi);
 
     // Emit constraint validation checks for a setter (shared by plain, optional, and bitmap accessors)
     void emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,

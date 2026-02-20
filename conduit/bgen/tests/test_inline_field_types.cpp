@@ -68,7 +68,7 @@ TEST_CASE("inline bytes roundtrip", "[inline_field_types]") {
     msg.set_latitude(0.0);
     msg.set_offset(0);
     msg.set_callsign("");
-    msg.mutable_raw_data() = {0x01, 0x02, 0x03, 0x04};
+    msg.set_raw_data(0x01020304);
     msg.set_active(false);
     msg.set_mode3a(0);
     msg.set_tag(0);
@@ -77,10 +77,7 @@ TEST_CASE("inline bytes roundtrip", "[inline_field_types]") {
     REQUIRE(enc.has_value());
     auto dec = inline_field_types::InlineMsg::decode_bytes(*enc);
     REQUIRE(dec.has_value());
-    CHECK(dec->raw_data()[0] == 0x01);
-    CHECK(dec->raw_data()[1] == 0x02);
-    CHECK(dec->raw_data()[2] == 0x03);
-    CHECK(dec->raw_data()[3] == 0x04);
+    CHECK(dec->raw_data() == 0x01020304);
 }
 
 TEST_CASE("inline bool roundtrip", "[inline_field_types]") {

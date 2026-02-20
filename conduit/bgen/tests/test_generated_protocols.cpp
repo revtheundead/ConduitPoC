@@ -1034,14 +1034,14 @@ TEST_CASE("ASTERIX Cat048Record I250 Mode S BDS data", "[asterix][cat048][array]
     auto& bds = mb.mutable_bds();
 
     asterix::Cat048Record_items_i250_bdsElement e1;
-    std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
+    uint64_t data1 = 0x10203040506070ULL;
     e1.set_data(data1);
     e1.set_bds1(4);
     e1.set_bds2(0);
     bds.push_back(e1);
 
     asterix::Cat048Record_items_i250_bdsElement e2;
-    std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
+    uint64_t data2 = 0xA1B2C3D4E5F607ULL;
     e2.set_data(data2);
     e2.set_bds1(5);
     e2.set_bds2(0);

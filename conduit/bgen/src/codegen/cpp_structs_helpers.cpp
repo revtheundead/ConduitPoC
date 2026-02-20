@@ -2,6 +2,7 @@
 // Bgen - Struct/Message Code Generator: Free Helper Functions
 
 #include "cpp_structs_helpers.hpp"
+#include "../logger.hpp"
 #include <stdexcept>
 
 namespace bgen::codegen {
@@ -70,8 +71,38 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 info.is_signed = false;
             }
         } else if (f.bytes_attr) {
-            info.is_bytes = true;
-            info.cpp_type = "std::array<uint8_t, " + std::to_string(*f.bytes_attr) + ">";
+            if (*f.bytes_attr <= 8) {
+                // Small enough for native integer — treat as numeric
+                info.bits = *f.bytes_attr * 8;
+                info.is_signed = f.is_signed;
+                info.cpp_type = storage_type_for_bits(info.bits, f.is_signed);
+                // Support scale/offset like regular bits fields
+                if (f.scale || f.offset) {
+                    info.has_field_scale = true;
+                    info.raw_bits = info.bits;
+                    info.raw_signed = info.is_signed;
+                    info.raw_endian = f.endian;
+                    info.field_scale = f.scale.value_or(1.0);
+                    info.field_offset = f.offset.value_or(0.0);
+                    info.cpp_type = "double";
+                    info.bits = 0;
+                    info.is_signed = false;
+                }
+            } else {
+                // Too large for native integer — keep as byte array, pass through
+                info.is_bytes = true;
+                info.cpp_type = "std::array<uint8_t, " + std::to_string(*f.bytes_attr) + ">";
+                if (f.scale || f.offset) {
+                    Logger::warn(f.loc.to_string() + ": field '" + f.name +
+                        "': scale/offset ignored for byte array field (bytes=" +
+                        std::to_string(*f.bytes_attr) + " exceeds native integer size)");
+                }
+                if (f.constraint && (f.constraint->min || f.constraint->max || f.constraint->equals)) {
+                    Logger::warn(f.loc.to_string() + ": field '" + f.name +
+                        "': numeric constraints ignored for byte array field (bytes=" +
+                        std::to_string(*f.bytes_attr) + " exceeds native integer size)");
+                }
+            }
         }
         // Field-level wire_encoding for inline fields
         if (f.wire_encoding) info.wire_encoding = *f.wire_encoding;

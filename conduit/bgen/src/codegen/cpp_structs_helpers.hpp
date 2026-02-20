@@ -47,6 +47,12 @@ struct FieldInfo {
     bool is_auto_managed = false;                    // frame field with auto_expr → deprecated setter
     bool is_enum = false;                            // enum types → pass by value in accessors
     bool is_bytes = false;                           // byte-array types → skip scalar constraint checks
+    // Field-level scale/offset info for generating raw accessors
+    bool has_field_scale = false;
+    double field_scale = 1.0;
+    double field_offset = 0.0;
+    int raw_bits = 0;
+    bool raw_signed = false;
 };
 
 struct BitmapField {
