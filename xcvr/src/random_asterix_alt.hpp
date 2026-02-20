@@ -66,6 +66,238 @@ inline asterix_alt::aircraft_ident rand_aircraft_ident(std::mt19937& rng) {
     return ai;
 }
 
+// ── RE field helpers ────────────────────────────────────────────────────────
+
+inline int32_t rand_signed(std::mt19937& rng, int bits) {
+    int32_t lo = -(1 << (bits - 1));
+    int32_t hi = (1 << (bits - 1)) - 1;
+    return std::uniform_int_distribution<int32_t>(lo, hi)(rng);
+}
+
+inline void rand_fill_cat048_re(std::mt19937& rng,
+                                asterix_alt::Cat048Record_items_re_items& re) {
+    // MD5 or M5N (mutually exclusive, ~25% each)
+    int mode5_pick = std::uniform_int_distribution<int>(0, 3)(rng);
+    if (mode5_pick == 0) {
+        auto& md5 = re.mutable_md5().mutable_sub();
+        if (rand_bool(rng)) {
+            auto& sum = md5.mutable_sum();
+            sum.set_m5(rand_u8(rng, 1));
+            sum.set_id(rand_u8(rng, 1));
+            sum.set_da(rand_u8(rng, 1));
+            sum.set_m1(rand_u8(rng, 1));
+            sum.set_m2(rand_u8(rng, 1));
+            sum.set_m3(rand_u8(rng, 1));
+            sum.set_mc(rand_u8(rng, 1));
+        }
+        if (rand_bool(rng)) {
+            auto& pmn = md5.mutable_pmn();
+            pmn.set_pin(rand_u16(rng, 0x3FFF));
+            pmn.set_nav(rand_u8(rng, 1));
+            pmn.set_nat(rand_u8(rng, 31));
+            pmn.set_mis(rand_u8(rng, 63));
+        }
+        if (rand_bool(rng)) {
+            auto& pos = md5.mutable_pos();
+            pos.set_lat(std::uniform_real_distribution<double>(-90.0, 90.0)(rng));
+            pos.set_lon(std::uniform_real_distribution<double>(-180.0, 180.0)(rng));
+        }
+        if (rand_bool(rng)) {
+            auto& ga = md5.mutable_ga();
+            ga.set_res(rand_u8(rng, 1));
+            ga.set_ga(rand_signed(rng, 14) * 25.0);
+        }
+        if (rand_bool(rng)) {
+            auto& em1 = md5.mutable_em1();
+            em1.set_v(rand_u8(rng, 1));
+            em1.set_g(rand_u8(rng, 1));
+            em1.set_l(rand_u8(rng, 1));
+            em1.set_em1(rand_u16(rng, 0xFFF));
+        }
+        if (rand_bool(rng)) {
+            md5.set_tos(std::uniform_real_distribution<double>(-1.0, 1.0)(rng));
+        }
+        if (rand_bool(rng)) {
+            auto& xp = md5.mutable_xp();
+            xp.set_xp(rand_u8(rng, 1));
+            xp.set_x5(rand_u8(rng, 1));
+            xp.set_xc(rand_u8(rng, 1));
+            xp.set_x3(rand_u8(rng, 1));
+            xp.set_x2(rand_u8(rng, 1));
+            xp.set_x1(rand_u8(rng, 1));
+        }
+    } else if (mode5_pick == 1) {
+        auto& m5n = re.mutable_m5n().mutable_sub();
+        if (rand_bool(rng)) {
+            auto& sum = m5n.mutable_sum();
+            sum.set_m5(rand_u8(rng, 1));
+            sum.set_id(rand_u8(rng, 1));
+            sum.set_da(rand_u8(rng, 1));
+            sum.set_m1(rand_u8(rng, 1));
+            sum.set_m2(rand_u8(rng, 1));
+            sum.set_m3(rand_u8(rng, 1));
+            sum.set_mc(rand_u8(rng, 1));
+        }
+        if (rand_bool(rng)) {
+            auto& pmn = m5n.mutable_pmn();
+            pmn.set_pin(rand_u16(rng, 0x3FFF));
+            pmn.set_nov(rand_u8(rng, 1));
+            pmn.set_no(rand_u16(rng, 0x7FF));
+        }
+        if (rand_bool(rng)) {
+            auto& pos = m5n.mutable_pos();
+            pos.set_lat(std::uniform_real_distribution<double>(-90.0, 90.0)(rng));
+            pos.set_lon(std::uniform_real_distribution<double>(-180.0, 180.0)(rng));
+        }
+        if (rand_bool(rng)) {
+            auto& ga = m5n.mutable_ga();
+            ga.set_res(rand_u8(rng, 1));
+            ga.set_ga(rand_signed(rng, 14) * 25.0);
+        }
+        if (rand_bool(rng)) {
+            auto& em1 = m5n.mutable_em1();
+            em1.set_v(rand_u8(rng, 1));
+            em1.set_g(rand_u8(rng, 1));
+            em1.set_l(rand_u8(rng, 1));
+            em1.set_em1(rand_u16(rng, 0xFFF));
+        }
+        if (rand_bool(rng)) {
+            m5n.set_tos(std::uniform_real_distribution<double>(-1.0, 1.0)(rng));
+        }
+        if (rand_bool(rng)) {
+            auto& xp = m5n.mutable_xp();
+            xp.set_xp(rand_u8(rng, 1));
+            xp.set_x5(rand_u8(rng, 1));
+            xp.set_xc(rand_u8(rng, 1));
+            xp.set_x3(rand_u8(rng, 1));
+            xp.set_x2(rand_u8(rng, 1));
+            xp.set_x1(rand_u8(rng, 1));
+        }
+        if (rand_bool(rng)) {
+            m5n.mutable_fom().set_fom(rand_u8(rng, 31));
+        }
+    }
+
+    // M4E (~50%)
+    if (rand_bool(rng)) {
+        re.mutable_m4e().set_foeFri(rand_u8(rng, 3));
+    }
+
+    // RPC (~50%)
+    if (rand_bool(rng)) {
+        auto& rpc = re.mutable_rpc().mutable_sub();
+        if (rand_bool(rng)) rpc.set_sco(rand_u8(rng));
+        if (rand_bool(rng)) rpc.set_scr(rand_u16(rng, 6553) * 0.1);
+        if (rand_bool(rng)) rpc.set_rw(rand_u16(rng) * 0.00390625);
+        if (rand_bool(rng)) rpc.set_ar(rand_u16(rng) * 0.00390625);
+    }
+
+    // ERR (~50%)
+    if (rand_bool(rng)) {
+        re.mutable_err().set_rho(rand_u32(rng, 0xFFFFFF) * 0.00390625);
+    }
+}
+
+inline void rand_fill_cat021_re(std::mt19937& rng,
+                                asterix_alt::Cat021Record_items_re_items& re) {
+    // BPS (~50%)
+    if (rand_bool(rng)) {
+        re.mutable_bps().set_bps(rand_u16(rng, 4095) * 0.1);
+    }
+
+    // SelH (~50%)
+    if (rand_bool(rng)) {
+        auto& selh = re.mutable_selh();
+        selh.set_hrd(rand_u8(rng, 1));
+        selh.set_stat(rand_u8(rng, 1));
+        selh.set_selh(std::uniform_real_distribution<double>(0.0, 359.296875)(rng));
+    }
+
+    // NAV (~50%)
+    if (rand_bool(rng)) {
+        auto& nav = re.mutable_nav();
+        nav.set_ap(rand_u8(rng, 1));
+        nav.set_vn(rand_u8(rng, 1));
+        nav.set_ah(rand_u8(rng, 1));
+        nav.set_am(rand_u8(rng, 1));
+    }
+
+    // GAO (~50%)
+    if (rand_bool(rng)) {
+        re.set_gao(rand_u8(rng));
+    }
+
+    // SGV (~50%)
+    if (rand_bool(rng)) {
+        auto& sgv = re.mutable_sgv();
+        sgv.set_stp(rand_u8(rng, 1));
+        sgv.set_hts(rand_u8(rng, 1));
+        sgv.set_htt(rand_u8(rng, 1));
+        sgv.set_hrd(rand_u8(rng, 1));
+        sgv.set_gss(rand_u16(rng, 2047) * 0.125);
+        if (rand_bool(rng)) {
+            sgv.set_hgt(rand_u8(rng, 127) * 2.8125);
+        }
+    }
+
+    // STA (~50%)
+    if (rand_bool(rng)) {
+        auto& sta = re.mutable_sta();
+        sta.set_es(rand_u8(rng, 1));
+        sta.set_uat(rand_u8(rng, 1));
+    }
+
+    // TNH (~50%)
+    if (rand_bool(rng)) {
+        re.set_tnh(std::uniform_real_distribution<double>(0.0, 360.0)(rng));
+    }
+
+    // MES (~30%)
+    if (rand_bool(rng) && rand_bool(rng)) {
+        auto& mes = re.mutable_mes().mutable_sub();
+        if (rand_bool(rng)) {
+            auto& sum = mes.mutable_sum();
+            sum.set_m5(rand_u8(rng, 1));
+            sum.set_id(rand_u8(rng, 1));
+            sum.set_da(rand_u8(rng, 1));
+            sum.set_m1(rand_u8(rng, 1));
+            sum.set_m2(rand_u8(rng, 1));
+            sum.set_m3(rand_u8(rng, 1));
+            sum.set_mc(rand_u8(rng, 1));
+            sum.set_po(rand_u8(rng, 1));
+        }
+        if (rand_bool(rng)) {
+            auto& pno = mes.mutable_pno();
+            pno.set_pin(rand_u16(rng, 0x3FFF));
+            pno.set_no(rand_u16(rng, 0x7FF));
+        }
+        if (rand_bool(rng)) {
+            auto& em1 = mes.mutable_em1();
+            em1.set_v(rand_u8(rng, 1));
+            em1.set_l(rand_u8(rng, 1));
+            em1.set_em1(rand_u16(rng, 0xFFF));
+        }
+        if (rand_bool(rng)) {
+            auto& xp = mes.mutable_xp();
+            xp.set_xp(rand_u8(rng, 1));
+            xp.set_x5(rand_u8(rng, 1));
+            xp.set_xc(rand_u8(rng, 1));
+            xp.set_x3(rand_u8(rng, 1));
+            xp.set_x2(rand_u8(rng, 1));
+            xp.set_x1(rand_u8(rng, 1));
+        }
+        if (rand_bool(rng)) {
+            mes.mutable_fom().set_fom(rand_u8(rng, 31));
+        }
+        if (rand_bool(rng)) {
+            auto& m2 = mes.mutable_m2();
+            m2.set_v(rand_u8(rng, 1));
+            m2.set_l(rand_u8(rng, 1));
+            m2.set_mode2(rand_u16(rng, 0xFFF));
+        }
+    }
+}
+
 // ── Array element helpers ────────────────────────────────────────────────────
 
 template <typename T>
@@ -225,6 +457,11 @@ inline asterix_alt::Cat021Record random_cat021(std::mt19937& rng) {
     if (rand_bool(rng)) it.set_i400(rand_u8(rng));
     if (rand_bool(rng)) (void)it.mutable_i295();
 
+    // RE - Reserved Expansion Field (~50%)
+    if (rand_bool(rng)) {
+        rand_fill_cat021_re(rng, it.mutable_re().mutable_items());
+    }
+
     return rec;
 }
 
@@ -269,6 +506,11 @@ inline asterix_alt::Cat048Record random_cat048(std::mt19937& rng) {
     if (rand_bool(rng)) (void)it.mutable_i050();
     if (rand_bool(rng)) (void)it.mutable_i065();
     if (rand_bool(rng)) (void)it.mutable_i060();
+
+    // RE - Reserved Expansion Field (~50%)
+    if (rand_bool(rng)) {
+        rand_fill_cat048_re(rng, it.mutable_re().mutable_items());
+    }
 
     return rec;
 }
