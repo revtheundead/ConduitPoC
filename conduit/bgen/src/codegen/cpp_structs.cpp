@@ -1154,10 +1154,9 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
 
     for (const auto& fi : fields) {
         if (fi.is_optional) {
-            emit_optional_accessors(fi.name, fi.cpp_type, fi.default_value,
-                                     fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
+            emit_optional_accessors(fi);
         } else {
-            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
+            emit_plain_accessors(fi);
         }
     }
 
@@ -1236,6 +1235,7 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                     }
                 }
                 fi.is_enum = fti.is_enum;
+                fi.is_bytes = fti.is_bytes;
                 fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
                 if (!fi.default_value) fi.default_value = c.default_value;
                 // Warn when both default and constraint equals are specified
@@ -1275,6 +1275,34 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                     }
                 }
                 fi.constraint = c.constraint ? &*c.constraint : nullptr;
+                // Thread scale info for raw accessor generation
+                fi.has_field_scale = fti.has_field_scale;
+                fi.field_scale = fti.field_scale;
+                fi.field_offset = fti.field_offset;
+                fi.raw_bits = fti.raw_bits;
+                fi.raw_signed = fti.raw_signed;
+                // Warn: equals constraint on float-generated fields is unreliable
+                bool is_float_type = fti.is_float || fti.has_field_scale;
+                if (fi.constraint && fi.constraint->equals && is_float_type) {
+                    Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                        "': 'equals' constraint on floating-point field is unreliable "
+                        "due to precision loss; consider using min/max with tolerance instead");
+                }
+                // Warn and suppress numeric constraints for byte arrays > 8 bytes
+                if (fi.is_bytes && c.bytes_attr && *c.bytes_attr > 8) {
+                    if (c.scale || c.offset) {
+                        Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                            "': scale/offset ignored for byte array field (bytes=" +
+                            std::to_string(*c.bytes_attr) + " exceeds native integer size)");
+                    }
+                    if (fi.constraint &&
+                        (fi.constraint->min || fi.constraint->max || fi.constraint->equals)) {
+                        Logger::warn(c.loc.to_string() + ": field '" + c.name +
+                            "': numeric constraints ignored for byte array field (bytes=" +
+                            std::to_string(*c.bytes_attr) + " exceeds native integer size)");
+                        fi.constraint = nullptr;
+                    }
+                }
                 fi.max_length = c.max_length;
                 if (c.is_inline) {
                     auto resolved = index_.find(c.type_ref);
@@ -1349,8 +1377,36 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
 
 void StructEmitter::emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
                                                     const model::Constraint* constraint, bool is_signed,
-                                                    std::optional<int> max_length) {
-    if (constraint) {
+                                                    std::optional<int> max_length,
+                                                    bool is_bytes) {
+    if (constraint && is_bytes) {
+        // Byte-array fields: convert to numeric value before checking constraints
+        bool need_check = constraint->equals || constraint->max ||
+            (constraint->min && (*constraint->min != "0" || is_signed));
+        if (need_check) {
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("uint64_t _raw = 0;");
+            ctx_.line("for (size_t i = 0; i < v.size(); ++i) _raw = (_raw << 8) | v[i];");
+            if (constraint->equals) {
+                ctx_.line("if (_raw != static_cast<uint64_t>(" + *constraint->equals + "))");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " constraint: expected " + *constraint->equals + "\"));");
+            }
+            if (constraint->max) {
+                ctx_.line("if (_raw > " + *constraint->max + ")");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " exceeds max " + *constraint->max + "\"));");
+            }
+            if (constraint->min && (*constraint->min != "0" || is_signed)) {
+                ctx_.line("if (_raw < " + *constraint->min + ")");
+                ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
+                ctx_.line("        \"" + name + " below min " + *constraint->min + "\"));");
+            }
+            ctx_.dedent();
+            ctx_.line("}");
+        }
+    } else if (constraint) {
         if (constraint->equals) {
             ctx_.line("if (v != static_cast<" + qual_type + ">(" + *constraint->equals + "))");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
@@ -1374,11 +1430,15 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
     }
 }
 
-void StructEmitter::emit_plain_accessors(const std::string& name, const std::string& cpp_type,
-                                           const model::Constraint* constraint,
-                                           bool is_signed,
-                                           std::optional<int> max_length,
-                                           bool is_enum) {
+void StructEmitter::emit_plain_accessors(const FieldInfo& fi) {
+    const auto& name = fi.name;
+    const auto& cpp_type = fi.cpp_type;
+    const auto* constraint = fi.constraint;
+    bool is_signed = fi.is_signed;
+    auto max_length = fi.max_length;
+    bool is_enum = fi.is_enum;
+    bool is_bytes = fi.is_bytes;
+
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
@@ -1402,7 +1462,7 @@ void StructEmitter::emit_plain_accessors(const std::string& name, const std::str
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1414,15 +1474,34 @@ void StructEmitter::emit_plain_accessors(const std::string& name, const std::str
             ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
         }
     }
+    // Raw accessors for scaled fields (expose underlying integer)
+    if (fi.has_field_scale) {
+        std::string raw_type = storage_type_for_bits(fi.raw_bits, fi.raw_signed);
+        std::string scale_str = double_literal(fi.field_scale);
+        std::string offset_str = double_literal(fi.field_offset);
+        if (fi.field_offset != 0.0) {
+            ctx_.line(raw_type + " " + acc + "_raw() const { return static_cast<" + raw_type +
+                     ">((" + member + " - " + offset_str + ") / " + scale_str + "); }");
+        } else {
+            ctx_.line(raw_type + " " + acc + "_raw() const { return static_cast<" + raw_type +
+                     ">(" + member + " / " + scale_str + "); }");
+        }
+        ctx_.line("void set_" + acc + "_raw(" + raw_type + " v) { " + member +
+                 " = static_cast<double>(v) * " + scale_str + " + " + offset_str + "; }");
+    }
     ctx_.line();
 }
 
-void StructEmitter::emit_optional_accessors(const std::string& name, const std::string& cpp_type,
-                                              const std::optional<std::string>& default_value,
-                                              const model::Constraint* constraint,
-                                              bool is_signed,
-                                              std::optional<int> max_length,
-                                              bool is_enum) {
+void StructEmitter::emit_optional_accessors(const FieldInfo& fi) {
+    const auto& name = fi.name;
+    const auto& cpp_type = fi.cpp_type;
+    const auto& default_value = fi.default_value;
+    const auto* constraint = fi.constraint;
+    bool is_signed = fi.is_signed;
+    auto max_length = fi.max_length;
+    bool is_enum = fi.is_enum;
+    bool is_bytes = fi.is_bytes;
+
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
@@ -1449,7 +1528,7 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1460,6 +1539,25 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
         } else {
             ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
         }
+    }
+    // Raw accessors for scaled fields (expose underlying integer)
+    if (fi.has_field_scale) {
+        std::string raw_type = storage_type_for_bits(fi.raw_bits, fi.raw_signed);
+        std::string scale_str = double_literal(fi.field_scale);
+        std::string offset_str = double_literal(fi.field_offset);
+        if (fi.field_offset != 0.0) {
+            ctx_.line(raw_type + " " + acc + "_raw() const { return " + member +
+                     ".has_value() ? static_cast<" + raw_type +
+                     ">((*" + member + " - " + offset_str + ") / " + scale_str + ") : " +
+                     raw_type + "{0}; }");
+        } else {
+            ctx_.line(raw_type + " " + acc + "_raw() const { return " + member +
+                     ".has_value() ? static_cast<" + raw_type +
+                     ">(*" + member + " / " + scale_str + ") : " +
+                     raw_type + "{0}; }");
+        }
+        ctx_.line("void set_" + acc + "_raw(" + raw_type + " v) { " + member +
+                 " = static_cast<double>(v) * " + scale_str + " + " + offset_str + "; }");
     }
     ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
     ctx_.line();
@@ -1567,6 +1665,18 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         ctx_.line(qual_type + "& mutable_" + acc + "() { if (!" + member + ") " + member + ".emplace(); return *" + member + "; }");
         const model::Constraint* bm_constraint = (bf.source_field && bf.source_field->constraint)
                                                   ? &*bf.source_field->constraint : nullptr;
+        // Warn: equals constraint on float-generated bitmap fields is unreliable
+        bool bm_is_float_type = bf.is_float || bf.has_field_scale;
+        if (bm_constraint && bm_constraint->equals && bm_is_float_type && bf.source_field) {
+            Logger::warn(bf.source_field->loc.to_string() + ": field '" + bf.name +
+                "': 'equals' constraint on floating-point field is unreliable "
+                "due to precision loss; consider using min/max with tolerance instead");
+        }
+        // Suppress numeric constraints for byte arrays > 8 bytes
+        if (bf.is_bytes && bm_constraint &&
+            (bm_constraint->min || bm_constraint->max || bm_constraint->equals)) {
+            bm_constraint = nullptr;
+        }
         bool bm_has_constraint = bm_constraint && (bm_constraint->equals || bm_constraint->min || bm_constraint->max);
         std::optional<int> bm_max_length = bf.source_field ? bf.source_field->max_length : std::nullopt;
         if (bm_has_constraint || bm_max_length) {
@@ -1577,7 +1687,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             }
             ctx_.indent();
             emit_setter_constraint_checks(bf.name, qual_type,
-                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length);
+                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length, bf.is_bytes);
             ctx_.line(member + " = v;");
             ctx_.line("return {};");
             ctx_.dedent();
@@ -1588,6 +1698,25 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             } else {
                 ctx_.line("void set_" + acc + "(const " + qual_type + "& v) { " + member + " = v; }");
             }
+        }
+        // Raw accessors for scaled bitmap fields (expose underlying integer)
+        if (bf.has_field_scale) {
+            std::string raw_type = storage_type_for_bits(bf.raw_bits, bf.raw_signed);
+            std::string scale_str = double_literal(bf.field_scale);
+            std::string offset_str = double_literal(bf.field_offset);
+            if (bf.field_offset != 0.0) {
+                ctx_.line(raw_type + " " + acc + "_raw() const { return " + member +
+                         ".has_value() ? static_cast<" + raw_type +
+                         ">((*" + member + " - " + offset_str + ") / " + scale_str + ") : " +
+                         raw_type + "{0}; }");
+            } else {
+                ctx_.line(raw_type + " " + acc + "_raw() const { return " + member +
+                         ".has_value() ? static_cast<" + raw_type +
+                         ">(*" + member + " / " + scale_str + ") : " +
+                         raw_type + "{0}; }");
+            }
+            ctx_.line("void set_" + acc + "_raw(" + raw_type + " v) { " + member +
+                     " = static_cast<double>(v) * " + scale_str + " + " + offset_str + "; }");
         }
         ctx_.line("void clear_" + acc + "() { " + member + ".reset(); }");
         ctx_.line();

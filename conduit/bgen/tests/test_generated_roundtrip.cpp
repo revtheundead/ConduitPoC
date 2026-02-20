@@ -303,7 +303,8 @@ TEST_CASE("utf8 string space padding roundtrip", "[roundtrip][strings]") {
 
 TEST_CASE("bytes field roundtrip", "[roundtrip][strings]") {
     all_types::AllTypesMessage msg;
-    std::array<uint8_t, 8> raw_data = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    // bytes="8" now resolves to uint64_t (fits in native integer)
+    uint64_t raw_data = 0x0102030405060708ULL;
     msg.set_raw(raw_data);
     auto enc_result = msg.encode_bytes();
     REQUIRE(enc_result.has_value());
@@ -427,7 +428,7 @@ TEST_CASE("AllTypesMessage full roundtrip", "[roundtrip][full]") {
     utf8.set_value("Hello World");
     msg.set_utf8(utf8);
 
-    std::array<uint8_t, 8> raw = {1, 2, 3, 4, 5, 6, 7, 8};
+    uint64_t raw = 0x0102030405060708ULL;
     msg.set_raw(raw);
     msg.set_le16(0x9988);
     msg.set_le32(0x11223344);

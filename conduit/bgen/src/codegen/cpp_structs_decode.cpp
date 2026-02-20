@@ -435,6 +435,8 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->constraint && f->constraint->validate == model::ValidateTiming::Deferred) {
                 auto fti = resolve_field_type(*f, index_);
+                // Skip deferred validation for byte-array fields (bytes > 8) — numeric constraints not applicable
+                if (fti.is_bytes) continue;
                 bool opt = f->present_when || f->bit;
                 deferred.push_back({f->name, *f->constraint, fti.is_signed, opt});
             }
