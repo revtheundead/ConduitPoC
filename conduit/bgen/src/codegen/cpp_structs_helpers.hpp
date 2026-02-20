@@ -46,6 +46,7 @@ struct FieldInfo {
     std::optional<int> max_length;                   // G2: for setter length validation
     bool is_auto_managed = false;                    // frame field with auto_expr → deprecated setter
     bool is_enum = false;                            // enum types → pass by value in accessors
+    bool is_bytes = false;                           // byte-array types → skip scalar constraint checks
 };
 
 struct BitmapField {

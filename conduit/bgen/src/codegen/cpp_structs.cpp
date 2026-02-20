@@ -1155,9 +1155,9 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
     for (const auto& fi : fields) {
         if (fi.is_optional) {
             emit_optional_accessors(fi.name, fi.cpp_type, fi.default_value,
-                                     fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
+                                     fi.constraint, fi.is_signed, fi.max_length, fi.is_enum, fi.is_bytes);
         } else {
-            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length, fi.is_enum);
+            emit_plain_accessors(fi.name, fi.cpp_type, fi.constraint, fi.is_signed, fi.max_length, fi.is_enum, fi.is_bytes);
         }
     }
 
@@ -1236,6 +1236,7 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                     }
                 }
                 fi.is_enum = fti.is_enum;
+                fi.is_bytes = fti.is_bytes;
                 fi.is_optional = c.bit.has_value() || c.present_when != nullptr || in_fx;
                 if (!fi.default_value) fi.default_value = c.default_value;
                 // Warn when both default and constraint equals are specified
@@ -1349,8 +1350,9 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
 
 void StructEmitter::emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
                                                     const model::Constraint* constraint, bool is_signed,
-                                                    std::optional<int> max_length) {
-    if (constraint) {
+                                                    std::optional<int> max_length,
+                                                    bool is_bytes) {
+    if (constraint && !is_bytes) {
         if (constraint->equals) {
             ctx_.line("if (v != static_cast<" + qual_type + ">(" + *constraint->equals + "))");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
@@ -1378,7 +1380,8 @@ void StructEmitter::emit_plain_accessors(const std::string& name, const std::str
                                            const model::Constraint* constraint,
                                            bool is_signed,
                                            std::optional<int> max_length,
-                                           bool is_enum) {
+                                           bool is_enum,
+                                           bool is_bytes) {
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
@@ -1402,7 +1405,7 @@ void StructEmitter::emit_plain_accessors(const std::string& name, const std::str
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1422,7 +1425,8 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
                                               const model::Constraint* constraint,
                                               bool is_signed,
                                               std::optional<int> max_length,
-                                              bool is_enum) {
+                                              bool is_enum,
+                                              bool is_bytes) {
     std::string acc = to_accessor_name(name);
     std::string member = to_member_name(name);
     std::string qual_type = (acc == cpp_type && !ns_.empty())
@@ -1449,7 +1453,7 @@ void StructEmitter::emit_optional_accessors(const std::string& name, const std::
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1577,7 +1581,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             }
             ctx_.indent();
             emit_setter_constraint_checks(bf.name, qual_type,
-                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length);
+                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length, bf.is_bytes);
             ctx_.line(member + " = v;");
             ctx_.line("return {};");
             ctx_.dedent();
