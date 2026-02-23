@@ -452,6 +452,1072 @@ inline conduit::VoidResult encode_flight_status(flight_status v, conduit::io::Bi
     return {};
 }
 
+// 0 = Code validated, 1 = Code not validated
+enum class code_validated : uint8_t {
+    validated = 0,
+    not_validated = 1,
+};
+
+inline std::string_view to_string(code_validated v) {
+    switch (v) {
+        case code_validated::validated: return "validated";
+        case code_validated::not_validated: return "not-validated";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<code_validated> decode_code_validated(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<code_validated>(*raw);
+    switch (val) {
+        case code_validated::validated:
+        case code_validated::not_validated:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown code_validated value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_code_validated(code_validated v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case code_validated::validated:
+        case code_validated::not_validated:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid code_validated enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Default, 1 = Garbled code
+enum class code_garbled : uint8_t {
+    not_garbled = 0,
+    garbled = 1,
+};
+
+inline std::string_view to_string(code_garbled v) {
+    switch (v) {
+        case code_garbled::not_garbled: return "not-garbled";
+        case code_garbled::garbled: return "garbled";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<code_garbled> decode_code_garbled(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<code_garbled>(*raw);
+    switch (val) {
+        case code_garbled::not_garbled:
+        case code_garbled::garbled:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown code_garbled value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_code_garbled(code_garbled v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case code_garbled::not_garbled:
+        case code_garbled::garbled:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid code_garbled enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Code from transponder reply, 1 = Smoothed code from local tracker
+enum class code_source_smoothed : uint8_t {
+    transponder_reply = 0,
+    smoothed_local = 1,
+};
+
+inline std::string_view to_string(code_source_smoothed v) {
+    switch (v) {
+        case code_source_smoothed::transponder_reply: return "transponder-reply";
+        case code_source_smoothed::smoothed_local: return "smoothed-local";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<code_source_smoothed> decode_code_source_smoothed(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<code_source_smoothed>(*raw);
+    switch (val) {
+        case code_source_smoothed::transponder_reply:
+        case code_source_smoothed::smoothed_local:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown code_source_smoothed value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_code_source_smoothed(code_source_smoothed v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case code_source_smoothed::transponder_reply:
+        case code_source_smoothed::smoothed_local:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid code_source_smoothed enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Code from reply, 1 = Not extracted during last scan/update
+enum class code_source_extracted : uint8_t {
+    from_reply = 0,
+    not_extracted = 1,
+};
+
+inline std::string_view to_string(code_source_extracted v) {
+    switch (v) {
+        case code_source_extracted::from_reply: return "from-reply";
+        case code_source_extracted::not_extracted: return "not-extracted";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<code_source_extracted> decode_code_source_extracted(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<code_source_extracted>(*raw);
+    switch (val) {
+        case code_source_extracted::from_reply:
+        case code_source_extracted::not_extracted:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown code_source_extracted value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_code_source_extracted(code_source_extracted v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case code_source_extracted::from_reply:
+        case code_source_extracted::not_extracted:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid code_source_extracted enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Actual target report, 1 = Simulated target report
+enum class sim_indicator : uint8_t {
+    actual = 0,
+    simulated = 1,
+};
+
+inline std::string_view to_string(sim_indicator v) {
+    switch (v) {
+        case sim_indicator::actual: return "actual";
+        case sim_indicator::simulated: return "simulated";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<sim_indicator> decode_sim_indicator(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<sim_indicator>(*raw);
+    switch (val) {
+        case sim_indicator::actual:
+        case sim_indicator::simulated:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown sim_indicator value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_sim_indicator(sim_indicator v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case sim_indicator::actual:
+        case sim_indicator::simulated:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid sim_indicator enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Real target report, 1 = Test target report
+enum class test_target : uint8_t {
+    real = 0,
+    test = 1,
+};
+
+inline std::string_view to_string(test_target v) {
+    switch (v) {
+        case test_target::real: return "real";
+        case test_target::test: return "test";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<test_target> decode_test_target(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<test_target>(*raw);
+    switch (val) {
+        case test_target::real:
+        case test_target::test:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown test_target value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_test_target(test_target v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case test_target::real:
+        case test_target::test:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid test_target enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Report from aircraft transponder, 1 = Report from field monitor (fixed transponder)
+enum class report_source : uint8_t {
+    transponder = 0,
+    field_monitor = 1,
+};
+
+inline std::string_view to_string(report_source v) {
+    switch (v) {
+        case report_source::transponder: return "transponder";
+        case report_source::field_monitor: return "field-monitor";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<report_source> decode_report_source(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<report_source>(*raw);
+    switch (val) {
+        case report_source::transponder:
+        case report_source::field_monitor:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown report_source value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_report_source(report_source v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case report_source::transponder:
+        case report_source::field_monitor:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid report_source enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Report from RDP Chain 1, 1 = Report from RDP Chain 2
+enum class rdp_chain : uint8_t {
+    chain_1 = 0,
+    chain_2 = 1,
+};
+
+inline std::string_view to_string(rdp_chain v) {
+    switch (v) {
+        case rdp_chain::chain_1: return "chain-1";
+        case rdp_chain::chain_2: return "chain-2";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<rdp_chain> decode_rdp_chain(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<rdp_chain>(*raw);
+    switch (val) {
+        case rdp_chain::chain_1:
+        case rdp_chain::chain_2:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown rdp_chain value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_rdp_chain(rdp_chain v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case rdp_chain::chain_1:
+        case rdp_chain::chain_2:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid rdp_chain enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Absence of SPI, 1 = Special Position Identification
+enum class spi_presence : uint8_t {
+    absent = 0,
+    present = 1,
+};
+
+inline std::string_view to_string(spi_presence v) {
+    switch (v) {
+        case spi_presence::absent: return "absent";
+        case spi_presence::present: return "present";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<spi_presence> decode_spi_presence(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<spi_presence>(*raw);
+    switch (val) {
+        case spi_presence::absent:
+        case spi_presence::present:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown spi_presence value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_spi_presence(spi_presence v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case spi_presence::absent:
+        case spi_presence::present:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid spi_presence enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No extended range, 1 = Extended range present
+enum class extended_range : uint8_t {
+    none = 0,
+    present = 1,
+};
+
+inline std::string_view to_string(extended_range v) {
+    switch (v) {
+        case extended_range::none: return "none";
+        case extended_range::present: return "present";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<extended_range> decode_extended_range(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<extended_range>(*raw);
+    switch (val) {
+        case extended_range::none:
+        case extended_range::present:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown extended_range value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_extended_range(extended_range v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case extended_range::none:
+        case extended_range::present:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid extended_range enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No X-Pulse present, 1 = X-Pulse present
+enum class x_pulse_presence : uint8_t {
+    absent = 0,
+    present = 1,
+};
+
+inline std::string_view to_string(x_pulse_presence v) {
+    switch (v) {
+        case x_pulse_presence::absent: return "absent";
+        case x_pulse_presence::present: return "present";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<x_pulse_presence> decode_x_pulse_presence(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<x_pulse_presence>(*raw);
+    switch (val) {
+        case x_pulse_presence::absent:
+        case x_pulse_presence::present:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown x_pulse_presence value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_x_pulse_presence(x_pulse_presence v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case x_pulse_presence::absent:
+        case x_pulse_presence::present:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid x_pulse_presence enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No military emergency, 1 = Military emergency
+enum class military_emergency : uint8_t {
+    none = 0,
+    emergency = 1,
+};
+
+inline std::string_view to_string(military_emergency v) {
+    switch (v) {
+        case military_emergency::none: return "none";
+        case military_emergency::emergency: return "emergency";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<military_emergency> decode_military_emergency(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<military_emergency>(*raw);
+    switch (val) {
+        case military_emergency::none:
+        case military_emergency::emergency:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown military_emergency value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_military_emergency(military_emergency v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case military_emergency::none:
+        case military_emergency::emergency:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid military_emergency enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No military identification, 1 = Military identification
+enum class military_id : uint8_t {
+    none = 0,
+    present = 1,
+};
+
+inline std::string_view to_string(military_id v) {
+    switch (v) {
+        case military_id::none: return "none";
+        case military_id::present: return "present";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<military_id> decode_military_id(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<military_id>(*raw);
+    switch (val) {
+        case military_id::none:
+        case military_id::present:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown military_id value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_military_id(military_id v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case military_id::none:
+        case military_id::present:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid military_id enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Confirmed track, 1 = Tentative track
+enum class track_confidence : uint8_t {
+    confirmed = 0,
+    tentative = 1,
+};
+
+inline std::string_view to_string(track_confidence v) {
+    switch (v) {
+        case track_confidence::confirmed: return "confirmed";
+        case track_confidence::tentative: return "tentative";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<track_confidence> decode_track_confidence(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<track_confidence>(*raw);
+    switch (val) {
+        case track_confidence::confirmed:
+        case track_confidence::tentative:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown track_confidence value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_track_confidence(track_confidence v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case track_confidence::confirmed:
+        case track_confidence::tentative:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid track_confidence enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Normal confidence, 1 = Low confidence in plot to track association
+enum class assoc_confidence : uint8_t {
+    normal = 0,
+    low = 1,
+};
+
+inline std::string_view to_string(assoc_confidence v) {
+    switch (v) {
+        case assoc_confidence::normal: return "normal";
+        case assoc_confidence::low: return "low";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<assoc_confidence> decode_assoc_confidence(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<assoc_confidence>(*raw);
+    switch (val) {
+        case assoc_confidence::normal:
+        case assoc_confidence::low:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown assoc_confidence value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_assoc_confidence(assoc_confidence v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case assoc_confidence::normal:
+        case assoc_confidence::low:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid assoc_confidence enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No horizontal maneuver sensed, 1 = Horizontal maneuver sensed
+enum class horiz_maneuver : uint8_t {
+    none = 0,
+    sensed = 1,
+};
+
+inline std::string_view to_string(horiz_maneuver v) {
+    switch (v) {
+        case horiz_maneuver::none: return "none";
+        case horiz_maneuver::sensed: return "sensed";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<horiz_maneuver> decode_horiz_maneuver(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<horiz_maneuver>(*raw);
+    switch (val) {
+        case horiz_maneuver::none:
+        case horiz_maneuver::sensed:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown horiz_maneuver value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_horiz_maneuver(horiz_maneuver v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case horiz_maneuver::none:
+        case horiz_maneuver::sensed:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid horiz_maneuver enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Track still alive, 1 = End of track lifetime
+enum class track_lifetime : uint8_t {
+    alive = 0,
+    end_of_lifetime = 1,
+};
+
+inline std::string_view to_string(track_lifetime v) {
+    switch (v) {
+        case track_lifetime::alive: return "alive";
+        case track_lifetime::end_of_lifetime: return "end-of-lifetime";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<track_lifetime> decode_track_lifetime(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<track_lifetime>(*raw);
+    switch (val) {
+        case track_lifetime::alive:
+        case track_lifetime::end_of_lifetime:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown track_lifetime value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_track_lifetime(track_lifetime v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case track_lifetime::alive:
+        case track_lifetime::end_of_lifetime:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid track_lifetime enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = True target track, 1 = Ghost target track
+enum class ghost_target : uint8_t {
+    true_target = 0,
+    ghost = 1,
+};
+
+inline std::string_view to_string(ghost_target v) {
+    switch (v) {
+        case ghost_target::true_target: return "true-target";
+        case ghost_target::ghost: return "ghost";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<ghost_target> decode_ghost_target(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<ghost_target>(*raw);
+    switch (val) {
+        case ghost_target::true_target:
+        case ghost_target::ghost:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown ghost_target value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_ghost_target(ghost_target v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case ghost_target::true_target:
+        case ghost_target::ghost:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid ghost_target enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = No, 1 = Track maintained with info from neighbouring Node B
+enum class neighbor_support : uint8_t {
+    none = 0,
+    from_neighbor = 1,
+};
+
+inline std::string_view to_string(neighbor_support v) {
+    switch (v) {
+        case neighbor_support::none: return "none";
+        case neighbor_support::from_neighbor: return "from-neighbor";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<neighbor_support> decode_neighbor_support(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<neighbor_support>(*raw);
+    switch (val) {
+        case neighbor_support::none:
+        case neighbor_support::from_neighbor:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown neighbor_support value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_neighbor_support(neighbor_support v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case neighbor_support::none:
+        case neighbor_support::from_neighbor:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid neighbor_support enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Tracking in Radar Plane, 1 = Slant range correction and projection applied
+enum class track_coord_type : uint8_t {
+    radar_plane = 0,
+    correction_applied = 1,
+};
+
+inline std::string_view to_string(track_coord_type v) {
+    switch (v) {
+        case track_coord_type::radar_plane: return "radar-plane";
+        case track_coord_type::correction_applied: return "correction-applied";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<track_coord_type> decode_track_coord_type(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<track_coord_type>(*raw);
+    switch (val) {
+        case track_coord_type::radar_plane:
+        case track_coord_type::correction_applied:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown track_coord_type value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_track_coord_type(track_coord_type v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case track_coord_type::radar_plane:
+        case track_coord_type::correction_applied:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid track_coord_type enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = SI-Code Capable, 1 = II-Code Capable
+enum class si_ii_capability : uint8_t {
+    si_code = 0,
+    ii_code = 1,
+};
+
+inline std::string_view to_string(si_ii_capability v) {
+    switch (v) {
+        case si_ii_capability::si_code: return "si-code";
+        case si_ii_capability::ii_code: return "ii-code";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<si_ii_capability> decode_si_ii_capability(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<si_ii_capability>(*raw);
+    switch (val) {
+        case si_ii_capability::si_code:
+        case si_ii_capability::ii_code:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown si_ii_capability value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_si_ii_capability(si_ii_capability v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case si_ii_capability::si_code:
+        case si_ii_capability::ii_code:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid si_ii_capability enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Mode-S Specific Service Capability: 0 = No, 1 = Yes
+enum class mode_s_service_cap : uint8_t {
+    none = 0,
+    capable = 1,
+};
+
+inline std::string_view to_string(mode_s_service_cap v) {
+    switch (v) {
+        case mode_s_service_cap::none: return "none";
+        case mode_s_service_cap::capable: return "capable";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<mode_s_service_cap> decode_mode_s_service_cap(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<mode_s_service_cap>(*raw);
+    switch (val) {
+        case mode_s_service_cap::none:
+        case mode_s_service_cap::capable:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown mode_s_service_cap value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_mode_s_service_cap(mode_s_service_cap v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case mode_s_service_cap::none:
+        case mode_s_service_cap::capable:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid mode_s_service_cap enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Altitude Reporting Resolution: 0 = 100 ft, 1 = 25 ft
+enum class alt_resolution : uint8_t {
+    ft_100 = 0,
+    ft_25 = 1,
+};
+
+inline std::string_view to_string(alt_resolution v) {
+    switch (v) {
+        case alt_resolution::ft_100: return "ft-100";
+        case alt_resolution::ft_25: return "ft-25";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<alt_resolution> decode_alt_resolution(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<alt_resolution>(*raw);
+    switch (val) {
+        case alt_resolution::ft_100:
+        case alt_resolution::ft_25:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown alt_resolution value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_alt_resolution(alt_resolution v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case alt_resolution::ft_100:
+        case alt_resolution::ft_25:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid alt_resolution enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Aircraft Identification Capability: 0 = No, 1 = Yes
+enum class aircraft_id_cap : uint8_t {
+    none = 0,
+    capable = 1,
+};
+
+inline std::string_view to_string(aircraft_id_cap v) {
+    switch (v) {
+        case aircraft_id_cap::none: return "none";
+        case aircraft_id_cap::capable: return "capable";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<aircraft_id_cap> decode_aircraft_id_cap(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<aircraft_id_cap>(*raw);
+    switch (val) {
+        case aircraft_id_cap::none:
+        case aircraft_id_cap::capable:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown aircraft_id_cap value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_aircraft_id_cap(aircraft_id_cap v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case aircraft_id_cap::none:
+        case aircraft_id_cap::capable:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid aircraft_id_cap enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = Doppler speed is valid, 1 = Doppler speed is doubtful
+enum class doppler_validity : uint8_t {
+    valid = 0,
+    doubtful = 1,
+};
+
+inline std::string_view to_string(doppler_validity v) {
+    switch (v) {
+        case doppler_validity::valid: return "valid";
+        case doppler_validity::doubtful: return "doubtful";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<doppler_validity> decode_doppler_validity(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<doppler_validity>(*raw);
+    switch (val) {
+        case doppler_validity::valid:
+        case doppler_validity::doubtful:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown doppler_validity value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_doppler_validity(doppler_validity v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case doppler_validity::valid:
+        case doppler_validity::doubtful:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid doppler_validity enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = National Origin is valid, 1 = National Origin is invalid
+enum class nat_origin_validity : uint8_t {
+    valid = 0,
+    invalid = 1,
+};
+
+inline std::string_view to_string(nat_origin_validity v) {
+    switch (v) {
+        case nat_origin_validity::valid: return "valid";
+        case nat_origin_validity::invalid: return "invalid";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<nat_origin_validity> decode_nat_origin_validity(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<nat_origin_validity>(*raw);
+    switch (val) {
+        case nat_origin_validity::valid:
+        case nat_origin_validity::invalid:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown nat_origin_validity value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_nat_origin_validity(nat_origin_validity v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case nat_origin_validity::valid:
+        case nat_origin_validity::invalid:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid nat_origin_validity enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
 //
 //         Directed Interrogation Message Type:
 //         0 = Acknowledge, 1 = Reject, 2 = Interrogation Finished,
@@ -1312,6 +2378,129 @@ inline conduit::VoidResult encode_cat021_threat_type_ind(cat021_threat_type_ind 
                 "invalid cat021_threat_type_ind enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = value in defined range, 1 = value exceeds defined range
+enum class cat021_range_exceeded : uint8_t {
+    in_range = 0,
+    exceeded = 1,
+};
+
+inline std::string_view to_string(cat021_range_exceeded v) {
+    switch (v) {
+        case cat021_range_exceeded::in_range: return "in-range";
+        case cat021_range_exceeded::exceeded: return "exceeded";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat021_range_exceeded> decode_cat021_range_exceeded(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat021_range_exceeded>(*raw);
+    switch (val) {
+        case cat021_range_exceeded::in_range:
+        case cat021_range_exceeded::exceeded:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat021_range_exceeded value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat021_range_exceeded(cat021_range_exceeded v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat021_range_exceeded::in_range:
+        case cat021_range_exceeded::exceeded:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat021_range_exceeded enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = IAS (LSB=2^-14 NM/s), 1 = Mach (LSB=0.001)
+enum class cat021_ias_mach : uint8_t {
+    ias = 0,
+    mach = 1,
+};
+
+inline std::string_view to_string(cat021_ias_mach v) {
+    switch (v) {
+        case cat021_ias_mach::ias: return "ias";
+        case cat021_ias_mach::mach: return "mach";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat021_ias_mach> decode_cat021_ias_mach(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat021_ias_mach>(*raw);
+    switch (val) {
+        case cat021_ias_mach::ias:
+        case cat021_ias_mach::mach:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat021_ias_mach value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat021_ias_mach(cat021_ias_mach v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat021_ias_mach::ias:
+        case cat021_ias_mach::mach:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat021_ias_mach enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// 0 = True North, 1 = Magnetic North
+enum class cat021_north_ref : uint8_t {
+    true_north = 0,
+    magnetic_north = 1,
+};
+
+inline std::string_view to_string(cat021_north_ref v) {
+    switch (v) {
+        case cat021_north_ref::true_north: return "true-north";
+        case cat021_north_ref::magnetic_north: return "magnetic-north";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat021_north_ref> decode_cat021_north_ref(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat021_north_ref>(*raw);
+    switch (val) {
+        case cat021_north_ref::true_north:
+        case cat021_north_ref::magnetic_north:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat021_north_ref value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat021_north_ref(cat021_north_ref v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat021_north_ref::true_north:
+        case cat021_north_ref::magnetic_north:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat021_north_ref enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
     if (w.has_error()) return std::unexpected(w.error());
     return {};
 }
@@ -2913,6 +4102,211 @@ inline conduit::VoidResult encode_cat253_br_crypto_general(cat253_br_crypto_gene
                 "invalid cat253_br_crypto_general enum value: " + std::to_string(static_cast<uint8_t>(v))));
     }
     w.write_bits(static_cast<uint8_t>(v), 4);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Priority Indicator: 0 = Normal, 1 = High priority
+enum class cat253_priority : uint8_t {
+    normal = 0,
+    high = 1,
+};
+
+inline std::string_view to_string(cat253_priority v) {
+    switch (v) {
+        case cat253_priority::normal: return "normal";
+        case cat253_priority::high: return "high";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat253_priority> decode_cat253_priority(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat253_priority>(*raw);
+    switch (val) {
+        case cat253_priority::normal:
+        case cat253_priority::high:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat253_priority value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat253_priority(cat253_priority v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat253_priority::normal:
+        case cat253_priority::high:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat253_priority enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Direction: 0 = Request, 1 = Response
+enum class cat253_direction : uint8_t {
+    request = 0,
+    response = 1,
+};
+
+inline std::string_view to_string(cat253_direction v) {
+    switch (v) {
+        case cat253_direction::request: return "request";
+        case cat253_direction::response: return "response";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat253_direction> decode_cat253_direction(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat253_direction>(*raw);
+    switch (val) {
+        case cat253_direction::request:
+        case cat253_direction::response:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat253_direction value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat253_direction(cat253_direction v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat253_direction::request:
+        case cat253_direction::response:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat253_direction enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Stale indicator: 0 = Current, 1 = Stale
+enum class cat253_stale_ind : uint8_t {
+    current = 0,
+    stale = 1,
+};
+
+inline std::string_view to_string(cat253_stale_ind v) {
+    switch (v) {
+        case cat253_stale_ind::current: return "current";
+        case cat253_stale_ind::stale: return "stale";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat253_stale_ind> decode_cat253_stale_ind(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat253_stale_ind>(*raw);
+    switch (val) {
+        case cat253_stale_ind::current:
+        case cat253_stale_ind::stale:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat253_stale_ind value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat253_stale_ind(cat253_stale_ind v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat253_stale_ind::current:
+        case cat253_stale_ind::stale:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat253_stale_ind enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Local control: 0 = Not under local control, 1 = Under local control
+enum class cat253_local_ctrl : uint8_t {
+    not_local = 0,
+    local = 1,
+};
+
+inline std::string_view to_string(cat253_local_ctrl v) {
+    switch (v) {
+        case cat253_local_ctrl::not_local: return "not-local";
+        case cat253_local_ctrl::local: return "local";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat253_local_ctrl> decode_cat253_local_ctrl(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat253_local_ctrl>(*raw);
+    switch (val) {
+        case cat253_local_ctrl::not_local:
+        case cat253_local_ctrl::local:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat253_local_ctrl value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat253_local_ctrl(cat253_local_ctrl v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat253_local_ctrl::not_local:
+        case cat253_local_ctrl::local:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat253_local_ctrl enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+// Data included: 0 = No data in I100, 1 = Data included in I100
+enum class cat253_data_incl : uint8_t {
+    no_data = 0,
+    data_included = 1,
+};
+
+inline std::string_view to_string(cat253_data_incl v) {
+    switch (v) {
+        case cat253_data_incl::no_data: return "no-data";
+        case cat253_data_incl::data_included: return "data-included";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<cat253_data_incl> decode_cat253_data_incl(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(1);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<cat253_data_incl>(*raw);
+    switch (val) {
+        case cat253_data_incl::no_data:
+        case cat253_data_incl::data_included:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown cat253_data_incl value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_cat253_data_incl(cat253_data_incl v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case cat253_data_incl::no_data:
+        case cat253_data_incl::data_included:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid cat253_data_incl enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 1);
     if (w.has_error()) return std::unexpected(w.error());
     return {};
 }

@@ -386,6 +386,55 @@
     </type>
 
     <!-- ===================================================================
+         Cat253-specific Binary Enum Types
+         =================================================================== -->
+
+    <!-- I253/040 Priority Indicator (1 bit) -->
+    <type name="cat253-priority" base="uint" bits="1">
+      <doc>Priority Indicator: 0 = Normal, 1 = High priority</doc>
+      <enum>
+        <value id="0" name="normal"/>
+        <value id="1" name="high"/>
+      </enum>
+    </type>
+
+    <!-- I253/040 Direction (1 bit) -->
+    <type name="cat253-direction" base="uint" bits="1">
+      <doc>Direction: 0 = Request, 1 = Response</doc>
+      <enum>
+        <value id="0" name="request"/>
+        <value id="1" name="response"/>
+      </enum>
+    </type>
+
+    <!-- I253/080 Stale Indicator (1 bit) -->
+    <type name="cat253-stale-ind" base="uint" bits="1">
+      <doc>Stale indicator: 0 = Current, 1 = Stale</doc>
+      <enum>
+        <value id="0" name="current"/>
+        <value id="1" name="stale"/>
+      </enum>
+    </type>
+
+    <!-- I253/080 Local Control (1 bit) -->
+    <type name="cat253-local-ctrl" base="uint" bits="1">
+      <doc>Local control: 0 = Not under local control, 1 = Under local control</doc>
+      <enum>
+        <value id="0" name="not-local"/>
+        <value id="1" name="local"/>
+      </enum>
+    </type>
+
+    <!-- I253/080 Data Included (1 bit) -->
+    <type name="cat253-data-incl" base="uint" bits="1">
+      <doc>Data included: 0 = No data in I100, 1 = Data included in I100</doc>
+      <enum>
+        <value id="0" name="no-data"/>
+        <value id="1" name="data-included"/>
+      </enum>
+    </type>
+
+    <!-- ===================================================================
          Data Item Structs
          =================================================================== -->
 
@@ -434,11 +483,11 @@
          ======================================================================= -->
     <struct name="Cat253I040">
       <doc>I253/040 - Message Type Identifier</doc>
-      <field name="pi" bits="1">
-        <doc>Priority Indicator: 0 = Normal, 1 = High priority</doc>
+      <field name="pi" type="cat253-priority">
+        <doc>Priority indicator</doc>
       </field>
-      <field name="d" bits="1">
-        <doc>Direction: 0 = Request, 1 = Response</doc>
+      <field name="d" type="cat253-direction">
+        <doc>Direction</doc>
       </field>
       <field name="mit" type="cat253-msg-type">
         <doc>Message Type Identification</doc>
@@ -490,17 +539,17 @@
       <field name="count" type="uint8">
         <doc>Number of data items</doc>
       </field>
-      <field name="stale" bits="1">
-        <doc>Stale indicator: 0 = Current, 1 = Stale</doc>
+      <field name="stale" type="cat253-stale-ind">
+        <doc>Stale indicator</doc>
       </field>
-      <field name="sim" bits="1">
-        <doc>Simulation indicator: 0 = Actual, 1 = Simulated</doc>
+      <field name="sim" type="sim-indicator">
+        <doc>Simulation indicator</doc>
       </field>
-      <field name="local-ctrl" bits="1">
-        <doc>Local control: 0 = Not under local control, 1 = Under local control</doc>
+      <field name="local-ctrl" type="cat253-local-ctrl">
+        <doc>Local control</doc>
       </field>
-      <field name="data-included" bits="1">
-        <doc>Data included: 0 = No data in I100, 1 = Data included in I100</doc>
+      <field name="data-included" type="cat253-data-incl">
+        <doc>Data included</doc>
       </field>
       <reserved bits="3"/>
       <fx>
@@ -510,16 +559,16 @@
         <field name="count1" type="uint8">
           <doc>Number of data items (second extent)</doc>
         </field>
-        <field name="stale1" bits="1">
+        <field name="stale1" type="cat253-stale-ind">
           <doc>Stale indicator (second extent)</doc>
         </field>
-        <field name="sim1" bits="1">
+        <field name="sim1" type="sim-indicator">
           <doc>Simulation indicator (second extent)</doc>
         </field>
-        <field name="local-ctrl1" bits="1">
+        <field name="local-ctrl1" type="cat253-local-ctrl">
           <doc>Local control (second extent)</doc>
         </field>
-        <field name="data-included1" bits="1">
+        <field name="data-included1" type="cat253-data-incl">
           <doc>Data included (second extent)</doc>
         </field>
         <reserved bits="3"/>
@@ -530,16 +579,16 @@
           <field name="count2" type="uint8">
             <doc>Number of data items (third extent)</doc>
           </field>
-          <field name="stale2" bits="1">
+          <field name="stale2" type="cat253-stale-ind">
             <doc>Stale indicator (third extent)</doc>
           </field>
-          <field name="sim2" bits="1">
+          <field name="sim2" type="sim-indicator">
             <doc>Simulation indicator (third extent)</doc>
           </field>
-          <field name="local-ctrl2" bits="1">
+          <field name="local-ctrl2" type="cat253-local-ctrl">
             <doc>Local control (third extent)</doc>
           </field>
-          <field name="data-included2" bits="1">
+          <field name="data-included2" type="cat253-data-incl">
             <doc>Data included (third extent)</doc>
           </field>
           <reserved bits="3"/>
@@ -550,16 +599,16 @@
             <field name="count3" type="uint8">
               <doc>Number of data items (fourth extent)</doc>
             </field>
-            <field name="stale3" bits="1">
+            <field name="stale3" type="cat253-stale-ind">
               <doc>Stale indicator (fourth extent)</doc>
             </field>
-            <field name="sim3" bits="1">
+            <field name="sim3" type="sim-indicator">
               <doc>Simulation indicator (fourth extent)</doc>
             </field>
-            <field name="local-ctrl3" bits="1">
+            <field name="local-ctrl3" type="cat253-local-ctrl">
               <doc>Local control (fourth extent)</doc>
             </field>
-            <field name="data-included3" bits="1">
+            <field name="data-included3" type="cat253-data-incl">
               <doc>Data included (fourth extent)</doc>
             </field>
             <reserved bits="3"/>

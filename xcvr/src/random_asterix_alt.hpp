@@ -93,7 +93,7 @@ inline void rand_fill_cat048_re(std::mt19937& rng,
         if (rand_bool(rng)) {
             auto& pmn = md5.mutable_pmn();
             pmn.set_pin(rand_u16(rng, 0x3FFF));
-            pmn.set_nav(rand_u8(rng, 1));
+            pmn.set_nav(static_cast<asterix_alt::nat_origin_validity>(rand_u8(rng, 1)));
             pmn.set_nat(rand_u8(rng, 31));
             pmn.set_mis(rand_u8(rng, 63));
         }
@@ -104,14 +104,14 @@ inline void rand_fill_cat048_re(std::mt19937& rng,
         }
         if (rand_bool(rng)) {
             auto& ga = md5.mutable_ga();
-            ga.set_res(rand_u8(rng, 1));
+            ga.set_res(static_cast<asterix_alt::alt_resolution>(rand_u8(rng, 1)));
             ga.set_ga(rand_signed(rng, 14) * 25.0);
         }
         if (rand_bool(rng)) {
             auto& em1 = md5.mutable_em1();
-            em1.set_v(rand_u8(rng, 1));
-            em1.set_g(rand_u8(rng, 1));
-            em1.set_l(rand_u8(rng, 1));
+            em1.set_v(static_cast<asterix_alt::code_validated>(rand_u8(rng, 1)));
+            em1.set_g(static_cast<asterix_alt::code_garbled>(rand_u8(rng, 1)));
+            em1.set_l(static_cast<asterix_alt::code_source_extracted>(rand_u8(rng, 1)));
             em1.set_em1(rand_u16(rng, 0xFFF));
         }
         if (rand_bool(rng)) {
@@ -141,7 +141,7 @@ inline void rand_fill_cat048_re(std::mt19937& rng,
         if (rand_bool(rng)) {
             auto& pmn = m5n.mutable_pmn();
             pmn.set_pin(rand_u16(rng, 0x3FFF));
-            pmn.set_nov(rand_u8(rng, 1));
+            pmn.set_nov(static_cast<asterix_alt::nat_origin_validity>(rand_u8(rng, 1)));
             pmn.set_no(rand_u16(rng, 0x7FF));
         }
         if (rand_bool(rng)) {
@@ -151,14 +151,14 @@ inline void rand_fill_cat048_re(std::mt19937& rng,
         }
         if (rand_bool(rng)) {
             auto& ga = m5n.mutable_ga();
-            ga.set_res(rand_u8(rng, 1));
+            ga.set_res(static_cast<asterix_alt::alt_resolution>(rand_u8(rng, 1)));
             ga.set_ga(rand_signed(rng, 14) * 25.0);
         }
         if (rand_bool(rng)) {
             auto& em1 = m5n.mutable_em1();
-            em1.set_v(rand_u8(rng, 1));
-            em1.set_g(rand_u8(rng, 1));
-            em1.set_l(rand_u8(rng, 1));
+            em1.set_v(static_cast<asterix_alt::code_validated>(rand_u8(rng, 1)));
+            em1.set_g(static_cast<asterix_alt::code_garbled>(rand_u8(rng, 1)));
+            em1.set_l(static_cast<asterix_alt::code_source_extracted>(rand_u8(rng, 1)));
             em1.set_em1(rand_u16(rng, 0xFFF));
         }
         if (rand_bool(rng)) {
@@ -208,7 +208,7 @@ inline void rand_fill_cat021_re(std::mt19937& rng,
     // SelH (~50%)
     if (rand_bool(rng)) {
         auto& selh = re.mutable_selh();
-        selh.set_hrd(rand_u8(rng, 1));
+        selh.set_hrd(static_cast<asterix_alt::cat021_north_ref>(rand_u8(rng, 1)));
         selh.set_stat(rand_u8(rng, 1));
         selh.set_selh(std::uniform_real_distribution<double>(0.0, 359.296875)(rng));
     }
@@ -232,8 +232,8 @@ inline void rand_fill_cat021_re(std::mt19937& rng,
         auto& sgv = re.mutable_sgv();
         sgv.set_stp(rand_u8(rng, 1));
         sgv.set_hts(rand_u8(rng, 1));
-        sgv.set_htt(rand_u8(rng, 1));
-        sgv.set_hrd(rand_u8(rng, 1));
+        sgv.set_htt(static_cast<asterix_alt::cat021_north_ref>(rand_u8(rng, 1)));
+        sgv.set_hrd(static_cast<asterix_alt::cat021_north_ref>(rand_u8(rng, 1)));
         sgv.set_gss(rand_u16(rng, 2047) * 0.125);
         if (rand_bool(rng)) {
             sgv.set_hgt(rand_u8(rng, 127) * 2.8125);
@@ -273,8 +273,8 @@ inline void rand_fill_cat021_re(std::mt19937& rng,
         }
         if (rand_bool(rng)) {
             auto& em1 = mes.mutable_em1();
-            em1.set_v(rand_u8(rng, 1));
-            em1.set_l(rand_u8(rng, 1));
+            em1.set_v(static_cast<asterix_alt::code_validated>(rand_u8(rng, 1)));
+            em1.set_l(static_cast<asterix_alt::code_source_extracted>(rand_u8(rng, 1)));
             em1.set_em1(rand_u16(rng, 0xFFF));
         }
         if (rand_bool(rng)) {
@@ -291,8 +291,8 @@ inline void rand_fill_cat021_re(std::mt19937& rng,
         }
         if (rand_bool(rng)) {
             auto& m2 = mes.mutable_m2();
-            m2.set_v(rand_u8(rng, 1));
-            m2.set_l(rand_u8(rng, 1));
+            m2.set_v(static_cast<asterix_alt::code_validated>(rand_u8(rng, 1)));
+            m2.set_l(static_cast<asterix_alt::code_source_extracted>(rand_u8(rng, 1)));
             m2.set_mode2(rand_u16(rng, 0xFFF));
         }
     }
@@ -354,16 +354,16 @@ inline asterix_alt::Cat007DownlinkRecord random_cat007_downlink(std::mt19937& rn
     if (rand_bool(rng)) {
         auto& i020 = it.mutable_i020();
         i020.set_typ(static_cast<asterix_alt::detection_type>(rand_u8(rng, 7)));
-        i020.set_sim(rand_u8(rng, 1));
-        i020.set_rdp(rand_u8(rng, 1));
-        i020.set_spi(rand_u8(rng, 1));
-        i020.set_rab(rand_u8(rng, 1));
+        i020.set_sim(static_cast<asterix_alt::sim_indicator>(rand_u8(rng, 1)));
+        i020.set_rdp(static_cast<asterix_alt::rdp_chain>(rand_u8(rng, 1)));
+        i020.set_spi(static_cast<asterix_alt::spi_presence>(rand_u8(rng, 1)));
+        i020.set_rab(static_cast<asterix_alt::report_source>(rand_u8(rng, 1)));
         if (rand_bool(rng)) {
-            i020.set_tst(rand_u8(rng, 1));
-            i020.set_err(rand_u8(rng, 1));
-            i020.set_xpp(rand_u8(rng, 1));
-            i020.set_me(rand_u8(rng, 1));
-            i020.set_mi(rand_u8(rng, 1));
+            i020.set_tst(static_cast<asterix_alt::test_target>(rand_u8(rng, 1)));
+            i020.set_err(static_cast<asterix_alt::extended_range>(rand_u8(rng, 1)));
+            i020.set_xpp(static_cast<asterix_alt::x_pulse_presence>(rand_u8(rng, 1)));
+            i020.set_me(static_cast<asterix_alt::military_emergency>(rand_u8(rng, 1)));
+            i020.set_mi(static_cast<asterix_alt::military_id>(rand_u8(rng, 1)));
             i020.set_foe_fri(static_cast<asterix_alt::foe_fri_id>(rand_u8(rng, 3)));
         }
     }
@@ -540,10 +540,10 @@ inline asterix_alt::Cat253Record random_cat253(std::mt19937& rng) {
         auto& i080 = it.mutable_i080();
         i080.set_start_index(start_indices[variant]);
         i080.set_count(rand_u8(rng));
-        i080.set_stale(rand_bool(rng) ? 1 : 0);
-        i080.set_sim(rand_bool(rng) ? 1 : 0);
-        i080.set_local_ctrl(rand_bool(rng) ? 1 : 0);
-        i080.set_data_included(1);
+        i080.set_stale(static_cast<asterix_alt::cat253_stale_ind>(rand_bool(rng) ? 1 : 0));
+        i080.set_sim(static_cast<asterix_alt::sim_indicator>(rand_bool(rng) ? 1 : 0));
+        i080.set_local_ctrl(static_cast<asterix_alt::cat253_local_ctrl>(rand_bool(rng) ? 1 : 0));
+        i080.set_data_included(asterix_alt::cat253_data_incl::data_included);
 
         auto& i100 = it.mutable_i100();
         switch (variant) {

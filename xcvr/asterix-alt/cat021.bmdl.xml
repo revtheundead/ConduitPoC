@@ -226,6 +226,33 @@
       </enum>
     </type>
 
+    <!-- I021/151,155,157,160 Range Exceeded (1 bit) -->
+    <type name="cat021-range-exceeded" base="uint" bits="1">
+      <doc>0 = value in defined range, 1 = value exceeds defined range</doc>
+      <enum>
+        <value id="0" name="in-range"/>
+        <value id="1" name="exceeded"/>
+      </enum>
+    </type>
+
+    <!-- I021/150 IAS/Mach Indicator (1 bit) -->
+    <type name="cat021-ias-mach" base="uint" bits="1">
+      <doc>0 = IAS (LSB=2^-14 NM/s), 1 = Mach (LSB=0.001)</doc>
+      <enum>
+        <value id="0" name="ias"/>
+        <value id="1" name="mach"/>
+      </enum>
+    </type>
+
+    <!-- I021 RE Selected Heading / Surface Ground Vector North Reference (1 bit) -->
+    <type name="cat021-north-ref" base="uint" bits="1">
+      <doc>0 = True North, 1 = Magnetic North</doc>
+      <enum>
+        <value id="0" name="true-north"/>
+        <value id="1" name="magnetic-north"/>
+      </enum>
+    </type>
+
     <!-- =======================================================================
          I021/008 - Aircraft Operational Status
          Fixed 1 octet: RA(1) TC(2) TS(1) ARV(1) CDTIA(1) not-TCAS(1) SA(1)
@@ -283,8 +310,8 @@
       <field name="rc" bits="1">
         <doc>Range Check: 0 = default, 1 = Range Check passed, CPR Validation pending</doc>
       </field>
-      <field name="rab" bits="1">
-        <doc>Report Type: 0 = Report from target transponder, 1 = Report from field monitor</doc>
+      <field name="rab" type="report-source">
+        <doc>Report source</doc>
       </field>
       <fx>
         <field name="dcr" bits="1">
@@ -293,11 +320,11 @@
         <field name="gbs" bits="1">
           <doc>Ground Bit Setting: 0 = Ground bit not set, 1 = Ground bit set</doc>
         </field>
-        <field name="sim" bits="1">
-          <doc>Simulated Target: 0 = Actual, 1 = Simulated</doc>
+        <field name="sim" type="sim-indicator">
+          <doc>Simulation indicator</doc>
         </field>
-        <field name="tst" bits="1">
-          <doc>Test Target: 0 = Default, 1 = Test Target</doc>
+        <field name="tst" type="test-target">
+          <doc>Test target indicator</doc>
         </field>
         <field name="saa" bits="1">
           <doc>Selected Altitude Available: 0 = Equipment capable, 1 = Equipment not capable</doc>
@@ -620,8 +647,8 @@
          ======================================================================= -->
     <struct name="Cat021I150">
       <doc>I021/150 - Air Speed</doc>
-      <field name="im" bits="1">
-        <doc>0 = IAS (LSB=2^-14 NM/s), 1 = Mach (LSB=0.001)</doc>
+      <field name="im" type="cat021-ias-mach">
+        <doc>IAS/Mach indicator</doc>
       </field>
       <field name="air-speed" bits="15">
         <doc>Air speed value (interpretation depends on IM flag)</doc>
@@ -634,8 +661,8 @@
          ======================================================================= -->
     <struct name="Cat021I151">
       <doc>I021/151 - True Airspeed</doc>
-      <field name="re" bits="1">
-        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      <field name="re" type="cat021-range-exceeded">
+        <doc>Range exceeded indicator</doc>
       </field>
       <field name="true-air-speed" bits="15">
         <doc>True Airspeed, LSB = 1 knot</doc>
@@ -662,8 +689,8 @@
          ======================================================================= -->
     <struct name="Cat021I155">
       <doc>I021/155 - Barometric Vertical Rate</doc>
-      <field name="re" bits="1">
-        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      <field name="re" type="cat021-range-exceeded">
+        <doc>Range exceeded indicator</doc>
       </field>
       <field name="bvr" bits="15" signed="true">
         <doc>Barometric Vertical Rate, LSB = 6.25 ft/min</doc>
@@ -678,8 +705,8 @@
          ======================================================================= -->
     <struct name="Cat021I157">
       <doc>I021/157 - Geometric Vertical Rate</doc>
-      <field name="re" bits="1">
-        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      <field name="re" type="cat021-range-exceeded">
+        <doc>Range exceeded indicator</doc>
       </field>
       <field name="gvr" bits="15" signed="true">
         <doc>Geometric Vertical Rate, LSB = 6.25 ft/min</doc>
@@ -694,8 +721,8 @@
          ======================================================================= -->
     <struct name="Cat021I160">
       <doc>I021/160 - Airborne Ground Vector</doc>
-      <field name="re" bits="1">
-        <doc>Range Exceeded: 0 = value in defined range, 1 = value exceeds range</doc>
+      <field name="re" type="cat021-range-exceeded">
+        <doc>Range exceeded indicator</doc>
       </field>
       <field name="ground-speed" bits="15">
         <doc>Ground Speed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
@@ -747,8 +774,8 @@
       <field name="lnav" bits="1">
         <doc>LNAV Mode: 0 = LNAV Mode engaged, 1 = LNAV Mode not engaged</doc>
       </field>
-      <field name="me" bits="1">
-        <doc>Military Emergency: 0 = no, 1 = military emergency</doc>
+      <field name="me" type="military-emergency">
+        <doc>Military emergency</doc>
       </field>
       <field name="ps" type="cat021-priority-status">
         <doc>Priority Status</doc>
@@ -1043,8 +1070,8 @@
     <struct name="Cat021ReSelh">
       <doc>Selected Heading</doc>
       <reserved bits="4"/>
-      <field name="hrd" bits="1">
-        <doc>Horizontal Reference Direction: 0 = True North, 1 = Magnetic North</doc>
+      <field name="hrd" type="cat021-north-ref">
+        <doc>Horizontal reference direction</doc>
       </field>
       <field name="stat" bits="1">
         <doc>Status: 0 = data is not available, 1 = data from autopilot</doc>
@@ -1085,11 +1112,11 @@
       <field name="hts" bits="1">
         <doc>Heading/Track Status: 0 = Heading (HDG), 1 = Track Angle (TA)</doc>
       </field>
-      <field name="htt" bits="1">
-        <doc>Heading/Track Type: 0 = True North, 1 = Magnetic North</doc>
+      <field name="htt" type="cat021-north-ref">
+        <doc>Heading/track north reference</doc>
       </field>
-      <field name="hrd" bits="1">
-        <doc>Heading Reference Direction: 0 = True North, 1 = Magnetic North</doc>
+      <field name="hrd" type="cat021-north-ref">
+        <doc>Heading reference direction</doc>
       </field>
       <field name="gss" bits="11">
         <doc>Ground Speed, LSB = 2^-3 knots = 0.125 knots</doc>
@@ -1172,13 +1199,12 @@
     <!-- MES sub-subfield: Extended Mode 1 Code (EM1) - 2 octets -->
     <struct name="Cat021ReMesEm1">
       <doc>Extended Mode 1 Code in Octal Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
       <reserved bits="1"/>
-      <field name="l" bits="1">
-        <doc>0 = Mode 1 code derived from Mode 5 reply,
-             1 = Mode 1 code not extracted during last update</doc>
+      <field name="l" type="code-source-extracted">
+        <doc>Mode 1 code source</doc>
       </field>
       <reserved bits="1"/>
       <field name="em1" bits="12">
@@ -1227,13 +1253,12 @@
     <!-- MES sub-subfield: Mode 2 Code (M2) - 2 octets -->
     <struct name="Cat021ReMesM2">
       <doc>Mode 2 Code in Octal Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
       <reserved bits="1"/>
-      <field name="l" bits="1">
-        <doc>0 = Mode 2 code derived from Mode 5 reply,
-             1 = Mode 2 code not extracted during last update</doc>
+      <field name="l" type="code-source-extracted">
+        <doc>Mode 2 code source</doc>
       </field>
       <reserved bits="1"/>
       <field name="mode2" bits="12">
