@@ -83,6 +83,41 @@ The same shorthand applies to `<otherwise>`:
 <otherwise name="unknown" type="RawPayload"/>
 ```
 
+## Naming Inline Cases with `typeName`
+
+By default, inline case definitions generate C++ class names by prefixing the parent struct name: `ParentName_CaseName`. The `typeName` attribute overrides this to produce a cleaner, user-chosen class name:
+
+```xml
+<choice name="payload" switch="msg-type">
+  <case name="heartbeat" value="1" typeName="HeartbeatPayload">
+    <field name="timestamp" type="uint64"/>
+    <field name="sequence" type="uint32"/>
+  </case>
+
+  <case name="position" value="2" typeName="PositionPayload">
+    <field name="lat" type="wgs84"/>
+    <field name="lon" type="wgs84"/>
+  </case>
+
+  <otherwise name="unknown" typeName="UnknownPayload">
+    <field name="data" type="bytes" length="*"/>
+  </otherwise>
+</choice>
+```
+
+Without `typeName`, the generated classes would be `MyMessage_heartbeat`, `MyMessage_position`, and `MyMessage_payloadOtherwise`. With `typeName`, they are `HeartbeatPayload`, `PositionPayload`, and `UnknownPayload`.
+
+**Rules:**
+
+- `typeName` is only valid on inline definitions -- it cannot be used when the `type` attribute is present (referencing an existing type).
+- The value must be a valid C++ identifier: starts with a letter or underscore, contains only alphanumeric characters and underscores.
+- The value must not be a C++ keyword (`class`, `struct`, `int`, etc.).
+- The value must not conflict with any type, struct, or message name defined in the protocol.
+- Each `typeName` value must be unique across the protocol.
+- The value must not start with a double underscore (`__`), as this is reserved in C++.
+
+`typeName` is also available on inline `<struct>` and `<array>` elements (see [naming conventions](../bgen/naming-conventions.md)).
+
 ## Length-Bounded Choices
 
 A choice can be bounded to a specific byte length using `length` (fixed) or `length-from` (from a field/expression):

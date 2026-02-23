@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>type_name_override</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+
+  <messages>
+    <!-- Test typeName on inline choice cases -->
+    <message name="ChoiceMsg">
+      <field name="tag" type="uint8"/>
+      <choice name="payload" switch="tag">
+        <case value="1" name="heartbeat" typeName="HeartbeatPayload">
+          <field name="timestamp" type="uint32"/>
+          <field name="sequence" type="uint16"/>
+        </case>
+        <case value="2" name="position" typeName="PositionPayload">
+          <field name="lat" type="uint32"/>
+          <field name="lon" type="uint32"/>
+        </case>
+        <otherwise name="fallback" typeName="UnknownPayload">
+          <field name="raw-byte" type="uint8"/>
+        </otherwise>
+      </choice>
+    </message>
+
+    <!-- Test typeName on inline struct children -->
+    <message name="StructMsg">
+      <field name="version" type="uint8"/>
+      <struct name="header" typeName="MsgHeader">
+        <field name="src" type="uint16"/>
+        <field name="dst" type="uint16"/>
+      </struct>
+      <field name="data" type="uint32"/>
+    </message>
+
+    <!-- Test typeName on inline array elements -->
+    <message name="ArrayMsg">
+      <field name="count" type="uint8"/>
+      <array name="items" count-from="count" typeName="ArrayItem">
+        <field name="id" type="uint16"/>
+        <field name="value" type="uint32"/>
+      </array>
+    </message>
+  </messages>
+</bmdl>

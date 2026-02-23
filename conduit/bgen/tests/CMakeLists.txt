@@ -109,6 +109,7 @@ bgen_generate_fixture(msg_config)
 bgen_generate_fixture(msg_config_inline)
 bgen_generate_fixture(constants_everywhere)
 bgen_generate_fixture(bytes_numeric)
+bgen_generate_fixture(type_name_override)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -168,6 +169,7 @@ add_executable(bgen_tests
     test_constants_everywhere.cpp
     test_bytes_numeric.cpp
     test_string_encoding_edge_cases.cpp
+    test_type_name_override.cpp
 )
 
 add_dependencies(bgen_tests
@@ -215,6 +217,7 @@ add_dependencies(bgen_tests
     gen_msg_config_inline
     gen_constants_everywhere
     gen_bytes_numeric
+    gen_type_name_override
 )
 
 target_link_libraries(bgen_tests PRIVATE

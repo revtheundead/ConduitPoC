@@ -269,6 +269,18 @@ public:
 
     // Inline enum tracking — enum_name → already emitted
     std::set<std::string> emitted_inline_enums_;
+
+    // typeName override map: key is (parent_cpp_name + "|" + bmdl_name) → typeName value.
+    // When present, the typeName is used as the class name instead of parent-prefixed auto name.
+    std::unordered_map<std::string, std::string> type_name_overrides_;
+
+    // Register a typeName override for a child element
+    void register_type_name_override(const std::string& parent_name,
+                                      const std::string& bmdl_name,
+                                      const std::string& type_name);
+
+    // Lookup a typeName override; returns empty string if none
+    std::string lookup_type_name_override(const std::string& bmdl_name) const;
 };
 
 } // namespace bgen::codegen
