@@ -63,6 +63,7 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         for (size_t i = 0; i < CHAR_COUNT; i++) {
             uint8_t ch = (i < value_.size()) ? static_cast<uint8_t>(value_[i]) : 0x20;
+            if (ch >= 'a' && ch <= 'z') ch -= 32;
             w.write_bits(ch & ((1 << CHAR_BITS) - 1), CHAR_BITS);
         }
         if (w.has_error()) return std::unexpected(w.error());
@@ -79,13 +80,1241 @@ public:
             result.value_ += ch;
         }
         // Trim trailing padding
-        while (!result.value_.empty() && (result.value_.back() == '\0' || result.value_.back() == ' '))
+        while (!result.value_.empty() && result.value_.back() == ' ')
             result.value_.pop_back();
         return result;
     }
 private:
     std::string value_;
 };
+
+//
+//         Type of detection:
+//         0 = No detection, 1 = Single PSR detection,
+//         2 = Single SSR detection, 3 = SSR+PSR detection,
+//         4 = Single Mode S All-Call, 5 = Single Mode S Roll-Call,
+//         6 = Mode S All-Call + PSR, 7 = Mode S Roll-Call + PSR
+//
+enum class DetectionType : uint8_t {
+    NoDetection = 0,
+    SinglePsr = 1,
+    SingleSsr = 2,
+    SsrPsr = 3,
+    SingleModeSAllCall = 4,
+    SingleModeSRollCall = 5,
+    ModeSAllCallPsr = 6,
+    ModeSRollCallPsr = 7,
+};
+
+inline std::string_view to_string(DetectionType v) {
+    switch (v) {
+        case DetectionType::NoDetection: return "NoDetection";
+        case DetectionType::SinglePsr: return "SinglePsr";
+        case DetectionType::SingleSsr: return "SingleSsr";
+        case DetectionType::SsrPsr: return "SsrPsr";
+        case DetectionType::SingleModeSAllCall: return "SingleModeSAllCall";
+        case DetectionType::SingleModeSRollCall: return "SingleModeSRollCall";
+        case DetectionType::ModeSAllCallPsr: return "ModeSAllCallPsr";
+        case DetectionType::ModeSRollCallPsr: return "ModeSRollCallPsr";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<DetectionType> decode_DetectionType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<DetectionType>(*raw);
+    switch (val) {
+        case DetectionType::NoDetection:
+        case DetectionType::SinglePsr:
+        case DetectionType::SingleSsr:
+        case DetectionType::SsrPsr:
+        case DetectionType::SingleModeSAllCall:
+        case DetectionType::SingleModeSRollCall:
+        case DetectionType::ModeSAllCallPsr:
+        case DetectionType::ModeSRollCallPsr:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown DetectionType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_DetectionType(DetectionType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case DetectionType::NoDetection:
+        case DetectionType::SinglePsr:
+        case DetectionType::SingleSsr:
+        case DetectionType::SsrPsr:
+        case DetectionType::SingleModeSAllCall:
+        case DetectionType::SingleModeSRollCall:
+        case DetectionType::ModeSAllCallPsr:
+        case DetectionType::ModeSRollCallPsr:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid DetectionType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Foe/Friend Identification:
+//         0 = No Mode 4 interrogation, 1 = Friendly target,
+//         2 = Unknown target, 3 = No reply
+//
+enum class FoeFriId : uint8_t {
+    NoMode4Interrogation = 0,
+    Friendly = 1,
+    Unknown = 2,
+    NoReply = 3,
+};
+
+inline std::string_view to_string(FoeFriId v) {
+    switch (v) {
+        case FoeFriId::NoMode4Interrogation: return "NoMode4Interrogation";
+        case FoeFriId::Friendly: return "Friendly";
+        case FoeFriId::Unknown: return "Unknown";
+        case FoeFriId::NoReply: return "NoReply";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<FoeFriId> decode_FoeFriId(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<FoeFriId>(*raw);
+    switch (val) {
+        case FoeFriId::NoMode4Interrogation:
+        case FoeFriId::Friendly:
+        case FoeFriId::Unknown:
+        case FoeFriId::NoReply:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown FoeFriId value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_FoeFriId(FoeFriId v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case FoeFriId::NoMode4Interrogation:
+        case FoeFriId::Friendly:
+        case FoeFriId::Unknown:
+        case FoeFriId::NoReply:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid FoeFriId enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Type of sensor maintaining track:
+//         0 = Combined Track, 1 = PSR Track,
+//         2 = SSR/Mode S Track, 3 = Invalid
+//
+enum class SensorType : uint8_t {
+    Combined = 0,
+    Psr = 1,
+    SsrModeS = 2,
+    Invalid = 3,
+};
+
+inline std::string_view to_string(SensorType v) {
+    switch (v) {
+        case SensorType::Combined: return "Combined";
+        case SensorType::Psr: return "Psr";
+        case SensorType::SsrModeS: return "SsrModeS";
+        case SensorType::Invalid: return "Invalid";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<SensorType> decode_SensorType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<SensorType>(*raw);
+    switch (val) {
+        case SensorType::Combined:
+        case SensorType::Psr:
+        case SensorType::SsrModeS:
+        case SensorType::Invalid:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown SensorType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_SensorType(SensorType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case SensorType::Combined:
+        case SensorType::Psr:
+        case SensorType::SsrModeS:
+        case SensorType::Invalid:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid SensorType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Climbing/Descending Mode:
+//         0 = Maintaining, 1 = Climbing, 2 = Descending, 3 = Unknown
+//
+enum class ClimbDescendMode : uint8_t {
+    Maintaining = 0,
+    Climbing = 1,
+    Descending = 2,
+    Unknown = 3,
+};
+
+inline std::string_view to_string(ClimbDescendMode v) {
+    switch (v) {
+        case ClimbDescendMode::Maintaining: return "Maintaining";
+        case ClimbDescendMode::Climbing: return "Climbing";
+        case ClimbDescendMode::Descending: return "Descending";
+        case ClimbDescendMode::Unknown: return "Unknown";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<ClimbDescendMode> decode_ClimbDescendMode(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<ClimbDescendMode>(*raw);
+    switch (val) {
+        case ClimbDescendMode::Maintaining:
+        case ClimbDescendMode::Climbing:
+        case ClimbDescendMode::Descending:
+        case ClimbDescendMode::Unknown:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown ClimbDescendMode value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_ClimbDescendMode(ClimbDescendMode v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case ClimbDescendMode::Maintaining:
+        case ClimbDescendMode::Climbing:
+        case ClimbDescendMode::Descending:
+        case ClimbDescendMode::Unknown:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid ClimbDescendMode enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Communications capability of the transponder:
+//         0 = No communications capability (surveillance only),
+//         1 = Comm. A and Comm. B,
+//         2 = Comm. A, Comm. B and Uplink ELM,
+//         3 = Comm. A, Comm. B, Uplink ELM and Downlink ELM,
+//         4 = Level 5 Transponder capability
+//
+enum class CommCapability : uint8_t {
+    NoComm = 0,
+    CommAB = 1,
+    CommABUplinkElm = 2,
+    CommABUplinkDownlinkElm = 3,
+    Level5 = 4,
+};
+
+inline std::string_view to_string(CommCapability v) {
+    switch (v) {
+        case CommCapability::NoComm: return "NoComm";
+        case CommCapability::CommAB: return "CommAB";
+        case CommCapability::CommABUplinkElm: return "CommABUplinkElm";
+        case CommCapability::CommABUplinkDownlinkElm: return "CommABUplinkDownlinkElm";
+        case CommCapability::Level5: return "Level5";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<CommCapability> decode_CommCapability(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<CommCapability>(*raw);
+    switch (val) {
+        case CommCapability::NoComm:
+        case CommCapability::CommAB:
+        case CommCapability::CommABUplinkElm:
+        case CommCapability::CommABUplinkDownlinkElm:
+        case CommCapability::Level5:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown CommCapability value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_CommCapability(CommCapability v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case CommCapability::NoComm:
+        case CommCapability::CommAB:
+        case CommCapability::CommABUplinkElm:
+        case CommCapability::CommABUplinkDownlinkElm:
+        case CommCapability::Level5:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid CommCapability enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Flight Status:
+//         0 = No alert, no SPI, airborne,
+//         1 = No alert, no SPI, on ground,
+//         2 = Alert, no SPI, airborne,
+//         3 = Alert, no SPI, on ground,
+//         4 = Alert, SPI,
+//         5 = No alert, SPI,
+//         6 = Not assigned,
+//         7 = Unknown
+//
+enum class FlightStatus : uint8_t {
+    NoAlertNoSpiAirborne = 0,
+    NoAlertNoSpiOnGround = 1,
+    AlertNoSpiAirborne = 2,
+    AlertNoSpiOnGround = 3,
+    AlertSpi = 4,
+    NoAlertSpi = 5,
+    NotAssigned = 6,
+    Unknown = 7,
+};
+
+inline std::string_view to_string(FlightStatus v) {
+    switch (v) {
+        case FlightStatus::NoAlertNoSpiAirborne: return "NoAlertNoSpiAirborne";
+        case FlightStatus::NoAlertNoSpiOnGround: return "NoAlertNoSpiOnGround";
+        case FlightStatus::AlertNoSpiAirborne: return "AlertNoSpiAirborne";
+        case FlightStatus::AlertNoSpiOnGround: return "AlertNoSpiOnGround";
+        case FlightStatus::AlertSpi: return "AlertSpi";
+        case FlightStatus::NoAlertSpi: return "NoAlertSpi";
+        case FlightStatus::NotAssigned: return "NotAssigned";
+        case FlightStatus::Unknown: return "Unknown";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<FlightStatus> decode_FlightStatus(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<FlightStatus>(*raw);
+    switch (val) {
+        case FlightStatus::NoAlertNoSpiAirborne:
+        case FlightStatus::NoAlertNoSpiOnGround:
+        case FlightStatus::AlertNoSpiAirborne:
+        case FlightStatus::AlertNoSpiOnGround:
+        case FlightStatus::AlertSpi:
+        case FlightStatus::NoAlertSpi:
+        case FlightStatus::NotAssigned:
+        case FlightStatus::Unknown:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown FlightStatus value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_FlightStatus(FlightStatus v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case FlightStatus::NoAlertNoSpiAirborne:
+        case FlightStatus::NoAlertNoSpiOnGround:
+        case FlightStatus::AlertNoSpiAirborne:
+        case FlightStatus::AlertNoSpiOnGround:
+        case FlightStatus::AlertSpi:
+        case FlightStatus::NoAlertSpi:
+        case FlightStatus::NotAssigned:
+        case FlightStatus::Unknown:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid FlightStatus enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Directed Interrogation Message Type:
+//         0 = Acknowledge, 1 = Reject, 2 = Interrogation Finished,
+//         3 = Interrogation Completed, 4 = Target Report,
+//         5 = Interrogation Request Type A, 6 = Interrogation Request Type B,
+//         7 = Interrogation Request Type C, 8 = Selective BDS-Register Request
+//
+enum class Cat007DiMsgType : uint8_t {
+    Acknowledge = 0,
+    Reject = 1,
+    InterrogationFinished = 2,
+    InterrogationCompleted = 3,
+    TargetReport = 4,
+    InterrogationRequestTypeA = 5,
+    InterrogationRequestTypeB = 6,
+    InterrogationRequestTypeC = 7,
+    SelectiveBdsRegisterRequest = 8,
+};
+
+inline std::string_view to_string(Cat007DiMsgType v) {
+    switch (v) {
+        case Cat007DiMsgType::Acknowledge: return "Acknowledge";
+        case Cat007DiMsgType::Reject: return "Reject";
+        case Cat007DiMsgType::InterrogationFinished: return "InterrogationFinished";
+        case Cat007DiMsgType::InterrogationCompleted: return "InterrogationCompleted";
+        case Cat007DiMsgType::TargetReport: return "TargetReport";
+        case Cat007DiMsgType::InterrogationRequestTypeA: return "InterrogationRequestTypeA";
+        case Cat007DiMsgType::InterrogationRequestTypeB: return "InterrogationRequestTypeB";
+        case Cat007DiMsgType::InterrogationRequestTypeC: return "InterrogationRequestTypeC";
+        case Cat007DiMsgType::SelectiveBdsRegisterRequest: return "SelectiveBdsRegisterRequest";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat007DiMsgType> decode_Cat007DiMsgType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(8);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat007DiMsgType>(*raw);
+    switch (val) {
+        case Cat007DiMsgType::Acknowledge:
+        case Cat007DiMsgType::Reject:
+        case Cat007DiMsgType::InterrogationFinished:
+        case Cat007DiMsgType::InterrogationCompleted:
+        case Cat007DiMsgType::TargetReport:
+        case Cat007DiMsgType::InterrogationRequestTypeA:
+        case Cat007DiMsgType::InterrogationRequestTypeB:
+        case Cat007DiMsgType::InterrogationRequestTypeC:
+        case Cat007DiMsgType::SelectiveBdsRegisterRequest:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat007DiMsgType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat007DiMsgType(Cat007DiMsgType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat007DiMsgType::Acknowledge:
+        case Cat007DiMsgType::Reject:
+        case Cat007DiMsgType::InterrogationFinished:
+        case Cat007DiMsgType::InterrogationCompleted:
+        case Cat007DiMsgType::TargetReport:
+        case Cat007DiMsgType::InterrogationRequestTypeA:
+        case Cat007DiMsgType::InterrogationRequestTypeB:
+        case Cat007DiMsgType::InterrogationRequestTypeC:
+        case Cat007DiMsgType::SelectiveBdsRegisterRequest:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat007DiMsgType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 8);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Mode S All-Call Lockout:
+//         0 = No Lockout used,
+//         1 = Lockout used by Interrogation Scheduler,
+//         2 = Lockout-Override applied
+//
+enum class Cat007Lockout : uint8_t {
+    NoLockout = 0,
+    LockoutUsed = 1,
+    LockoutOverride = 2,
+};
+
+inline std::string_view to_string(Cat007Lockout v) {
+    switch (v) {
+        case Cat007Lockout::NoLockout: return "NoLockout";
+        case Cat007Lockout::LockoutUsed: return "LockoutUsed";
+        case Cat007Lockout::LockoutOverride: return "LockoutOverride";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat007Lockout> decode_Cat007Lockout(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat007Lockout>(*raw);
+    switch (val) {
+        case Cat007Lockout::NoLockout:
+        case Cat007Lockout::LockoutUsed:
+        case Cat007Lockout::LockoutOverride:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat007Lockout value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat007Lockout(Cat007Lockout v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat007Lockout::NoLockout:
+        case Cat007Lockout::LockoutUsed:
+        case Cat007Lockout::LockoutOverride:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat007Lockout enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Target Trajectory Change Report Capability:
+//         0 = no capability, 1 = TC+0, 2 = multiple TC, 3 = Reserved
+//
+enum class Cat021TrajectoryChangeCap : uint8_t {
+    NoCapability = 0,
+    TcPlusZero = 1,
+    MultipleTc = 2,
+    Reserved = 3,
+};
+
+inline std::string_view to_string(Cat021TrajectoryChangeCap v) {
+    switch (v) {
+        case Cat021TrajectoryChangeCap::NoCapability: return "NoCapability";
+        case Cat021TrajectoryChangeCap::TcPlusZero: return "TcPlusZero";
+        case Cat021TrajectoryChangeCap::MultipleTc: return "MultipleTc";
+        case Cat021TrajectoryChangeCap::Reserved: return "Reserved";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021TrajectoryChangeCap> decode_Cat021TrajectoryChangeCap(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021TrajectoryChangeCap>(*raw);
+    switch (val) {
+        case Cat021TrajectoryChangeCap::NoCapability:
+        case Cat021TrajectoryChangeCap::TcPlusZero:
+        case Cat021TrajectoryChangeCap::MultipleTc:
+        case Cat021TrajectoryChangeCap::Reserved:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021TrajectoryChangeCap value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021TrajectoryChangeCap(Cat021TrajectoryChangeCap v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021TrajectoryChangeCap::NoCapability:
+        case Cat021TrajectoryChangeCap::TcPlusZero:
+        case Cat021TrajectoryChangeCap::MultipleTc:
+        case Cat021TrajectoryChangeCap::Reserved:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021TrajectoryChangeCap enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Address Type:
+//         0 = 24-bit ICAO address, 1 = Duplicate address,
+//         2 = Surface vehicle address, 3 = Anonymous address,
+//         4-7 = Reserved
+//
+enum class Cat021AddressType : uint8_t {
+    IcaoAddress = 0,
+    DuplicateAddress = 1,
+    SurfaceVehicle = 2,
+    Anonymous = 3,
+};
+
+inline std::string_view to_string(Cat021AddressType v) {
+    switch (v) {
+        case Cat021AddressType::IcaoAddress: return "IcaoAddress";
+        case Cat021AddressType::DuplicateAddress: return "DuplicateAddress";
+        case Cat021AddressType::SurfaceVehicle: return "SurfaceVehicle";
+        case Cat021AddressType::Anonymous: return "Anonymous";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021AddressType> decode_Cat021AddressType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021AddressType>(*raw);
+    switch (val) {
+        case Cat021AddressType::IcaoAddress:
+        case Cat021AddressType::DuplicateAddress:
+        case Cat021AddressType::SurfaceVehicle:
+        case Cat021AddressType::Anonymous:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021AddressType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021AddressType(Cat021AddressType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021AddressType::IcaoAddress:
+        case Cat021AddressType::DuplicateAddress:
+        case Cat021AddressType::SurfaceVehicle:
+        case Cat021AddressType::Anonymous:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021AddressType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Altitude Reporting Capability:
+//         0 = 25 ft, 1 = 100 ft, 2 = Unknown, 3 = Invalid
+//
+enum class Cat021AltReportCap : uint8_t {
+    Ft25 = 0,
+    Ft100 = 1,
+    Unknown = 2,
+    Invalid = 3,
+};
+
+inline std::string_view to_string(Cat021AltReportCap v) {
+    switch (v) {
+        case Cat021AltReportCap::Ft25: return "Ft25";
+        case Cat021AltReportCap::Ft100: return "Ft100";
+        case Cat021AltReportCap::Unknown: return "Unknown";
+        case Cat021AltReportCap::Invalid: return "Invalid";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021AltReportCap> decode_Cat021AltReportCap(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021AltReportCap>(*raw);
+    switch (val) {
+        case Cat021AltReportCap::Ft25:
+        case Cat021AltReportCap::Ft100:
+        case Cat021AltReportCap::Unknown:
+        case Cat021AltReportCap::Invalid:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021AltReportCap value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021AltReportCap(Cat021AltReportCap v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021AltReportCap::Ft25:
+        case Cat021AltReportCap::Ft100:
+        case Cat021AltReportCap::Unknown:
+        case Cat021AltReportCap::Invalid:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021AltReportCap enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Confidence Level:
+//         0 = Report valid, 1 = Report suspect,
+//         2 = No information, 3 = Reserved
+//
+enum class Cat021ConfLevel : uint8_t {
+    Valid = 0,
+    Suspect = 1,
+    NoInformation = 2,
+    Reserved = 3,
+};
+
+inline std::string_view to_string(Cat021ConfLevel v) {
+    switch (v) {
+        case Cat021ConfLevel::Valid: return "Valid";
+        case Cat021ConfLevel::Suspect: return "Suspect";
+        case Cat021ConfLevel::NoInformation: return "NoInformation";
+        case Cat021ConfLevel::Reserved: return "Reserved";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021ConfLevel> decode_Cat021ConfLevel(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021ConfLevel>(*raw);
+    switch (val) {
+        case Cat021ConfLevel::Valid:
+        case Cat021ConfLevel::Suspect:
+        case Cat021ConfLevel::NoInformation:
+        case Cat021ConfLevel::Reserved:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021ConfLevel value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021ConfLevel(Cat021ConfLevel v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021ConfLevel::Valid:
+        case Cat021ConfLevel::Suspect:
+        case Cat021ConfLevel::NoInformation:
+        case Cat021ConfLevel::Reserved:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021ConfLevel enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Full Second Indication:
+//         0 = value in whole seconds = UTC time of associated data item,
+//         1 = value in whole seconds = UTC time + 1,
+//         2 = value in whole seconds = UTC time - 1,
+//         3 = Reserved
+//
+enum class Cat021FullSecondInd : uint8_t {
+    SameSecond = 0,
+    PlusOne = 1,
+    MinusOne = 2,
+    Reserved = 3,
+};
+
+inline std::string_view to_string(Cat021FullSecondInd v) {
+    switch (v) {
+        case Cat021FullSecondInd::SameSecond: return "SameSecond";
+        case Cat021FullSecondInd::PlusOne: return "PlusOne";
+        case Cat021FullSecondInd::MinusOne: return "MinusOne";
+        case Cat021FullSecondInd::Reserved: return "Reserved";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021FullSecondInd> decode_Cat021FullSecondInd(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021FullSecondInd>(*raw);
+    switch (val) {
+        case Cat021FullSecondInd::SameSecond:
+        case Cat021FullSecondInd::PlusOne:
+        case Cat021FullSecondInd::MinusOne:
+        case Cat021FullSecondInd::Reserved:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021FullSecondInd value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021FullSecondInd(Cat021FullSecondInd v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021FullSecondInd::SameSecond:
+        case Cat021FullSecondInd::PlusOne:
+        case Cat021FullSecondInd::MinusOne:
+        case Cat021FullSecondInd::Reserved:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021FullSecondInd enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Trajectory Change Point Type:
+//         0 = Unknown, 1 = Fly by, 2 = Fly over,
+//         3 = Hold, 4 = Procedure hold, 5 = Procedure turn,
+//         6 = RF leg, 7 = Top of climb, 8 = Top of descent,
+//         9 = Start of level, 10 = Cross-over altitude,
+//         11 = Transition altitude
+//
+enum class Cat021PointType : uint8_t {
+    Unknown = 0,
+    FlyBy = 1,
+    FlyOver = 2,
+    Hold = 3,
+    ProcedureHold = 4,
+    ProcedureTurn = 5,
+    RfLeg = 6,
+    TopOfClimb = 7,
+    TopOfDescent = 8,
+    StartOfLevel = 9,
+    CrossOverAltitude = 10,
+    TransitionAltitude = 11,
+};
+
+inline std::string_view to_string(Cat021PointType v) {
+    switch (v) {
+        case Cat021PointType::Unknown: return "Unknown";
+        case Cat021PointType::FlyBy: return "FlyBy";
+        case Cat021PointType::FlyOver: return "FlyOver";
+        case Cat021PointType::Hold: return "Hold";
+        case Cat021PointType::ProcedureHold: return "ProcedureHold";
+        case Cat021PointType::ProcedureTurn: return "ProcedureTurn";
+        case Cat021PointType::RfLeg: return "RfLeg";
+        case Cat021PointType::TopOfClimb: return "TopOfClimb";
+        case Cat021PointType::TopOfDescent: return "TopOfDescent";
+        case Cat021PointType::StartOfLevel: return "StartOfLevel";
+        case Cat021PointType::CrossOverAltitude: return "CrossOverAltitude";
+        case Cat021PointType::TransitionAltitude: return "TransitionAltitude";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021PointType> decode_Cat021PointType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(4);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021PointType>(*raw);
+    switch (val) {
+        case Cat021PointType::Unknown:
+        case Cat021PointType::FlyBy:
+        case Cat021PointType::FlyOver:
+        case Cat021PointType::Hold:
+        case Cat021PointType::ProcedureHold:
+        case Cat021PointType::ProcedureTurn:
+        case Cat021PointType::RfLeg:
+        case Cat021PointType::TopOfClimb:
+        case Cat021PointType::TopOfDescent:
+        case Cat021PointType::StartOfLevel:
+        case Cat021PointType::CrossOverAltitude:
+        case Cat021PointType::TransitionAltitude:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021PointType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021PointType(Cat021PointType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021PointType::Unknown:
+        case Cat021PointType::FlyBy:
+        case Cat021PointType::FlyOver:
+        case Cat021PointType::Hold:
+        case Cat021PointType::ProcedureHold:
+        case Cat021PointType::ProcedureTurn:
+        case Cat021PointType::RfLeg:
+        case Cat021PointType::TopOfClimb:
+        case Cat021PointType::TopOfDescent:
+        case Cat021PointType::StartOfLevel:
+        case Cat021PointType::CrossOverAltitude:
+        case Cat021PointType::TransitionAltitude:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021PointType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 4);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Turn Direction:
+//         0 = N/A, 1 = Turn right, 2 = Turn left, 3 = No turn
+//
+enum class Cat021TurnDirection : uint8_t {
+    NotApplicable = 0,
+    TurnRight = 1,
+    TurnLeft = 2,
+    NoTurn = 3,
+};
+
+inline std::string_view to_string(Cat021TurnDirection v) {
+    switch (v) {
+        case Cat021TurnDirection::NotApplicable: return "NotApplicable";
+        case Cat021TurnDirection::TurnRight: return "TurnRight";
+        case Cat021TurnDirection::TurnLeft: return "TurnLeft";
+        case Cat021TurnDirection::NoTurn: return "NoTurn";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021TurnDirection> decode_Cat021TurnDirection(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021TurnDirection>(*raw);
+    switch (val) {
+        case Cat021TurnDirection::NotApplicable:
+        case Cat021TurnDirection::TurnRight:
+        case Cat021TurnDirection::TurnLeft:
+        case Cat021TurnDirection::NoTurn:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021TurnDirection value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021TurnDirection(Cat021TurnDirection v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021TurnDirection::NotApplicable:
+        case Cat021TurnDirection::TurnRight:
+        case Cat021TurnDirection::TurnLeft:
+        case Cat021TurnDirection::NoTurn:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021TurnDirection enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Altitude Source:
+//         0 = Unknown, 1 = Aircraft Altitude (Holding),
+//         2 = MCP/FCU Selected Altitude, 3 = FMS Selected Altitude
+//
+enum class Cat021AltSource : uint8_t {
+    Unknown = 0,
+    AircraftAltitude = 1,
+    McpFcuSelected = 2,
+    FmsSelected = 3,
+};
+
+inline std::string_view to_string(Cat021AltSource v) {
+    switch (v) {
+        case Cat021AltSource::Unknown: return "Unknown";
+        case Cat021AltSource::AircraftAltitude: return "AircraftAltitude";
+        case Cat021AltSource::McpFcuSelected: return "McpFcuSelected";
+        case Cat021AltSource::FmsSelected: return "FmsSelected";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021AltSource> decode_Cat021AltSource(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021AltSource>(*raw);
+    switch (val) {
+        case Cat021AltSource::Unknown:
+        case Cat021AltSource::AircraftAltitude:
+        case Cat021AltSource::McpFcuSelected:
+        case Cat021AltSource::FmsSelected:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021AltSource value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021AltSource(Cat021AltSource v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021AltSource::Unknown:
+        case Cat021AltSource::AircraftAltitude:
+        case Cat021AltSource::McpFcuSelected:
+        case Cat021AltSource::FmsSelected:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021AltSource enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Priority Status:
+//         0 = No emergency / not reported, 1 = General emergency,
+//         2 = Lifeguard / medical, 3 = Minimum fuel,
+//         4 = No communications, 5 = Unlawful interference,
+//         6 = Downed Aircraft, 7 = Reserved
+//
+enum class Cat021PriorityStatus : uint8_t {
+    NoEmergency = 0,
+    GeneralEmergency = 1,
+    LifeguardMedical = 2,
+    MinimumFuel = 3,
+    NoCommunications = 4,
+    UnlawfulInterference = 5,
+    DownedAircraft = 6,
+    Reserved = 7,
+};
+
+inline std::string_view to_string(Cat021PriorityStatus v) {
+    switch (v) {
+        case Cat021PriorityStatus::NoEmergency: return "NoEmergency";
+        case Cat021PriorityStatus::GeneralEmergency: return "GeneralEmergency";
+        case Cat021PriorityStatus::LifeguardMedical: return "LifeguardMedical";
+        case Cat021PriorityStatus::MinimumFuel: return "MinimumFuel";
+        case Cat021PriorityStatus::NoCommunications: return "NoCommunications";
+        case Cat021PriorityStatus::UnlawfulInterference: return "UnlawfulInterference";
+        case Cat021PriorityStatus::DownedAircraft: return "DownedAircraft";
+        case Cat021PriorityStatus::Reserved: return "Reserved";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021PriorityStatus> decode_Cat021PriorityStatus(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021PriorityStatus>(*raw);
+    switch (val) {
+        case Cat021PriorityStatus::NoEmergency:
+        case Cat021PriorityStatus::GeneralEmergency:
+        case Cat021PriorityStatus::LifeguardMedical:
+        case Cat021PriorityStatus::MinimumFuel:
+        case Cat021PriorityStatus::NoCommunications:
+        case Cat021PriorityStatus::UnlawfulInterference:
+        case Cat021PriorityStatus::DownedAircraft:
+        case Cat021PriorityStatus::Reserved:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021PriorityStatus value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021PriorityStatus(Cat021PriorityStatus v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021PriorityStatus::NoEmergency:
+        case Cat021PriorityStatus::GeneralEmergency:
+        case Cat021PriorityStatus::LifeguardMedical:
+        case Cat021PriorityStatus::MinimumFuel:
+        case Cat021PriorityStatus::NoCommunications:
+        case Cat021PriorityStatus::UnlawfulInterference:
+        case Cat021PriorityStatus::DownedAircraft:
+        case Cat021PriorityStatus::Reserved:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021PriorityStatus enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Surveillance Status:
+//         0 = No condition reported,
+//         1 = Permanent Alert (Emergency condition),
+//         2 = Temporary Alert (change in Mode 3/A Code other than emergency),
+//         3 = SPI set
+//
+enum class Cat021SurvStatus : uint8_t {
+    NoCondition = 0,
+    PermanentAlert = 1,
+    TemporaryAlert = 2,
+    SpiSet = 3,
+};
+
+inline std::string_view to_string(Cat021SurvStatus v) {
+    switch (v) {
+        case Cat021SurvStatus::NoCondition: return "NoCondition";
+        case Cat021SurvStatus::PermanentAlert: return "PermanentAlert";
+        case Cat021SurvStatus::TemporaryAlert: return "TemporaryAlert";
+        case Cat021SurvStatus::SpiSet: return "SpiSet";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021SurvStatus> decode_Cat021SurvStatus(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021SurvStatus>(*raw);
+    switch (val) {
+        case Cat021SurvStatus::NoCondition:
+        case Cat021SurvStatus::PermanentAlert:
+        case Cat021SurvStatus::TemporaryAlert:
+        case Cat021SurvStatus::SpiSet:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021SurvStatus value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021SurvStatus(Cat021SurvStatus v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021SurvStatus::NoCondition:
+        case Cat021SurvStatus::PermanentAlert:
+        case Cat021SurvStatus::TemporaryAlert:
+        case Cat021SurvStatus::SpiSet:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021SurvStatus enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         MOPS Version Number:
+//         0 = ED102/DO-260 (DO-242), 1 = DO-260A (DO-242A),
+//         2 = ED102A/DO-260B (DO-242B)
+//
+enum class Cat021MopsVersion : uint8_t {
+    Ed102Do260 = 0,
+    Do260A = 1,
+    Ed102ADo260B = 2,
+};
+
+inline std::string_view to_string(Cat021MopsVersion v) {
+    switch (v) {
+        case Cat021MopsVersion::Ed102Do260: return "Ed102Do260";
+        case Cat021MopsVersion::Do260A: return "Do260A";
+        case Cat021MopsVersion::Ed102ADo260B: return "Ed102ADo260B";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021MopsVersion> decode_Cat021MopsVersion(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021MopsVersion>(*raw);
+    switch (val) {
+        case Cat021MopsVersion::Ed102Do260:
+        case Cat021MopsVersion::Do260A:
+        case Cat021MopsVersion::Ed102ADo260B:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021MopsVersion value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021MopsVersion(Cat021MopsVersion v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021MopsVersion::Ed102Do260:
+        case Cat021MopsVersion::Do260A:
+        case Cat021MopsVersion::Ed102ADo260B:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021MopsVersion enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Link Technology Type:
+//         0 = Other, 1 = UAT, 2 = 1090 ES, 3 = VDL 4
+//
+enum class Cat021LinkTechType : uint8_t {
+    Other = 0,
+    Uat = 1,
+    Es1090 = 2,
+    Vdl4 = 3,
+};
+
+inline std::string_view to_string(Cat021LinkTechType v) {
+    switch (v) {
+        case Cat021LinkTechType::Other: return "Other";
+        case Cat021LinkTechType::Uat: return "Uat";
+        case Cat021LinkTechType::Es1090: return "Es1090";
+        case Cat021LinkTechType::Vdl4: return "Vdl4";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021LinkTechType> decode_Cat021LinkTechType(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(3);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021LinkTechType>(*raw);
+    switch (val) {
+        case Cat021LinkTechType::Other:
+        case Cat021LinkTechType::Uat:
+        case Cat021LinkTechType::Es1090:
+        case Cat021LinkTechType::Vdl4:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021LinkTechType value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021LinkTechType(Cat021LinkTechType v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021LinkTechType::Other:
+        case Cat021LinkTechType::Uat:
+        case Cat021LinkTechType::Es1090:
+        case Cat021LinkTechType::Vdl4:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021LinkTechType enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 3);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
+
+//
+//         Threat Type Indicator:
+//         0 = no identity data in TID, 1 = TID has address,
+//         2 = TID has altitude, 3 = TID has address and altitude
+//
+enum class Cat021ThreatTypeInd : uint8_t {
+    NoIdentity = 0,
+    AddressPresent = 1,
+    AltitudePresent = 2,
+    AddressAndAltitude = 3,
+};
+
+inline std::string_view to_string(Cat021ThreatTypeInd v) {
+    switch (v) {
+        case Cat021ThreatTypeInd::NoIdentity: return "NoIdentity";
+        case Cat021ThreatTypeInd::AddressPresent: return "AddressPresent";
+        case Cat021ThreatTypeInd::AltitudePresent: return "AltitudePresent";
+        case Cat021ThreatTypeInd::AddressAndAltitude: return "AddressAndAltitude";
+    }
+    return "unknown";
+}
+
+inline conduit::Result<Cat021ThreatTypeInd> decode_Cat021ThreatTypeInd(conduit::io::BitReader& r) {
+    auto raw = r.read_bits(2);
+    if (!raw) return std::unexpected(raw.error());
+    auto val = static_cast<Cat021ThreatTypeInd>(*raw);
+    switch (val) {
+        case Cat021ThreatTypeInd::NoIdentity:
+        case Cat021ThreatTypeInd::AddressPresent:
+        case Cat021ThreatTypeInd::AltitudePresent:
+        case Cat021ThreatTypeInd::AddressAndAltitude:
+            return val;
+    }
+    return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,
+        "unknown Cat021ThreatTypeInd value: " + std::to_string(static_cast<uint8_t>(val))));
+}
+
+inline conduit::VoidResult encode_Cat021ThreatTypeInd(Cat021ThreatTypeInd v, conduit::io::BitWriter& w) {
+    switch (v) {
+        case Cat021ThreatTypeInd::NoIdentity:
+        case Cat021ThreatTypeInd::AddressPresent:
+        case Cat021ThreatTypeInd::AltitudePresent:
+        case Cat021ThreatTypeInd::AddressAndAltitude:
+            break;
+        default:
+            return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,
+                "invalid Cat021ThreatTypeInd enum value: " + std::to_string(static_cast<uint8_t>(v))));
+    }
+    w.write_bits(static_cast<uint8_t>(v), 2);
+    if (w.has_error()) return std::unexpected(w.error());
+    return {};
+}
 
 //
 //         Message Type Identification:

@@ -180,7 +180,7 @@ inline void rand_fill_cat048_re(std::mt19937& rng,
 
     // M4E (~50%)
     if (rand_bool(rng)) {
-        re.mutable_m4e().set_foeFri(rand_u8(rng, 3));
+        re.mutable_m4e().set_foe_fri(static_cast<asterix_alt::foe_fri_id>(rand_u8(rng, 3)));
     }
 
     // RPC (~50%)
@@ -353,7 +353,7 @@ inline asterix_alt::Cat007DownlinkRecord random_cat007_downlink(std::mt19937& rn
     if (rand_bool(rng)) (void)it.mutable_i400();
     if (rand_bool(rng)) {
         auto& i020 = it.mutable_i020();
-        i020.set_typ(rand_u8(rng, 7));
+        i020.set_typ(static_cast<asterix_alt::detection_type>(rand_u8(rng, 7)));
         i020.set_sim(rand_u8(rng, 1));
         i020.set_rdp(rand_u8(rng, 1));
         i020.set_spi(rand_u8(rng, 1));
@@ -364,7 +364,7 @@ inline asterix_alt::Cat007DownlinkRecord random_cat007_downlink(std::mt19937& rn
             i020.set_xpp(rand_u8(rng, 1));
             i020.set_me(rand_u8(rng, 1));
             i020.set_mi(rand_u8(rng, 1));
-            i020.set_foe_fri(rand_u8(rng, 3));
+            i020.set_foe_fri(static_cast<asterix_alt::foe_fri_id>(rand_u8(rng, 3)));
         }
     }
     if (rand_bool(rng)) {

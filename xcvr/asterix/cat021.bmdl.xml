@@ -10,6 +10,222 @@
 
   <types>
 
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I021/008 Target Trajectory Change Report Capability (2 bits) -->
+    <type name="Cat021TrajectoryChangeCap" base="uint" bits="2">
+      <doc>
+        Target Trajectory Change Report Capability:
+        0 = no capability, 1 = TC+0, 2 = multiple TC, 3 = Reserved
+      </doc>
+      <enum>
+        <value id="0" name="NoCapability"/>
+        <value id="1" name="TcPlusZero"/>
+        <value id="2" name="MultipleTc"/>
+        <value id="3" name="Reserved"/>
+      </enum>
+    </type>
+
+    <!-- I021/040 Address Type (3 bits) -->
+    <type name="Cat021AddressType" base="uint" bits="3">
+      <doc>
+        Address Type:
+        0 = 24-bit ICAO address, 1 = Duplicate address,
+        2 = Surface vehicle address, 3 = Anonymous address,
+        4-7 = Reserved
+      </doc>
+      <enum>
+        <value id="0" name="IcaoAddress"/>
+        <value id="1" name="DuplicateAddress"/>
+        <value id="2" name="SurfaceVehicle"/>
+        <value id="3" name="Anonymous"/>
+      </enum>
+    </type>
+
+    <!-- I021/040 Altitude Reporting Capability (2 bits) -->
+    <type name="Cat021AltReportCap" base="uint" bits="2">
+      <doc>
+        Altitude Reporting Capability:
+        0 = 25 ft, 1 = 100 ft, 2 = Unknown, 3 = Invalid
+      </doc>
+      <enum>
+        <value id="0" name="Ft25"/>
+        <value id="1" name="Ft100"/>
+        <value id="2" name="Unknown"/>
+        <value id="3" name="Invalid"/>
+      </enum>
+    </type>
+
+    <!-- I021/040 Confidence Level (2 bits) -->
+    <type name="Cat021ConfLevel" base="uint" bits="2">
+      <doc>
+        Confidence Level:
+        0 = Report valid, 1 = Report suspect,
+        2 = No information, 3 = Reserved
+      </doc>
+      <enum>
+        <value id="0" name="Valid"/>
+        <value id="1" name="Suspect"/>
+        <value id="2" name="NoInformation"/>
+        <value id="3" name="Reserved"/>
+      </enum>
+    </type>
+
+    <!-- I021/074 & I021/076 Full Second Indication (2 bits) -->
+    <type name="Cat021FullSecondInd" base="uint" bits="2">
+      <doc>
+        Full Second Indication:
+        0 = value in whole seconds = UTC time of associated data item,
+        1 = value in whole seconds = UTC time + 1,
+        2 = value in whole seconds = UTC time - 1,
+        3 = Reserved
+      </doc>
+      <enum>
+        <value id="0" name="SameSecond"/>
+        <value id="1" name="PlusOne"/>
+        <value id="2" name="MinusOne"/>
+        <value id="3" name="Reserved"/>
+      </enum>
+    </type>
+
+    <!-- I021/110 Trajectory Change Point Type (4 bits) -->
+    <type name="Cat021PointType" base="uint" bits="4">
+      <doc>
+        Trajectory Change Point Type:
+        0 = Unknown, 1 = Fly by, 2 = Fly over,
+        3 = Hold, 4 = Procedure hold, 5 = Procedure turn,
+        6 = RF leg, 7 = Top of climb, 8 = Top of descent,
+        9 = Start of level, 10 = Cross-over altitude,
+        11 = Transition altitude
+      </doc>
+      <enum>
+        <value id="0" name="Unknown"/>
+        <value id="1" name="FlyBy"/>
+        <value id="2" name="FlyOver"/>
+        <value id="3" name="Hold"/>
+        <value id="4" name="ProcedureHold"/>
+        <value id="5" name="ProcedureTurn"/>
+        <value id="6" name="RfLeg"/>
+        <value id="7" name="TopOfClimb"/>
+        <value id="8" name="TopOfDescent"/>
+        <value id="9" name="StartOfLevel"/>
+        <value id="10" name="CrossOverAltitude"/>
+        <value id="11" name="TransitionAltitude"/>
+      </enum>
+    </type>
+
+    <!-- I021/110 Turn Direction (2 bits) -->
+    <type name="Cat021TurnDirection" base="uint" bits="2">
+      <doc>
+        Turn Direction:
+        0 = N/A, 1 = Turn right, 2 = Turn left, 3 = No turn
+      </doc>
+      <enum>
+        <value id="0" name="NotApplicable"/>
+        <value id="1" name="TurnRight"/>
+        <value id="2" name="TurnLeft"/>
+        <value id="3" name="NoTurn"/>
+      </enum>
+    </type>
+
+    <!-- I021/146 Altitude Source (2 bits) -->
+    <type name="Cat021AltSource" base="uint" bits="2">
+      <doc>
+        Altitude Source:
+        0 = Unknown, 1 = Aircraft Altitude (Holding),
+        2 = MCP/FCU Selected Altitude, 3 = FMS Selected Altitude
+      </doc>
+      <enum>
+        <value id="0" name="Unknown"/>
+        <value id="1" name="AircraftAltitude"/>
+        <value id="2" name="McpFcuSelected"/>
+        <value id="3" name="FmsSelected"/>
+      </enum>
+    </type>
+
+    <!-- I021/200 Priority Status (3 bits) -->
+    <type name="Cat021PriorityStatus" base="uint" bits="3">
+      <doc>
+        Priority Status:
+        0 = No emergency / not reported, 1 = General emergency,
+        2 = Lifeguard / medical, 3 = Minimum fuel,
+        4 = No communications, 5 = Unlawful interference,
+        6 = Downed Aircraft, 7 = Reserved
+      </doc>
+      <enum>
+        <value id="0" name="NoEmergency"/>
+        <value id="1" name="GeneralEmergency"/>
+        <value id="2" name="LifeguardMedical"/>
+        <value id="3" name="MinimumFuel"/>
+        <value id="4" name="NoCommunications"/>
+        <value id="5" name="UnlawfulInterference"/>
+        <value id="6" name="DownedAircraft"/>
+        <value id="7" name="Reserved"/>
+      </enum>
+    </type>
+
+    <!-- I021/200 Surveillance Status (2 bits) -->
+    <type name="Cat021SurvStatus" base="uint" bits="2">
+      <doc>
+        Surveillance Status:
+        0 = No condition reported,
+        1 = Permanent Alert (Emergency condition),
+        2 = Temporary Alert (change in Mode 3/A Code other than emergency),
+        3 = SPI set
+      </doc>
+      <enum>
+        <value id="0" name="NoCondition"/>
+        <value id="1" name="PermanentAlert"/>
+        <value id="2" name="TemporaryAlert"/>
+        <value id="3" name="SpiSet"/>
+      </enum>
+    </type>
+
+    <!-- I021/210 MOPS Version Number (3 bits) -->
+    <type name="Cat021MopsVersion" base="uint" bits="3">
+      <doc>
+        MOPS Version Number:
+        0 = ED102/DO-260 (DO-242), 1 = DO-260A (DO-242A),
+        2 = ED102A/DO-260B (DO-242B)
+      </doc>
+      <enum>
+        <value id="0" name="Ed102Do260"/>
+        <value id="1" name="Do260A"/>
+        <value id="2" name="Ed102ADo260B"/>
+      </enum>
+    </type>
+
+    <!-- I021/210 Link Technology Type (3 bits) -->
+    <type name="Cat021LinkTechType" base="uint" bits="3">
+      <doc>
+        Link Technology Type:
+        0 = Other, 1 = UAT, 2 = 1090 ES, 3 = VDL 4
+      </doc>
+      <enum>
+        <value id="0" name="Other"/>
+        <value id="1" name="Uat"/>
+        <value id="2" name="Es1090"/>
+        <value id="3" name="Vdl4"/>
+      </enum>
+    </type>
+
+    <!-- I021/260 Threat Type Indicator (2 bits) -->
+    <type name="Cat021ThreatTypeInd" base="uint" bits="2">
+      <doc>
+        Threat Type Indicator:
+        0 = no identity data in TID, 1 = TID has address,
+        2 = TID has altitude, 3 = TID has address and altitude
+      </doc>
+      <enum>
+        <value id="0" name="NoIdentity"/>
+        <value id="1" name="AddressPresent"/>
+        <value id="2" name="AltitudePresent"/>
+        <value id="3" name="AddressAndAltitude"/>
+      </enum>
+    </type>
+
     <!-- =======================================================================
          I021/008 - Aircraft Operational Status
          Fixed 1 octet: RA(1) TC(2) TS(1) ARV(1) CDTIA(1) not-TCAS(1) SA(1)
@@ -19,11 +235,8 @@
       <field name="ra" bits="1">
         <doc>TCAS Resolution Advisory active: 0 = not active, 1 = active</doc>
       </field>
-      <field name="tc" bits="2">
-        <doc>
-          Target Trajectory Change Report Capability:
-          00 = no capability, 01 = TC+0, 10 = multiple TC, 11 = Reserved
-        </doc>
+      <field name="tc" type="Cat021TrajectoryChangeCap">
+        <doc>Target Trajectory Change Report Capability</doc>
       </field>
       <field name="ts" bits="1">
         <doc>Target State Report Capability: 0 = no capability, 1 = capable</doc>
@@ -61,21 +274,11 @@
          ======================================================================= -->
     <struct name="Cat021I040">
       <doc>I021/040 - Target Report Descriptor</doc>
-      <field name="atp" bits="3">
-        <doc>
-          Address Type:
-          000 = 24-bit ICAO address
-          001 = Duplicate address
-          010 = Surface vehicle address
-          011 = Anonymous address
-          100-111 = Reserved
-        </doc>
+      <field name="atp" type="Cat021AddressType">
+        <doc>Address Type</doc>
       </field>
-      <field name="arc" bits="2">
-        <doc>
-          Altitude Reporting Capability:
-          00 = 25 ft, 01 = 100 ft, 10 = Unknown, 11 = Invalid
-        </doc>
+      <field name="arc" type="Cat021AltReportCap">
+        <doc>Altitude Reporting Capability</doc>
       </field>
       <field name="rc" bits="1">
         <doc>Range Check: 0 = default, 1 = Range Check passed, CPR Validation pending</doc>
@@ -99,12 +302,8 @@
         <field name="saa" bits="1">
           <doc>Selected Altitude Available: 0 = Equipment capable, 1 = Equipment not capable</doc>
         </field>
-        <field name="cl" bits="2">
-          <doc>
-            Confidence Level:
-            00 = Report valid, 01 = Report suspect
-            10 = No information, 11 = Reserved
-          </doc>
+        <field name="cl" type="Cat021ConfLevel">
+          <doc>Confidence Level</doc>
         </field>
         <fx>
           <reserved bits="1"/>
@@ -148,14 +347,8 @@
          ======================================================================= -->
     <struct name="Cat021I074">
       <doc>I021/074 - Time of Message Reception of Position - High Precision</doc>
-      <field name="fsi" bits="2">
-        <doc>
-          Full Second Indication:
-          00 = value in whole seconds = (I021/073) UTC time
-          01 = value in whole seconds = (I021/073) UTC time + 1
-          10 = value in whole seconds = (I021/073) UTC time - 1
-          11 = Reserved
-        </doc>
+      <field name="fsi" type="Cat021FullSecondInd">
+        <doc>Full Second Indication (relative to I021/073)</doc>
       </field>
       <field name="timeFrac" bits="30">
         <doc>Fractional part of Time of Message Reception of Position, LSB = 2^-30 seconds</doc>
@@ -170,14 +363,8 @@
          ======================================================================= -->
     <struct name="Cat021I076">
       <doc>I021/076 - Time of Message Reception of Velocity - High Precision</doc>
-      <field name="fsi" bits="2">
-        <doc>
-          Full Second Indication:
-          00 = value in whole seconds = (I021/075) UTC time
-          01 = value in whole seconds = (I021/075) UTC time + 1
-          10 = value in whole seconds = (I021/075) UTC time - 1
-          11 = Reserved
-        </doc>
+      <field name="fsi" type="Cat021FullSecondInd">
+        <doc>Full Second Indication (relative to I021/075)</doc>
       </field>
       <field name="timeFrac" bits="30">
         <doc>Fractional part of Time of Message Reception of Velocity, LSB = 2^-30 seconds</doc>
@@ -281,17 +468,11 @@
           <scale>2.1457672119140625e-5</scale>
           <unit>degrees</unit>
         </field>
-        <field name="pointType" bits="4">
-          <doc>
-            Point Type:
-            0000 = Unknown, 0001 = Fly by, 0010 = Fly over,
-            0011 = Hold, 0100 = Procedure hold, 0101 = Procedure turn,
-            0110 = RF leg, 0111 = Top of climb, 1000 = Top of descent,
-            1001 = Start of level, 1010 = Cross-over altitude, 1011 = Transition altitude
-          </doc>
+        <field name="pointType" type="Cat021PointType">
+          <doc>Trajectory Change Point Type</doc>
         </field>
-        <field name="td" bits="2">
-          <doc>Turn Direction: 00 = N/A, 01 = Turn right, 10 = Turn left, 11 = No turn</doc>
+        <field name="td" type="Cat021TurnDirection">
+          <doc>Turn Direction</doc>
         </field>
         <field name="tra" bits="1">
           <doc>Turn Radius Availability: 0 = TTR not available, 1 = TTR available</doc>
@@ -401,12 +582,8 @@
       <field name="sas" bits="1">
         <doc>Source Availability: 0 = No source information, 1 = Source information provided</doc>
       </field>
-      <field name="source" bits="2">
-        <doc>
-          Source:
-          00 = Unknown, 01 = Aircraft Altitude (Holding),
-          10 = MCP/FCU Selected Altitude, 11 = FMS Selected Altitude
-        </doc>
+      <field name="source" type="Cat021AltSource">
+        <doc>Altitude Source</doc>
       </field>
       <field name="altitude" bits="13" signed="true">
         <doc>Altitude, LSB = 25 ft, range -1300 to +100000 ft</doc>
@@ -573,27 +750,11 @@
       <field name="me" bits="1">
         <doc>Military Emergency: 0 = no, 1 = military emergency</doc>
       </field>
-      <field name="ps" bits="3">
-        <doc>
-          Priority Status:
-          000 = No emergency/not reported
-          001 = General emergency
-          010 = Lifeguard/medical
-          011 = Minimum fuel
-          100 = No communications
-          101 = Unlawful interference
-          110 = "Downed" Aircraft
-          111 = Reserved
-        </doc>
+      <field name="ps" type="Cat021PriorityStatus">
+        <doc>Priority Status</doc>
       </field>
-      <field name="ss" bits="2">
-        <doc>
-          Surveillance Status:
-          00 = No condition reported
-          01 = Permanent Alert (Emergency condition)
-          10 = Temporary Alert (change in Mode 3/A Code other than emergency)
-          11 = SPI set
-        </doc>
+      <field name="ss" type="Cat021SurvStatus">
+        <doc>Surveillance Status</doc>
       </field>
     </struct>
 
@@ -607,20 +768,11 @@
       <field name="vns" bits="1">
         <doc>Version Not Supported: 0 = The MOPS Version is supported, 1 = not supported</doc>
       </field>
-      <field name="vn" bits="3">
-        <doc>
-          Version Number:
-          000 = ED102/DO-260 (DO-242),
-          001 = DO-260A (DO-242A),
-          010 = ED102A/DO-260B (DO-242B)
-        </doc>
+      <field name="vn" type="Cat021MopsVersion">
+        <doc>MOPS Version Number</doc>
       </field>
-      <field name="ltt" bits="3">
-        <doc>
-          Link Technology Type:
-          000 = Other, 001 = UAT, 010 = 1090 ES,
-          011 = VDL 4, 100-111 = Not assigned
-        </doc>
+      <field name="ltt" type="Cat021LinkTechType">
+        <doc>Link Technology Type</doc>
       </field>
     </struct>
 
@@ -743,8 +895,8 @@
       <field name="mte" bits="1">
         <doc>Multiple Threat Encounter: 0 = no, 1 = yes</doc>
       </field>
-      <field name="tti" bits="2">
-        <doc>Threat Type Indicator: 00 = no identity, 01 = ID present as address, 10 = ID present as altitude, 11 = ID present as both</doc>
+      <field name="tti" type="Cat021ThreatTypeInd">
+        <doc>Threat Type Indicator</doc>
       </field>
       <field name="tid" bits="26">
         <doc>Threat Identity Data</doc>

@@ -40,6 +40,119 @@
       <doc>ICAO aircraft identification (8 chars x 6 bits = 48 bits = 6 bytes)</doc>
     </type>
 
+    <!-- ===================================================================
+         Shared Enum Types (used by multiple ASTERIX categories)
+         =================================================================== -->
+
+    <!-- Radar Detection Type (3 bits) - used in Cat007/Cat048 I020 -->
+    <type name="detection-type" base="uint" bits="3">
+      <doc>
+        Type of detection:
+        0 = No detection, 1 = Single PSR detection,
+        2 = Single SSR detection, 3 = SSR+PSR detection,
+        4 = Single Mode S All-Call, 5 = Single Mode S Roll-Call,
+        6 = Mode S All-Call + PSR, 7 = Mode S Roll-Call + PSR
+      </doc>
+      <enum>
+        <value id="0" name="no-detection"/>
+        <value id="1" name="single-psr"/>
+        <value id="2" name="single-ssr"/>
+        <value id="3" name="ssr-psr"/>
+        <value id="4" name="single-mode-s-all-call"/>
+        <value id="5" name="single-mode-s-roll-call"/>
+        <value id="6" name="mode-s-all-call-psr"/>
+        <value id="7" name="mode-s-roll-call-psr"/>
+      </enum>
+    </type>
+
+    <!-- Foe/Friend Identification (2 bits) - used in Cat007/Cat048 I020, Cat048 RE M4E -->
+    <type name="foe-fri-id" base="uint" bits="2">
+      <doc>
+        Foe/Friend Identification:
+        0 = No Mode 4 interrogation, 1 = Friendly target,
+        2 = Unknown target, 3 = No reply
+      </doc>
+      <enum>
+        <value id="0" name="no-mode-4-interrogation"/>
+        <value id="1" name="friendly"/>
+        <value id="2" name="unknown"/>
+        <value id="3" name="no-reply"/>
+      </enum>
+    </type>
+
+    <!-- Sensor Type maintaining track (2 bits) - used in Cat007/Cat048 I170 -->
+    <type name="sensor-type" base="uint" bits="2">
+      <doc>
+        Type of sensor maintaining track:
+        0 = Combined Track, 1 = PSR Track,
+        2 = SSR/Mode S Track, 3 = Invalid
+      </doc>
+      <enum>
+        <value id="0" name="combined"/>
+        <value id="1" name="psr"/>
+        <value id="2" name="ssr-mode-s"/>
+        <value id="3" name="invalid"/>
+      </enum>
+    </type>
+
+    <!-- Climbing/Descending Mode (2 bits) - used in Cat007/Cat048 I170 -->
+    <type name="climb-descend-mode" base="uint" bits="2">
+      <doc>
+        Climbing/Descending Mode:
+        0 = Maintaining, 1 = Climbing, 2 = Descending, 3 = Unknown
+      </doc>
+      <enum>
+        <value id="0" name="maintaining"/>
+        <value id="1" name="climbing"/>
+        <value id="2" name="descending"/>
+        <value id="3" name="unknown"/>
+      </enum>
+    </type>
+
+    <!-- Communications Capability (3 bits) - used in Cat007/Cat048 I230 -->
+    <type name="comm-capability" base="uint" bits="3">
+      <doc>
+        Communications capability of the transponder:
+        0 = No communications capability (surveillance only),
+        1 = Comm. A and Comm. B,
+        2 = Comm. A, Comm. B and Uplink ELM,
+        3 = Comm. A, Comm. B, Uplink ELM and Downlink ELM,
+        4 = Level 5 Transponder capability
+      </doc>
+      <enum>
+        <value id="0" name="no-comm"/>
+        <value id="1" name="comm-ab"/>
+        <value id="2" name="comm-ab-uplink-elm"/>
+        <value id="3" name="comm-ab-uplink-downlink-elm"/>
+        <value id="4" name="level-5"/>
+      </enum>
+    </type>
+
+    <!-- Flight Status (3 bits) - used in Cat007/Cat048 I230 -->
+    <type name="flight-status" base="uint" bits="3">
+      <doc>
+        Flight Status:
+        0 = No alert, no SPI, airborne,
+        1 = No alert, no SPI, on ground,
+        2 = Alert, no SPI, airborne,
+        3 = Alert, no SPI, on ground,
+        4 = Alert, SPI,
+        5 = No alert, SPI,
+        6 = Not assigned,
+        7 = Unknown
+      </doc>
+      <enum>
+        <value id="0" name="no-alert-no-spi-airborne"/>
+        <value id="1" name="no-alert-no-spi-on-ground"/>
+        <value id="2" name="alert-no-spi-airborne"/>
+        <value id="3" name="alert-no-spi-on-ground"/>
+        <value id="4" name="alert-spi"/>
+        <value id="5" name="no-alert-spi"/>
+        <value id="6" name="not-assigned"/>
+        <value id="7" name="unknown"/>
+      </enum>
+    </type>
+
     <!-- Data Source / Destination Identifier (SAC/SIC) -->
     <struct name="DataSourceId">
       <doc>System Area Code / System Identification Code</doc>

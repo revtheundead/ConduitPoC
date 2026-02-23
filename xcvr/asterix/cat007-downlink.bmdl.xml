@@ -15,24 +15,33 @@
 
   <types>
 
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I007/450 Mode S All-Call Lockout (2 bits) -->
+    <type name="Cat007Lockout" base="uint" bits="2">
+      <doc>
+        Mode S All-Call Lockout:
+        0 = No Lockout used,
+        1 = Lockout used by Interrogation Scheduler,
+        2 = Lockout-Override applied
+      </doc>
+      <enum>
+        <value id="0" name="NoLockout"/>
+        <value id="1" name="LockoutUsed"/>
+        <value id="2" name="LockoutOverride"/>
+      </enum>
+    </type>
+
     <!-- =======================================================================
          I007/020 - Target Report Descriptor
          Variable length (1+ octets, FX extension chain)
          ======================================================================= -->
     <struct name="Cat007I020">
       <doc>I007/020 - Target Report Descriptor</doc>
-      <field name="typ" bits="3">
-        <doc>
-          Type of detection:
-          000 = No detection
-          001 = Single PSR detection
-          010 = Single SSR detection
-          011 = SSR+PSR detection
-          100 = Single Mode S All-Call
-          101 = Single Mode S Roll-Call
-          110 = Mode S All-Call + PSR
-          111 = Mode S Roll-Call + PSR
-        </doc>
+      <field name="typ" type="DetectionType">
+        <doc>Type of detection</doc>
       </field>
       <field name="sim" bits="1">
         <doc>0 = Actual target report, 1 = Simulated target report</doc>
@@ -62,13 +71,8 @@
         <field name="mi" bits="1">
           <doc>0 = No military identification, 1 = Military identification</doc>
         </field>
-        <field name="foeFri" bits="2">
-          <doc>
-            00 = No Mode 4 interrogation
-            01 = Friendly target
-            10 = Unknown target
-            11 = No reply
-          </doc>
+        <field name="foeFri" type="FoeFriId">
+          <doc>Foe/Friend Identification</doc>
         </field>
       </fx>
     </struct>
@@ -512,14 +516,8 @@
       <field name="cnf" bits="1">
         <doc>0 = Confirmed track, 1 = Tentative track</doc>
       </field>
-      <field name="rad" bits="2">
-        <doc>
-          Type of sensor maintaining track:
-          00 = Combined Track
-          01 = PSR Track
-          10 = SSR/Mode S Track
-          11 = Invalid
-        </doc>
+      <field name="rad" type="SensorType">
+        <doc>Type of sensor maintaining track</doc>
       </field>
       <field name="dou" bits="1">
         <doc>0 = Normal confidence, 1 = Low confidence in plot to track association</doc>
@@ -527,14 +525,8 @@
       <field name="mah" bits="1">
         <doc>0 = No horizontal man. sensed, 1 = Horizontal man. sensed</doc>
       </field>
-      <field name="cdm" bits="2">
-        <doc>
-          Climbing/Descending Mode:
-          00 = Maintaining
-          01 = Climbing
-          10 = Descending
-          11 = Unknown
-        </doc>
+      <field name="cdm" type="ClimbDescendMode">
+        <doc>Climbing/Descending Mode</doc>
       </field>
       <fx>
         <field name="tre" bits="1">
@@ -587,28 +579,11 @@
          ======================================================================= -->
     <struct name="Cat007I230">
       <doc>I007/230 - Communications/ACAS Capability and Flight Status</doc>
-      <field name="com" bits="3">
-        <doc>
-          Communications capability:
-          0 = No communications capability (surveillance only)
-          1 = Comm. A and Comm. B
-          2 = Comm. A, Comm. B and Uplink ELM
-          3 = Comm. A, Comm. B, Uplink ELM and Downlink ELM
-          4 = Level 5 Transponder capability
-        </doc>
+      <field name="com" type="CommCapability">
+        <doc>Communications capability of the transponder</doc>
       </field>
-      <field name="stat" bits="3">
-        <doc>
-          Flight Status:
-          0 = No alert, no SPI, airborne
-          1 = No alert, no SPI, on ground
-          2 = Alert, no SPI, airborne
-          3 = Alert, no SPI, on ground
-          4 = Alert, SPI
-          5 = No alert, SPI
-          6 = Not assigned
-          7 = Unknown
-        </doc>
+      <field name="stat" type="FlightStatus">
+        <doc>Flight Status</doc>
       </field>
       <field name="si" bits="1">
         <doc>0 = SI-Code Capable, 1 = II-Code Capable</doc>
@@ -692,13 +667,8 @@
     <struct name="Cat007I450Ms">
       <doc>Mode S All Call Interrogations</doc>
       <reserved bits="6"/>
-      <field name="lo" bits="2">
-        <doc>
-          Lockout:
-          00 = No Lockout used
-          01 = Lockout used by Interrogation Scheduler
-          10 = Lockout-Override applied
-        </doc>
+      <field name="lo" type="Cat007Lockout">
+        <doc>Mode S All-Call Lockout</doc>
       </field>
       <field name="msNb" type="uint8">
         <doc>Number of Mode S All Calls performed for the request</doc>
