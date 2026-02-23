@@ -399,18 +399,35 @@ void emit_scaled_type(EmitContext& ctx, const model::TypeDef& t) {
     ctx.line();
 }
 
-void emit_trim_code(EmitContext& ctx, const std::string& var, model::StringTrim trim) {
+void emit_trim_code(EmitContext& ctx, const std::string& var,
+                    model::StringTrim trim, model::StringPadding padding) {
+    // Determine the character to strip based on the padding type.
+    // Null-padded fields strip only '\0'; space-padded fields strip only ' '.
+    std::string back_char;
+    std::string not_of_arg;
+    switch (padding) {
+        case model::StringPadding::Space:
+            back_char = "' '";
+            not_of_arg = "\" \"";
+            break;
+        case model::StringPadding::Null:
+        default:
+            back_char = "'\\0'";
+            not_of_arg = "std::string_view(\"\\0\", 1)";
+            break;
+    }
+
     switch (trim) {
         case model::StringTrim::Right:
             ctx.line("// Trim trailing padding");
-            ctx.line("while (!" + var + ".empty() && (" + var + ".back() == '\\0' || " + var + ".back() == ' '))");
+            ctx.line("while (!" + var + ".empty() && " + var + ".back() == " + back_char + ")");
             ctx.line("    " + var + ".pop_back();");
             break;
         case model::StringTrim::Left:
             ctx.line("// Trim leading padding");
             ctx.line("{");
             ctx.indent();
-            ctx.line("auto start = " + var + ".find_first_not_of(\" \\0\");");
+            ctx.line("auto start = " + var + ".find_first_not_of(" + not_of_arg + ");");
             ctx.line("if (start == std::string::npos) " + var + ".clear();");
             ctx.line("else if (start > 0) " + var + ".erase(0, start);");
             ctx.dedent();
@@ -420,13 +437,13 @@ void emit_trim_code(EmitContext& ctx, const std::string& var, model::StringTrim 
             ctx.line("// Trim leading padding");
             ctx.line("{");
             ctx.indent();
-            ctx.line("auto start = " + var + ".find_first_not_of(\" \\0\");");
+            ctx.line("auto start = " + var + ".find_first_not_of(" + not_of_arg + ");");
             ctx.line("if (start == std::string::npos) " + var + ".clear();");
             ctx.line("else if (start > 0) " + var + ".erase(0, start);");
             ctx.dedent();
             ctx.line("}");
             ctx.line("// Trim trailing padding");
-            ctx.line("while (!" + var + ".empty() && (" + var + ".back() == '\\0' || " + var + ".back() == ' '))");
+            ctx.line("while (!" + var + ".empty() && " + var + ".back() == " + back_char + ")");
             ctx.line("    " + var + ".pop_back();");
             break;
         case model::StringTrim::None:
@@ -466,6 +483,11 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
             if (t.padding == model::StringPadding::Null) pad_char = "0x00";
             else if (t.padding == model::StringPadding::Space) pad_char = "0x20";
             ctx.line("uint8_t ch = (i < value_.size()) ? static_cast<uint8_t>(value_[i]) : " + pad_char + ";");
+            // For packed characters (< 7 bits), convert lowercase to uppercase
+            // since the 6-bit IA-5 encoding only supports uppercase letters.
+            if (*t.char_bits < 7) {
+                ctx.line("if (ch >= 'a' && ch <= 'z') ch -= 32;");
+            }
         }
         ctx.line("w.write_bits(ch & ((1 << CHAR_BITS) - 1), CHAR_BITS);");
         ctx.dedent();
@@ -496,7 +518,7 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
         ctx.line("result.value_ += ch;");
         ctx.dedent();
         ctx.line("}");
-        emit_trim_code(ctx, "result.value_", t.trim);
+        emit_trim_code(ctx, "result.value_", t.trim, t.padding);
         ctx.line("return result;");
         ctx.dedent();
         ctx.line("}");
@@ -553,7 +575,7 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
         } else {
             ctx.line("result.value_ = std::move(*s);");
         }
-        emit_trim_code(ctx, "result.value_", t.trim);
+        emit_trim_code(ctx, "result.value_", t.trim, t.padding);
         ctx.line("return result;");
         ctx.dedent();
         ctx.line("}");
@@ -648,7 +670,7 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
             ctx.dedent();
             ctx.line("}");
         }
-        emit_trim_code(ctx, "s", t.trim);
+        emit_trim_code(ctx, "s", t.trim, t.padding);
         ctx.line("result.value_ = std::move(s);");
         ctx.line("return result;");
         ctx.dedent();

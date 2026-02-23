@@ -214,19 +214,45 @@ std::string field_encoding_enum(const model::Field& f) {
     }
 }
 
+// Resolve the effective padding for a field, checking field-level then type-level.
+static model::StringPadding resolve_effective_padding(const model::Field& f,
+                                                      const analyzer::TypeIndex& index) {
+    if (f.padding) return *f.padding;
+    if (!f.type_ref.empty()) {
+        auto it = index.types.find(f.type_ref);
+        if (it != index.types.end()) return it->second->padding;
+    }
+    return model::StringPadding::Null;
+}
+
+// Return the C++ back-char comparison and find_first_not_of argument for a padding type.
+static std::pair<std::string, std::string> trim_chars_for_padding(model::StringPadding padding) {
+    switch (padding) {
+        case model::StringPadding::Space:
+            return {"' '", "\" \""};
+        case model::StringPadding::Null:
+        default:
+            return {"'\\0'", "std::string_view(\"\\0\", 1)"};
+    }
+}
+
 // Emit trim code for a field-level string variable.
 // Only emits if the field has a trim setting (set by defaults propagation).
-void emit_field_trim(EmitContext& ctx, const std::string& var, const model::Field& f) {
+// Strips only the character matching the field's effective padding type.
+void emit_field_trim(EmitContext& ctx, const std::string& var, const model::Field& f,
+                     const analyzer::TypeIndex& index) {
     if (!f.trim) return;
+    auto padding = resolve_effective_padding(f, index);
+    auto [back_char, not_of_arg] = trim_chars_for_padding(padding);
     switch (*f.trim) {
         case model::StringTrim::Right:
-            ctx.line("while (!" + var + ".empty() && (" + var + ".back() == '\\0' || " + var + ".back() == ' '))");
+            ctx.line("while (!" + var + ".empty() && " + var + ".back() == " + back_char + ")");
             ctx.line("    " + var + ".pop_back();");
             break;
         case model::StringTrim::Left: {
             ctx.line("{");
             ctx.indent();
-            ctx.line("auto start = " + var + ".find_first_not_of(\" \\0\");");
+            ctx.line("auto start = " + var + ".find_first_not_of(" + not_of_arg + ");");
             ctx.line("if (start == std::string::npos) " + var + ".clear();");
             ctx.line("else if (start > 0) " + var + ".erase(0, start);");
             ctx.dedent();
@@ -236,12 +262,12 @@ void emit_field_trim(EmitContext& ctx, const std::string& var, const model::Fiel
         case model::StringTrim::Both: {
             ctx.line("{");
             ctx.indent();
-            ctx.line("auto start = " + var + ".find_first_not_of(\" \\0\");");
+            ctx.line("auto start = " + var + ".find_first_not_of(" + not_of_arg + ");");
             ctx.line("if (start == std::string::npos) " + var + ".clear();");
             ctx.line("else if (start > 0) " + var + ".erase(0, start);");
             ctx.dedent();
             ctx.line("}");
-            ctx.line("while (!" + var + ".empty() && (" + var + ".back() == '\\0' || " + var + ".back() == ' '))");
+            ctx.line("while (!" + var + ".empty() && " + var + ".back() == " + back_char + ")");
             ctx.line("    " + var + ".pop_back();");
             break;
         }

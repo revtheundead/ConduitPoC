@@ -135,6 +135,9 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                                 ctx_.line("for (int i = 0; i < " + std::to_string(char_count) + "; i++) {");
                                 ctx_.indent();
                                 ctx_.line("uint8_t ch = (static_cast<size_t>(i) < " + member + "->size()) ? static_cast<uint8_t>((*" + member + ")[i]) : 0x20;");
+                                if (char_bits < 7) {
+                                    ctx_.line("if (ch >= 'a' && ch <= 'z') ch -= 32;");
+                                }
                                 ctx_.line("w.write_bits(ch & ((1 << " + std::to_string(char_bits) + ") - 1), " + std::to_string(char_bits) + ");");
                                 ctx_.dedent();
                                 ctx_.line("}");
@@ -371,6 +374,9 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
                 ctx_.line("for (int i = 0; i < " + std::to_string(char_count) + "; i++) {");
                 ctx_.indent();
                 ctx_.line("uint8_t ch = (static_cast<size_t>(i) < " + member + ".size()) ? static_cast<uint8_t>(" + member + "[i]) : 0x20;");
+                if (char_bits < 7) {
+                    ctx_.line("if (ch >= 'a' && ch <= 'z') ch -= 32;");
+                }
                 ctx_.line("w.write_bits(ch & ((1 << " + std::to_string(char_bits) + ") - 1), " + std::to_string(char_bits) + ");");
                 ctx_.dedent();
                 ctx_.line("}");

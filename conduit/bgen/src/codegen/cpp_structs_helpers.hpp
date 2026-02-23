@@ -101,7 +101,8 @@ std::string endian_str(model::Endian e);
 bool field_needs_encoding(const model::Field& f);
 std::string field_encoding_enum(const model::Field& f);
 
-void emit_field_trim(EmitContext& ctx, const std::string& var, const model::Field& f);
+void emit_field_trim(EmitContext& ctx, const std::string& var, const model::Field& f,
+                     const analyzer::TypeIndex& index);
 
 std::string emit_read_expr(const FieldTypeInfo& fti, model::Endian endian,
                            const std::string& reader = "r",
