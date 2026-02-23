@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_tn</namespace></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="tag" type="uint8"/>
+      <choice name="payload" switch="tag">
+        <!-- typeName conflicts with the existing type "uint8" -->
+        <case value="1" name="a" typeName="uint8">
+          <field name="x" type="uint8"/>
+        </case>
+      </choice>
+    </message>
+  </messages>
+</bmdl>

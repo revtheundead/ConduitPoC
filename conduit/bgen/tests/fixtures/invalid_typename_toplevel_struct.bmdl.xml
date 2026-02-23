@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_tn</namespace></defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <!-- typeName not valid on top-level struct definitions -->
+    <struct name="MyStruct" typeName="Renamed">
+      <field name="x" type="uint8"/>
+    </struct>
+  </types>
+  <messages>
+    <message name="Msg">
+      <field name="data" type="MyStruct"/>
+    </message>
+  </messages>
+</bmdl>

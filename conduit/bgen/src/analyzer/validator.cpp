@@ -75,6 +75,68 @@ private:
         }
     }
 
+    // Validate a typeName override attribute.
+    // Checks: non-empty, valid C++ identifier, not a keyword, no conflicts with
+    // spec-defined types/structs/messages, and no duplicate typeName values.
+    void validate_type_name(const model::SourceLoc& loc, const std::string& type_name,
+                            const std::string& element_kind, const std::string& element_name,
+                            bool has_type_ref) {
+        if (type_name.empty()) {
+            error(loc, element_kind + " '" + element_name + "': typeName cannot be empty");
+            return;
+        }
+
+        // typeName is only valid on inline definitions (no type_ref)
+        if (has_type_ref) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName is not valid when 'type' attribute is present "
+                  "(typeName overrides the generated class name for inline definitions only)");
+            return;
+        }
+
+        // Check valid C++ identifier
+        if (!codegen::is_valid_cpp_identifier(type_name)) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' is not a valid C++ identifier");
+            return;
+        }
+
+        // Check not a C++ keyword
+        if (codegen::is_cpp_keyword(type_name)) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' is a C++ keyword");
+            return;
+        }
+
+        // Check conflict with spec-defined types
+        if (index_.types.count(type_name)) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' conflicts with existing type definition");
+            return;
+        }
+
+        // Check conflict with spec-defined structs
+        if (index_.structs.count(type_name)) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' conflicts with existing struct definition");
+            return;
+        }
+
+        // Check conflict with spec-defined messages
+        if (index_.messages.count(type_name)) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' conflicts with existing message definition");
+            return;
+        }
+
+        // Check duplicate typeName across the protocol
+        if (!used_type_names_.insert(type_name).second) {
+            error(loc, element_kind + " '" + element_name +
+                  "': typeName '" + type_name + "' is already used by another element");
+            return;
+        }
+    }
+
     model::PrimitiveBase resolve_base(const model::Field& f) const {
         if (f.base) return *f.base;
         if (!f.type_ref.empty()) {
@@ -423,6 +485,11 @@ private:
         if (!s.name.empty()) {
             check_cpp_name_valid(s.loc, s.name, "struct");
         }
+        // typeName is not valid on top-level structs (they already have proper names)
+        if (s.type_name) {
+            error(s.loc, "struct '" + s.name + "': typeName is not valid on top-level struct definitions "
+                  "(typeName overrides the generated class name for inline definitions only)");
+        }
         if (s.children.empty()) {
             Logger::warn(s.loc.to_string() + ": struct '" + s.name + "' has no fields");
         }
@@ -612,6 +679,10 @@ private:
                     if (c.bit && !in_bitmap) {
                         error(c.loc, "'" + c.name + "': 'bit' only valid inside presence=\"bitmap\" struct");
                     }
+                    // Validate typeName if present
+                    if (c.type_name) {
+                        validate_type_name(c.loc, *c.type_name, "struct", c.name, false);
+                    }
                     // Pass current field_names as parent scope to child struct
                     validate_children(c.children, c.is_bitmap,
                                      c.name.empty() ? parent_name : c.name,
@@ -648,6 +719,10 @@ private:
                             error(c.loc, "duplicate name '" + c.name + "' in " + parent_name);
                         }
                         array_names.insert(c.name);
+                    }
+                    // Validate typeName if present
+                    if (c.type_name) {
+                        validate_type_name(c.loc, *c.type_name, "array", c.name, !c.type_ref.empty());
                     }
                     // Track count="*" arrays — must be last data element
                     if (c.count_star) {
@@ -1411,12 +1486,24 @@ private:
                 error(cs.loc, "duplicate case name '" + cs.name + "' in choice '" + c.name + "'");
             }
 
+            // Validate typeName if present
+            if (cs.type_name) {
+                validate_type_name(cs.loc, *cs.type_name, "case", cs.name, !cs.type_ref.empty());
+            }
+
             bool choice_bounded = c.length_from != nullptr || c.length;
             validate_children(cs.children, false, c.name + "." + cs.name, false, true,
                             choice_bounded || in_bounded_container, parent_field_names);
         }
 
         if (c.otherwise) {
+            // Validate typeName on otherwise if present
+            if (c.otherwise->type_name) {
+                validate_type_name(c.otherwise->loc, *c.otherwise->type_name,
+                                  "otherwise", c.otherwise->name.empty() ? "otherwise" : c.otherwise->name,
+                                  !c.otherwise->type_ref.empty());
+            }
+
             bool choice_bounded = c.length_from != nullptr || c.length;
             validate_children(c.otherwise->children, false, c.name + ".otherwise", false, true,
                             choice_bounded || in_bounded_container, parent_field_names);
@@ -2025,6 +2112,7 @@ private:
     const model::Protocol& proto_;
     const TypeIndex& index_;
     std::vector<ValidationError> errors_;
+    std::unordered_set<std::string> used_type_names_;  // Track typeName uniqueness
 };
 
 } // anonymous namespace

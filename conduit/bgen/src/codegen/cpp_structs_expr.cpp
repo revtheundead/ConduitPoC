@@ -271,8 +271,27 @@ std::string StructEmitter::resolve_field_cpp_type(const std::string& parent_name
     return result;
 }
 
+void StructEmitter::register_type_name_override(const std::string& parent_name,
+                                                  const std::string& bmdl_name,
+                                                  const std::string& type_name) {
+    std::string key = parent_name + "|" + bmdl_name;
+    type_name_overrides_[key] = type_name;
+}
+
+std::string StructEmitter::lookup_type_name_override(const std::string& bmdl_name) const {
+    std::string key = current_parent_ + "|" + bmdl_name;
+    auto it = type_name_overrides_.find(key);
+    if (it != type_name_overrides_.end()) return it->second;
+    return {};
+}
+
 std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name,
                                                       const std::string& parent_name) {
+    // Check for typeName override
+    std::string key = parent_name + "|" + bmdl_name;
+    auto it = type_name_overrides_.find(key);
+    if (it != type_name_overrides_.end()) return it->second;
+
     std::string name = to_cpp_type_name(bmdl_name);
     if (name.empty()) return {};
     if (!parent_name.empty()) {
@@ -282,6 +301,10 @@ std::string StructEmitter::resolve_child_class_name(const std::string& bmdl_name
 }
 
 std::string StructEmitter::get_child_class_name(const std::string& bmdl_name) {
+    // Check for typeName override
+    auto override_name = lookup_type_name_override(bmdl_name);
+    if (!override_name.empty()) return override_name;
+
     std::string name = to_cpp_type_name(bmdl_name);
     if (!current_parent_.empty()) {
         return to_cpp_type_name(current_parent_) + "_" + name;

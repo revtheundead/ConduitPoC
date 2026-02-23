@@ -126,6 +126,28 @@ Specific patterns:
 
 Top-level structs and messages (with empty `parent_name`) use `to_cpp_type_name(bmdl_name)` directly.
 
+## `typeName` Override
+
+The `typeName` attribute overrides the auto-generated class name for inline definitions. When present, the value is used directly as the C++ class name instead of the parent-prefixed convention:
+
+| Element | BMDL | Default Name | With `typeName` |
+|---------|------|-------------|-----------------|
+| Inline case | `<case name="heartbeat" typeName="HeartbeatPayload">` | `MyMessage_heartbeat` | `HeartbeatPayload` |
+| Otherwise | `<otherwise name="unknown" typeName="UnknownPayload">` | `MyMessage_payloadOtherwise` | `UnknownPayload` |
+| Inline struct | `<struct name="header" typeName="MsgHeader">` | `MyMessage_header` | `MsgHeader` |
+| Array element | `<array name="items" typeName="ArrayItem">` | `MyMessage_itemsElement` | `ArrayItem` |
+
+**Restrictions:**
+
+- Only valid on inline definitions (cannot combine with `type` attribute)
+- Must be a valid C++ identifier (letters, digits, underscores; cannot start with a digit)
+- Must not be a C++ keyword or reserved identifier (no `__` prefix)
+- Must not conflict with any type, struct, or message name in the protocol
+- Must be unique across all `typeName` values in the protocol
+- Not valid on top-level `<struct>` definitions (which already have proper names)
+
+See [choices documentation](../bmdl/choices.md#naming-inline-cases-with-typename) for usage examples.
+
 ## Inline Enum Names
 
 Fields with inline `<enum>` definitions generate a standalone enum type. The name uses `to_pascal_case` on both the parent class name and the field name:

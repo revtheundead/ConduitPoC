@@ -2112,3 +2112,218 @@ TEST_CASE("Duplicate config key across frame and message rejected", "[validator]
     }
     CHECK(found);
 }
+
+// ============================================================================
+// typeName attribute validation
+// ============================================================================
+
+TEST_CASE("Valid typeName override passes validation", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("type_name_override.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("typeName that is C++ keyword rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_keyword.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("C++ keyword") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName that is invalid identifier rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_identifier.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("not a valid C++ identifier") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName conflicting with type definition rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_conflict_type.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("conflicts with existing type") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName conflicting with message definition rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_conflict_message.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("conflicts with existing message") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName with type attribute rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_with_type_ref.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("not valid when 'type' attribute is present") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Duplicate typeName values rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_duplicate.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("already used") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Empty typeName rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_empty.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("cannot be empty") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName on top-level struct rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_toplevel_struct.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("not valid on top-level struct") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("typeName with reserved C++ identifier rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_reserved.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("not a valid C++ identifier") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}

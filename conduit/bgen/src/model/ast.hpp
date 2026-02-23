@@ -276,6 +276,8 @@ struct StructDef {
     std::optional<int> bit;
     std::unique_ptr<Expr> present_when;
 
+    std::optional<std::string> type_name;  // typeName override for generated class name
+
     std::vector<Annotation> annotations;
     std::string doc;
     SourceLoc loc;
@@ -300,6 +302,8 @@ struct ArrayDef {
     std::optional<int> bit;
     std::unique_ptr<Expr> present_when;
 
+    std::optional<std::string> type_name;  // typeName override for generated element class name
+
     std::vector<Annotation> annotations;
     std::string doc;
     SourceLoc loc;
@@ -319,6 +323,8 @@ struct CaseDef {
 
     Direction direction = Direction::Both;
 
+    std::optional<std::string> type_name;  // typeName override for generated class name
+
     std::vector<Annotation> annotations;
     std::string doc;
     SourceLoc loc;
@@ -328,6 +334,8 @@ struct OtherwiseDef {
     std::string name;
     std::string type_ref;
     std::vector<StructChild> children;
+
+    std::optional<std::string> type_name;  // typeName override for generated class name
 
     std::vector<Annotation> annotations;
     std::string doc;

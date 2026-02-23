@@ -643,12 +643,15 @@ public:
         if (bit_attr) sd.bit = *bit_attr;
         sd.present_when = parse_expr_attr(node, "present-when");
 
+        auto type_name_attr = node.attribute("typeName");
+        if (type_name_attr) sd.type_name = type_name_attr.value();
+
         sd.children = parse_struct_children(node);
         sd.doc = get_doc(node);
         sd.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
-            "name", "presence", "bit", "present-when"
+            "name", "presence", "bit", "present-when", "typeName"
         });
 
         return sd;
@@ -708,12 +711,15 @@ public:
             ad.children = parse_struct_children(node);
         }
 
+        auto type_name_attr = node.attribute("typeName");
+        if (type_name_attr) ad.type_name = type_name_attr.value();
+
         ad.doc = get_doc(node);
         ad.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
             "name", "type", "count", "count-from", "length", "length-from",
-            "bit", "present-when"
+            "bit", "present-when", "typeName"
         });
 
         return ad;
@@ -763,6 +769,9 @@ public:
 
             cdef.direction = parse_direction(case_node);
 
+            auto type_name_attr = case_node.attribute("typeName");
+            if (type_name_attr) cdef.type_name = type_name_attr.value();
+
             // Inline children
             if (!type_attr) {
                 cdef.children = parse_struct_children(case_node);
@@ -772,7 +781,7 @@ public:
             cdef.annotations = parse_annotations(case_node);
 
             check_unknown_attrs(case_node, {
-                "name", "type", "value", "range", "direction"
+                "name", "type", "value", "range", "direction", "typeName"
             });
 
             cd.cases.push_back(std::move(cdef));
@@ -807,6 +816,9 @@ public:
             auto type_attr = other.attribute("type");
             if (type_attr) od.type_ref = type_attr.value();
 
+            auto type_name_attr = other.attribute("typeName");
+            if (type_name_attr) od.type_name = type_name_attr.value();
+
             if (!type_attr) {
                 od.children = parse_struct_children(other);
             }
@@ -814,7 +826,7 @@ public:
             od.doc = get_doc(other);
             od.annotations = parse_annotations(other);
 
-            check_unknown_attrs(other, {"name", "type"});
+            check_unknown_attrs(other, {"name", "type", "typeName"});
 
             cd.otherwise = std::move(od);
         }

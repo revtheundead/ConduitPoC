@@ -830,17 +830,29 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
     for (const auto& child : children) {
         if (auto* sd = std::get_if<model::StructDef>(&child)) {
             if (!sd->name.empty()) {
+                // Register typeName override if present
+                if (sd->type_name) {
+                    register_type_name_override(parent_name, sd->name, *sd->type_name);
+                }
                 // Analyze outer-scope refs: child struct's expressions may reference parent fields
                 analyze_outer_scope(sd->name, sd->children, children);
                 emit_struct(*sd, parent_name);
             }
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
+                // Register typeName override for array element if present
+                if (ad->type_name) {
+                    register_type_name_override(parent_name, ad->name + "Element", *ad->type_name);
+                }
                 emit_synthetic_struct(ad->name + "Element", ad->children, parent_name);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
+                    // Register typeName override if present
+                    if (cs.type_name) {
+                        register_type_name_override(parent_name, cs.name, *cs.type_name);
+                    }
                     // Analyze outer-scope refs: case children may reference parent struct fields
                     analyze_outer_scope(cs.name, cs.children, children);
                     // Always prefix inline case types to prevent cross-message collisions
@@ -849,6 +861,10 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
                 std::string otherwise_name = cd->name + "Otherwise";
+                // Register typeName override if present
+                if (cd->otherwise->type_name) {
+                    register_type_name_override(parent_name, otherwise_name, *cd->otherwise->type_name);
+                }
                 // Analyze outer-scope refs: otherwise children may reference parent struct fields
                 analyze_outer_scope(otherwise_name, cd->otherwise->children, children);
                 // Always prefix otherwise types to prevent cross-message collisions
