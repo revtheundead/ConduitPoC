@@ -40,6 +40,357 @@
       <doc>ICAO aircraft identification (8 chars x 6 bits = 48 bits = 6 bytes)</doc>
     </type>
 
+    <!-- ===================================================================
+         Shared Enum Types (used by multiple ASTERIX categories)
+         =================================================================== -->
+
+    <!-- Radar Detection Type (3 bits) - used in Cat007/Cat048 I020 -->
+    <type name="detection-type" base="uint" bits="3">
+      <doc>
+        Type of detection:
+        0 = No detection, 1 = Single PSR detection,
+        2 = Single SSR detection, 3 = SSR+PSR detection,
+        4 = Single Mode S All-Call, 5 = Single Mode S Roll-Call,
+        6 = Mode S All-Call + PSR, 7 = Mode S Roll-Call + PSR
+      </doc>
+      <enum>
+        <value id="0" name="no-detection"/>
+        <value id="1" name="single-psr"/>
+        <value id="2" name="single-ssr"/>
+        <value id="3" name="ssr-psr"/>
+        <value id="4" name="single-mode-s-all-call"/>
+        <value id="5" name="single-mode-s-roll-call"/>
+        <value id="6" name="mode-s-all-call-psr"/>
+        <value id="7" name="mode-s-roll-call-psr"/>
+      </enum>
+    </type>
+
+    <!-- Foe/Friend Identification (2 bits) - used in Cat007/Cat048 I020, Cat048 RE M4E -->
+    <type name="foe-fri-id" base="uint" bits="2">
+      <doc>
+        Foe/Friend Identification:
+        0 = No Mode 4 interrogation, 1 = Friendly target,
+        2 = Unknown target, 3 = No reply
+      </doc>
+      <enum>
+        <value id="0" name="no-mode-4-interrogation"/>
+        <value id="1" name="friendly"/>
+        <value id="2" name="unknown"/>
+        <value id="3" name="no-reply"/>
+      </enum>
+    </type>
+
+    <!-- Sensor Type maintaining track (2 bits) - used in Cat007/Cat048 I170 -->
+    <type name="sensor-type" base="uint" bits="2">
+      <doc>
+        Type of sensor maintaining track:
+        0 = Combined Track, 1 = PSR Track,
+        2 = SSR/Mode S Track, 3 = Invalid
+      </doc>
+      <enum>
+        <value id="0" name="combined"/>
+        <value id="1" name="psr"/>
+        <value id="2" name="ssr-mode-s"/>
+        <value id="3" name="invalid"/>
+      </enum>
+    </type>
+
+    <!-- Climbing/Descending Mode (2 bits) - used in Cat007/Cat048 I170 -->
+    <type name="climb-descend-mode" base="uint" bits="2">
+      <doc>
+        Climbing/Descending Mode:
+        0 = Maintaining, 1 = Climbing, 2 = Descending, 3 = Unknown
+      </doc>
+      <enum>
+        <value id="0" name="maintaining"/>
+        <value id="1" name="climbing"/>
+        <value id="2" name="descending"/>
+        <value id="3" name="unknown"/>
+      </enum>
+    </type>
+
+    <!-- Communications Capability (3 bits) - used in Cat007/Cat048 I230 -->
+    <type name="comm-capability" base="uint" bits="3">
+      <doc>
+        Communications capability of the transponder:
+        0 = No communications capability (surveillance only),
+        1 = Comm. A and Comm. B,
+        2 = Comm. A, Comm. B and Uplink ELM,
+        3 = Comm. A, Comm. B, Uplink ELM and Downlink ELM,
+        4 = Level 5 Transponder capability
+      </doc>
+      <enum>
+        <value id="0" name="no-comm"/>
+        <value id="1" name="comm-ab"/>
+        <value id="2" name="comm-ab-uplink-elm"/>
+        <value id="3" name="comm-ab-uplink-downlink-elm"/>
+        <value id="4" name="level-5"/>
+      </enum>
+    </type>
+
+    <!-- Flight Status (3 bits) - used in Cat007/Cat048 I230 -->
+    <type name="flight-status" base="uint" bits="3">
+      <doc>
+        Flight Status:
+        0 = No alert, no SPI, airborne,
+        1 = No alert, no SPI, on ground,
+        2 = Alert, no SPI, airborne,
+        3 = Alert, no SPI, on ground,
+        4 = Alert, SPI,
+        5 = No alert, SPI,
+        6 = Not assigned,
+        7 = Unknown
+      </doc>
+      <enum>
+        <value id="0" name="no-alert-no-spi-airborne"/>
+        <value id="1" name="no-alert-no-spi-on-ground"/>
+        <value id="2" name="alert-no-spi-airborne"/>
+        <value id="3" name="alert-no-spi-on-ground"/>
+        <value id="4" name="alert-spi"/>
+        <value id="5" name="no-alert-spi"/>
+        <value id="6" name="not-assigned"/>
+        <value id="7" name="unknown"/>
+      </enum>
+    </type>
+
+    <!-- ===================================================================
+         Shared Binary Enum Types (1-bit, used by multiple ASTERIX categories)
+         =================================================================== -->
+
+    <!-- Code Validated indicator (1 bit) - used in Cat007/Cat048 I050/I055/I070/I090/I100, Cat048 RE EM1, Cat021 RE MES EM1/M2 -->
+    <type name="code-validated" base="uint" bits="1">
+      <doc>0 = Code validated, 1 = Code not validated</doc>
+      <enum>
+        <value id="0" name="validated"/>
+        <value id="1" name="not-validated"/>
+      </enum>
+    </type>
+
+    <!-- Code Garbled indicator (1 bit) - used in Cat007/Cat048 I050/I055/I070/I090/I100/I085Em1/ReEm1 -->
+    <type name="code-garbled" base="uint" bits="1">
+      <doc>0 = Default, 1 = Garbled code</doc>
+      <enum>
+        <value id="0" name="not-garbled"/>
+        <value id="1" name="garbled"/>
+      </enum>
+    </type>
+
+    <!-- Code Source - Smoothed (1 bit) - used in Cat007/Cat048 I050/I055 (l field) -->
+    <type name="code-source-smoothed" base="uint" bits="1">
+      <doc>0 = Code from transponder reply, 1 = Smoothed code from local tracker</doc>
+      <enum>
+        <value id="0" name="transponder-reply"/>
+        <value id="1" name="smoothed-local"/>
+      </enum>
+    </type>
+
+    <!-- Code Source - Extracted (1 bit) - used in Cat007/Cat048 I070/I085Em1/ReEm1, Cat021 RE MES EM1/M2 (l field) -->
+    <type name="code-source-extracted" base="uint" bits="1">
+      <doc>0 = Code from reply, 1 = Not extracted during last scan/update</doc>
+      <enum>
+        <value id="0" name="from-reply"/>
+        <value id="1" name="not-extracted"/>
+      </enum>
+    </type>
+
+    <!-- Simulation Indicator (1 bit) - used in Cat007/Cat048 I020, Cat021 I040, Cat253 I080 -->
+    <type name="sim-indicator" base="uint" bits="1">
+      <doc>0 = Actual target report, 1 = Simulated target report</doc>
+      <enum>
+        <value id="0" name="actual"/>
+        <value id="1" name="simulated"/>
+      </enum>
+    </type>
+
+    <!-- Test Target indicator (1 bit) - used in Cat007/Cat048 I020, Cat021 I040 -->
+    <type name="test-target" base="uint" bits="1">
+      <doc>0 = Real target report, 1 = Test target report</doc>
+      <enum>
+        <value id="0" name="real"/>
+        <value id="1" name="test"/>
+      </enum>
+    </type>
+
+    <!-- Report Source (1 bit) - used in Cat007/Cat048 I020, Cat021 I040 (rab field) -->
+    <type name="report-source" base="uint" bits="1">
+      <doc>0 = Report from aircraft transponder, 1 = Report from field monitor (fixed transponder)</doc>
+      <enum>
+        <value id="0" name="transponder"/>
+        <value id="1" name="field-monitor"/>
+      </enum>
+    </type>
+
+    <!-- RDP Chain Selection (1 bit) - used in Cat007/Cat048 I020 -->
+    <type name="rdp-chain" base="uint" bits="1">
+      <doc>0 = Report from RDP Chain 1, 1 = Report from RDP Chain 2</doc>
+      <enum>
+        <value id="0" name="chain-1"/>
+        <value id="1" name="chain-2"/>
+      </enum>
+    </type>
+
+    <!-- Special Position Identification (1 bit) - used in Cat007/Cat048 I020 -->
+    <type name="spi-presence" base="uint" bits="1">
+      <doc>0 = Absence of SPI, 1 = Special Position Identification</doc>
+      <enum>
+        <value id="0" name="absent"/>
+        <value id="1" name="present"/>
+      </enum>
+    </type>
+
+    <!-- Extended Range indicator (1 bit) - used in Cat007/Cat048 I020 -->
+    <type name="extended-range" base="uint" bits="1">
+      <doc>0 = No extended range, 1 = Extended range present</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="present"/>
+      </enum>
+    </type>
+
+    <!-- X-Pulse Presence (1 bit) - used in Cat007/Cat048 I020 -->
+    <type name="x-pulse-presence" base="uint" bits="1">
+      <doc>0 = No X-Pulse present, 1 = X-Pulse present</doc>
+      <enum>
+        <value id="0" name="absent"/>
+        <value id="1" name="present"/>
+      </enum>
+    </type>
+
+    <!-- Military Emergency (1 bit) - used in Cat007/Cat048 I020, Cat021 I200 -->
+    <type name="military-emergency" base="uint" bits="1">
+      <doc>0 = No military emergency, 1 = Military emergency</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="emergency"/>
+      </enum>
+    </type>
+
+    <!-- Military Identification (1 bit) - used in Cat007/Cat048 I020 -->
+    <type name="military-id" base="uint" bits="1">
+      <doc>0 = No military identification, 1 = Military identification</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="present"/>
+      </enum>
+    </type>
+
+    <!-- Track Confidence (1 bit) - used in Cat007/Cat048 I170 (cnf field) -->
+    <type name="track-confidence" base="uint" bits="1">
+      <doc>0 = Confirmed track, 1 = Tentative track</doc>
+      <enum>
+        <value id="0" name="confirmed"/>
+        <value id="1" name="tentative"/>
+      </enum>
+    </type>
+
+    <!-- Association Confidence (1 bit) - used in Cat007/Cat048 I170 (dou field) -->
+    <type name="assoc-confidence" base="uint" bits="1">
+      <doc>0 = Normal confidence, 1 = Low confidence in plot to track association</doc>
+      <enum>
+        <value id="0" name="normal"/>
+        <value id="1" name="low"/>
+      </enum>
+    </type>
+
+    <!-- Horizontal Maneuver (1 bit) - used in Cat007/Cat048 I170 (mah field) -->
+    <type name="horiz-maneuver" base="uint" bits="1">
+      <doc>0 = No horizontal maneuver sensed, 1 = Horizontal maneuver sensed</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="sensed"/>
+      </enum>
+    </type>
+
+    <!-- Track Lifetime (1 bit) - used in Cat007/Cat048 I170 (tre field) -->
+    <type name="track-lifetime" base="uint" bits="1">
+      <doc>0 = Track still alive, 1 = End of track lifetime</doc>
+      <enum>
+        <value id="0" name="alive"/>
+        <value id="1" name="end-of-lifetime"/>
+      </enum>
+    </type>
+
+    <!-- Ghost Target (1 bit) - used in Cat007/Cat048 I170 (gho field) -->
+    <type name="ghost-target" base="uint" bits="1">
+      <doc>0 = True target track, 1 = Ghost target track</doc>
+      <enum>
+        <value id="0" name="true-target"/>
+        <value id="1" name="ghost"/>
+      </enum>
+    </type>
+
+    <!-- Neighbor Support (1 bit) - used in Cat007/Cat048 I170 (sup field) -->
+    <type name="neighbor-support" base="uint" bits="1">
+      <doc>0 = No, 1 = Track maintained with info from neighbouring Node B</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="from-neighbor"/>
+      </enum>
+    </type>
+
+    <!-- Track Coordinate Type (1 bit) - used in Cat007/Cat048 I170 (tcc field) -->
+    <type name="track-coord-type" base="uint" bits="1">
+      <doc>0 = Tracking in Radar Plane, 1 = Slant range correction and projection applied</doc>
+      <enum>
+        <value id="0" name="radar-plane"/>
+        <value id="1" name="correction-applied"/>
+      </enum>
+    </type>
+
+    <!-- SI/II Code Capability (1 bit) - used in Cat007/Cat048 I230 -->
+    <type name="si-ii-capability" base="uint" bits="1">
+      <doc>0 = SI-Code Capable, 1 = II-Code Capable</doc>
+      <enum>
+        <value id="0" name="si-code"/>
+        <value id="1" name="ii-code"/>
+      </enum>
+    </type>
+
+    <!-- Mode-S Specific Service Capability (1 bit) - used in Cat007/Cat048 I230 -->
+    <type name="mode-s-service-cap" base="uint" bits="1">
+      <doc>Mode-S Specific Service Capability: 0 = No, 1 = Yes</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="capable"/>
+      </enum>
+    </type>
+
+    <!-- Altitude Reporting Resolution (1 bit) - used in Cat007/Cat048 I230/I085Ga/ReGa -->
+    <type name="alt-resolution" base="uint" bits="1">
+      <doc>Altitude Reporting Resolution: 0 = 100 ft, 1 = 25 ft</doc>
+      <enum>
+        <value id="0" name="ft-100"/>
+        <value id="1" name="ft-25"/>
+      </enum>
+    </type>
+
+    <!-- Aircraft Identification Capability (1 bit) - used in Cat007/Cat048 I230 -->
+    <type name="aircraft-id-cap" base="uint" bits="1">
+      <doc>Aircraft Identification Capability: 0 = No, 1 = Yes</doc>
+      <enum>
+        <value id="0" name="none"/>
+        <value id="1" name="capable"/>
+      </enum>
+    </type>
+
+    <!-- Doppler Speed Validity (1 bit) - used in Cat007/Cat048 I120Cal -->
+    <type name="doppler-validity" base="uint" bits="1">
+      <doc>0 = Doppler speed is valid, 1 = Doppler speed is doubtful</doc>
+      <enum>
+        <value id="0" name="valid"/>
+        <value id="1" name="doubtful"/>
+      </enum>
+    </type>
+
+    <!-- National Origin Validity (1 bit) - used in Cat048 RE MD5/M5N PMN -->
+    <type name="nat-origin-validity" base="uint" bits="1">
+      <doc>0 = National Origin is valid, 1 = National Origin is invalid</doc>
+      <enum>
+        <value id="0" name="valid"/>
+        <value id="1" name="invalid"/>
+      </enum>
+    </type>
+
     <!-- Data Source / Destination Identifier (SAC/SIC) -->
     <struct name="DataSourceId">
       <doc>System Area Code / System Identification Code</doc>

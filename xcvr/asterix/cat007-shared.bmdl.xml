@@ -11,6 +11,32 @@
 
   <types>
 
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I007/410 Directed Interrogation Message Type (8 bits) -->
+    <type name="Cat007DiMsgType" base="uint" bits="8">
+      <doc>
+        Directed Interrogation Message Type:
+        0 = Acknowledge, 1 = Reject, 2 = Interrogation Finished,
+        3 = Interrogation Completed, 4 = Target Report,
+        5 = Interrogation Request Type A, 6 = Interrogation Request Type B,
+        7 = Interrogation Request Type C, 8 = Selective BDS-Register Request
+      </doc>
+      <enum>
+        <value id="0" name="Acknowledge"/>
+        <value id="1" name="Reject"/>
+        <value id="2" name="InterrogationFinished"/>
+        <value id="3" name="InterrogationCompleted"/>
+        <value id="4" name="TargetReport"/>
+        <value id="5" name="InterrogationRequestTypeA"/>
+        <value id="6" name="InterrogationRequestTypeB"/>
+        <value id="7" name="InterrogationRequestTypeC"/>
+        <value id="8" name="SelectiveBdsRegisterRequest"/>
+      </enum>
+    </type>
+
     <!-- =======================================================================
          I007/040 - Measured Position in Slant Polar Co-ordinates
          Fixed 4 octets: RHO (16-bit unsigned) + THETA (16-bit unsigned)
@@ -108,8 +134,8 @@
         7 = Interrogation Request Type C
         8 = Selective BDS-Register Request
       </doc>
-      <field name="msgType" type="uint8">
-        <doc>Directed Interrogation message type (0..8)</doc>
+      <field name="msgType" type="Cat007DiMsgType">
+        <doc>Directed Interrogation message type</doc>
       </field>
     </struct>
 

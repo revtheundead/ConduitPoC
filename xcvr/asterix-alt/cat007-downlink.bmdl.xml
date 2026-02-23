@@ -15,60 +15,64 @@
 
   <types>
 
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I007/450 Mode S All-Call Lockout (2 bits) -->
+    <type name="cat007-lockout" base="uint" bits="2">
+      <doc>
+        Mode S All-Call Lockout:
+        0 = No Lockout used,
+        1 = Lockout used by Interrogation Scheduler,
+        2 = Lockout-Override applied
+      </doc>
+      <enum>
+        <value id="0" name="no-lockout"/>
+        <value id="1" name="lockout-used"/>
+        <value id="2" name="lockout-override"/>
+      </enum>
+    </type>
+
     <!-- =======================================================================
          I007/020 - Target Report Descriptor
          Variable length (1+ octets, FX extension chain)
          ======================================================================= -->
     <struct name="Cat007I020">
       <doc>I007/020 - Target Report Descriptor</doc>
-      <field name="typ" bits="3">
-        <doc>
-          Type of detection:
-          000 = No detection
-          001 = Single PSR detection
-          010 = Single SSR detection
-          011 = SSR+PSR detection
-          100 = Single Mode S All-Call
-          101 = Single Mode S Roll-Call
-          110 = Mode S All-Call + PSR
-          111 = Mode S Roll-Call + PSR
-        </doc>
+      <field name="typ" type="detection-type">
+        <doc>Type of detection</doc>
       </field>
-      <field name="sim" bits="1">
-        <doc>0 = Actual target report, 1 = Simulated target report</doc>
+      <field name="sim" type="sim-indicator">
+        <doc>Simulation indicator</doc>
       </field>
-      <field name="rdp" bits="1">
-        <doc>0 = Report from RDP Chain 1, 1 = Report from RDP Chain 2</doc>
+      <field name="rdp" type="rdp-chain">
+        <doc>RDP Chain selection</doc>
       </field>
-      <field name="spi" bits="1">
-        <doc>0 = Absence of SPI, 1 = Special Position Identification</doc>
+      <field name="spi" type="spi-presence">
+        <doc>Special Position Identification</doc>
       </field>
-      <field name="rab" bits="1">
-        <doc>0 = Report from aircraft transponder, 1 = Report from field monitor (fixed transponder)</doc>
+      <field name="rab" type="report-source">
+        <doc>Report source</doc>
       </field>
       <fx>
-        <field name="tst" bits="1">
-          <doc>0 = Real target report, 1 = Test target report</doc>
+        <field name="tst" type="test-target">
+          <doc>Test target indicator</doc>
         </field>
-        <field name="err" bits="1">
-          <doc>0 = No extended range, 1 = Extended range present</doc>
+        <field name="err" type="extended-range">
+          <doc>Extended range indicator</doc>
         </field>
-        <field name="xpp" bits="1">
-          <doc>0 = No X-Pulse present, 1 = X-Pulse present</doc>
+        <field name="xpp" type="x-pulse-presence">
+          <doc>X-Pulse presence</doc>
         </field>
-        <field name="me" bits="1">
-          <doc>0 = No military emergency, 1 = Military emergency</doc>
+        <field name="me" type="military-emergency">
+          <doc>Military emergency</doc>
         </field>
-        <field name="mi" bits="1">
-          <doc>0 = No military identification, 1 = Military identification</doc>
+        <field name="mi" type="military-id">
+          <doc>Military identification</doc>
         </field>
-        <field name="foe-fri" bits="2">
-          <doc>
-            00 = No Mode 4 interrogation
-            01 = Friendly target
-            10 = Unknown target
-            11 = No reply
-          </doc>
+        <field name="foe-fri" type="foe-fri-id">
+          <doc>Foe/Friend Identification</doc>
         </field>
       </fx>
     </struct>
@@ -101,14 +105,14 @@
          ======================================================================= -->
     <struct name="Cat007I050">
       <doc>I007/050 - Mode-2 Code in Octal Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
-      <field name="l" bits="1">
-        <doc>0 = Mode-2 code from transponder reply, 1 = Smoothed Mode-2 code from local tracker</doc>
+      <field name="l" type="code-source-smoothed">
+        <doc>Mode-2 code source</doc>
       </field>
       <reserved bits="1"/>
       <field name="code" bits="12">
@@ -122,14 +126,14 @@
          ======================================================================= -->
     <struct name="Cat007I055">
       <doc>I007/055 - Mode-1 Code in Octal Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
-      <field name="l" bits="1">
-        <doc>0 = Mode-1 code from transponder reply, 1 = Smoothed Mode-1 code from local tracker</doc>
+      <field name="l" type="code-source-smoothed">
+        <doc>Mode-1 code source</doc>
       </field>
       <field name="code" bits="5">
         <doc>Mode-1 code (5 bits, octal representation)</doc>
@@ -166,14 +170,14 @@
          ======================================================================= -->
     <struct name="Cat007I070">
       <doc>I007/070 - Mode-3/A Code in Octal Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
-      <field name="l" bits="1">
-        <doc>0 = Mode-3/A code from transponder, 1 = Not extracted during last scan</doc>
+      <field name="l" type="code-source-extracted">
+        <doc>Mode-3/A code source</doc>
       </field>
       <reserved bits="1"/>
       <field name="code" bits="12">
@@ -262,8 +266,8 @@
     <struct name="Cat007I085Ga">
       <doc>Mode 5 GNSS-derived Altitude</doc>
       <reserved bits="1"/>
-      <field name="res" bits="1">
-        <doc>0 = GA reported in 100 ft increments, 1 = GA reported in 25 ft increments</doc>
+      <field name="res" type="alt-resolution">
+        <doc>GNSS-derived Altitude resolution</doc>
       </field>
       <field name="ga" bits="14" signed="true">
         <doc>GNSS-derived Altitude above WGS-84 ellipsoid, LSB = 25 ft</doc>
@@ -278,11 +282,11 @@
       <field name="v" bits="1">
         <doc>0 = Code not validated (inverted logic!), 1 = Code validated</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
-      <field name="l" bits="1">
-        <doc>0 = Code from transponder reply, 1 = Not extracted during last scan</doc>
+      <field name="l" type="code-source-extracted">
+        <doc>Extended Mode 1 code source</doc>
       </field>
       <reserved bits="1"/>
       <field name="em1" bits="12">
@@ -355,11 +359,11 @@
          ======================================================================= -->
     <struct name="Cat007I090">
       <doc>I007/090 - Flight Level in Binary Representation</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
       <field name="fl" bits="14" signed="true">
         <doc>Flight Level, LSB = 1/4 FL (range -12 to 1500 FL)</doc>
@@ -376,11 +380,11 @@
          ======================================================================= -->
     <struct name="Cat007I100">
       <doc>I007/100 - Mode-C Code and Code Confidence Indicator</doc>
-      <field name="v" bits="1">
-        <doc>0 = Code validated, 1 = Code not validated</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
       </field>
-      <field name="g" bits="1">
-        <doc>0 = Default, 1 = Garbled code</doc>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
       </field>
       <reserved bits="2"/>
       <field name="code" bits="12">
@@ -416,8 +420,8 @@
     <!-- Subfield #1: Calculated Doppler Speed (2 octets) -->
     <struct name="Cat007I120Cal">
       <doc>Calculated Doppler Speed</doc>
-      <field name="d" bits="1">
-        <doc>0 = Doppler speed is valid, 1 = Doppler speed is doubtful</doc>
+      <field name="d" type="doppler-validity">
+        <doc>Doppler speed validity</doc>
       </field>
       <reserved bits="5"/>
       <field name="cal" bits="10" signed="true">
@@ -509,45 +513,33 @@
          ======================================================================= -->
     <struct name="Cat007I170">
       <doc>I007/170 - Track Status</doc>
-      <field name="cnf" bits="1">
-        <doc>0 = Confirmed track, 1 = Tentative track</doc>
+      <field name="cnf" type="track-confidence">
+        <doc>Track confidence</doc>
       </field>
-      <field name="rad" bits="2">
-        <doc>
-          Type of sensor maintaining track:
-          00 = Combined Track
-          01 = PSR Track
-          10 = SSR/Mode S Track
-          11 = Invalid
-        </doc>
+      <field name="rad" type="sensor-type">
+        <doc>Type of sensor maintaining track</doc>
       </field>
-      <field name="dou" bits="1">
-        <doc>0 = Normal confidence, 1 = Low confidence in plot to track association</doc>
+      <field name="dou" type="assoc-confidence">
+        <doc>Association confidence</doc>
       </field>
-      <field name="mah" bits="1">
-        <doc>0 = No horizontal man. sensed, 1 = Horizontal man. sensed</doc>
+      <field name="mah" type="horiz-maneuver">
+        <doc>Horizontal maneuver indicator</doc>
       </field>
-      <field name="cdm" bits="2">
-        <doc>
-          Climbing/Descending Mode:
-          00 = Maintaining
-          01 = Climbing
-          10 = Descending
-          11 = Unknown
-        </doc>
+      <field name="cdm" type="climb-descend-mode">
+        <doc>Climbing/Descending Mode</doc>
       </field>
       <fx>
-        <field name="tre" bits="1">
-          <doc>0 = Track still alive, 1 = End of track lifetime</doc>
+        <field name="tre" type="track-lifetime">
+          <doc>Track lifetime</doc>
         </field>
-        <field name="gho" bits="1">
-          <doc>0 = True target track, 1 = Ghost target track</doc>
+        <field name="gho" type="ghost-target">
+          <doc>Ghost target indicator</doc>
         </field>
-        <field name="sup" bits="1">
-          <doc>0 = No, 1 = Track maintained with info from neighbouring Node B</doc>
+        <field name="sup" type="neighbor-support">
+          <doc>Neighbor support</doc>
         </field>
-        <field name="tcc" bits="1">
-          <doc>0 = Tracking in Radar Plane, 1 = Slant range correction and projection applied</doc>
+        <field name="tcc" type="track-coord-type">
+          <doc>Track coordinate type</doc>
         </field>
         <reserved bits="3"/>
       </fx>
@@ -587,41 +579,24 @@
          ======================================================================= -->
     <struct name="Cat007I230">
       <doc>I007/230 - Communications/ACAS Capability and Flight Status</doc>
-      <field name="com" bits="3">
-        <doc>
-          Communications capability:
-          0 = No communications capability (surveillance only)
-          1 = Comm. A and Comm. B
-          2 = Comm. A, Comm. B and Uplink ELM
-          3 = Comm. A, Comm. B, Uplink ELM and Downlink ELM
-          4 = Level 5 Transponder capability
-        </doc>
+      <field name="com" type="comm-capability">
+        <doc>Communications capability of the transponder</doc>
       </field>
-      <field name="stat" bits="3">
-        <doc>
-          Flight Status:
-          0 = No alert, no SPI, airborne
-          1 = No alert, no SPI, on ground
-          2 = Alert, no SPI, airborne
-          3 = Alert, no SPI, on ground
-          4 = Alert, SPI
-          5 = No alert, SPI
-          6 = Not assigned
-          7 = Unknown
-        </doc>
+      <field name="stat" type="flight-status">
+        <doc>Flight Status</doc>
       </field>
-      <field name="si" bits="1">
-        <doc>0 = SI-Code Capable, 1 = II-Code Capable</doc>
+      <field name="si" type="si-ii-capability">
+        <doc>SI/II-Code Capability</doc>
       </field>
       <reserved bits="1"/>
-      <field name="mssc" bits="1">
-        <doc>Mode-S Specific Service Capability: 0 = No, 1 = Yes</doc>
+      <field name="mssc" type="mode-s-service-cap">
+        <doc>Mode-S Specific Service Capability</doc>
       </field>
-      <field name="arc" bits="1">
-        <doc>Altitude Reporting Capability: 0 = 100 ft resolution, 1 = 25 ft resolution</doc>
+      <field name="arc" type="alt-resolution">
+        <doc>Altitude Reporting Capability</doc>
       </field>
-      <field name="aic" bits="1">
-        <doc>Aircraft Identification Capability: 0 = No, 1 = Yes</doc>
+      <field name="aic" type="aircraft-id-cap">
+        <doc>Aircraft Identification Capability</doc>
       </field>
       <field name="b1a" bits="1">
         <doc>BDS 1,0 bit 16</doc>
@@ -692,13 +667,8 @@
     <struct name="Cat007I450Ms">
       <doc>Mode S All Call Interrogations</doc>
       <reserved bits="6"/>
-      <field name="lo" bits="2">
-        <doc>
-          Lockout:
-          00 = No Lockout used
-          01 = Lockout used by Interrogation Scheduler
-          10 = Lockout-Override applied
-        </doc>
+      <field name="lo" type="cat007-lockout">
+        <doc>Mode S All-Call Lockout</doc>
       </field>
       <field name="ms-nb" type="uint8">
         <doc>Number of Mode S All Calls performed for the request</doc>
