@@ -1854,7 +1854,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.line("if (!val) return std::unexpected(val.error());");
             ctx_.line(member + " = std::move(*val);");
             if (bf.source_field) {
-                emit_field_trim(ctx_, "(*" + member + ")", *bf.source_field);
+                emit_field_trim(ctx_, "(*" + member + ")", *bf.source_field, index_);
             }
             ctx_.dedent();
             ctx_.line("}");

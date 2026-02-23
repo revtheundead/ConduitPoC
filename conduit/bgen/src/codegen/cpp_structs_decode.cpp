@@ -824,7 +824,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 ctx_.dedent();
                 ctx_.line("}");
                 ctx_.line(member + " = std::move(s);");
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             } else if (f.length) {
@@ -837,7 +837,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 } else {
                     ctx_.line(member + " = std::move(*val);");
                 }
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             } else if (f.length_prefix) {
@@ -862,7 +862,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 } else {
                     ctx_.line(member + " = std::move(*val);");
                 }
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             } else if (f.length_from) {
@@ -877,7 +877,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 } else {
                     ctx_.line(member + " = std::move(*val);");
                 }
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             } else if (f.terminated) {
@@ -929,7 +929,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 } else {
                     ctx_.line(member + " = std::move(s);");
                 }
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             } else if (f.length_star) {
@@ -942,7 +942,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 } else {
                     ctx_.line(member + " = std::move(*val);");
                 }
-                emit_field_trim(ctx_, member, f);
+                emit_field_trim(ctx_, member, f, index_);
                 ctx_.dedent();
                 ctx_.line("}");
             }
@@ -1544,7 +1544,7 @@ void StructEmitter::emit_decode_fx_children(const std::vector<model::StructChild
                         ctx_.line(member + " = std::move(*val);");
                     }
                     // FX string fields are optional<string> — trim on dereferenced value
-                    emit_field_trim(ctx_, "(*" + member + ")", c);
+                    emit_field_trim(ctx_, "(*" + member + ")", c, index_);
                     ctx_.dedent();
                     ctx_.line("}");
                 } else if (fti.is_bytes) {

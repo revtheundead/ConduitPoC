@@ -167,7 +167,7 @@ add_executable(bgen_tests
     test_msg_config.cpp
     test_constants_everywhere.cpp
     test_bytes_numeric.cpp
-    test_string_encoding_bugs.cpp
+    test_string_encoding_edge_cases.cpp
 )
 
 add_dependencies(bgen_tests
