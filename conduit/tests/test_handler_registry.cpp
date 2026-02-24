@@ -350,12 +350,12 @@ TEST_CASE("HandlerRegistry: many peers x types dispatch correctly", "[handler]")
     // to the correct handler. This implicitly tests the HandlerKeyHash
     // distribution — any collision would cause wrong handler invocation.
     HandlerRegistry registry;
-    constexpr int num_peers = 50;
+    constexpr size_t num_peers = 50;
 
     // Track which (peer, type) pairs were dispatched
     std::vector<std::vector<int>> counters(num_peers + 1, std::vector<int>(2, 0));
 
-    for (int p = 1; p <= num_peers; ++p) {
+    for (size_t p = 1; p <= num_peers; ++p) {
         PeerId peer(static_cast<uint32_t>(p));
 
         registry.register_handler(peer,
@@ -368,14 +368,14 @@ TEST_CASE("HandlerRegistry: many peers x types dispatch correctly", "[handler]")
     }
 
     // Dispatch to every (peer, type) combination
-    for (int p = 1; p <= num_peers; ++p) {
+    for (size_t p = 1; p <= num_peers; ++p) {
         PeerId peer(static_cast<uint32_t>(p));
         registry.dispatch(peer, MockMsgA::TYPE_ID, std::any(MockMsgA{}));
         registry.dispatch(peer, MockMsgB::TYPE_ID, std::any(MockMsgB{}));
     }
 
     // Every handler should have fired exactly once
-    for (int p = 1; p <= num_peers; ++p) {
+    for (size_t p = 1; p <= num_peers; ++p) {
         CHECK(counters[p][0] == 1);
         CHECK(counters[p][1] == 1);
     }

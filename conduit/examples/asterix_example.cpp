@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
 // ============================================================================
-// ASTERIX Example — UDP Sender + Receiver
+// ASTERIX Example — Encode/Decode Roundtrip
 //
-// Demonstrates Conduit's full infrastructure with the ASTERIX protocol:
-//   - Config-driven peer setup (TransceiverConfig::add_peer)
-//   - MessageHandler for typed receive callbacks
-//   - UDP transport (datagram-based, no stream framing needed)
+// Demonstrates Conduit's generated ASTERIX protocol types:
 //   - All 3 ASTERIX categories: CAT001, CAT048, CAT253
 //   - Bitmap-controlled optional fields (FSPEC)
 //   - FX extension chains (Cat001TrackStatus, Cat048TargetReportDescriptor)
@@ -17,39 +14,29 @@
 //   - Count-from arrays (Mode S MB data, Format C records)
 //   - Length-prefixed strings (Cat253 I110 text annotation)
 //   - Variable-length byte fields (RE/SP expansion fields)
+//   - AsterixFrame multi-category DataBlock container
 //
 // Architecture:
-//   - A "receiver" Transceiver with UDP transport binds to a local port
-//   - A "sender" Transceiver with UDP transport targets the receiver
-//   - The sender transmits one message per category exercising all features
-//   - The receiver verifies each decoded message field-by-field
+//   - Each record type is built, encoded to bytes, decoded back, and verified
+//   - Field-by-field verification ensures encode/decode roundtrip fidelity
 // ============================================================================
 
 #include <asterix/messages.hpp>
 
-#include <conduit/transceiver/transceiver.hpp>
-#include <conduit/transceiver/transport/udp.hpp>
-
 #include <array>
-#include <atomic>
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <mutex>
+#include <cstdlib>
 #include <string>
-#include <thread>
 #include <variant>
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-static std::mutex g_print_mutex;
-
 template<typename... Args>
 static void log(const char* tag, [[maybe_unused]] const char* fmt, Args... args) {
-    std::lock_guard lock(g_print_mutex);
     std::printf("[%-8s] ", tag);
     if constexpr (sizeof...(args) == 0) {
         std::fputs(fmt, stdout);
@@ -66,21 +53,15 @@ static std::string strip_nulls(const std::string& s) {
 }
 
 // ============================================================================
-// Verification counters
+// Roundtrip helper — encode to bytes and decode back
 // ============================================================================
 
-struct ReceiverStats {
-    std::atomic<int> cat001_received{0};
-    std::atomic<int> cat048_received{0};
-    std::atomic<int> cat253_received{0};
-    std::atomic<bool> cat001_ok{false};
-    std::atomic<bool> cat048_ok{false};
-    std::atomic<bool> cat253_fmt_a_ok{false};
-    std::atomic<bool> cat253_fmt_b_ok{false};
-    std::atomic<bool> cat253_fmt_c_ok{false};
-    std::atomic<bool> cat253_fmt_d_ok{false};
-    std::atomic<bool> cat253_fmt_e_ok{false};
-};
+template<typename T>
+static conduit::Result<T> roundtrip(const T& msg) {
+    auto bytes = msg.encode_bytes();
+    if (!bytes) return std::unexpected(bytes.error());
+    return T::decode_bytes(*bytes);
+}
 
 // ============================================================================
 // Build Cat001Record — exercises FSPEC bitmap, FX chain, all item types
@@ -243,15 +224,14 @@ static asterix::Cat048Record make_cat048_full() {
     auto& bds = mb.mutable_bds();
 
     asterix::Cat048Record_items_i250_bdsElement e1;
-    std::array<uint8_t, 7> data1 = {0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70};
-    e1.set_data(data1);
+    // 56-bit MB data packed into uint64_t (7 bytes, MSB-first)
+    e1.set_data(0x10203040506070ULL);
     e1.set_bds1(4);                                // BDS 4,0
     e1.set_bds2(0);
     bds.push_back(e1);
 
     asterix::Cat048Record_items_i250_bdsElement e2;
-    std::array<uint8_t, 7> data2 = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x07};
-    e2.set_data(data2);
+    e2.set_data(0xA1B2C3D4E5F607ULL);
     e2.set_bds1(5);                                // BDS 5,0
     e2.set_bds2(0);
     bds.push_back(e2);
@@ -589,7 +569,7 @@ static asterix::Cat253Record make_cat253_format_e() {
     sub.set_aircraft_addr(static_cast<asterix::aircraft_address>(0x4CA123));
 
     // Sub-item: position (bit 4) — WGS-84 fine lat/lon
-    asterix::sub_items_position pos;
+    asterix::Cat253I100FormatE_sub_items_position pos;
     asterix::wgs84_fine plat, plon;
     plat.set_raw(500000000);                       // ~41.9°N
     plon.set_raw(-100000000);                      // ~-8.38°W
@@ -606,7 +586,7 @@ static asterix::Cat253Record make_cat253_format_e() {
     sub.set_track_number(8888);
 
     // Sub-item: velocity (bit 1) — signed 16-bit vx/vy
-    asterix::sub_items_velocity vel;
+    asterix::Cat253I100FormatE_sub_items_velocity vel;
     vel.set_vx(-200);
     vel.set_vy(300);
     sub.set_velocity(vel);
@@ -637,8 +617,7 @@ static asterix::Cat253Record make_cat253_format_e() {
 // Verification functions
 // ============================================================================
 
-static void verify_cat001(const asterix::Cat001Record& rec, ReceiverStats& stats) {
-    stats.cat001_received++;
+static bool verify_cat001(const asterix::Cat001Record& rec) {
     bool ok = true;
 
     auto& items = rec.items();
@@ -679,17 +658,15 @@ static void verify_cat001(const asterix::Cat001Record& rec, ReceiverStats& stats
     ok &= items.has_i141();
     ok &= (items.i141().raw() == 5529600);
 
-    stats.cat001_ok = ok;
-
-    log("RECV", "Cat001Record: dsid=%02X/%02X polar.rho=%u track=%u fl.v=%u i170.cnf=%u [%s]",
+    log("VERIFY", "Cat001Record: dsid=%02X/%02X polar.rho=%u track=%u fl.v=%u i170.cnf=%u [%s]",
         items.i010().sac(), items.i010().sic(),
         items.i040().rho(), items.i161(),
         items.i090().v(), items.i170().cnf(),
         ok ? "OK" : "FAIL");
+    return ok;
 }
 
-static void verify_cat048(const asterix::Cat048Record& rec, ReceiverStats& stats) {
-    stats.cat048_received++;
+static bool verify_cat048(const asterix::Cat048Record& rec) {
     bool ok = true;
 
     auto& items = rec.items();
@@ -758,23 +735,20 @@ static void verify_cat048(const asterix::Cat048Record& rec, ReceiverStats& stats
     ok &= (items.i170().tre() == 1);
     ok &= (items.i170().sup() == 1);
 
-    stats.cat048_ok = ok;
-
-    log("RECV", "Cat048Record: dsid=%02X/%02X addr=0x%06X track=%u bds_count=%zu [%s]",
+    log("VERIFY", "Cat048Record: dsid=%02X/%02X addr=0x%06X track=%u bds_count=%zu [%s]",
         items.i010().sac(), items.i010().sic(),
         items.i220(), items.i161(),
         items.i250().bds().size(),
         ok ? "OK" : "FAIL");
+    return ok;
 }
 
-static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats) {
-    stats.cat253_received++;
-
+static bool verify_cat253(const asterix::Cat253Record& rec) {
     auto& items = rec.items();
 
     if (!items.has_i100()) {
-        log("RECV", "Cat253Record: no I100 choice present");
-        return;
+        log("VERIFY", "Cat253Record: no I100 choice present");
+        return false;
     }
 
     // Determine which format was received
@@ -789,8 +763,8 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
         ok &= (items.i060().operational() == 1);
         ok &= items.has_i070();
         ok &= (items.i070().sequence() == 0x0001);
-        stats.cat253_fmt_a_ok = ok;
-        log("RECV", "Cat253 FormatA: data_type=%u [%s]", fmt.data_type(), ok ? "OK" : "FAIL");
+        log("VERIFY", "Cat253 FormatA: data_type=%u [%s]", fmt.data_type(), ok ? "OK" : "FAIL");
+        return ok;
     }
     else if (std::holds_alternative<asterix::Cat253I100FormatB>(items.i100())) {
         auto& fmt = std::get<asterix::Cat253I100FormatB>(items.i100());
@@ -802,9 +776,9 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
         ok &= (fmt.payload()[0] == 0xDE);
         ok &= (fmt.payload()[3] == 0xEF);
         ok &= (fmt.payload()[7] == 0xBE);
-        stats.cat253_fmt_b_ok = ok;
-        log("RECV", "Cat253 FormatB: ver=%u flags=0x%02X len=%u [%s]",
+        log("VERIFY", "Cat253 FormatB: ver=%u flags=0x%02X len=%u [%s]",
             fmt.version(), fmt.flags(), fmt.payload_length(), ok ? "OK" : "FAIL");
+        return ok;
     }
     else if (std::holds_alternative<asterix::Cat253I100FormatC>(items.i100())) {
         auto& fmt = std::get<asterix::Cat253I100FormatC>(items.i100());
@@ -823,10 +797,10 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
         ok &= (items.i090().compressed() == 1);
         ok &= items.has_i110();
         ok &= (strip_nulls(items.i110().text()) == "FORMAT-C TEST");
-        stats.cat253_fmt_c_ok = ok;
-        log("RECV", "Cat253 FormatC: type=%u count=%u recs=%zu [%s]",
+        log("VERIFY", "Cat253 FormatC: type=%u count=%u recs=%zu [%s]",
             fmt.record_type(), fmt.record_count(), fmt.records().size(),
             ok ? "OK" : "FAIL");
+        return ok;
     }
     else if (std::holds_alternative<asterix::Cat253I100FormatD>(items.i100())) {
         auto& fmt = std::get<asterix::Cat253I100FormatD>(items.i100());
@@ -840,11 +814,11 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
         ok &= items.has_i120();
         ok &= (items.i120().ref_type() == 5);
         ok &= (items.i120().ref_id() == 0xABCD1234);
-        stats.cat253_fmt_d_ok = ok;
-        log("RECV", "Cat253 FormatD: lat=%d lon=%d alt=%.0f gs=%.0f hdg=%.1f [%s]",
+        log("VERIFY", "Cat253 FormatD: lat=%d lon=%d alt=%.0f gs=%.0f hdg=%.1f [%s]",
             fmt.latitude().raw(), fmt.longitude().raw(),
             fmt.altitude(), fmt.ground_speed(), fmt.heading(),
             ok ? "OK" : "FAIL");
+        return ok;
     }
     else if (std::holds_alternative<asterix::Cat253I100FormatE>(items.i100())) {
         auto& fmt = std::get<asterix::Cat253I100FormatE>(items.i100());
@@ -904,15 +878,18 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
         ok &= (items.sp().data().size() == 3);
         ok &= (items.sp().data()[0] == 0xAA);
 
-        stats.cat253_fmt_e_ok = ok;
-        log("RECV", "Cat253 FormatE: ver=%u src=%02X/%02X addr=0x%06X fl=%u trk=%u [%s]",
+        log("VERIFY", "Cat253 FormatE: ver=%u src=%02X/%02X addr=0x%06X fl=%u trk=%u [%s]",
             fmt.format_version(),
             sub.source_id().sac(), sub.source_id().sic(),
             sub.aircraft_addr(),
             sub.flight_level().raw(),
             sub.track_number(),
             ok ? "OK" : "FAIL");
+        return ok;
     }
+
+    log("VERIFY", "Cat253Record: unknown I100 variant index");
+    return false;
 }
 
 // ============================================================================
@@ -920,187 +897,163 @@ static void verify_cat253(const asterix::Cat253Record& rec, ReceiverStats& stats
 // ============================================================================
 
 int main() {
-    using namespace conduit::transceiver;
-    using namespace conduit::transceiver::transport;
-    using namespace conduit::net;
-
-    log("MAIN", "ASTERIX Example — UDP Sender + Receiver");
+    log("MAIN", "ASTERIX Example — Encode/Decode Roundtrip");
     log("MAIN", "Protocol: ASTERIX v1.0 (3 categories: CAT001, CAT048, CAT253)");
     log("MAIN", "Categories: %u, %u, %u", asterix::CAT001, asterix::CAT048, asterix::CAT253);
     log("MAIN", "");
 
-    ReceiverStats stats;
-
-    // ========================================================================
-    // 1. Create UDP Receiver (config-driven)
-    // ========================================================================
-
-    constexpr uint16_t RECV_PORT = 44253;
-
-    log("RECV", "Setting up UDP receiver on port %u...", RECV_PORT);
-
-    UdpConfig recv_udp;
-    recv_udp.bind_address = "127.0.0.1";
-    recv_udp.bind_port = RECV_PORT;
-
-    TransceiverConfig recv_cfg;
-    recv_cfg.add_peer("asterix-rx", asterix::create_asterix_frame_session,
-                      std::move(recv_udp));
-    Transceiver receiver(std::move(recv_cfg));
-
-    // Register handlers using MessageHandler
-    MessageHandler rx_handler;
-    rx_handler.on<asterix::Cat001Record>([&](const auto& r) { verify_cat001(r, stats); })
-              .on<asterix::Cat048Record>([&](const auto& r) { verify_cat048(r, stats); })
-              .on<asterix::Cat253Record>([&](const auto& r) { verify_cat253(r, stats); });
-    receiver.set_handler(std::move(rx_handler));
-
-    auto recv_start = receiver.start();
-    if (!recv_start) {
-        log("RECV", "Failed to start: %s", recv_start.error().message().c_str());
-        return 1;
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    // ========================================================================
-    // 2. Create UDP Sender (config-driven)
-    // ========================================================================
-
-    log("SEND", "Setting up UDP sender...");
-
-    UdpConfig send_udp;
-    send_udp.bind_address = "127.0.0.1";
-    send_udp.remote_address = "127.0.0.1";
-    send_udp.remote_port = RECV_PORT;
-
-    TransceiverConfig send_cfg;
-    send_cfg.add_peer("asterix-tx", asterix::create_asterix_frame_session,
-                      std::move(send_udp));
-    Transceiver sender(std::move(send_cfg));
-
-    auto send_start = sender.start();
-    if (!send_start) {
-        log("SEND", "Failed to start: %s", send_start.error().message().c_str());
-        return 1;
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    log("MAIN", "Transports ready. Sending messages...\n");
-
-    // ========================================================================
-    // 3. Send Cat001Record (full — all FSPEC items + FX chain)
-    // ========================================================================
-
-    {
-        auto rec = make_cat001_full();
-        log("SEND", "Sending Cat001Record: all items + FX extension");
-        auto r = sender.send<asterix::Cat001Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    // ========================================================================
-    // 4. Send Cat048Record (full — FX chains, nested bitmap, arrays, packed strings)
-    // ========================================================================
-
-    {
-        auto rec = make_cat048_full();
-        log("SEND", "Sending Cat048Record: FX chains, nested bitmap, BDS array, packed ident");
-        auto r = sender.send<asterix::Cat048Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    // ========================================================================
-    // 5. Send Cat253Records — all 5 I100 format variants
-    // ========================================================================
-
-    {
-        auto rec = make_cat253_format_a();
-        log("SEND", "Sending Cat253Record FormatA: selector=42, fixed payload");
-        auto r = sender.send<asterix::Cat253Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    {
-        auto rec = make_cat253_format_b();
-        log("SEND", "Sending Cat253Record FormatB: selector=300, variable payload");
-        auto r = sender.send<asterix::Cat253Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    {
-        auto rec = make_cat253_format_c();
-        log("SEND", "Sending Cat253Record FormatC: selector=750, 3 records array");
-        auto r = sender.send<asterix::Cat253Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    {
-        auto rec = make_cat253_format_d();
-        log("SEND", "Sending Cat253Record FormatD: selector=1500, position data");
-        auto r = sender.send<asterix::Cat253Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    {
-        auto rec = make_cat253_format_e();
-        log("SEND", "Sending Cat253Record FormatE: selector=3000, nested bitmap + RE/SP");
-        auto r = sender.send<asterix::Cat253Record>(rec);
-        if (!r) log("SEND", "  send failed: %s", r.error().message().c_str());
-    }
-
-    // Wait for all messages to be received and processed
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    // ========================================================================
-    // 6. Summary and verification
-    // ========================================================================
-
-    log("MAIN", "");
-    log("MAIN", "=== Results ===");
-    log("MAIN", "");
-    log("MAIN", "CAT001 records received: %d (verified: %s)",
-        stats.cat001_received.load(), stats.cat001_ok ? "PASS" : "FAIL");
-    log("MAIN", "CAT048 records received: %d (verified: %s)",
-        stats.cat048_received.load(), stats.cat048_ok ? "PASS" : "FAIL");
-    log("MAIN", "CAT253 records received: %d", stats.cat253_received.load());
-    log("MAIN", "  Format A (fixed payload):     %s", stats.cat253_fmt_a_ok ? "PASS" : "FAIL");
-    log("MAIN", "  Format B (variable payload):  %s", stats.cat253_fmt_b_ok ? "PASS" : "FAIL");
-    log("MAIN", "  Format C (record array):      %s", stats.cat253_fmt_c_ok ? "PASS" : "FAIL");
-    log("MAIN", "  Format D (position data):     %s", stats.cat253_fmt_d_ok ? "PASS" : "FAIL");
-    log("MAIN", "  Format E (nested bitmap):     %s", stats.cat253_fmt_e_ok ? "PASS" : "FAIL");
-
-    // ========================================================================
-    // 7. Cleanup
-    // ========================================================================
-
-    log("MAIN", "");
-    log("MAIN", "Stopping...");
-    sender.stop();
-    receiver.stop();
-
     bool all_pass = true;
-    all_pass &= (stats.cat001_received >= 1) && stats.cat001_ok.load();
-    all_pass &= (stats.cat048_received >= 1) && stats.cat048_ok.load();
-    all_pass &= (stats.cat253_received >= 5);
-    all_pass &= stats.cat253_fmt_a_ok.load();
-    all_pass &= stats.cat253_fmt_b_ok.load();
-    all_pass &= stats.cat253_fmt_c_ok.load();
-    all_pass &= stats.cat253_fmt_d_ok.load();
-    all_pass &= stats.cat253_fmt_e_ok.load();
+
+    // ========================================================================
+    // 1. Cat001Record roundtrip (all FSPEC items + FX chain)
+    // ========================================================================
+
+    {
+        log("TEST", "Cat001Record: all items + FX extension");
+        auto rec = make_cat001_full();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat001(*decoded);
+        }
+    }
+
+    // ========================================================================
+    // 2. Cat048Record roundtrip (FX chains, nested bitmap, arrays, packed strings)
+    // ========================================================================
+
+    {
+        log("TEST", "Cat048Record: FX chains, nested bitmap, BDS array, packed ident");
+        auto rec = make_cat048_full();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat048(*decoded);
+        }
+    }
+
+    // ========================================================================
+    // 3. Cat253Records — all 5 I100 format variants
+    // ========================================================================
+
+    {
+        log("TEST", "Cat253Record FormatA: selector=42, fixed payload");
+        auto rec = make_cat253_format_a();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat253(*decoded);
+        }
+    }
+
+    {
+        log("TEST", "Cat253Record FormatB: selector=300, variable payload");
+        auto rec = make_cat253_format_b();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat253(*decoded);
+        }
+    }
+
+    {
+        log("TEST", "Cat253Record FormatC: selector=750, 3 records array");
+        auto rec = make_cat253_format_c();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat253(*decoded);
+        }
+    }
+
+    {
+        log("TEST", "Cat253Record FormatD: selector=1500, position data");
+        auto rec = make_cat253_format_d();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat253(*decoded);
+        }
+    }
+
+    {
+        log("TEST", "Cat253Record FormatE: selector=3000, nested bitmap + RE/SP");
+        auto rec = make_cat253_format_e();
+        auto decoded = roundtrip(rec);
+        if (!decoded) {
+            log("TEST", "  roundtrip failed: %s", decoded.error().format_short().c_str());
+            all_pass = false;
+        } else {
+            all_pass &= verify_cat253(*decoded);
+        }
+    }
+
+    // ========================================================================
+    // 4. AsterixFrame roundtrip (multi-category DataBlocks)
+    // ========================================================================
+
+    {
+        log("TEST", "AsterixFrame: multi-category DataBlock roundtrip");
+
+        // Wrap Cat001 + Cat048 into DataBlocks inside an AsterixFrame
+        auto cat001_bytes = make_cat001_full().encode_bytes();
+        auto cat048_bytes = make_cat048_full().encode_bytes();
+        if (!cat001_bytes || !cat048_bytes) {
+            log("TEST", "  encode failed");
+            all_pass = false;
+        } else {
+            asterix::DataBlock db1;
+            db1.set_cat(asterix::CAT001);
+            db1.set_len(static_cast<asterix::uint16>(3 + cat001_bytes->size()));
+            asterix::DataBlock_cat001 cat001_payload;
+            cat001_payload.mutable_items().push_back(make_cat001_full());
+            db1.set_records(std::move(cat001_payload));
+
+            asterix::DataBlock db2;
+            db2.set_cat(asterix::CAT048);
+            db2.set_len(static_cast<asterix::uint16>(3 + cat048_bytes->size()));
+            asterix::DataBlock_cat048 cat048_payload;
+            cat048_payload.mutable_items().push_back(make_cat048_full());
+            db2.set_records(std::move(cat048_payload));
+
+            asterix::AsterixFrame frame;
+            frame.mutable_blocks().push_back(std::move(db1));
+            frame.mutable_blocks().push_back(std::move(db2));
+
+            auto frame_decoded = roundtrip(frame);
+            if (!frame_decoded) {
+                log("TEST", "  frame roundtrip failed: %s",
+                    frame_decoded.error().format_short().c_str());
+                all_pass = false;
+            } else {
+                bool ok = (frame_decoded->blocks().size() == 2);
+                ok &= (frame_decoded->blocks()[0].cat() == asterix::CAT001);
+                ok &= (frame_decoded->blocks()[1].cat() == asterix::CAT048);
+                log("VERIFY", "AsterixFrame: %zu blocks, cat[0]=%u cat[1]=%u [%s]",
+                    frame_decoded->blocks().size(),
+                    frame_decoded->blocks()[0].cat(),
+                    frame_decoded->blocks()[1].cat(),
+                    ok ? "OK" : "FAIL");
+                all_pass &= ok;
+            }
+        }
+    }
+
+    // ========================================================================
+    // 5. Summary
+    // ========================================================================
 
     log("MAIN", "");
     if (all_pass) {
