@@ -102,6 +102,7 @@ public:
                     stats_.dropped.fetch_add(1, std::memory_order_relaxed);
                     return false;
                 case DropPolicy::Block:
+                    stats_.dropped.fetch_add(1, std::memory_order_relaxed);
                     return false;
             }
         }

@@ -398,6 +398,77 @@ TEST_CASE("BoundedQueue full() and empty() consistency", "[bounded_queue]") {
     CHECK_FALSE(q.full());
 }
 
+TEST_CASE("BoundedQueue Block try_push increments dropped counter", "[bounded_queue]") {
+    BoundedQueue<int> q(2, DropPolicy::Block);
+
+    q.try_push(1);
+    q.try_push(2);
+    CHECK(q.full());
+
+    // try_push on full Block queue should return false AND increment dropped
+    bool pushed = q.try_push(3);
+    CHECK_FALSE(pushed);
+
+    auto snap = QueueStatsSnapshot::from(q.stats());
+    CHECK(snap.enqueued == 2);
+    CHECK(snap.dropped == 1);
+
+    // Push another — dropped should increment again
+    pushed = q.try_push(4);
+    CHECK_FALSE(pushed);
+
+    snap = QueueStatsSnapshot::from(q.stats());
+    CHECK(snap.dropped == 2);
+
+    // Original items are still intact
+    CHECK(*q.try_pop() == 1);
+    CHECK(*q.try_pop() == 2);
+    CHECK(q.empty());
+}
+
+TEST_CASE("BoundedQueue Block try_push dropped counter under contention", "[bounded_queue]") {
+    BoundedQueue<int> q(4, DropPolicy::Block);
+
+    // Fill the queue
+    for (int i = 0; i < 4; ++i) {
+        q.try_push(i);
+    }
+
+    // Multiple try_push calls when full should each increment dropped
+    constexpr int reject_count = 10;
+    for (int i = 0; i < reject_count; ++i) {
+        CHECK_FALSE(q.try_push(100 + i));
+    }
+
+    auto snap = QueueStatsSnapshot::from(q.stats());
+    CHECK(snap.enqueued == 4);
+    CHECK(snap.dropped == reject_count);
+    CHECK(snap.current_size == 4);
+}
+
+TEST_CASE("BoundedQueue Block push does not increment dropped", "[bounded_queue]") {
+    // Verify that blocking push() (which waits for space) does NOT count as dropped
+    BoundedQueue<int> q(2, DropPolicy::Block);
+
+    q.try_push(1);
+    q.try_push(2);
+
+    // Start a consumer that will free space
+    std::thread consumer([&] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        q.try_pop();
+    });
+
+    // This should block until consumer frees space, then succeed
+    bool pushed = q.push(3);
+    CHECK(pushed);
+    consumer.join();
+
+    auto snap = QueueStatsSnapshot::from(q.stats());
+    CHECK(snap.enqueued == 3);
+    CHECK(snap.dropped == 0);  // blocking push should NOT increment dropped
+}
+
 TEST_CASE("BoundedQueue DropOldest under contention", "[bounded_queue]") {
     BoundedQueue<int> q(8, DropPolicy::DropOldest);
     constexpr int count = 500;

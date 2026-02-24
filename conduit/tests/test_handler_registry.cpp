@@ -340,3 +340,75 @@ TEST_CASE("HandlerRegistry: concurrent dispatch safety", "[handler]") {
 
     CHECK(total_count.load() == threads * per_thread);
 }
+
+// ============================================================================
+// HandlerKeyHash integration tests (verify hash via lookup correctness)
+// ============================================================================
+
+TEST_CASE("HandlerRegistry: many peers x types dispatch correctly", "[handler]") {
+    // Registers handlers for N peers x M types and verifies each dispatches
+    // to the correct handler. This implicitly tests the HandlerKeyHash
+    // distribution — any collision would cause wrong handler invocation.
+    HandlerRegistry registry;
+    constexpr int num_peers = 50;
+
+    // Track which (peer, type) pairs were dispatched
+    std::vector<std::vector<int>> counters(num_peers + 1, std::vector<int>(2, 0));
+
+    for (int p = 1; p <= num_peers; ++p) {
+        PeerId peer(static_cast<uint32_t>(p));
+
+        registry.register_handler(peer,
+            ErasedHandler(std::function<void(const MockMsgA&)>(
+                [&counters, p](const MockMsgA&) { ++counters[p][0]; })));
+
+        registry.register_handler(peer,
+            ErasedHandler(std::function<void(const MockMsgB&)>(
+                [&counters, p](const MockMsgB&) { ++counters[p][1]; })));
+    }
+
+    // Dispatch to every (peer, type) combination
+    for (int p = 1; p <= num_peers; ++p) {
+        PeerId peer(static_cast<uint32_t>(p));
+        registry.dispatch(peer, MockMsgA::TYPE_ID, std::any(MockMsgA{}));
+        registry.dispatch(peer, MockMsgB::TYPE_ID, std::any(MockMsgB{}));
+    }
+
+    // Every handler should have fired exactly once
+    for (int p = 1; p <= num_peers; ++p) {
+        CHECK(counters[p][0] == 1);
+        CHECK(counters[p][1] == 1);
+    }
+}
+
+TEST_CASE("HandlerRegistry: remove_peer cleans up all handlers", "[handler]") {
+    HandlerRegistry registry;
+    PeerId peer(42);
+
+    int handler_count = 0;
+    int catch_all_count = 0;
+
+    registry.register_handler(peer,
+        ErasedHandler(std::function<void(const MockMsgA&)>(
+            [&](const MockMsgA&) { ++handler_count; })));
+
+    registry.register_handler(peer,
+        ErasedHandler(std::function<void(const MockMsgB&)>(
+            [&](const MockMsgB&) { ++handler_count; })));
+
+    registry.set_catch_all(peer, [&](uint64_t, const std::any&) {
+        ++catch_all_count;
+    });
+
+    // Remove the peer
+    registry.remove_peer(peer);
+
+    // All handlers should be gone
+    auto r1 = registry.dispatch(peer, MockMsgA::TYPE_ID, std::any(MockMsgA{}));
+    auto r2 = registry.dispatch(peer, MockMsgB::TYPE_ID, std::any(MockMsgB{}));
+
+    CHECK(r1 == DispatchResult::NotFound);
+    CHECK(r2 == DispatchResult::NotFound);
+    CHECK(handler_count == 0);
+    CHECK(catch_all_count == 0);
+}

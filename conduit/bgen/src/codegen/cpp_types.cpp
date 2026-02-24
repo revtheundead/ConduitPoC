@@ -456,8 +456,8 @@ void emit_string_type(EmitContext& ctx, const model::TypeDef& t) {
     // String types with char-bits get a wrapper class
     if (t.char_bits && t.length) {
         std::string name = to_cpp_type_name(t.name);
-        int total_bits = *t.length * *t.char_bits;
-        int wire_bytes = (total_bits + 7) / 8;
+        size_t total_bits = static_cast<size_t>(*t.length) * static_cast<size_t>(*t.char_bits);
+        size_t wire_bytes = (total_bits + 7) / 8;
 
         ctx.comment(t.doc.empty() ? name : t.doc);
         ctx.line("class " + name + " {");

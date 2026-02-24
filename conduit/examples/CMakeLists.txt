@@ -30,3 +30,27 @@ target_link_libraries(sentry_link_example
 target_include_directories(sentry_link_example
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
+
+# ----------------------------------------------------------------------------
+# Generate ASTERIX protocol code
+# ----------------------------------------------------------------------------
+
+bgen_generate(
+    TARGET    asterix_generated
+    INPUT     ${CMAKE_SOURCE_DIR}/bgen/tests/fixtures/asterix.bmdl.xml
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/asterix
+)
+
+# ----------------------------------------------------------------------------
+# ASTERIX example — UDP sender + receiver
+# ----------------------------------------------------------------------------
+
+add_executable(asterix_example asterix_example.cpp)
+
+target_link_libraries(asterix_example
+    PRIVATE conduit conduit_warnings asterix_generated
+)
+
+target_include_directories(asterix_example
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
+)

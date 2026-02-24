@@ -19,6 +19,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "poll_set.hpp"
+// MSG_NOSIGNAL is Linux-specific; macOS/BSD use SO_NOSIGPIPE instead.
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 #endif
 
 #include <algorithm>
