@@ -12,7 +12,9 @@ namespace conduit::transceiver {
 // TransceiverStats: Atomic counters for observability
 //
 // All counters are monotonically increasing. Use snapshot() to get a
-// consistent read; use reset() to zero all counters.
+// point-in-time sample of each counter; individual loads are atomic but
+// the snapshot as a whole is NOT guaranteed to be mutually consistent.
+// Use reset() to zero all counters.
 // ============================================================================
 
 struct TransceiverStats {

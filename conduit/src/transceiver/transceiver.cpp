@@ -723,7 +723,7 @@ PeerId Transceiver::handle_peer_connected(transport::ITransport* transport,
                                           std::string remote_endpoint) {
     // Single-peer transport: return the pre-existing PeerId
     if (!transport->is_multi_peer()) {
-        std::shared_lock lock(peers_mutex_);
+        std::unique_lock lock(peers_mutex_);
         for (auto& ctx : peers_) {
             if (ctx->transport.get() == transport) {
                 ctx->remote_endpoint = std::move(remote_endpoint);

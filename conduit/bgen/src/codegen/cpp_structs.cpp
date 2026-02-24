@@ -727,16 +727,16 @@ StructEmitter::StructEmitter(EmitContext& ctx, const analyzer::TypeIndex& index,
                               const analyzer::WireSizeInfo& sizes, const std::string& ns)
     : ctx_(ctx), index_(index), sizes_(sizes), ns_(ns) {
     // Build enum value lookup map for O(1) resolution.
-    // On collision (same value name in different enum types), erase the entry
-    // so the name passes through unqualified and the compiler resolves it by context.
+    // On collision (same value name in different enum types), mark the entry
+    // as ambiguous so resolve_enum_value returns the raw name (fallback).
+    // Use an empty string as the sentinel for ambiguous entries.
     for (const auto& [type_name, td] : index.types) {
         for (const auto& ev : td->enum_values) {
             auto [it, inserted] = enum_value_lookup_.try_emplace(
                 ev.name, to_cpp_type_name(type_name) + "::" + to_enum_value_name(ev.name));
             if (!inserted) {
-                // Collision: different type already has this value name — remove it
-                // so resolve_enum_value returns the raw name (fallback)
-                enum_value_lookup_.erase(it);
+                // Collision: mark as ambiguous (empty sentinel)
+                it->second.clear();
             }
         }
     }
@@ -785,8 +785,8 @@ void StructEmitter::reset_alignment() { bit_mod8_ = 0; fx_depth_ = 0; }
 
 std::string StructEmitter::resolve_enum_value(const std::string& name) const {
     auto it = enum_value_lookup_.find(name);
-    if (it != enum_value_lookup_.end()) return it->second;
-    return name; // fallback: return as-is
+    if (it != enum_value_lookup_.end() && !it->second.empty()) return it->second;
+    return name; // fallback: return as-is (ambiguous or not found)
 }
 
 // ============================================================================

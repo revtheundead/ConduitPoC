@@ -48,6 +48,7 @@ endif()
 if(CONDUIT_ENABLE_SANITIZERS)
     if(MSVC)
         add_compile_options(/fsanitize=address)
+        add_link_options(/INCREMENTAL:NO)
     else()
         add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
         add_link_options(-fsanitize=address,undefined)
@@ -209,6 +210,9 @@ install(DIRECTORY include/conduit
 
 if(CONDUIT_BUILD_BGEN)
     install(TARGETS bgen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES cmake/BgenGenerate.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/conduit
+    )
 endif()
 
 # CMake package config for find_package(conduit)
