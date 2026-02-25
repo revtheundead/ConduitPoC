@@ -773,8 +773,8 @@ public:
 
             cdef.direction = parse_direction(case_node);
 
-            auto type_name_attr = case_node.attribute("typeName");
-            if (type_name_attr) cdef.type_name = type_name_attr.value();
+            auto case_type_name_attr = case_node.attribute("typeName");
+            if (case_type_name_attr) cdef.type_name = case_type_name_attr.value();
 
             // Inline children
             if (!type_attr) {
@@ -820,8 +820,8 @@ public:
             auto type_attr = other.attribute("type");
             if (type_attr) od.type_ref = type_attr.value();
 
-            auto type_name_attr = other.attribute("typeName");
-            if (type_name_attr) od.type_name = type_name_attr.value();
+            auto other_type_name_attr = other.attribute("typeName");
+            if (other_type_name_attr) od.type_name = other_type_name_attr.value();
 
             if (!type_attr) {
                 od.children = parse_struct_children(other);
