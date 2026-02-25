@@ -1,0 +1,165 @@
+// SPDX-License-Identifier: MIT
+package io.conduit;
+
+import java.lang.foreign.*;
+import java.lang.invoke.MethodHandle;
+
+/**
+ * Java wrapper for the Conduit Transceiver.
+ * <p>
+ * Provides a Java API over libconduit_cabi with AutoCloseable lifecycle management.
+ * Uses the Java Foreign Function and Memory API (JDK 21+, Panama FFI).
+ *
+ * <pre>{@code
+ * try (var t = new Transceiver()) {
+ *     t.addPeer("radar", "my_session", TransportConfig.udp("0.0.0.0:5000"));
+ *     t.start();
+ *     // ...
+ * }
+ * }</pre>
+ */
+public class Transceiver implements AutoCloseable {
+
+    private MemorySegment handle;
+    private final Arena arena;
+
+    public Transceiver() {
+        this.arena = Arena.ofShared();
+        try {
+            this.handle = (MemorySegment) CabiBindings.conduit_create.invokeExact();
+            if (handle == MemorySegment.NULL) {
+                throw new ConduitError(-99, "Failed to create Transceiver");
+            }
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to create Transceiver", e);
+        }
+    }
+
+    /**
+     * Add a peer to the transceiver.
+     *
+     * @param name         Human-readable peer name
+     * @param sessionName  Registered session type name
+     * @param transport    Transport configuration
+     * @return Peer ID
+     */
+    public int addPeer(String name, String sessionName, TransportConfig transport) {
+        try {
+            var nameStr = arena.allocateFrom(name);
+            var sessionStr = arena.allocateFrom(sessionName);
+
+            // Allocate transport config struct: int type, char* address, uint32 baud
+            var cfg = arena.allocate(MemoryLayout.structLayout(
+                ValueLayout.JAVA_INT.withName("type"),
+                ValueLayout.ADDRESS.withName("address"),
+                ValueLayout.JAVA_INT.withName("baud_rate")
+            ));
+            cfg.set(ValueLayout.JAVA_INT, 0, transport.type().value());
+            var addrStr = arena.allocateFrom(transport.address());
+            cfg.set(ValueLayout.ADDRESS, 4, addrStr);
+            cfg.set(ValueLayout.JAVA_INT, 12, transport.baudRate());
+
+            var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
+
+            int err = (int) CabiBindings.conduit_add_peer.invokeExact(
+                handle, nameStr, sessionStr, cfg, peerIdOut);
+            if (err != 0) {
+                throw new ConduitError(err, "Failed to add peer '" + name + "'");
+            }
+            return peerIdOut.get(ValueLayout.JAVA_INT, 0);
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("addPeer failed", e);
+        }
+    }
+
+    /** Start the transceiver. */
+    public void start() {
+        try {
+            int err = (int) CabiBindings.conduit_start.invokeExact(handle);
+            if (err != 0) {
+                throw new ConduitError(err, "Failed to start transceiver");
+            }
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("start failed", e);
+        }
+    }
+
+    /** Stop the transceiver. */
+    public void stop() {
+        try {
+            CabiBindings.conduit_stop.invokeExact(handle);
+        } catch (Throwable e) {
+            throw new RuntimeException("stop failed", e);
+        }
+    }
+
+    /** Check if the transceiver is running. */
+    public boolean isRunning() {
+        try {
+            return (int) CabiBindings.conduit_is_running.invokeExact(handle) != 0;
+        } catch (Throwable e) {
+            throw new RuntimeException("isRunning failed", e);
+        }
+    }
+
+    /** Get the number of peers. */
+    public long peerCount() {
+        try {
+            return (long) CabiBindings.conduit_peer_count.invokeExact(handle);
+        } catch (Throwable e) {
+            throw new RuntimeException("peerCount failed", e);
+        }
+    }
+
+    /** Get the connection state of a peer. */
+    public int peerState(int peerId) {
+        try {
+            return (int) CabiBindings.conduit_peer_state.invokeExact(handle, peerId);
+        } catch (Throwable e) {
+            throw new RuntimeException("peerState failed", e);
+        }
+    }
+
+    /** Get the sole peer ID (when only one exists). */
+    public int solePeer() {
+        try {
+            var pidOut = arena.allocate(ValueLayout.JAVA_INT);
+            int err = (int) CabiBindings.conduit_sole_peer.invokeExact(handle, pidOut);
+            if (err != 0) {
+                throw new ConduitError(err, "sole_peer failed");
+            }
+            return pidOut.get(ValueLayout.JAVA_INT, 0);
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("solePeer failed", e);
+        }
+    }
+
+    /** Get the library version string. */
+    public static String version() {
+        try {
+            var ptr = (MemorySegment) CabiBindings.conduit_version.invokeExact();
+            return ptr.reinterpret(256).getString(0);
+        } catch (Throwable e) {
+            throw new RuntimeException("version failed", e);
+        }
+    }
+
+    @Override
+    public void close() {
+        if (handle != null && handle != MemorySegment.NULL) {
+            try {
+                CabiBindings.conduit_destroy.invokeExact(handle);
+            } catch (Throwable e) {
+                throw new RuntimeException("destroy failed", e);
+            }
+            handle = MemorySegment.NULL;
+        }
+        arena.close();
+    }
+}

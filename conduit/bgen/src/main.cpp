@@ -9,12 +9,7 @@
 #include "analyzer/validator.hpp"
 #include "analyzer/wire_sizer.hpp"
 #include "analyzer/session_analyzer.hpp"
-#include "codegen/cpp_constants.hpp"
-#include "codegen/cpp_types.hpp"
-#include "codegen/cpp_structs.hpp"
-#include "codegen/cpp_session.hpp"
-#include "codegen/cpp_umbrella.hpp"
-#include "codegen/cpp_protocol.hpp"
+#include "codegen/codegen_backend.hpp"
 #include "codegen/name_utils.hpp"
 
 #include <filesystem>
@@ -36,6 +31,7 @@ struct CliArgs {
     std::string input;
     std::string output;
     std::string ns;
+    std::string language = "cpp";
     bool verbose = false;
     bool validate_only = false;
     bool dump_ast = false;
@@ -67,12 +63,13 @@ bool is_valid_namespace(const std::string& ns) {
 }
 
 void print_usage(const char* program) {
-    std::cerr << "Usage: " << program << " --input <root.bmdl.xml> --output <dir> [--namespace <ns>]\n"
+    std::cerr << "Usage: " << program << " --input <root.bmdl.xml> --output <dir> [--namespace <ns>] [--language <lang>]\n"
               << "\n"
               << "Options:\n"
               << "  --input          Path to root BMDL XML file (required)\n"
               << "  --output         Output directory for generated code (required unless --validate-only)\n"
-              << "  --namespace      Override C++ namespace (default: protocol name)\n"
+              << "  --namespace      Override namespace/package (default: protocol name)\n"
+              << "  --language       Target language: cpp (default), python, java\n"
               << "  --validate-only  Parse and validate without generating code\n"
               << "  --dump-ast       Parse, resolve, validate, then print AST and exit\n"
               << "  --verbose        Show informational and diagnostic output\n"
@@ -105,6 +102,13 @@ std::optional<CliArgs> parse_args(int argc, char* argv[], int& exit_code) {
             if (!is_valid_namespace(args.ns)) {
                 std::cerr << "error: invalid namespace '" << args.ns
                           << "' (must be valid C++ identifier(s) separated by ::)\n";
+                return std::nullopt;
+            }
+        } else if (arg == "--language" && i + 1 < argc) {
+            args.language = argv[++i];
+            if (args.language != "cpp" && args.language != "python" && args.language != "java") {
+                std::cerr << "error: unknown language '" << args.language
+                          << "' (supported: cpp, python, java)\n";
                 return std::nullopt;
             }
         } else if (arg == "--verbose") {
@@ -268,7 +272,7 @@ int main(int argc, char* argv[]) {
         if (c == '-') c = '_';
     }
 
-    bgen::Logger::info("generating code in namespace '" + ns + "'...");
+    bgen::Logger::info("generating " + args.language + " code in namespace '" + ns + "'...");
 
     // Create output directory
     try {
@@ -280,36 +284,20 @@ int main(int argc, char* argv[]) {
 
     auto output_dir = fs::path(args.output);
 
-    // Generate and write files
-    bool ok = true;
+    // Create language-specific backend
+    auto backend = bgen::codegen::create_backend(args.language);
+    if (!backend) {
+        bgen::Logger::error("unknown language: " + args.language);
+        return 1;
+    }
 
-    auto constants_code = bgen::codegen::generate_constants(protocol, index, ns);
-    ok &= write_file(output_dir / "constants.hpp", constants_code);
-
-    auto types_code = bgen::codegen::generate_types(protocol, ns);
-    ok &= write_file(output_dir / "types.hpp", types_code);
-
-    auto structs_code = bgen::codegen::generate_structs(protocol, index, sizes, sessions, ns);
-    ok &= write_file(output_dir / "structs.hpp", structs_code);
-
-    auto messages_code = bgen::codegen::generate_messages(protocol, index, sizes, sessions, ns);
-    ok &= write_file(output_dir / "messages.hpp", messages_code);
-
-    auto sessions_code = bgen::codegen::generate_sessions(protocol, index, sessions, ns);
-    ok &= write_file(output_dir / "sessions.hpp", sessions_code);
-
-    auto protocol_code = bgen::codegen::generate_protocol(protocol, sessions, ns);
-    ok &= write_file(output_dir / "protocol.hpp", protocol_code);
-
-    auto umbrella_name = bgen::codegen::to_lower_snake_case(protocol.name);
-    auto umbrella_code = bgen::codegen::generate_umbrella(umbrella_name);
-    ok &= write_file(output_dir / (umbrella_name + ".hpp"), umbrella_code);
+    // Generate code via backend
+    bool ok = backend->generate(protocol, index, sizes, sessions, ns, output_dir);
 
     if (!ok) {
         bgen::Logger::error("I/O errors occurred");
         return 3;
     }
 
-    bgen::Logger::info("generated 7 files in " + args.output);
     return 0;
 }

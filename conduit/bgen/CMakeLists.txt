@@ -19,6 +19,8 @@ set(BGEN_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/wire_sizer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/analyzer/session_analyzer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/name_utils.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/codegen_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_constants.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_types.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_structs.cpp
@@ -29,6 +31,8 @@ set(BGEN_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_umbrella.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/python_backend.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/java_backend.cpp
 )
 
 add_executable(bgen
