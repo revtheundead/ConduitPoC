@@ -122,7 +122,6 @@ add_executable(bgen_tests
     test_validator.cpp
     test_session_analyzer.cpp
     test_codegen_output.cpp
-    test_python_java_backends.cpp
     test_imports.cpp
     test_wire_sizer.cpp
     # Generated code roundtrip / integration tests
@@ -238,6 +237,46 @@ target_include_directories(bgen_tests PRIVATE
 )
 
 catch_discover_tests(bgen_tests)
+
+# ============================================================================
+# Python backend tests (separate executable)
+# ============================================================================
+
+add_executable(bgen_python_tests
+    test_python_backend.cpp
+)
+
+target_link_libraries(bgen_python_tests PRIVATE
+    bgen_lib
+    conduit_warnings
+    Catch2::Catch2WithMain
+)
+
+target_compile_definitions(bgen_python_tests PRIVATE
+    BGEN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)
+
+catch_discover_tests(bgen_python_tests)
+
+# ============================================================================
+# Java backend tests (separate executable)
+# ============================================================================
+
+add_executable(bgen_java_tests
+    test_java_backend.cpp
+)
+
+target_link_libraries(bgen_java_tests PRIVATE
+    bgen_lib
+    conduit_warnings
+    Catch2::Catch2WithMain
+)
+
+target_compile_definitions(bgen_java_tests PRIVATE
+    BGEN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)
+
+catch_discover_tests(bgen_java_tests)
 
 # bgen fuzz
 if(CONDUIT_BUILD_FUZZ)
