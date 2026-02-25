@@ -209,6 +209,8 @@ class CodecSession:
 
     def decode_frame(self, data: bytes) -> list[DecodedMessage]:
         """Decode a frame into a list of messages."""
+        if not self._handle:
+            raise ConduitCodecError(-99, "session is closed")
         buf = (ctypes.c_uint8 * len(data))(*data)
         msgs_ptr = ctypes.POINTER(_DecodedMsg)()
         count = ctypes.c_size_t(0)
@@ -220,24 +222,27 @@ class CodecSession:
         if err != 0:
             raise ConduitCodecError(err, "decode_frame failed")
 
-        results = []
-        for i in range(count.value):
-            msg = msgs_ptr[i]
-            raw = bytes(msg.data[j] for j in range(msg.data_len)) if msg.data else b""
-            name = msg.type_name.decode("utf-8") if msg.type_name else ""
-            results.append(DecodedMessage(
-                type_id=msg.type_id,
-                type_name=name,
-                data=raw,
-            ))
-
-        if msgs_ptr and count.value > 0:
-            self._lib.conduit_free_decoded_msgs(msgs_ptr, count)
+        try:
+            results = []
+            for i in range(count.value):
+                msg = msgs_ptr[i]
+                raw = bytes(msg.data[j] for j in range(msg.data_len)) if msg.data else b""
+                name = msg.type_name.decode("utf-8") if msg.type_name else ""
+                results.append(DecodedMessage(
+                    type_id=msg.type_id,
+                    type_name=name,
+                    data=raw,
+                ))
+        finally:
+            if msgs_ptr and count.value > 0:
+                self._lib.conduit_free_decoded_msgs(msgs_ptr, count.value)
 
         return results
 
     def encode_message(self, type_id: int, payload: bytes) -> bytes:
         """Encode a message, returning wire bytes."""
+        if not self._handle:
+            raise ConduitCodecError(-99, "session is closed")
         buf = (ctypes.c_uint8 * len(payload))(*payload)
         result = _EncodeResult()
 
@@ -254,11 +259,15 @@ class CodecSession:
 
     def type_name(self, type_id: int) -> str:
         """Get the type name for a given type ID."""
+        if not self._handle:
+            return ""
         name = self._lib.conduit_session_type_name(self._handle, type_id)
         return name.decode("utf-8") if name else ""
 
     def leaf_type_ids(self) -> list[int]:
         """Get all leaf type IDs for this session."""
+        if not self._handle:
+            return []
         count = self._lib.conduit_session_leaf_type_count(self._handle)
         if count == 0:
             return []
@@ -267,10 +276,14 @@ class CodecSession:
 
     def is_receive_only(self, type_id: int) -> bool:
         """Check if a type is receive-only."""
+        if not self._handle:
+            return False
         return bool(self._lib.conduit_session_is_receive_only(self._handle, type_id))
 
     def protocol_name(self) -> str:
         """Get the protocol name."""
+        if not self._handle:
+            return ""
         name = self._lib.conduit_session_protocol_name(self._handle)
         return name.decode("utf-8") if name else ""
 
@@ -304,6 +317,8 @@ class CodecFramer:
 
     def feed(self, data: bytes) -> list[bytes]:
         """Feed bytes and extract complete frames."""
+        if not self._handle:
+            raise ConduitCodecError(-99, "framer is closed")
         buf = (ctypes.c_uint8 * len(data))(*data)
         frames_ptr = ctypes.POINTER(_Frame)()
         count = ctypes.c_size_t(0)
@@ -315,13 +330,14 @@ class CodecFramer:
         if err != 0:
             raise ConduitCodecError(err, "framer_feed failed")
 
-        results = []
-        for i in range(count.value):
-            frame = frames_ptr[i]
-            frame_bytes = bytes(frame.data[j] for j in range(frame.data_len)) if frame.data else b""
-            results.append(frame_bytes)
-
-        if frames_ptr and count.value > 0:
-            self._lib.conduit_free_frames(frames_ptr, count)
+        try:
+            results = []
+            for i in range(count.value):
+                frame = frames_ptr[i]
+                frame_bytes = bytes(frame.data[j] for j in range(frame.data_len)) if frame.data else b""
+                results.append(frame_bytes)
+        finally:
+            if frames_ptr and count.value > 0:
+                self._lib.conduit_free_frames(frames_ptr, count.value)
 
         return results

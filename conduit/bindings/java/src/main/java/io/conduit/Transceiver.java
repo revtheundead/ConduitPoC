@@ -20,17 +20,33 @@ import java.lang.invoke.MethodHandle;
  */
 public class Transceiver implements AutoCloseable {
 
-    private MemorySegment handle;
+    private volatile MemorySegment handle;
     private final Arena arena;
+
+    /**
+     * Layout for conduit_transport_config_t with correct padding for 64-bit.
+     * C struct: { int type; [4 bytes padding]; char* address; uint32_t baud_rate; [4 bytes padding] }
+     */
+    private static final StructLayout TRANSPORT_CONFIG_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_INT.withName("type"),
+        MemoryLayout.paddingLayout(4),
+        ValueLayout.ADDRESS.withName("address"),
+        ValueLayout.JAVA_INT.withName("baud_rate"),
+        MemoryLayout.paddingLayout(4)
+    );
 
     public Transceiver() {
         this.arena = Arena.ofShared();
         try {
             this.handle = (MemorySegment) CabiBindings.conduit_create.invokeExact();
             if (handle == MemorySegment.NULL) {
+                arena.close();
                 throw new ConduitError(-99, "Failed to create Transceiver");
             }
+        } catch (ConduitError e) {
+            throw e;
         } catch (Throwable e) {
+            arena.close();
             throw new RuntimeException("Failed to create Transceiver", e);
         }
     }
@@ -48,16 +64,12 @@ public class Transceiver implements AutoCloseable {
             var nameStr = arena.allocateFrom(name);
             var sessionStr = arena.allocateFrom(sessionName);
 
-            // Allocate transport config struct: int type, char* address, uint32 baud
-            var cfg = arena.allocate(MemoryLayout.structLayout(
-                ValueLayout.JAVA_INT.withName("type"),
-                ValueLayout.ADDRESS.withName("address"),
-                ValueLayout.JAVA_INT.withName("baud_rate")
-            ));
+            // Allocate transport config struct with correct layout
+            var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
             cfg.set(ValueLayout.JAVA_INT, 0, transport.type().value());
             var addrStr = arena.allocateFrom(transport.address());
-            cfg.set(ValueLayout.ADDRESS, 4, addrStr);
-            cfg.set(ValueLayout.JAVA_INT, 12, transport.baudRate());
+            cfg.set(ValueLayout.ADDRESS, 8, addrStr);
+            cfg.set(ValueLayout.JAVA_INT, 16, transport.baudRate());
 
             var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
@@ -144,6 +156,7 @@ public class Transceiver implements AutoCloseable {
     public static String version() {
         try {
             var ptr = (MemorySegment) CabiBindings.conduit_version.invokeExact();
+            if (ptr == MemorySegment.NULL) return "";
             return ptr.reinterpret(256).getString(0);
         } catch (Throwable e) {
             throw new RuntimeException("version failed", e);
@@ -153,6 +166,14 @@ public class Transceiver implements AutoCloseable {
     @Override
     public void close() {
         if (handle != null && handle != MemorySegment.NULL) {
+            try {
+                // Stop before destroying to avoid undefined behavior with running I/O threads
+                if (isRunning()) {
+                    stop();
+                }
+            } catch (Throwable ignored) {
+                // Best-effort stop; proceed with destroy
+            }
             try {
                 CabiBindings.conduit_destroy.invokeExact(handle);
             } catch (Throwable e) {

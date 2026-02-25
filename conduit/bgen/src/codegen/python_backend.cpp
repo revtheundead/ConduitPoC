@@ -742,11 +742,12 @@ std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi) {
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "w.write_sign_magnitude(" + val + ", " + std::to_string(fi.bits) + ")";
     std::string be = (fi.endian == model::Endian::Big) ? "True" : "False";
     if (fi.is_float) return (fi.bits <= 32) ? "w.write_f32(" + val + ", " + be + ")" : "w.write_f64(" + val + ", " + be + ")";
+    // bool must be checked before bit-width checks for correct encoding
+    if (fi.is_bool) return "w.write_bits(1 if " + val + " else 0, " + std::to_string(fi.bits) + ")";
     if (fi.bits == 8 && !fi.is_signed) return "w.write_u8(" + val + ")";
     if (fi.bits == 16 && !fi.is_signed) return "w.write_u16(" + val + ", " + be + ")";
     if (fi.bits == 32 && !fi.is_signed) return "w.write_u32(" + val + ", " + be + ")";
     if (fi.bits == 64 && !fi.is_signed) return "w.write_u64(" + val + ", " + be + ")";
-    if (fi.is_bool) return "w.write_bits(1 if " + val + " else 0, " + std::to_string(fi.bits) + ")";
     if (fi.is_signed) return "w.write_signed_bits(" + val + ", " + std::to_string(fi.bits) + ")";
     return "w.write_bits(" + val + ", " + std::to_string(fi.bits) + ")";
 }
@@ -1063,6 +1064,36 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.dedent();
 }
 
+// Recursively emit Python classes for inline struct/array/choice types
+void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                           const analyzer::TypeIndex& index,
+                           const std::unordered_map<std::string, uint64_t>& tid_map) {
+    for (const auto& child : children) {
+        if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            emit_py_inline_types(ctx, sd->children, index, tid_map);
+            emit_py_class(ctx, sd->name, sd->children, index, tid_map);
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            if (ad->type_ref.empty() && !ad->children.empty()) {
+                emit_py_inline_types(ctx, ad->children, index, tid_map);
+                emit_py_class(ctx, ad->name, ad->children, index, tid_map);
+            }
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            for (const auto& cs : cd->cases) {
+                if (cs.type_ref.empty() && !cs.children.empty()) {
+                    emit_py_inline_types(ctx, cs.children, index, tid_map);
+                    emit_py_class(ctx, cs.name, cs.children, index, tid_map);
+                }
+            }
+            if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
+                emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map);
+                emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map);
+            }
+        } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            emit_py_inline_types(ctx, fx->children, index, tid_map);
+        }
+    }
+}
+
 std::string generate_py_structs(const model::Protocol& protocol,
                                  const analyzer::TypeIndex& index) {
     EmitContext ctx;
@@ -1073,8 +1104,10 @@ std::string generate_py_structs(const model::Protocol& protocol,
     ctx.line("from .constants import Constants");
 
     std::unordered_map<std::string, uint64_t> empty;
-    for (const auto& sd : protocol.structs)
+    for (const auto& sd : protocol.structs) {
+        emit_py_inline_types(ctx, sd.children, index, empty);
         emit_py_class(ctx, sd.name, sd.children, index, empty);
+    }
 
     ctx.line();
     return ctx.str();
@@ -1096,8 +1129,10 @@ std::string generate_py_messages(const model::Protocol& protocol,
         for (const auto& lt : si.leaf_types)
             tid_map[lt.name] = lt.type_id;
 
-    for (const auto& md : protocol.messages)
+    for (const auto& md : protocol.messages) {
+        emit_py_inline_types(ctx, md.children, index, tid_map);
         emit_py_class(ctx, md.name, md.children, index, tid_map, md.id);
+    }
 
     ctx.line();
     return ctx.str();
