@@ -470,6 +470,288 @@ For most teams, **Suggestions 1-2** (codec C ABI with pre-built packages) delive
 
 ---
 
+## Direct Transceiver Access from Other Languages
+
+The native accessibility section above covers the **codec-only** path — encode/decode without networking. But many users need the **full Transceiver**: transport management, peer lifecycle, typed handler dispatch, connection state awareness, and bidirectional send/receive. This section describes how to make the complete Transceiver directly usable from other languages, so that users get all of Conduit's capabilities — not just the codec — without writing C++.
+
+### Why direct Transceiver access matters
+
+The Transceiver is the orchestrator that ties together transport I/O, session decode/encode, stream framing, handler dispatch, and worker threading into a single coherent API. When users access only the codec, they must reimplement or forgo all of that:
+
+| Capability | Codec-only | Full Transceiver |
+|------------|-----------|-----------------|
+| Encode/decode messages | Yes | Yes |
+| Manage TCP/UDP/Serial connections | No — user handles own I/O | Yes — built-in transports |
+| Automatic stream framing | Manual — user feeds `StreamFramer` | Automatic per-peer |
+| Typed handler dispatch | No — user routes messages manually | Yes — `on<T>(callback)` |
+| Connection state tracking | No | Yes — `on_state_change`, `peer_state()` |
+| Multi-peer management | No | Yes — per-peer handlers, named lookup |
+| Worker thread pool | No | Yes — configurable concurrency |
+| Back-pressure and queue management | No | Yes — `BoundedQueue` with drop policies |
+| Statistics and observability | No | Yes — `stats()`, error callbacks |
+
+For teams building long-running protocol applications — not just parsing files or running one-off tests — the Transceiver is the right integration point.
+
+### The API surface
+
+The Transceiver's public API is compact. Stripping away C++ template machinery, there are ~12 operations:
+
+| Category | Operations |
+|----------|-----------|
+| Setup | `create`, `add_peer` |
+| Lifecycle | `start`, `stop`, `is_running` |
+| Messaging | `send`, `send_batch`, `on` (register handler), `remove_handler` |
+| Observability | `on_state_change`, `on_error`, `peer_state`, `stats` |
+
+At the FFI boundary, message identity shifts from compile-time types to runtime type IDs + byte spans. The C++ side already has `TYPE_ID` on every generated message and `ISession` works in terms of `std::span<const uint8_t>`, so this flattening is natural:
+
+```
+C++:   xcvr.send<Heartbeat>(peer, heartbeat_obj)
+C ABI: conduit_send(xcvr, peer_id, HEARTBEAT_TYPE_ID, bytes, len)
+
+C++:   xcvr.on<Heartbeat>([](const Heartbeat& h) { ... })
+C ABI: conduit_on_message(xcvr, HEARTBEAT_TYPE_ID, callback_fn, user_data)
+```
+
+Sessions become string-named lookups instead of C++ constructors. bgen registers each generated session type under a name at library load time, and the C ABI resolves it:
+
+```c
+// User never constructs C++ objects — just describes what they want
+conduit_add_peer(xcvr, "radar",
+    "asterix_cat062",                         // session type (string lookup)
+    CONDUIT_TRANSPORT_UDP,                    // transport kind
+    &(conduit_udp_config_t){                  // transport config
+        .bind_address = "0.0.0.0",
+        .bind_port = 5000
+    });
+```
+
+### Language-specific Transceiver wrappers
+
+Each language gets an idiomatic wrapper that hides the C ABI. The same application — listen for Heartbeat and SensorReading on UDP port 5000 — in every target language:
+
+#### Python
+
+```python
+from conduit import Transceiver, UdpConfig
+from my_protocol import Heartbeat, SensorReading, create_session
+
+with Transceiver() as t:
+    t.add_peer("radar", create_session, UdpConfig(bind="0.0.0.0:5000"))
+
+    @t.on(Heartbeat)
+    def handle_hb(msg):
+        print(f"seq={msg.sequence}, status={msg.status}")
+
+    @t.on(SensorReading)
+    def handle_sr(msg):
+        db.insert(msg.sensor_id, msg.value)
+
+    t.start()
+    t.wait()
+```
+
+Context manager maps to `conduit_create` / `conduit_destroy`. The `@t.on(Heartbeat)` decorator calls `conduit_on_message` under the hood. When the C++ worker thread fires the callback, the wrapper acquires the GIL, deserializes bytes into a Python `Heartbeat` object (via bgen-generated decode), and calls the user's function.
+
+#### Rust
+
+```rust
+use conduit::{Transceiver, UdpConfig};
+use my_protocol::{Heartbeat, SensorReading, create_session};
+
+fn main() -> Result<(), conduit::Error> {
+    let mut t = Transceiver::new();
+    t.add_peer("radar", create_session, UdpConfig::bind("0.0.0.0:5000"))?;
+
+    t.on::<Heartbeat>(|msg| {
+        println!("seq={}, status={}", msg.sequence, msg.status);
+    });
+
+    t.on::<SensorReading>(|msg| {
+        db.insert(msg.sensor_id, msg.value);
+    });
+
+    t.start()?;
+    t.wait();
+    Ok(())
+}
+```
+
+A `-sys` crate provides raw FFI, a safe wrapper enforces lifetime correctness (`Transceiver` owns the handle, `Drop` calls `conduit_destroy`), and closures must be `Send + 'static`. Generated `Heartbeat` and `SensorReading` are native Rust structs with `Decode`/`Encode` from bgen's Rust backend.
+
+#### Go
+
+```go
+package main
+
+import (
+    "fmt"
+    "conduit"
+    "my_protocol"
+)
+
+func main() {
+    t := conduit.NewTransceiver()
+    defer t.Stop()
+
+    t.AddPeer("radar", my_protocol.CreateSession, conduit.UdpConfig{
+        Bind: "0.0.0.0:5000",
+    })
+
+    conduit.On[my_protocol.Heartbeat](t, func(msg my_protocol.Heartbeat) {
+        fmt.Printf("seq=%d, status=%d\n", msg.Sequence, msg.Status)
+    })
+
+    conduit.On[my_protocol.SensorReading](t, func(msg my_protocol.SensorReading) {
+        db.Insert(msg.SensorId, msg.Value)
+    })
+
+    t.Start()
+    t.Wait()
+}
+```
+
+cgo handles the FFI. C → Go callbacks require `//export` trampoline functions; the wrapper routes all callbacks through a single registered dispatcher that looks up Go closures by ID.
+
+#### Java
+
+```java
+import com.conduit.Transceiver;
+import com.conduit.UdpConfig;
+import com.myprotocol.Heartbeat;
+import com.myprotocol.SensorReading;
+import static com.myprotocol.Sessions.createSession;
+
+public class Main {
+    public static void main(String[] args) {
+        try (var t = new Transceiver()) {
+            t.addPeer("radar", createSession(),
+                      new UdpConfig("0.0.0.0", 5000));
+
+            t.on(Heartbeat.class, msg ->
+                System.out.printf("seq=%d, status=%d%n",
+                    msg.sequence(), msg.status()));
+
+            t.on(SensorReading.class, msg ->
+                db.insert(msg.sensorId(), msg.value()));
+
+            t.start();
+            t.await();
+        }
+    }
+}
+```
+
+Project Panama (Foreign Function & Memory API) or JNI for the FFI. `Transceiver` implements `AutoCloseable`, callbacks dispatch through a `MethodHandle` lookup table, and generated message types are Java records with `ByteBuffer`-based decode/encode.
+
+#### C\#
+
+```csharp
+using Conduit;
+using MyProtocol;
+
+using var t = new Transceiver();
+t.AddPeer("radar", Sessions.CreateSession, new UdpConfig("0.0.0.0", 5000));
+
+t.On<Heartbeat>(msg =>
+    Console.WriteLine($"seq={msg.Sequence}, status={msg.Status}"));
+
+t.On<SensorReading>(msg =>
+    db.Insert(msg.SensorId, msg.Value));
+
+t.Start();
+t.Wait();
+```
+
+P/Invoke for the FFI, `IDisposable` for lifecycle, delegates for callbacks, generated types as `readonly record struct` with `Span<byte>` encode/decode.
+
+#### JavaScript / TypeScript (Node.js)
+
+```typescript
+import { Transceiver, UdpConfig } from "conduit";
+import { Heartbeat, SensorReading, createSession } from "./my_protocol";
+
+const t = new Transceiver();
+t.addPeer("radar", createSession, new UdpConfig({ bind: "0.0.0.0:5000" }));
+
+t.on(Heartbeat, (msg) => {
+    console.log(`seq=${msg.sequence}, status=${msg.status}`);
+});
+
+t.on(SensorReading, (msg) => {
+    db.insert(msg.sensorId, msg.value);
+});
+
+await t.start();
+// t.stop() on SIGINT
+```
+
+N-API native addon for the FFI. Callbacks are posted to the Node.js event loop via `napi_threadsafe_function` so they execute on the main thread, preserving Node's single-threaded model. Generated types are plain JS objects with `encode()`/`decode()` methods.
+
+### Implementation challenges and solutions
+
+The API shape is straightforward. Three aspects require careful per-language work:
+
+#### 1. Callback threading
+
+The C++ Transceiver fires handler callbacks on its worker thread pool. Every language wrapper must safely cross the thread boundary:
+
+| Language | Mechanism |
+|----------|-----------|
+| Python | Acquire the GIL before invoking the user's callback |
+| Java | `AttachCurrentThread` to attach the native thread to the JVM |
+| Go | Route through a cgo `//export` trampoline into a goroutine |
+| Rust | Require callback closures to be `Send + 'static` |
+| C# | Marshal to the thread pool or a `SynchronizationContext` |
+| Node.js | Post via `napi_threadsafe_function` to the event loop |
+
+The C ABI should expose a callback mode option: fire directly on the worker thread (lowest latency) or post to a language-provided event loop (safest for single-threaded runtimes like Node.js and Python asyncio).
+
+#### 2. Session creation without C++ constructors
+
+In C++, users pass a `SessionFactory` (a lambda returning `std::unique_ptr<ISession>`) to `add_peer`. Foreign languages can't construct C++ objects directly. The solution is a **session registry**:
+
+- bgen registers each generated session under a string name at library load time
+- The C ABI resolves the name to an internal factory: `conduit_add_peer(xcvr, "radar", "asterix_cat062", ...)`
+- Protocol schemas can be loaded as plugins — compile a `.so` per protocol, `dlopen` it, and the registry picks it up
+
+This eliminates the need for foreign languages to manage C++ object construction or lifetime for sessions.
+
+#### 3. Transport extensibility
+
+The built-in transports (TCP, UDP, Serial) cover most use cases and are configured via simple structs through the C ABI. For advanced users who need a custom transport implemented in their language, the C ABI provides a reverse callback interface:
+
+```c
+conduit_custom_transport_t my_transport = {
+    .start_fn    = my_start,
+    .stop_fn     = my_stop,
+    .send_fn     = my_send,
+    .is_stream   = false,
+    .is_multi_peer = false,
+    .user_data   = my_context,
+};
+conduit_add_peer_custom(xcvr, "custom", "my_session", &my_transport);
+```
+
+This is the most complex extension point and should be deferred to a later release. Most users will use built-in transports exclusively.
+
+### When to use direct Transceiver access vs. other approaches
+
+| Scenario | Best approach |
+|----------|--------------|
+| Long-running protocol application (monitor, controller, gateway) | Direct Transceiver access |
+| Parsing captured data from files or buffers | Codec-only library |
+| Web dashboard or microservice consuming data | Middleware bridge (Kafka/RabbitMQ/WebSocket) |
+| Unit testing message encode/decode | Codec-only library |
+| Protocol simulator that sends and receives | Direct Transceiver access |
+| Feeding protocol data into an existing Kafka pipeline | Middleware bridge |
+| Quick scripting against live protocol traffic | Direct Transceiver access (Python or Lua embedding) |
+| Browser-based protocol inspector | WASM codec + WebSocket bridge |
+
+The direct Transceiver path and the middleware bridge path are not competing approaches — they serve different integration profiles. The Transceiver gives users full control and awareness of the protocol transport. The bridge gives users zero-dependency access through infrastructure they already run. Both should be available; teams will gravitate toward whichever fits their deployment model.
+
+---
+
 ## Recommended Combination
 
 The strategies serve different integration profiles. Choose based on how your users need to connect:
@@ -477,32 +759,35 @@ The strategies serve different integration profiles. Choose based on how your us
 | Priority | Strategy | What it unlocks | C++ required by user? | Networking required? |
 |----------|----------|-----------------|-----------------------|---------------------|
 | 1 | Multi-language bgen backends | Native typed messages in every language | No | No |
-| 2 | Codec-only library packages (`conduit-codec`) | In-process encode/decode from any language | No | No |
-| 3 | Messaging middleware (Kafka, RabbitMQ, WebSocket) | Zero-dependency integration via existing infrastructure | No | Yes (middleware) |
-| 4 | Python bindings (nanobind) | First-class Python UX for the most common integration | No | No |
-| 5 | C ABI wrapper (full transceiver) | Universal access to the C++ transport stack | No (but language bindings needed) | Optional |
-| 6 | gRPC gateway | Typed streaming RPC for polyglot services | No | Yes (gRPC) |
+| 2 | Direct Transceiver wrappers (Python, Rust, Go, Java, C#, JS) | Full Conduit capabilities from any language | No | Uses built-in transports |
+| 3 | Codec-only library packages (`conduit-codec`) | In-process encode/decode without transport | No | No |
+| 4 | Messaging middleware (Kafka, RabbitMQ, WebSocket) | Zero-dependency integration via existing infrastructure | No | Yes (middleware) |
+| 5 | gRPC gateway | Typed streaming RPC for polyglot services | No | Yes (gRPC) |
 
-The strategies form two axes of accessibility:
+The strategies form three tiers of integration depth:
 
-- **Native library access** (Strategies 1, 2, 4, and the pure-native bgen / WASM approaches) — for teams that want to run Conduit's codec logic directly in their own process, with no networking involved. This covers file parsing, test harnesses, data pipelines, and any scenario where the user controls their own I/O.
+- **Full Transceiver access** (Priorities 1-2) — for teams building protocol applications that need transport management, handler dispatch, connection awareness, and bidirectional messaging. Users import a language-native Conduit package (`pip install conduit`, `cargo add conduit`) and get the same capabilities as C++ users: add peers, register typed handlers, send messages, monitor connection state. The C++ is an invisible runtime underneath idiomatic language wrappers.
 
-- **Infrastructure-level access** (Strategies 3, 5, 6) — for teams that want structured protocol data delivered through the middleware they already operate. This covers monitoring dashboards, microservice architectures, and teams that prefer full decoupling.
+- **Codec-only access** (Priority 3, plus pure-native bgen / WASM) — for teams that only need encode/decode without live transport. Parsing files, building test harnesses, embedding protocol logic in data pipelines. Lighter weight than the full Transceiver, no threading or networking pulled in.
 
-Strategy 1 (bgen backends) is the keystone — it makes both axes better because every integration point gets typed, generated code. The codec-only library split (Strategy 2) makes the native path practical by giving other languages access to Conduit's encode/decode without pulling in the full transceiver. And the messaging middleware bridges (Strategy 3) provide the zero-friction path for teams that just want data in their existing pipeline.
+- **Infrastructure-level access** (Priorities 4-5) — for teams that want structured protocol data delivered through middleware they already operate. Zero Conduit-specific code on the user's side. Covers dashboards, microservice architectures, and teams that prefer full deployment decoupling.
+
+Strategy 1 (bgen backends) is the keystone — it makes all three tiers better because every integration point gets typed, generated code. The direct Transceiver wrappers (Priority 2) make the full library accessible without C++. The codec-only split (Priority 3) serves the lighter use cases. And the middleware bridges (Priority 4) provide the zero-friction path for teams that just want data in their existing pipeline.
 
 ---
 
 ## Key Design Principle
 
-**Meet users where they are.** The goal is not to make every team learn Conduit — it's to make Conduit's protocol data available through whatever tools and languages a team already uses.
+**Meet users where they are.** The goal is not to make every team learn Conduit — it's to make Conduit's protocol capabilities available through whatever tools and languages a team already uses.
 
-This means three complementary approaches:
+This means four complementary approaches:
 
 1. **Generate, don't wrap.** For teams that want direct integration, generate native code from BMDL rather than wrapping C++ in FFI layers. Wrapping always leaks abstraction (memory management, exception handling, callback lifecycles). Generating native code gives each language an implementation that feels like it was written for that language, while the shared schema guarantees wire compatibility.
 
-2. **Ship the library, not the toolchain.** For teams that want Conduit's codec power without compiling C++, package it as a native library they can install through their language's package manager (`pip install`, `cargo add`, `npm install`). Pre-built binaries, thin idiomatic wrappers, and no build-time C++ dependency. Users import and call — the C++ is an invisible implementation detail.
+2. **Expose the full library, not just the codec.** For teams building protocol applications in Python, Rust, Go, Java, C#, or JavaScript, provide Transceiver wrappers that deliver the complete Conduit experience — peer management, typed handlers, transport I/O, connection awareness, bidirectional send/receive — through idiomatic language APIs. The C++ is an invisible runtime. Users write `@t.on(Heartbeat)` in Python or `t.on::<Heartbeat>(|msg| ...)` in Rust and never touch a C header.
 
-3. **Bridge, don't require.** For teams that don't want any Conduit-specific code at all, bridge to standard middleware (Kafka, RabbitMQ, WebSocket). The bridge is a deployment concern, not an application concern — users write normal Kafka consumers or WebSocket handlers and never interact with Conduit APIs.
+3. **Ship the library, not the toolchain.** Package both the codec and the full Transceiver as native libraries installable through each language's package manager (`pip install`, `cargo add`, `npm install`). Pre-built binaries for common platforms, thin idiomatic wrappers, zero build-time C++ dependency. Users `import` and go.
 
-The codec-only library split is what makes approaches 1 and 2 practical. By separating `conduit-codec` (pure computation) from `conduit-transceiver` (networking + threading), the codec can be compiled, packaged, and distributed independently — as a shared library, a WASM module, or even reimplemented natively from bgen output. The full transceiver C ABI remains available for teams that also want Conduit-managed transport, but it's no longer the only way in.
+4. **Bridge, don't require.** For teams that don't want any Conduit-specific code at all, bridge to standard middleware (Kafka, RabbitMQ, WebSocket). The bridge is a deployment concern, not an application concern — users write normal Kafka consumers or WebSocket handlers and never interact with Conduit APIs.
+
+The `conduit-codec` / `conduit-transceiver` split is the architectural foundation. The codec can be compiled, packaged, and distributed independently for lightweight use cases (file parsing, test harnesses). The full Transceiver wraps both the codec and the transport stack for teams that need live protocol communication. And the middleware bridges sit on top, providing zero-dependency access for teams that just want data in their existing pipeline. Each tier builds on the one below it, and bgen's multi-language code generation makes all three tiers better by providing typed, native message handling everywhere.
