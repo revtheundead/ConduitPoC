@@ -299,21 +299,197 @@ Restricted deployment environments (embedded Python, locked-down containers), or
 
 ---
 
+## Making Conduit Natively Accessible Without Networking
+
+The strategies above focus on how users in other languages reach Conduit data. This section addresses a different question: **how to make the Conduit library itself — its codec, message types, framing, and session logic — run directly as native code in other languages, with no networking layer present at all.**
+
+This matters for use cases that have nothing to do with live transport: parsing captured protocol data from files, building test harnesses that construct and validate messages, embedding protocol logic in data pipelines, or integrating Conduit's encode/decode into applications that handle their own I/O.
+
+### Architectural prerequisite: split `conduit-codec` from `conduit-transceiver`
+
+Conduit's internal layering already separates pure computation from platform-bound I/O:
+
+```
+conduit-codec  (pure computation, no OS deps)
+├── BitReader / BitWriter       — bit-level I/O on byte spans
+├── Endian utilities            — byte-order conversion
+├── Error / Result<T>           — error propagation
+├── Codec traits                — Encodable / Decodable / Message concepts
+├── Generated message types     — structs with encode_bytes() / decode_bytes()
+├── Generated sessions          — ISession implementations (decode_frame, encode_wrap)
+└── StreamFramer                — stateful frame extraction from byte streams
+
+conduit-transceiver  (platform-bound, threading + networking)
+├── ITransport + implementations (TCP, UDP, Serial)
+├── Transceiver orchestrator
+├── BoundedQueue
+├── HandlerRegistry
+└── Worker thread pool
+```
+
+Making this split explicit — two separate build targets, `conduit-codec` and `conduit-transceiver` — is the foundation for native accessibility. Everything below depends on `conduit-codec` being independently compilable and linkable.
+
+### Suggestion 1: Codec-only C ABI (`libconduit_codec`)
+
+Expose the codec layer through a minimal C-linkage shared library that handles encode, decode, and introspection without any transport or threading:
+
+```c
+// Session lifecycle
+conduit_session_t* conduit_session_create(const char* session_type);
+void conduit_session_destroy(conduit_session_t* session);
+
+// Decode: raw bytes → structured messages
+int conduit_decode_frame(conduit_session_t* session,
+                         const uint8_t* data, size_t len,
+                         conduit_decoded_msg_t** out_msgs, size_t* out_count);
+
+// Encode: structured fields → raw bytes
+int conduit_encode_message(conduit_session_t* session,
+                           uint64_t type_id,
+                           const uint8_t* fields, size_t fields_len,
+                           uint8_t** out_data, size_t* out_len);
+
+// Introspection
+const char* conduit_type_name(conduit_session_t* session, uint64_t type_id);
+int conduit_format_message(conduit_session_t* session,
+                           const uint8_t* data, size_t len,
+                           char* buf, size_t buf_len);
+
+// Stream framing (for users doing their own I/O)
+conduit_framer_t* conduit_framer_create(conduit_session_t* session);
+int conduit_framer_feed(conduit_framer_t* framer,
+                        const uint8_t* data, size_t len,
+                        conduit_frame_t** out_frames, size_t* out_count);
+```
+
+This is smaller and simpler than the full transceiver C ABI (Strategy 2). It compiles to a shared library with no socket, threading, or OS dependencies beyond the C runtime. Any language that can load a `.so`/`.dll` can use it immediately.
+
+### Suggestion 2: Pre-built language packages
+
+Distribute `libconduit_codec` as native packages in each language's ecosystem, with thin idiomatic wrappers:
+
+| Language | Package | Wrapper technology | What the user sees |
+|----------|---------|-------------------|-------------------|
+| Python | `pip install conduit-codec` | nanobind or cffi around `libconduit_codec` | Python classes with `encode()` / `decode()` methods |
+| Rust | `cargo add conduit-codec` | `-sys` crate linking `libconduit_codec` + safe Rust wrapper | Rust structs implementing `TryFrom<&[u8]>` |
+| Node.js | `npm install conduit-codec` | N-API native addon | JS objects with `encode()` / `decode()` |
+| Java | Maven / Gradle artifact | JNI or Panama FFI | Java records with builder pattern |
+| C# | NuGet `Conduit.Codec` | P/Invoke | C# structs with `Span<byte>` methods |
+| Go | Go module | cgo wrapping `libconduit_codec` | Go structs with `Marshal()` / `Unmarshal()` |
+
+Each package ships pre-compiled binaries for common platforms (Linux x86_64/ARM64, macOS x86_64/ARM64, Windows x64) via platform-specific wheels, crate features, or native addon prebuild. Users `pip install` or `cargo add` and start working immediately — no C++ toolchain required on their machine.
+
+**Target UX (Python example):**
+
+```python
+from conduit_codec import load_session
+
+session = load_session("asterix_cat062")
+
+# Decode a raw frame from a pcap file
+messages = session.decode(raw_bytes)
+for msg in messages:
+    print(msg.type_name, msg.fields)
+
+# Encode a message for injection testing
+frame = session.encode("Heartbeat", {"sequence": 42, "status": 0x01})
+```
+
+**Target UX (Rust example):**
+
+```rust
+use conduit_codec::Session;
+
+let session = Session::new("asterix_cat062");
+
+// Decode
+let messages = session.decode_frame(&raw_bytes)?;
+for msg in &messages {
+    println!("{}: {:?}", msg.type_name(), msg.fields());
+}
+
+// Encode
+let frame = session.encode("Heartbeat", &[("sequence", 42.into())])?;
+```
+
+No sockets. No threads. No Transceiver. Just codec operations on byte buffers.
+
+### Suggestion 3: Embeddable scripting runtime
+
+Instead of only letting other languages call into Conduit, let Conduit call out to them. Embed a lightweight scripting runtime (Lua, Python, or JavaScript) inside the Transceiver so that users can write message handlers in a scripting language without building a separate process or managing FFI:
+
+```lua
+-- handlers.lua — loaded by a Conduit process at startup
+function on_heartbeat(msg)
+    log.info("seq=%d status=%d", msg.sequence, msg.status)
+    if msg.status == 0 then
+        send("tx", "Alert", { reason = "heartbeat_lost" })
+    end
+end
+```
+
+The Conduit process loads the script, registers the functions as handlers, and dispatches decoded messages into the scripting runtime. This inverts the integration direction: the user's code runs *inside* Conduit rather than Conduit running inside the user's process.
+
+**Lua** is the natural first choice — it's designed for embedding (tiny runtime, C API, no GIL), widely used in gamedev and networking for exactly this pattern, and adds minimal binary size. Python embedding (via `pybind11` embed mode) is an alternative for teams that need the Python ecosystem.
+
+### Suggestion 4: Pure-native codec libraries via bgen (extends Strategy 1)
+
+Strategy 1 describes generating message types in other languages. Taken further, bgen can generate **complete, self-contained codec libraries** that include not just message structs but also the session logic, stream framing, and bit-level I/O — all in the target language:
+
+- **Python**: `BitReader`/`BitWriter` reimplemented in Python (or Cython for performance), plus generated message classes and a `Session` class with `decode_frame()`/`encode_wrap()`
+- **Rust**: `BitReader`/`BitWriter` as a Rust crate, generated message structs with `#[derive(Encode, Decode)]`, `Session` trait implementations
+- **Go**: `BitReader`/`BitWriter` as a Go package, generated structs with `encoding.BinaryMarshaler`/`BinaryUnmarshaler`
+- **TypeScript**: `BitReader`/`BitWriter` for `ArrayBuffer`/`DataView`, generated interfaces with encode/decode functions
+
+This produces zero-dependency, native-language libraries that users can `import` and use like any other package in their ecosystem. The core bit-level I/O algorithms (`BitReader` reads N bits from a byte span, `BitWriter` accumulates bits into a byte vector) are straightforward to port — the complexity is in the protocol-specific encode/decode logic, which is exactly what bgen generates.
+
+The `StreamFramer` algorithm (scan for sync pattern, extract header length, buffer until frame complete) is ~100 lines in any language. Combined with the generated session, this yields a fully native implementation that can parse protocol streams without any C++ dependency.
+
+### Suggestion 5: WASM as a universal codec runtime
+
+Compile `conduit-codec` to WebAssembly (extends Strategy 6) and distribute it as a universal binary that runs in any WASM runtime:
+
+- **Browser**: protocol decode/encode in the browser via `WebAssembly.instantiate()`
+- **Node.js / Deno / Bun**: WASM module imported as a package
+- **Python**: via `wasmtime-py` or `wasmer-python`
+- **Rust**: via `wasmtime` or native WASM support
+- **Any language with a WASM runtime**: JVM (GraalWasm), .NET (wasmtime-dotnet), Go (wazero)
+
+WASM provides a single compiled artifact that runs everywhere, without per-platform native builds. The codec layer's pure-computation nature (no OS calls, no threads, no sockets) means it compiles cleanly to WASM with no emulation overhead.
+
+### Choosing between native approaches
+
+| Approach | Effort | Performance | Dependency on C++ | Best for |
+|----------|--------|-------------|-------------------|----------|
+| Codec C ABI + language wrappers (Suggestions 1-2) | Medium | Highest (native C++) | Runtime: links `libconduit_codec` | Performance-critical decode/encode |
+| Embedded scripting (Suggestion 3) | Low | Good (C++ codec, scripted handlers) | Embedded in C++ process | Rapid prototyping, ops scripting |
+| Pure-native bgen output (Suggestion 4) | High (per language) | Good (native but not C++) | None | Ecosystems that reject native deps |
+| WASM codec (Suggestion 5) | Medium | Good (near-native) | None (WASM binary) | Maximum portability, browser use |
+
+For most teams, **Suggestions 1-2** (codec C ABI with pre-built packages) deliver the best balance: users get native performance, no C++ toolchain requirement, and an idiomatic API in their language. **Suggestion 4** (pure-native bgen) is the long-term investment for language ecosystems that strongly prefer zero native dependencies (Rust, Go).
+
+---
+
 ## Recommended Combination
 
 The strategies serve different integration profiles. Choose based on how your users need to connect:
 
-| Priority | Strategy | What it unlocks | C++ required by user? |
-|----------|----------|-----------------|-----------------------|
-| 1 | Multi-language bgen backends | Native typed messages in every language | No |
-| 2 | Messaging middleware (Kafka, RabbitMQ, WebSocket) | Zero-dependency integration via existing infrastructure | No |
-| 3 | C ABI wrapper | Universal access to the C++ transport stack | No (but language bindings needed) |
-| 4 | Python bindings (nanobind) | First-class Python UX for the most common integration | No |
-| 5 | gRPC gateway | Typed streaming RPC for polyglot services | No |
+| Priority | Strategy | What it unlocks | C++ required by user? | Networking required? |
+|----------|----------|-----------------|-----------------------|---------------------|
+| 1 | Multi-language bgen backends | Native typed messages in every language | No | No |
+| 2 | Codec-only library packages (`conduit-codec`) | In-process encode/decode from any language | No | No |
+| 3 | Messaging middleware (Kafka, RabbitMQ, WebSocket) | Zero-dependency integration via existing infrastructure | No | Yes (middleware) |
+| 4 | Python bindings (nanobind) | First-class Python UX for the most common integration | No | No |
+| 5 | C ABI wrapper (full transceiver) | Universal access to the C++ transport stack | No (but language bindings needed) | Optional |
+| 6 | gRPC gateway | Typed streaming RPC for polyglot services | No | Yes (gRPC) |
 
-Strategy 1 (bgen backends) is the keystone — it makes all other strategies better because every integration point gets typed, generated code. Strategy 4 (messaging middleware) is the accessibility layer — it makes Conduit reachable by any team regardless of their language or tooling choices.
+The strategies form two axes of accessibility:
 
-Together, these two strategies cover the full spectrum: teams that want tight, low-latency integration get native generated code, and teams that want loose, infrastructure-level integration get messages flowing through the middleware they already operate.
+- **Native library access** (Strategies 1, 2, 4, and the pure-native bgen / WASM approaches) — for teams that want to run Conduit's codec logic directly in their own process, with no networking involved. This covers file parsing, test harnesses, data pipelines, and any scenario where the user controls their own I/O.
+
+- **Infrastructure-level access** (Strategies 3, 5, 6) — for teams that want structured protocol data delivered through the middleware they already operate. This covers monitoring dashboards, microservice architectures, and teams that prefer full decoupling.
+
+Strategy 1 (bgen backends) is the keystone — it makes both axes better because every integration point gets typed, generated code. The codec-only library split (Strategy 2) makes the native path practical by giving other languages access to Conduit's encode/decode without pulling in the full transceiver. And the messaging middleware bridges (Strategy 3) provide the zero-friction path for teams that just want data in their existing pipeline.
 
 ---
 
@@ -321,10 +497,12 @@ Together, these two strategies cover the full spectrum: teams that want tight, l
 
 **Meet users where they are.** The goal is not to make every team learn Conduit — it's to make Conduit's protocol data available through whatever tools and languages a team already uses.
 
-This means two complementary approaches:
+This means three complementary approaches:
 
 1. **Generate, don't wrap.** For teams that want direct integration, generate native code from BMDL rather than wrapping C++ in FFI layers. Wrapping always leaks abstraction (memory management, exception handling, callback lifecycles). Generating native code gives each language an implementation that feels like it was written for that language, while the shared schema guarantees wire compatibility.
 
-2. **Bridge, don't require.** For teams that don't want any Conduit-specific code, bridge to standard middleware (Kafka, RabbitMQ, WebSocket). The bridge is a deployment concern, not an application concern — users write normal Kafka consumers or WebSocket handlers and never interact with Conduit APIs at all.
+2. **Ship the library, not the toolchain.** For teams that want Conduit's codec power without compiling C++, package it as a native library they can install through their language's package manager (`pip install`, `cargo add`, `npm install`). Pre-built binaries, thin idiomatic wrappers, and no build-time C++ dependency. Users import and call — the C++ is an invisible implementation detail.
 
-The C ABI layer (Strategy 2) is the pragmatic fallback for the complex, stateful parts of the system (transport management, connection lifecycle, stream framing) where reimplementation would be error-prone. The generated types (Strategy 1) handle the high-surface-area part (message encode/decode) natively. And the messaging middleware bridges (Strategy 4) provide the zero-friction path for teams that just want the data in their existing pipeline.
+3. **Bridge, don't require.** For teams that don't want any Conduit-specific code at all, bridge to standard middleware (Kafka, RabbitMQ, WebSocket). The bridge is a deployment concern, not an application concern — users write normal Kafka consumers or WebSocket handlers and never interact with Conduit APIs.
+
+The codec-only library split is what makes approaches 1 and 2 practical. By separating `conduit-codec` (pure computation) from `conduit-transceiver` (networking + threading), the codec can be compiled, packaged, and distributed independently — as a shared library, a WASM module, or even reimplemented natively from bgen output. The full transceiver C ABI remains available for teams that also want Conduit-managed transport, but it's no longer the only way in.
