@@ -862,35 +862,51 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
             std::string elem = ad->type_ref.empty() ? py_class(ad->name) : py_class(ad->type_ref);
-            if (ad->fixed_count) {
-                ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
-            } else if (ad->count_from) {
-                ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr(*ad->count_from, pfx) + "))]");
+            auto emit_array_decode = [&]() {
+                if (ad->fixed_count) {
+                    ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
+                } else if (ad->count_from) {
+                    ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr(*ad->count_from, pfx) + "))]");
+                } else {
+                    ctx.line(m + " = []");
+                    ctx.line("while r.remaining_bytes() > 0:");
+                    ctx.indent(); ctx.line(m + ".append(" + elem + ".decode(r))"); ctx.dedent();
+                }
+            };
+            if (ad->present_when) {
+                ctx.line("if " + py_expr(*ad->present_when, pfx) + ":");
+                ctx.indent(); emit_array_decode(); ctx.dedent();
             } else {
-                ctx.line(m + " = []");
-                ctx.line("while r.remaining_bytes() > 0:");
-                ctx.indent(); ctx.line(m + ".append(" + elem + ".decode(r))"); ctx.dedent();
+                emit_array_decode();
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = py_expr(*cd->switch_expr, pfx);
             std::string m = pfx + "." + py_field(cd->name);
-            bool first = true;
-            for (const auto& cs : cd->cases) {
-                std::string cond = sv + " == " + (cs.value ? *cs.value : "0");
-                ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
-                ctx.indent();
-                std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
-                ctx.line(m + " = " + et + ".decode(r)");
-                ctx.dedent();
-                first = false;
-            }
-            if (cd->otherwise) {
-                ctx.line("else:");
-                ctx.indent();
-                std::string et = cd->otherwise->type_ref.empty() ? py_class(cd->otherwise->name) : py_class(cd->otherwise->type_ref);
-                ctx.line(m + " = " + et + ".decode(r)");
-                ctx.dedent();
+            auto emit_choice_decode = [&]() {
+                bool first = true;
+                for (const auto& cs : cd->cases) {
+                    std::string cond = sv + " == " + (cs.value ? *cs.value : "0");
+                    ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
+                    ctx.indent();
+                    std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
+                    ctx.line(m + " = " + et + ".decode(r)");
+                    ctx.dedent();
+                    first = false;
+                }
+                if (cd->otherwise) {
+                    ctx.line("else:");
+                    ctx.indent();
+                    std::string et = cd->otherwise->type_ref.empty() ? py_class(cd->otherwise->name) : py_class(cd->otherwise->type_ref);
+                    ctx.line(m + " = " + et + ".decode(r)");
+                    ctx.dedent();
+                }
+            };
+            if (cd->present_when) {
+                ctx.line("if " + py_expr(*cd->present_when, pfx) + ":");
+                ctx.indent(); emit_choice_decode(); ctx.dedent();
+            } else {
+                emit_choice_decode();
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skip_bits(" + std::to_string(res->bits) + ")");
@@ -914,7 +930,13 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                 ctx.line("if " + m + " is not None: " + m + ".encode(w)");
             } else ctx.line(m + ".encode(w)");
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
-            ctx.line("for _item in " + pfx + "." + py_field(ad->name) + ": _item.encode(w)");
+            std::string m = pfx + "." + py_field(ad->name);
+            if (ad->present_when) {
+                ctx.line("if " + m + " is not None:");
+                ctx.indent(); ctx.line("for _item in " + m + ": _item.encode(w)"); ctx.dedent();
+            } else {
+                ctx.line("for _item in " + m + ": _item.encode(w)");
+            }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + py_field(cd->name);
             ctx.line("if " + m + " is not None: " + m + ".encode(w)");
