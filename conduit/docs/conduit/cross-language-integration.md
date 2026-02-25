@@ -2,9 +2,11 @@
 
 [Back to index](index.md)
 
-Conduit is a C++ library, but real-world deployments often require integration with other languages, tools, and technologies. This document outlines strategies for cross-language integration without sacrificing UX convenience.
+Conduit is a C++ library, but **users should never be forced to write C++ to integrate with it.** Real-world deployments span many languages, frameworks, and infrastructure stacks. The strategies in this document exist so that teams can connect to Conduit using the tools they already know — Python, Java, Go, JavaScript, Kafka, RabbitMQ, WebSockets — and stay focused on their own applications.
 
-The strategies are ordered by impact and build on each other. The recommended approach is to combine Strategies 1-3 for maximum coverage.
+The guiding principle: **bring Conduit to the user's stack, not the user to C++.**
+
+The strategies below are ordered by impact and build on each other. The recommended approach is to combine Strategies 1-4 for maximum coverage across language ecosystems and infrastructure patterns.
 
 ---
 
@@ -119,29 +121,137 @@ This is nearly identical to the C++ UX, which preserves the convenience goal.
 
 ---
 
-## Strategy 4: Network-Native IPC (Sidecar / Gateway)
+## Strategy 4: Messaging Middleware Integration (Kafka, RabbitMQ, WebSocket)
 
-**Impact: Medium-high. Best for web, microservices, and loosely-coupled systems.**
+**Impact: High. The zero-C++ path for teams using standard infrastructure.**
 
-Conduit already speaks TCP and UDP. Run a **Conduit sidecar process** that bridges between the real protocol transport and a simple local interface.
+Strategies 1-3 give other languages access to Conduit's internals. Strategy 4 does something fundamentally different: it lets users integrate with Conduit **without writing any Conduit-specific code at all.** A team running a Java microservice that already consumes from Kafka, or a web dashboard that already speaks WebSocket, can receive Conduit protocol data through the infrastructure they already operate — no new libraries, no FFI, no generated code on their side.
 
-### 4a. JSON/MessagePack Gateway
+This is the strategy that most directly serves the goal of letting users focus on their own applications.
 
-The sidecar receives raw protocol messages, decodes them via the generated session, and re-publishes as JSON over a local WebSocket or TCP connection. Foreign-language clients connect, receive JSON, and parse with their native JSON library.
+### How it works
+
+Conduit runs a **bridge process** (sidecar, gateway, or embedded adapter) that sits between the raw protocol transport (TCP, UDP, serial) and a standard messaging system. The bridge handles decode/encode using the generated session and republishes structured messages onto the middleware. User applications subscribe using their existing client libraries.
+
+### 4a. WebSocket Gateway
+
+A Conduit sidecar decodes incoming protocol frames and publishes them as JSON over a WebSocket server. This unlocks:
+
+- **Browser applications** — dashboards, monitoring UIs, debug tools connect directly with the browser's native `WebSocket` API
+- **Any language with a WebSocket client** — which is effectively all of them
+- **Real-time streaming** — WebSocket's persistent connection maps naturally to Conduit's continuous message flow
 
 The `ISession::format_message()` virtual method already provides string formatting — extend this to structured JSON output, or generate JSON serializers as another bgen backend.
 
-### 4b. gRPC Gateway
+Users write code like this (JavaScript example):
 
-Generate `.proto` files from BMDL (another bgen backend), then run a Conduit-to-gRPC bridge. This gives every gRPC-supported language typed stubs with streaming support. gRPC's bidirectional streaming maps well to Conduit's send/receive model.
+```javascript
+const ws = new WebSocket("ws://localhost:9100/messages");
+ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === "SensorReading") {
+        updateDashboard(msg.fields);
+    }
+};
+```
 
-### When to use
+No Conduit library. No generated code. Just a WebSocket and JSON — tools every web developer already has.
 
-When integrating with web frontends, microservice architectures, or environments where native C FFI is impractical (browsers, serverless functions, restricted containers).
+### 4b. Kafka Bridge
+
+A Conduit adapter publishes decoded messages to Kafka topics (one topic per message type, or a configurable mapping). Downstream consumers use their standard Kafka client in whatever language they prefer:
+
+- **Java/Kotlin**: Spring Kafka, standard Kafka client
+- **Python**: confluent-kafka, aiokafka
+- **Go**: sarama, confluent-kafka-go
+- **Node.js**: kafkajs
+- **.NET**: Confluent.Kafka
+
+Kafka's durability, partitioning, and consumer group semantics add capabilities that Conduit's real-time transport layer doesn't natively provide: replay, fan-out to multiple independent consumers, backpressure via consumer lag, and audit trails.
+
+```python
+# Python consumer — no Conduit library involved
+from confluent_kafka import Consumer
+
+consumer = Consumer({'bootstrap.servers': 'localhost:9092', 'group.id': 'analytics'})
+consumer.subscribe(['conduit.SensorReading'])
+
+for msg in consumer:
+    reading = json.loads(msg.value())
+    store_in_timeseries_db(reading)
+```
+
+The user's application is pure Kafka. Conduit is invisible.
+
+### 4c. RabbitMQ Bridge
+
+Similar to Kafka, but for teams whose infrastructure is built around RabbitMQ / AMQP. Conduit publishes decoded messages to RabbitMQ exchanges; users consume from queues using their existing AMQP client libraries.
+
+RabbitMQ's routing model (exchanges, binding keys, queues) provides flexible message filtering — users can subscribe to specific message types or field-based routing patterns without any Conduit-side changes:
+
+- **Fanout exchanges** for broadcasting all messages to all consumers
+- **Topic exchanges** for pattern-based routing (e.g., `sensor.*.temperature`)
+- **Direct exchanges** for exact message-type routing
+
+```java
+// Java consumer — standard RabbitMQ client, no Conduit dependency
+channel.basicConsume("conduit.heartbeats", true, (tag, delivery) -> {
+    var heartbeat = objectMapper.readValue(delivery.getBody(), Heartbeat.class);
+    monitor.recordHeartbeat(heartbeat);
+}, tag -> {});
+```
+
+### Why messaging middleware matters
+
+These integrations are not just "another transport." They change the integration model:
+
+| Aspect | Direct Conduit integration (Strategies 1-3) | Middleware integration (Strategy 4) |
+|--------|----------------------------------------------|--------------------------------------|
+| User's dependency | Conduit library or generated code | Standard middleware client only |
+| Languages supported | Languages with bgen backends or FFI | Any language with a Kafka/RabbitMQ/WS client |
+| Learning curve | BMDL + Conduit API | Zero — users already know their middleware |
+| Deployment coupling | Linked or co-deployed with Conduit | Fully decoupled; communicate over network |
+| Additional capabilities | Direct, low-latency | Replay, fan-out, persistence, backpressure |
+
+For many teams, Strategy 4 is the only strategy they need. They don't want to learn Conduit's API, generate code, or manage FFI bindings. They want structured protocol data to show up in their Kafka topic or WebSocket endpoint, and they'll handle the rest with the tools they already use.
+
+### Bridge architecture
+
+The bridge itself is a C++ process that uses Conduit's `Transceiver` internally:
+
+```
+┌──────────────┐         ┌──────────────────────┐         ┌──────────────┐
+│   Protocol   │  TCP/   │    Conduit Bridge     │  Kafka/ │    User's    │
+│   Endpoint   │──UDP/───│  Transceiver + Session│──AMQP/──│  Application │
+│  (hardware,  │ Serial  │  decode → JSON/Avro   │  WS     │  (any lang)  │
+│   simulator) │         │  encode ← JSON/Avro   │         │              │
+└──────────────┘         └──────────────────────┘         └──────────────┘
+```
+
+The bridge is the only component that touches C++ and Conduit APIs. Everything to its right is standard middleware that users already know how to operate.
+
+### Bidirectional support
+
+The bridge is not receive-only. Users can also **send** messages back through the middleware:
+
+- Publish a JSON message to a Kafka topic or RabbitMQ queue designated for outbound traffic
+- The bridge consumes it, encodes it using the generated session, and transmits it over the protocol transport
+
+This makes the integration fully bidirectional — users can monitor **and** control protocol endpoints entirely through their middleware of choice.
 
 ---
 
-## Strategy 5: WebAssembly (WASM) Compilation
+## Strategy 5: gRPC Gateway
+
+**Impact: Medium-high. Best for teams that want typed, streaming RPC contracts.**
+
+Generate `.proto` files from BMDL (another bgen backend), then run a Conduit-to-gRPC bridge. This gives every gRPC-supported language typed stubs with streaming support. gRPC's bidirectional streaming maps well to Conduit's send/receive model.
+
+Unlike the middleware approach (Strategy 4), gRPC provides a strongly-typed contract at the integration boundary, which some teams prefer over JSON-over-Kafka/WS.
+
+---
+
+## Strategy 6: WebAssembly (WASM) Compilation
 
 **Impact: Medium. Best for browser tools and sandboxed environments.**
 
@@ -159,7 +269,7 @@ Compile just the codec layer to WASM, not the full transceiver. The host environ
 
 ---
 
-## Strategy 6: Shared Memory IPC for Same-Machine High-Performance
+## Strategy 7: Shared Memory IPC for Same-Machine High-Performance
 
 **Impact: Niche but critical for latency-sensitive deployments.**
 
@@ -173,7 +283,7 @@ Conduit's existing `BoundedQueue` with configurable drop policies (`DropOldest`,
 
 ---
 
-## Strategy 7: Native Reimplementation from BMDL
+## Strategy 8: Native Reimplementation from BMDL
 
 **Impact: Medium. For environments that prohibit native dependencies entirely.**
 
@@ -191,21 +301,30 @@ Restricted deployment environments (embedded Python, locked-down containers), or
 
 ## Recommended Combination
 
-The strategies are complementary, not mutually exclusive:
+The strategies serve different integration profiles. Choose based on how your users need to connect:
 
-| Priority | Strategy | What it unlocks |
-|----------|----------|-----------------|
-| 1 | Multi-language bgen backends | Native typed messages in every language |
-| 2 | C ABI wrapper | Universal access to the C++ transport stack |
-| 3 | Python bindings (nanobind) | First-class Python UX for the most common integration |
-| 4 | JSON/WebSocket gateway | Browser, web, and microservice integration |
+| Priority | Strategy | What it unlocks | C++ required by user? |
+|----------|----------|-----------------|-----------------------|
+| 1 | Multi-language bgen backends | Native typed messages in every language | No |
+| 2 | Messaging middleware (Kafka, RabbitMQ, WebSocket) | Zero-dependency integration via existing infrastructure | No |
+| 3 | C ABI wrapper | Universal access to the C++ transport stack | No (but language bindings needed) |
+| 4 | Python bindings (nanobind) | First-class Python UX for the most common integration | No |
+| 5 | gRPC gateway | Typed streaming RPC for polyglot services | No |
 
-Strategy 1 is the keystone — it makes all other strategies better because every integration point gets typed, generated code. The BMDL schema being the single source of truth is the critical architectural advantage that makes all of this feasible.
+Strategy 1 (bgen backends) is the keystone — it makes all other strategies better because every integration point gets typed, generated code. Strategy 4 (messaging middleware) is the accessibility layer — it makes Conduit reachable by any team regardless of their language or tooling choices.
+
+Together, these two strategies cover the full spectrum: teams that want tight, low-latency integration get native generated code, and teams that want loose, infrastructure-level integration get messages flowing through the middleware they already operate.
 
 ---
 
 ## Key Design Principle
 
-Wherever possible, **generate don't wrap**. Wrapping C++ in FFI layers always leaks abstraction (memory management, exception handling, callback lifecycles). Generating native code from BMDL gives each language an implementation that feels like it was written for that language, while the shared schema guarantees wire compatibility.
+**Meet users where they are.** The goal is not to make every team learn Conduit — it's to make Conduit's protocol data available through whatever tools and languages a team already uses.
 
-The C ABI layer (Strategy 2) is the pragmatic fallback for the complex, stateful parts of the system (transport management, connection lifecycle, stream framing) where reimplementation would be error-prone. The generated types (Strategy 1) handle the high-surface-area part (message encode/decode) natively.
+This means two complementary approaches:
+
+1. **Generate, don't wrap.** For teams that want direct integration, generate native code from BMDL rather than wrapping C++ in FFI layers. Wrapping always leaks abstraction (memory management, exception handling, callback lifecycles). Generating native code gives each language an implementation that feels like it was written for that language, while the shared schema guarantees wire compatibility.
+
+2. **Bridge, don't require.** For teams that don't want any Conduit-specific code, bridge to standard middleware (Kafka, RabbitMQ, WebSocket). The bridge is a deployment concern, not an application concern — users write normal Kafka consumers or WebSocket handlers and never interact with Conduit APIs at all.
+
+The C ABI layer (Strategy 2) is the pragmatic fallback for the complex, stateful parts of the system (transport management, connection lifecycle, stream framing) where reimplementation would be error-prone. The generated types (Strategy 1) handle the high-surface-area part (message encode/decode) natively. And the messaging middleware bridges (Strategy 4) provide the zero-friction path for teams that just want the data in their existing pipeline.
