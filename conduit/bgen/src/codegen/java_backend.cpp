@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sstream>
 
@@ -556,8 +557,20 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     auto fi = j_resolve_field(f, index);
     std::string m = pfx + "." + j_field(f.name);
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
-        ctx.line("int _lenPos = w.sizeBytes();");
+        if (f.auto_expr->field_ref.empty()) {
+            // auto="length" (whole struct): record start pos, write placeholder
+            ctx.line("int _lenPos = w.sizeBytes();");
+        } else {
+            // auto="length(field)": record position for field-specific backpatch
+            ctx.line("int _lenRefPos = w.sizeBytes();");
+        }
         ctx.line(j_write_stmt("0", fi) + ";");
+        return;
+    }
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count) {
+        // auto="count(field)": write the size of the referenced array
+        std::string array_member = pfx + "." + j_field(f.auto_expr->field_ref);
+        ctx.line(j_write_stmt("(int)" + array_member + ".size()", fi) + ";");
         return;
     }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); return; }
@@ -663,8 +676,26 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
 }
 
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
-                             const analyzer::TypeIndex& index, const std::string& pfx) {
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const std::string& len_ref_target = "") {
+    // Get the BMDL name from a StructChild
+    auto get_child_name = [](const model::StructChild& child) -> std::string {
+        return std::visit([](const auto& c) -> std::string {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) return c.name;
+            else if constexpr (std::is_same_v<T, model::StructDef>) return c.name;
+            else if constexpr (std::is_same_v<T, model::ArrayDef>) return c.name;
+            else if constexpr (std::is_same_v<T, model::ChoiceDef>) return c.name;
+            else return {};
+        }, child);
+    };
+
     for (const auto& child : children) {
+        // auto-length(field) start marker: record position before the target child
+        if (!len_ref_target.empty() && get_child_name(child) == len_ref_target) {
+            ctx.line("int _" + j_field(len_ref_target) + "Start = w.sizeBytes();");
+        }
+
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if (" + j_expr(*f->present_when, pfx) + ") {");
@@ -707,7 +738,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_j_encode_children(ctx, fx->children, index, pfx);
+            emit_j_encode_children(ctx, fx->children, index, pfx, len_ref_target);
         }
     }
 }
@@ -759,13 +790,93 @@ std::string generate_j_class(const std::string& name,
     ctx.line("public static " + cn + " decodeBytes(byte[] data) { return decode(new BitReader(data)); }");
     ctx.line();
 
-    // encode
-    ctx.line("public void encode(BitWriter w) {");
-    ctx.indent();
-    emit_j_encode_children(ctx, children, index, "this");
-    ctx.dedent();
-    ctx.line("}");
-    ctx.line();
+    // encode - with auto-length backpatch support
+    {
+        // Check for auto-length fields
+        const model::Field* auto_len_field = nullptr;
+        const model::Field* auto_len_ref_field = nullptr;
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                    if (f->auto_expr->field_ref.empty()) {
+                        auto_len_field = f;
+                    } else {
+                        auto_len_ref_field = f;
+                    }
+                }
+            }
+        }
+
+        ctx.line("public void encode(BitWriter w) {");
+        ctx.indent();
+        if (auto_len_field) {
+            ctx.line("int _structStart = w.sizeBytes();");
+        }
+        std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
+        emit_j_encode_children(ctx, children, index, "this", len_ref_target);
+
+        // Backpatch auto-length (whole struct)
+        if (auto_len_field) {
+            auto al_fi = j_resolve_field(*auto_len_field, index);
+            bool be = (al_fi.endian == model::Endian::Big);
+            std::string size_expr = "w.sizeBytes() - _structStart";
+            // Apply arithmetic modifier if present
+            if (auto_len_field->auto_expr->modifier.has_modifier()) {
+                std::string op_str;
+                switch (auto_len_field->auto_expr->modifier.op) {
+                    case model::ArithOp::Add: op_str = " + "; break;
+                    case model::ArithOp::Sub: op_str = " - "; break;
+                    case model::ArithOp::Mul: op_str = " * "; break;
+                    case model::ArithOp::Div: op_str = " / "; break;
+                    default: break;
+                }
+                if (!op_str.empty()) {
+                    size_expr = "((" + size_expr + ")" + op_str +
+                                std::to_string(auto_len_field->auto_expr->modifier.literal) + ")";
+                }
+            }
+            if (al_fi.bits <= 8) {
+                ctx.line("w.patchU8(_lenPos, (int)(" + size_expr + "));");
+            } else if (al_fi.bits <= 16) {
+                ctx.line("w.patchU16(_lenPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+            } else {
+                ctx.line("w.patchU32(_lenPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+            }
+        }
+
+        // Backpatch auto-length(field) - field-specific length
+        if (auto_len_ref_field) {
+            auto al_fi = j_resolve_field(*auto_len_ref_field, index);
+            bool be = (al_fi.endian == model::Endian::Big);
+            std::string target_field = j_field(auto_len_ref_field->auto_expr->field_ref);
+            std::string size_expr = "w.sizeBytes() - _" + target_field + "Start";
+            if (auto_len_ref_field->auto_expr->modifier.has_modifier()) {
+                std::string op_str;
+                switch (auto_len_ref_field->auto_expr->modifier.op) {
+                    case model::ArithOp::Add: op_str = " + "; break;
+                    case model::ArithOp::Sub: op_str = " - "; break;
+                    case model::ArithOp::Mul: op_str = " * "; break;
+                    case model::ArithOp::Div: op_str = " / "; break;
+                    default: break;
+                }
+                if (!op_str.empty()) {
+                    size_expr = "((" + size_expr + ")" + op_str +
+                                std::to_string(auto_len_ref_field->auto_expr->modifier.literal) + ")";
+                }
+            }
+            if (al_fi.bits <= 8) {
+                ctx.line("w.patchU8(_lenRefPos, (int)(" + size_expr + "));");
+            } else if (al_fi.bits <= 16) {
+                ctx.line("w.patchU16(_lenRefPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+            } else {
+                ctx.line("w.patchU32(_lenRefPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+            }
+        }
+
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+    }
 
     // encodeBytes
     ctx.line("public byte[] encodeBytes() { BitWriter w = new BitWriter(); encode(w); return w.toBytes(); }");
@@ -889,6 +1000,957 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
             collect_inline_types(fx->children, index, pkg, tid_map, out_files);
         }
     }
+}
+
+// ============================================================================
+// Java Frame class generation
+// ============================================================================
+
+std::string generate_j_frame_class(const analyzer::SessionInfo& si,
+                                    const analyzer::TypeIndex& index,
+                                    const std::string& pkg) {
+    if (!si.frame) return {};
+    const model::FrameDef& frame = *si.frame;
+    std::string cn = j_class(frame.name);
+
+    EmitContext ctx;
+    ctx.line("// Generated by bgen - DO NOT EDIT");
+    ctx.line("package " + pkg + ";");
+    ctx.line();
+    ctx.line("import java.util.*;");
+    ctx.line();
+    ctx.line("public final class " + cn + " {");
+    ctx.indent();
+
+    // Header field declarations
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string init;
+            if (fi.is_string) init = "\"\"";
+            else if (fi.is_bytes) init = "new byte[0]";
+            else if (fi.is_bool) init = "false";
+            else if (fi.j_type == "float") init = "0.0f";
+            else if (fi.j_type == "double") init = "0.0";
+            else if (fi.is_struct || fi.is_enum) init = "null";
+            else if (fi.j_type == "long") init = "0L";
+            else init = "0";
+            ctx.line("public " + fi.j_type + " " + j_field(f->name) + " = " + init + ";");
+        }
+    }
+
+    // Payload field
+    if (si.payload_is_array) {
+        ctx.line("public java.util.List<Object> payload = new java.util.ArrayList<>();");
+    } else {
+        ctx.line("public Object payload = null;");
+    }
+
+    // Footer field declarations
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string init;
+            if (fi.is_string) init = "\"\"";
+            else if (fi.is_bytes) init = "new byte[0]";
+            else if (fi.is_bool) init = "false";
+            else if (fi.j_type == "float") init = "0.0f";
+            else if (fi.j_type == "double") init = "0.0";
+            else if (fi.is_struct || fi.is_enum) init = "null";
+            else if (fi.j_type == "long") init = "0L";
+            else init = "0";
+            ctx.line("public " + fi.j_type + " " + j_field(f->name) + " = " + init + ";");
+        }
+    }
+    ctx.line();
+
+    // wrap() static methods — one per leaf type
+    for (const auto& lt : si.leaf_types) {
+        std::string leaf_class = j_class(lt.name);
+        ctx.line("public static " + cn + " wrap(" + leaf_class + " msg) {");
+        ctx.indent();
+        ctx.line(cn + " frame = new " + cn + "();");
+        // Set constraint-equals header fields
+        for (const auto& child : frame.header_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint && f->constraint->equals) {
+                    ctx.line("frame." + j_field(f->name) + " = " + *f->constraint->equals + ";");
+                }
+            }
+        }
+        // Set id field from message's ID_VALUE
+        if (!si.id_field_name.empty()) {
+            ctx.line("frame." + j_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE;");
+        }
+        if (si.payload_is_array) {
+            ctx.line("frame.payload.add(msg);");
+        } else {
+            ctx.line("frame.payload = msg;");
+        }
+        ctx.line("return frame;");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+    }
+
+    // encode() method
+    ctx.line("public void encode(BitWriter w) {");
+    ctx.indent();
+
+    // Find the length field for backpatching
+    const model::Field* length_field = nullptr;
+    bool length_is_total_frame = false;
+    bool length_is_payload = false;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                length_field = f;
+                length_is_total_frame = f->auto_expr->field_ref.empty();
+                length_is_payload = (!f->auto_expr->field_ref.empty() && f->auto_expr->field_ref == "payload");
+            }
+        }
+    }
+
+    if (length_is_total_frame) {
+        ctx.line("int _frameStart = w.sizeBytes();");
+    }
+
+    // Write header fields
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                ctx.line("int _lenPos = w.sizeBytes();");
+                ctx.line(j_write_stmt("0", fi) + ";");
+                if (length_is_payload) {
+                    ctx.line("int _payloadStart = w.sizeBytes();");
+                }
+            } else if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Count) {
+                if (f->auto_expr->field_ref == "payload" && si.payload_is_array) {
+                    ctx.line(j_write_stmt("(int)payload.size()", fi) + ";");
+                } else {
+                    ctx.line(j_write_stmt("this." + j_field(f->name), fi) + ";");
+                }
+            } else if (f->constraint && f->constraint->equals) {
+                ctx.line(j_write_stmt(*f->constraint->equals, fi) + ";");
+            } else {
+                std::string val = "this." + j_field(f->name);
+                if (fi.is_enum) {
+                    val = val + ".value";
+                }
+                ctx.line(j_write_stmt(val, fi) + ";");
+            }
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
+        }
+    }
+
+    // Write payload
+    if (si.payload_is_array) {
+        ctx.line("for (Object item : payload) {");
+        ctx.indent();
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("_m.encode(w);");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+        ctx.dedent();
+        ctx.line("}");
+    } else {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            ctx.line(std::string(first ? "if" : "} else if") + " (payload instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("_m.encode(w);");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+    }
+
+    // Write footer fields
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string val = "this." + j_field(f->name);
+            if (fi.is_enum) val = val + ".value";
+            ctx.line(j_write_stmt(val, fi) + ";");
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
+        }
+    }
+
+    // Backpatch length
+    if (length_field) {
+        auto al_fi = j_resolve_field(*length_field, index);
+        bool be = (al_fi.endian == model::Endian::Big);
+        std::string raw_length;
+        if (length_is_payload) {
+            raw_length = "w.sizeBytes() - _payloadStart";
+        } else {
+            raw_length = "w.sizeBytes() - _frameStart";
+        }
+        // Apply arithmetic modifier
+        if (length_field->auto_expr->modifier.has_modifier()) {
+            std::string op_str;
+            switch (length_field->auto_expr->modifier.op) {
+                case model::ArithOp::Add: op_str = " + "; break;
+                case model::ArithOp::Sub: op_str = " - "; break;
+                case model::ArithOp::Mul: op_str = " * "; break;
+                case model::ArithOp::Div: op_str = " / "; break;
+                default: break;
+            }
+            if (!op_str.empty()) {
+                raw_length = "((" + raw_length + ")" + op_str +
+                             std::to_string(length_field->auto_expr->modifier.literal) + ")";
+            }
+        }
+        if (al_fi.bits <= 8) {
+            ctx.line("w.patchU8(_lenPos, (int)(" + raw_length + "));");
+        } else if (al_fi.bits <= 16) {
+            ctx.line("w.patchU16(_lenPos, (int)(" + raw_length + "), " + (be ? "true" : "false") + ");");
+        } else {
+            ctx.line("w.patchU32(_lenPos, (int)(" + raw_length + "), " + (be ? "true" : "false") + ");");
+        }
+    }
+
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // encodeBytes()
+    ctx.line("public byte[] encodeBytes() { BitWriter w = new BitWriter(); encode(w); return w.toBytes(); }");
+    ctx.line();
+
+    // decode() static method
+    ctx.line("public static " + cn + " decode(BitReader r) {");
+    ctx.indent();
+    ctx.line(cn + " result = new " + cn + "();");
+
+    // Read header fields
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string m = "result." + j_field(f->name);
+            if (fi.is_enum) {
+                ctx.line(m + " = " + fi.j_type + ".decode(r);");
+            } else if (fi.is_bool) {
+                ctx.line(m + " = (" + j_read_expr(fi) + " != 0);");
+            } else {
+                ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+            }
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
+        }
+    }
+
+    // Compute header/footer sizes for payload bounding
+    int header_bits = 0;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            header_bits += fi.bits;
+        } else if (auto* r = std::get_if<model::Reserved>(&child)) {
+            header_bits += r->bits;
+        }
+    }
+    int footer_bits = 0;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            footer_bits += fi.bits;
+        } else if (auto* r = std::get_if<model::Reserved>(&child)) {
+            footer_bits += r->bits;
+        }
+    }
+    int header_bytes = (header_bits + 7) / 8;
+    int footer_bytes = (footer_bits + 7) / 8;
+
+    // Build payload sub-reader when bounded by length field
+    bool use_sub_reader = false;
+    if (!si.length_field_name.empty() && si.count_field_name.empty()) {
+        std::string len_member = "result." + j_field(si.length_field_name);
+        std::string raw_val = "(int)(" + len_member + ")";
+        // Reverse arithmetic modifier
+        std::string total_expr = raw_val;
+        if (si.frame_length_modifier.has_modifier()) {
+            switch (si.frame_length_modifier.op) {
+                case model::ArithOp::Add:
+                    total_expr = "(" + raw_val + " - " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Sub:
+                    total_expr = "(" + raw_val + " + " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Mul:
+                    total_expr = "(" + raw_val + " / " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Div:
+                    total_expr = "(" + raw_val + " * " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                default: break;
+            }
+        }
+        std::string size_expr;
+        if (si.frame_length_field_ref.empty()) {
+            // Total frame length: payload = total - header - footer
+            int overhead = header_bytes + footer_bytes;
+            size_expr = total_expr + " - " + std::to_string(overhead);
+        } else {
+            // Payload-only length
+            if (footer_bytes > 0) {
+                size_expr = total_expr + " - " + std::to_string(footer_bytes);
+            } else {
+                size_expr = total_expr;
+            }
+        }
+        ctx.line("BitReader payloadReader = r.subReader(" + size_expr + ");");
+        use_sub_reader = true;
+    } else if (footer_bits > 0 && si.length_field_name.empty() && si.count_field_name.empty()) {
+        ctx.line("BitReader payloadReader = r.subReader(r.remainingBytes() - " + std::to_string(footer_bytes) + ");");
+        use_sub_reader = true;
+    }
+
+    std::string reader_name = use_sub_reader ? "payloadReader" : "r";
+
+    // Dispatch on id field to decode payload
+    std::string id_field = "result." + j_field(si.id_field_name);
+
+    if (si.payload_is_array) {
+        // Array payload: decode records
+        if (!si.count_field_name.empty()) {
+            ctx.line("for (int _i = 0; _i < (int)(result." + j_field(si.count_field_name) + "); _i++) {");
+        } else {
+            ctx.line("while (" + reader_name + ".remainingBytes() > 0) {");
+        }
+        ctx.indent();
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            if (lt.send_only) continue;
+            std::string leaf_class = j_class(lt.name);
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field + " == " + id_val + ") {");
+            ctx.indent();
+            ctx.line(leaf_class + " _msg = " + leaf_class + ".decode(" + reader_name + ");");
+            // Copy header fields into decoded message
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    ctx.line("_msg." + j_field(f->name) + " = result." + j_field(f->name) + ";");
+                }
+            }
+            ctx.line("result.payload.add(_msg);");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+        ctx.dedent();
+        ctx.line("}");
+    } else {
+        // Single payload dispatch
+        bool first = true;
+        // Group leaves by id to handle direction pairs
+        std::map<std::string, std::vector<const analyzer::LeafTypeInfo*>> id_groups;
+        for (const auto& lt : si.leaf_types) {
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            id_groups[id_val].push_back(&lt);
+        }
+        for (const auto& [id_val, leaves] : id_groups) {
+            const analyzer::LeafTypeInfo* decode_leaf = leaves[0];
+            for (const auto* lt : leaves) {
+                if (!lt->send_only) { decode_leaf = lt; break; }
+            }
+            std::string leaf_class = j_class(decode_leaf->name);
+            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field + " == " + id_val + ") {");
+            ctx.indent();
+            ctx.line(leaf_class + " _msg = " + leaf_class + ".decode(" + reader_name + ");");
+            // Copy header fields into decoded message
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    ctx.line("_msg." + j_field(f->name) + " = result." + j_field(f->name) + ";");
+                }
+            }
+            ctx.line("result.payload = _msg;");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+    }
+
+    // Read footer fields
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string m = "result." + j_field(f->name);
+            if (fi.is_enum) {
+                ctx.line(m + " = " + fi.j_type + ".decode(r);");
+            } else if (fi.is_bool) {
+                ctx.line(m + " = (" + j_read_expr(fi) + " != 0);");
+            } else {
+                ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+            }
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
+        }
+    }
+
+    // Copy footer fields into decoded payload messages
+    if (footer_bits > 0) {
+        if (si.payload_is_array) {
+            ctx.line("for (Object item : result.payload) {");
+            ctx.indent();
+            for (const auto& lt : si.leaf_types) {
+                std::string leaf_class = j_class(lt.name);
+                ctx.line("if (item instanceof " + leaf_class + " _fm) {");
+                ctx.indent();
+                for (const auto& child : frame.footer_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        ctx.line("_fm." + j_field(f->name) + " = result." + j_field(f->name) + ";");
+                    }
+                }
+                ctx.dedent();
+                ctx.line("}");
+            }
+            ctx.dedent();
+            ctx.line("}");
+        } else {
+            for (const auto& lt : si.leaf_types) {
+                std::string leaf_class = j_class(lt.name);
+                ctx.line("if (result.payload instanceof " + leaf_class + " _fm) {");
+                ctx.indent();
+                for (const auto& child : frame.footer_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        ctx.line("_fm." + j_field(f->name) + " = result." + j_field(f->name) + ";");
+                    }
+                }
+                ctx.dedent();
+                ctx.line("}");
+            }
+        }
+    }
+
+    ctx.line("return result;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // decodeBytes()
+    ctx.line("public static " + cn + " decodeBytes(byte[] data) { return decode(new BitReader(data)); }");
+    ctx.line();
+
+    // toString()
+    ctx.line("@Override public String toString() {");
+    ctx.indent();
+    std::string fmt = "return \"" + cn + "(\" + ";
+    bool first = true;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (!first) fmt += " + \", \" + ";
+            fmt += "\"" + j_field(f->name) + "=\" + " + j_field(f->name);
+            first = false;
+        }
+    }
+    if (!first) fmt += " + \", \" + ";
+    fmt += "\"payload=\" + payload";
+    first = false;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            fmt += " + \", \" + ";
+            fmt += "\"" + j_field(f->name) + "=\" + " + j_field(f->name);
+        }
+    }
+    fmt += " + \")\";";
+    ctx.line(fmt);
+    ctx.dedent();
+    ctx.line("}");
+
+    ctx.dedent();
+    ctx.line("}");
+    return ctx.str();
+}
+
+// ============================================================================
+// Java Session class generation
+// ============================================================================
+
+std::string generate_j_session_class(const model::Protocol& protocol,
+                                      const analyzer::SessionInfo& si,
+                                      [[maybe_unused]] const analyzer::TypeIndex& index,
+                                      const std::string& pkg) {
+    if (!si.frame) return {};
+    std::string frame_class = j_class(si.frame->name);
+    std::string session_class = frame_class + "Session";
+
+    // Merge config fields (frame-level + message-level, deduplicated)
+    std::map<std::string, analyzer::ConfigField> all_config;
+    for (const auto& cf : si.config_fields)
+        all_config.try_emplace(cf.key, cf);
+    for (const auto& lt : si.leaf_types)
+        for (const auto& cf : lt.config_fields)
+            all_config.try_emplace(cf.key, cf);
+    bool has_config = !all_config.empty();
+
+    // Check if any leaf has auto-increment fields
+    bool has_auto_fields = false;
+    for (const auto& lt : si.leaf_types)
+        if (!lt.auto_fields.empty()) { has_auto_fields = true; break; }
+
+    EmitContext ctx;
+    ctx.line("// Generated by bgen - DO NOT EDIT");
+    ctx.line("package " + pkg + ";");
+    ctx.line();
+    ctx.line("import java.util.*;");
+    ctx.line();
+    ctx.line("public final class " + session_class + " {");
+    ctx.indent();
+
+    // LEAF_TYPES map
+    ctx.line("public static final Map<Long, String> LEAF_TYPES = Map.of(");
+    ctx.indent();
+    for (size_t i = 0; i < si.leaf_types.size(); i++) {
+        const auto& lt = si.leaf_types[i];
+        std::string comma = (i + 1 < si.leaf_types.size()) ? "," : "";
+        ctx.line(j_hex64(lt.type_id) + ", \"" + lt.name + "\"" + comma);
+    }
+    ctx.dedent();
+    ctx.line(");");
+    ctx.line();
+
+    // Private state
+    ctx.line("private long sequenceCounter = 0;");
+    if (has_config) {
+        ctx.line("private final Map<String, Object> config;");
+    }
+    ctx.line();
+
+    // Constructor
+    if (has_config) {
+        ctx.line("public " + session_class + "(Map<String, Object> config) {");
+        ctx.indent();
+        ctx.line("this.config = config != null ? config : new HashMap<>();");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+        ctx.line("public " + session_class + "() { this(null); }");
+    } else {
+        ctx.line("public " + session_class + "() {}");
+    }
+    ctx.line();
+
+    // typeName
+    ctx.line("public String typeName(long typeId) {");
+    ctx.indent();
+    ctx.line("return LEAF_TYPES.getOrDefault(typeId, \"unknown\");");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // leafTypeIds
+    ctx.line("public long[] leafTypeIds() {");
+    ctx.indent();
+    ctx.line("return new long[] {");
+    ctx.indent();
+    for (size_t i = 0; i < si.leaf_types.size(); i++) {
+        const auto& lt = si.leaf_types[i];
+        std::string comma = (i + 1 < si.leaf_types.size()) ? "," : "";
+        ctx.line(j_hex64(lt.type_id) + comma + " // " + lt.name);
+    }
+    ctx.dedent();
+    ctx.line("};");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // protocolName
+    ctx.line("public String protocolName() { return \"" + protocol.name + "\"; }");
+    ctx.line();
+
+    // isReceiveOnly
+    {
+        bool has_recv = false;
+        for (const auto& lt : si.leaf_types)
+            if (lt.receive_only) { has_recv = true; break; }
+        ctx.line("public boolean isReceiveOnly(long typeId) {");
+        ctx.indent();
+        if (has_recv) {
+            for (const auto& lt : si.leaf_types) {
+                if (lt.receive_only) {
+                    ctx.line("if (typeId == " + j_hex64(lt.type_id) + ") return true; // " + lt.name);
+                }
+            }
+        }
+        ctx.line("return false;");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+    }
+
+    // syncPattern
+    ctx.line("public byte[] syncPattern() {");
+    ctx.indent();
+    if (!si.sync_pattern.empty()) {
+        std::string bytes;
+        for (size_t i = 0; i < si.sync_pattern.size(); i++) {
+            if (i > 0) bytes += ", ";
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "(byte)0x%02x", si.sync_pattern[i]);
+            bytes += buf;
+        }
+        ctx.line("return new byte[] { " + bytes + " };");
+    } else {
+        ctx.line("return new byte[0];");
+    }
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // minFrameHeaderSize
+    ctx.line("public int minFrameHeaderSize() { return " + std::to_string(si.min_frame_header_size) + "; }");
+    ctx.line();
+
+    // extractFrameLength
+    ctx.line("public int extractFrameLength(byte[] header) {");
+    ctx.indent();
+    if (si.frame_length_bits > 0) {
+        ctx.line("if (header.length < " + std::to_string(si.min_frame_header_size) + ") return 0;");
+        ctx.line("BitReader r = new BitReader(header);");
+        if (si.frame_length_bit_offset > 0) {
+            ctx.line("r.skipBits(" + std::to_string(si.frame_length_bit_offset) + ");");
+        }
+        bool big = (si.frame_length_endian == model::Endian::Big);
+        std::string read_call;
+        if (si.frame_length_bits <= 8) {
+            read_call = "r.readU8()";
+        } else if (si.frame_length_bits <= 16) {
+            read_call = std::string("r.readU16(") + (big ? "true" : "false") + ")";
+        } else if (si.frame_length_bits <= 32) {
+            read_call = std::string("r.readU32(") + (big ? "true" : "false") + ")";
+        } else {
+            read_call = std::string("(int) r.readU64(") + (big ? "true" : "false") + ")";
+        }
+        ctx.line("int val = " + read_call + ";");
+        if (!si.frame_length_field_ref.empty() && si.frame_length_field_ref == "payload") {
+            int overhead = (int)(si.min_frame_header_size + si.frame_footer_size);
+            if (si.frame_length_modifier.has_modifier()) {
+                std::string val_expr = "val";
+                switch (si.frame_length_modifier.op) {
+                    case model::ArithOp::Add:
+                        val_expr = "(val - " + std::to_string(si.frame_length_modifier.literal) + ")";
+                        break;
+                    case model::ArithOp::Sub:
+                        val_expr = "(val + " + std::to_string(si.frame_length_modifier.literal) + ")";
+                        break;
+                    case model::ArithOp::Mul:
+                        val_expr = "(val / " + std::to_string(si.frame_length_modifier.literal) + ")";
+                        break;
+                    case model::ArithOp::Div:
+                        val_expr = "(val * " + std::to_string(si.frame_length_modifier.literal) + ")";
+                        break;
+                    default: break;
+                }
+                ctx.line("return " + val_expr + " + " + std::to_string(overhead) + ";");
+            } else {
+                ctx.line("return val + " + std::to_string(overhead) + ";");
+            }
+        } else if (si.frame_length_modifier.has_modifier()) {
+            std::string val_expr = "val";
+            switch (si.frame_length_modifier.op) {
+                case model::ArithOp::Add:
+                    val_expr = "(val - " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Sub:
+                    val_expr = "(val + " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Mul:
+                    val_expr = "(val / " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Div:
+                    val_expr = "(val * " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                default: break;
+            }
+            ctx.line("return " + val_expr + ";");
+        } else {
+            ctx.line("return val;");
+        }
+    } else {
+        ctx.line("return header.length;");
+    }
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // decodeFrame
+    ctx.line("public List<Map<String, Object>> decodeFrame(byte[] data) {");
+    ctx.indent();
+    ctx.line(frame_class + " frame = " + frame_class + ".decodeBytes(data);");
+    ctx.line("List<Map<String, Object>> messages = new ArrayList<>();");
+    if (si.payload_is_array) {
+        ctx.line("for (Object item : frame.payload) {");
+        ctx.indent();
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("Map<String, Object> dm = new HashMap<>();");
+            ctx.line("dm.put(\"type_id\", " + j_hex64(lt.type_id) + ");");
+            ctx.line("dm.put(\"type_name\", \"" + lt.name + "\");");
+            ctx.line("dm.put(\"payload\", _m);");
+            ctx.line("dm.put(\"raw\", data);");
+            ctx.line("messages.add(dm);");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+        ctx.dedent();
+        ctx.line("}");
+    } else {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            ctx.line(std::string(first ? "if" : "} else if") + " (frame.payload instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("Map<String, Object> dm = new HashMap<>();");
+            ctx.line("dm.put(\"type_id\", " + j_hex64(lt.type_id) + ");");
+            ctx.line("dm.put(\"type_name\", \"" + lt.name + "\");");
+            ctx.line("dm.put(\"payload\", _m);");
+            ctx.line("dm.put(\"raw\", data);");
+            ctx.line("messages.add(dm);");
+            ctx.dedent();
+            first = false;
+        }
+        if (!first) ctx.line("}");
+    }
+
+    // Warn when receiving send-only message types
+    bool has_send_only = false;
+    for (const auto& lt : si.leaf_types)
+        if (lt.send_only) { has_send_only = true; break; }
+    if (has_send_only) {
+        ctx.line("for (Map<String, Object> dm : messages) {");
+        ctx.indent();
+        ctx.line("long tid = (Long) dm.get(\"type_id\");");
+        for (const auto& lt : si.leaf_types) {
+            if (lt.send_only) {
+                ctx.line("if (tid == " + j_hex64(lt.type_id) + ") {");
+                ctx.indent();
+                ctx.line("System.err.println(\"WARNING: Received send-only message type '" + lt.name + "'\");");
+                ctx.dedent();
+                ctx.line("}");
+            }
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+
+    ctx.line("return messages;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // encodeWrap
+    ctx.line("public Map<String, Object> encodeWrap(long typeId, Object payload) {");
+    ctx.indent();
+    {
+        bool first_branch = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            std::string prefix = first_branch ? "if" : "} else if";
+            first_branch = false;
+            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + ") {");
+            ctx.indent();
+            ctx.line(leaf_class + " msg = (" + leaf_class + ") payload;");
+
+            // Set message-level config fields
+            if (!lt.config_fields.empty() && has_config) {
+                for (const auto& cf : lt.config_fields) {
+                    std::string cfg_key = cf.key;
+                    std::string cfg_type = (cf.bits > 32) ? "long" : "int";
+                    std::string cast = "((" + std::string(cf.bits > 32 ? "Long" : "Number") + ") config.getOrDefault(\"" + cfg_key + "\", 0))";
+                    if (cf.bits <= 32) cast += ".intValue()";
+                    else cast += ".longValue()";
+                    ctx.line("msg." + j_field(cf.field_name) + " = " + cast + ";");
+                }
+            }
+
+            ctx.line(frame_class + " frame = " + frame_class + ".wrap(msg);");
+
+            // Set frame-level config fields
+            if (has_config) {
+                for (const auto& cf : si.config_fields) {
+                    std::string cfg_key = cf.key;
+                    std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                    ctx.line("frame." + j_field(cf.field_name) + " = " + cast + ";");
+                }
+            }
+
+            // Set auto-increment fields
+            for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
+                int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
+                uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
+                std::string field = j_field(lt.auto_fields[ai]);
+                if (bits > 32) {
+                    ctx.line("frame." + field + " = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                } else {
+                    ctx.line("frame." + field + " = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                }
+                ctx.line("sequenceCounter++;");
+            }
+
+            // Set auto-timestamp fields
+            for (size_t ti = 0; ti < lt.timestamp_fields.size(); ++ti) {
+                int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
+                uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
+                std::string field = j_field(lt.timestamp_fields[ti]);
+                if (bits > 32) {
+                    ctx.line("frame." + field + " = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                } else {
+                    ctx.line("frame." + field + " = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                }
+            }
+
+            ctx.line("byte[] encoded = frame.encodeBytes();");
+            ctx.line("Map<String, Object> result = new HashMap<>();");
+            ctx.line("result.put(\"bytes\", encoded);");
+            ctx.line("result.put(\"type_id\", typeId);");
+            ctx.line("return result;");
+            ctx.dedent();
+        }
+        if (!first_branch) {
+            ctx.line("}");
+        }
+    }
+    ctx.line("return null;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // encodeBatch — only for array-payload sessions
+    if (si.payload_is_array) {
+        ctx.line("public Map<String, Object> encodeBatch(long typeId, List<?> payloads) {");
+        ctx.indent();
+        {
+            bool first = true;
+            for (const auto& lt : si.leaf_types) {
+                std::string leaf_class = j_class(lt.name);
+                std::string prefix = first ? "if" : "} else if";
+                first = false;
+                ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + ") {");
+                ctx.indent();
+                ctx.line(frame_class + " frame = new " + frame_class + "();");
+
+                // Set constraint-equals header fields
+                if (si.frame) {
+                    for (const auto& hc : si.frame->header_fields) {
+                        if (auto* f = std::get_if<model::Field>(&hc)) {
+                            if (f->constraint && f->constraint->equals) {
+                                ctx.line("frame." + j_field(f->name) + " = " + *f->constraint->equals + ";");
+                            }
+                        }
+                    }
+                }
+
+                // Set id field
+                if (!si.id_field_name.empty()) {
+                    ctx.line("frame." + j_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE;");
+                }
+
+                // Set message-level config fields on copies
+                if (!lt.config_fields.empty() && has_config) {
+                    ctx.line("for (Object p : payloads) {");
+                    ctx.indent();
+                    ctx.line(leaf_class + " m = (" + leaf_class + ") p;");
+                    for (const auto& cf : lt.config_fields) {
+                        std::string cfg_key = cf.key;
+                        std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        ctx.line("m." + j_field(cf.field_name) + " = " + cast + ";");
+                    }
+                    ctx.line("frame.payload.add(m);");
+                    ctx.dedent();
+                    ctx.line("}");
+                } else {
+                    ctx.line("for (Object p : payloads) frame.payload.add(p);");
+                }
+
+                // Set frame-level config fields
+                if (has_config) {
+                    for (const auto& cf : si.config_fields) {
+                        std::string cfg_key = cf.key;
+                        std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        ctx.line("frame." + j_field(cf.field_name) + " = " + cast + ";");
+                    }
+                }
+
+                // Set auto-increment fields
+                for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
+                    int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
+                    uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
+                    std::string field = j_field(lt.auto_fields[ai]);
+                    if (bits > 32) {
+                        ctx.line("frame." + field + " = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                    } else {
+                        ctx.line("frame." + field + " = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                    }
+                    ctx.line("sequenceCounter++;");
+                }
+
+                // Set auto-timestamp fields
+                for (size_t ti = 0; ti < lt.timestamp_fields.size(); ++ti) {
+                    int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
+                    uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
+                    std::string field = j_field(lt.timestamp_fields[ti]);
+                    if (bits > 32) {
+                        ctx.line("frame." + field + " = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                    } else {
+                        ctx.line("frame." + field + " = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                    }
+                }
+
+                ctx.line("byte[] encoded = frame.encodeBytes();");
+                ctx.line("Map<String, Object> result = new HashMap<>();");
+                ctx.line("result.put(\"bytes\", encoded);");
+                ctx.line("result.put(\"type_id\", typeId);");
+                ctx.line("return result;");
+                ctx.dedent();
+            }
+            if (!first) ctx.line("}");
+        }
+        ctx.line("return null;");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line();
+    }
+
+    // formatMessage
+    ctx.line("public String formatMessage(long typeId, Object payload) {");
+    ctx.indent();
+    ctx.line("return payload != null ? payload.toString() : \"\";");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // reset
+    ctx.line("public void reset() {");
+    ctx.indent();
+    ctx.line("sequenceCounter = 0;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // sequenceCounter accessor
+    if (has_auto_fields) {
+        ctx.line("public long sequenceCounter() { return sequenceCounter; }");
+        ctx.line();
+    }
+
+    ctx.dedent();
+    ctx.line("}");
+    return ctx.str();
 }
 
 } // anonymous namespace
@@ -1039,6 +2101,25 @@ bool JavaBackend::generate(
         std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id);
         ok &= write_file(output_dir / (j_class(md.name) + ".java"), code);
         file_count++;
+    }
+
+    // Frame classes (one per frame-based session)
+    for (const auto& si : sessions) {
+        if (si.is_frame_based && si.frame) {
+            std::string code = generate_j_frame_class(si, index, java_pkg);
+            ok &= write_file(output_dir / (j_class(si.frame->name) + ".java"), code);
+            file_count++;
+        }
+    }
+
+    // Session classes (one per frame-based session)
+    for (const auto& si : sessions) {
+        if (si.is_frame_based && si.frame) {
+            std::string code = generate_j_session_class(protocol, si, index, java_pkg);
+            std::string session_name = j_class(si.frame->name) + "Session";
+            ok &= write_file(output_dir / (session_name + ".java"), code);
+            file_count++;
+        }
     }
 
     if (ok) Logger::info("generated " + std::to_string(file_count) + " Java files in " + output_dir.string());
