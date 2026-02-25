@@ -136,6 +136,7 @@ The `typeName` attribute overrides the auto-generated class name for inline defi
 | Otherwise | `<otherwise name="unknown" typeName="UnknownPayload">` | `MyMessage_payloadOtherwise` | `UnknownPayload` |
 | Inline struct | `<struct name="header" typeName="MsgHeader">` | `MyMessage_header` | `MsgHeader` |
 | Array element | `<array name="items" typeName="ArrayItem">` | `MyMessage_itemsElement` | `ArrayItem` |
+| Choice variant | `<choice name="payload" typeName="MessagePayload">` | `MyMessage_PayloadVariant` | `MessagePayload` |
 
 **Restrictions:**
 
@@ -146,7 +147,7 @@ The `typeName` attribute overrides the auto-generated class name for inline defi
 - Must be unique across all `typeName` values in the protocol
 - Not valid on top-level `<struct>` definitions (which already have proper names)
 
-See [choices documentation](../bmdl/choices.md#naming-inline-cases-with-typename) for usage examples.
+See [choices documentation](../bmdl/choices.md#naming-with-typename) for usage examples.
 
 ## Inline Enum Names
 
@@ -178,6 +179,8 @@ to_cpp_type_name(current_parent) + "_" + to_cpp_type_name(choice_name) + "Varian
 | `Cat048Record` | `msg-body` | `Cat048Record_msg_bodyVariant` |
 
 The alias is emitted as a namespace-scope `using` declaration before the parent class definition. When `current_parent_` is empty (top-level), the alias omits the prefix (e.g., `payloadVariant`).
+
+The `typeName` attribute on `<choice>` overrides this variant alias name entirely. For example, `<choice name="payload" typeName="MessagePayload">` generates `using MessagePayload = std::variant<...>` instead of `MyMessage_payloadVariant`.
 
 ## C++ Keyword Avoidance
 

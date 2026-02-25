@@ -29,6 +29,19 @@
       </choice>
     </message>
 
+    <!-- Test typeName on choice element (variant alias override) -->
+    <message name="ChoiceVariantMsg">
+      <field name="kind" type="uint8"/>
+      <choice name="body" switch="kind" typeName="BodyVariant">
+        <case value="1" name="alpha">
+          <field name="x" type="uint16"/>
+        </case>
+        <case value="2" name="beta">
+          <field name="y" type="uint32"/>
+        </case>
+      </choice>
+    </message>
+
     <!-- Test typeName on inline struct children -->
     <message name="StructMsg">
       <field name="version" type="uint8"/>

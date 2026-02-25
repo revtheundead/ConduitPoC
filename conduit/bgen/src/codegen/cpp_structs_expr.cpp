@@ -313,6 +313,10 @@ std::string StructEmitter::get_child_class_name(const std::string& bmdl_name) {
 }
 
 std::string StructEmitter::get_variant_alias_name(const std::string& choice_bmdl_name) {
+    // Check for typeName override on the choice element itself
+    auto override_name = lookup_type_name_override(choice_bmdl_name + "Variant");
+    if (!override_name.empty()) return override_name;
+
     std::string base = to_cpp_type_name(choice_bmdl_name) + "Variant";
     if (!current_parent_.empty()) {
         return to_cpp_type_name(current_parent_) + "_" + base;

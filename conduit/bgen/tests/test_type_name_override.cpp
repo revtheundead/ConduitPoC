@@ -68,6 +68,38 @@ TEST_CASE("typeName choice: UnknownPayload otherwise roundtrip", "[type_name][ch
 }
 
 // ============================================================================
+// Choice element typeName (variant alias override) roundtrip
+// ============================================================================
+
+TEST_CASE("typeName choice variant: BodyVariant alias roundtrip", "[type_name][choice]") {
+    type_name_override::ChoiceVariantMsg msg;
+    msg.set_kind(1);
+
+    type_name_override::ChoiceVariantMsg_alpha alpha;
+    alpha.set_x(0x1234);
+    msg.set_body(alpha);
+
+    auto enc = msg.encode_bytes();
+    REQUIRE(enc.has_value());
+
+    auto dec = type_name_override::ChoiceVariantMsg::decode_bytes(*enc);
+    REQUIRE(dec.has_value());
+    CHECK(dec->kind() == 1);
+    auto* p = std::get_if<type_name_override::ChoiceVariantMsg_alpha>(&dec->body());
+    REQUIRE(p != nullptr);
+    CHECK(p->x() == 0x1234);
+}
+
+TEST_CASE("typeName choice variant: BodyVariant is the using-declaration name", "[type_name][choice]") {
+    // This would fail to compile if the choice typeName override was not applied.
+    // Without typeName, the variant alias would be ChoiceVariantMsg_BodyVariant.
+    // With typeName="BodyVariant", it should be just BodyVariant.
+    using V = type_name_override::BodyVariant;
+    V v = type_name_override::ChoiceVariantMsg_alpha{};
+    CHECK(std::holds_alternative<type_name_override::ChoiceVariantMsg_alpha>(v));
+}
+
+// ============================================================================
 // Inline struct typeName roundtrip
 // ============================================================================
 
@@ -147,4 +179,8 @@ TEST_CASE("typeName produces correct class names", "[type_name]") {
     type_name_override::ArrayItem item;
     item.set_id(5);
     CHECK(item.id() == 5);
+
+    // Choice variant alias override: BodyVariant instead of ChoiceVariantMsg_BodyVariant
+    type_name_override::BodyVariant body = type_name_override::ChoiceVariantMsg_alpha{};
+    CHECK(std::holds_alternative<type_name_override::ChoiceVariantMsg_alpha>(body));
 }
