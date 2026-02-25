@@ -213,11 +213,12 @@ std::string j_write_stmt(const std::string& val, const JFieldInfo& fi) {
         if (fi.bits <= 32) return std::string("w.writeF32(") + val + ", " + (be ? "true" : "false") + ")";
         return std::string("w.writeF64(") + val + ", " + (be ? "true" : "false") + ")";
     }
+    // bool must be checked before bit-width checks since (int)boolean is illegal in Java
+    if (fi.is_bool) return "w.writeBits(" + val + " ? 1 : 0, " + std::to_string(fi.bits) + ")";
     if (fi.bits == 8 && !fi.is_signed) return "w.writeU8((int)" + val + ")";
     if (fi.bits == 16 && !fi.is_signed) return std::string("w.writeU16((int)") + val + ", " + (be ? "true" : "false") + ")";
     if (fi.bits == 32 && !fi.is_signed) return std::string("w.writeU32(") + val + ", " + (be ? "true" : "false") + ")";
     if (fi.bits == 64 && !fi.is_signed) return std::string("w.writeU64(") + val + ", " + (be ? "true" : "false") + ")";
-    if (fi.is_bool) return "w.writeBits(" + val + " ? 1 : 0, " + std::to_string(fi.bits) + ")";
     if (fi.is_signed) return "w.writeSignedBits(" + val + ", " + std::to_string(fi.bits) + ")";
     return "w.writeBits(" + val + ", " + std::to_string(fi.bits) + ")";
 }
@@ -583,7 +584,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             if (fi.is_string) jf.init = "\"\"";
             else if (fi.is_bytes) jf.init = "new byte[0]";
             else if (fi.is_bool) jf.init = "false";
-            else if (fi.is_float) jf.init = "0.0f";
+            else if (fi.j_type == "float") jf.init = "0.0f";
             else if (fi.j_type == "double") jf.init = "0.0";
             else if (fi.is_struct || fi.is_enum) jf.init = "null";
             else if (fi.j_type == "long") jf.init = "0L";
@@ -615,6 +616,17 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
             ctx.line("while (" + m + ".endsWith(" + ch + ")) " + m + " = " + m + ".substring(0, " + m + ".length()-1);");
         } else if (f.length_from) {
             ctx.line(m + " = r.readString((int)(" + j_expr(*f.length_from, pfx) + "));");
+        } else if (f.length_prefix) {
+            auto pti = resolve_prefix_type(*f.length_prefix, index);
+            bool pbe = (pti.endian == model::Endian::Big);
+            std::string rd;
+            if (pti.bits <= 8) rd = "(int) r.readU8()";
+            else if (pti.bits <= 16) rd = std::string("(int) r.readU16(") + (pbe ? "true" : "false") + ")";
+            else rd = std::string("(int) r.readU32(") + (pbe ? "true" : "false") + ")";
+            ctx.line("int _pl = " + rd + ";");
+            if (f.length_includes_prefix)
+                ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)) + ";");
+            ctx.line(m + " = r.readString(_pl);");
         } else {
             ctx.line(m + " = r.readString(r.remainingBytes());");
         }
@@ -656,6 +668,15 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         if (f.length) {
             int pad = (f.padding && *f.padding == model::StringPadding::Space) ? 0x20 : 0;
             ctx.line("w.writeString(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + ");");
+        } else if (f.length_prefix) {
+            auto pti = resolve_prefix_type(*f.length_prefix, index);
+            bool pbe = (pti.endian == model::Endian::Big);
+            std::string le = m + ".length()";
+            if (f.length_includes_prefix) le += " + " + std::to_string(get_prefix_bytes(pti));
+            if (pti.bits <= 8) ctx.line("w.writeU8(" + le + ");");
+            else if (pti.bits <= 16) ctx.line(std::string("w.writeU16(") + le + ", " + (pbe ? "true" : "false") + ");");
+            else ctx.line(std::string("w.writeU32(") + le + ", " + (pbe ? "true" : "false") + ");");
+            ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
         } else ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
         return;
     }
@@ -825,7 +846,10 @@ std::string generate_j_class(const std::string& name,
         std::string fmt = "return \"" + cn + "(\" + ";
         for (size_t i = 0; i < fields.size(); i++) {
             if (i > 0) fmt += " + \", \" + ";
-            fmt += "\"" + fields[i].name + "=\" + " + fields[i].name;
+            if (fields[i].j_type == "byte[]")
+                fmt += "\"" + fields[i].name + "=\" + java.util.Arrays.toString(" + fields[i].name + ")";
+            else
+                fmt += "\"" + fields[i].name + "=\" + " + fields[i].name;
         }
         fmt += " + \")\";";
         ctx.line(fmt);
@@ -890,6 +914,49 @@ std::string generate_j_protocol(const model::Protocol& protocol,
     return ctx.str();
 }
 
+// ============================================================================
+// Collect inline struct/array types that need their own .java files
+// ============================================================================
+
+void collect_inline_types(const std::vector<model::StructChild>& children,
+                          const analyzer::TypeIndex& index,
+                          const std::string& pkg,
+                          const std::unordered_map<std::string, uint64_t>& tid_map,
+                          std::vector<std::pair<std::string, std::string>>& out_files) {
+    for (const auto& child : children) {
+        if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            // Recurse first to handle nested inline types
+            collect_inline_types(sd->children, index, pkg, tid_map, out_files);
+            // Generate the inline struct class
+            std::string code = generate_j_class(sd->name, sd->children, index, pkg, tid_map);
+            out_files.push_back({j_class(sd->name) + ".java", code});
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            if (ad->type_ref.empty() && !ad->children.empty()) {
+                // Inline array element type - generate class from array's children
+                collect_inline_types(ad->children, index, pkg, tid_map, out_files);
+                std::string code = generate_j_class(ad->name, ad->children, index, pkg, tid_map);
+                out_files.push_back({j_class(ad->name) + ".java", code});
+            }
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            // Choice cases with inline types
+            for (const auto& cs : cd->cases) {
+                if (cs.type_ref.empty() && !cs.children.empty()) {
+                    collect_inline_types(cs.children, index, pkg, tid_map, out_files);
+                    std::string code = generate_j_class(cs.name, cs.children, index, pkg, tid_map);
+                    out_files.push_back({j_class(cs.name) + ".java", code});
+                }
+            }
+            if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
+                collect_inline_types(cd->otherwise->children, index, pkg, tid_map, out_files);
+                std::string code = generate_j_class(cd->otherwise->name, cd->otherwise->children, index, pkg, tid_map);
+                out_files.push_back({j_class(cd->otherwise->name) + ".java", code});
+            }
+        } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            collect_inline_types(fx->children, index, pkg, tid_map, out_files);
+        }
+    }
+}
+
 } // anonymous namespace
 
 // ============================================================================
@@ -907,18 +974,20 @@ bool JavaBackend::generate(
     (void)sizes;
 
     std::string pkg = ns.empty() ? "io.conduit.gen" : ns;
-    // Replace :: with .
-    std::string java_pkg = pkg;
-    for (size_t i = 0; i < java_pkg.size(); i++) {
-        if (java_pkg[i] == ':') java_pkg[i] = '.';
+    // Replace :: and hyphens for Java package naming
+    std::string java_pkg;
+    for (size_t i = 0; i < pkg.size(); i++) {
+        char c = pkg[i];
+        if (c == ':') c = '.';
+        else if (c == '-') c = '_';
+        // Skip consecutive dots
+        if (c == '.' && !java_pkg.empty() && java_pkg.back() == '.') continue;
+        java_pkg += c;
     }
-    // Remove consecutive dots
-    std::string clean_pkg;
-    for (size_t i = 0; i < java_pkg.size(); i++) {
-        if (java_pkg[i] == '.' && !clean_pkg.empty() && clean_pkg.back() == '.') continue;
-        if (java_pkg[i] != ':') clean_pkg += java_pkg[i];
-    }
-    java_pkg = clean_pkg.empty() ? "io.conduit.gen" : clean_pkg;
+    // Strip leading/trailing dots
+    while (!java_pkg.empty() && java_pkg.front() == '.') java_pkg.erase(java_pkg.begin());
+    while (!java_pkg.empty() && java_pkg.back() == '.') java_pkg.pop_back();
+    if (java_pkg.empty()) java_pkg = "io.conduit.gen";
 
     bool ok = true;
 
@@ -932,10 +1001,7 @@ bool JavaBackend::generate(
     int file_count = 5;
 
     // Type wrapper files (one per type)
-    std::string type_code = generate_j_types(protocol, java_pkg);
-    if (!type_code.empty()) {
-        // Split by class and write each to its own file
-        // For simplicity, write all enum/type classes to individual files
+    {
         for (const auto& t : protocol.types) {
             bool is_enum = !t.enum_values.empty();
             bool is_flags = !t.flags.empty();
@@ -1013,16 +1079,29 @@ bool JavaBackend::generate(
         for (const auto& lt : si.leaf_types)
             tid_map[lt.name] = lt.type_id;
 
-    // Struct classes
+    // Struct classes (including inline children)
     std::unordered_map<std::string, uint64_t> empty;
     for (const auto& sd : protocol.structs) {
+        // Generate inline struct/array types first
+        std::vector<std::pair<std::string, std::string>> inline_files;
+        collect_inline_types(sd.children, index, java_pkg, empty, inline_files);
+        for (const auto& [fname, fcode] : inline_files) {
+            ok &= write_file(output_dir / fname, fcode);
+            file_count++;
+        }
         std::string code = generate_j_class(sd.name, sd.children, index, java_pkg, empty);
         ok &= write_file(output_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
     }
 
-    // Message classes
+    // Message classes (including inline children)
     for (const auto& md : protocol.messages) {
+        std::vector<std::pair<std::string, std::string>> inline_files;
+        collect_inline_types(md.children, index, java_pkg, tid_map, inline_files);
+        for (const auto& [fname, fcode] : inline_files) {
+            ok &= write_file(output_dir / fname, fcode);
+            file_count++;
+        }
         std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id);
         ok &= write_file(output_dir / (j_class(md.name) + ".java"), code);
         file_count++;

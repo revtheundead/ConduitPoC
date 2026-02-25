@@ -122,6 +122,7 @@ add_executable(bgen_tests
     test_validator.cpp
     test_session_analyzer.cpp
     test_codegen_output.cpp
+    test_python_java_backends.cpp
     test_imports.cpp
     test_wire_sizer.cpp
     # Generated code roundtrip / integration tests

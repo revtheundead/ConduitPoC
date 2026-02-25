@@ -225,8 +225,13 @@ class Transceiver:
         self.close()
 
     def close(self) -> None:
-        """Destroy the transceiver."""
+        """Stop (if running) and destroy the transceiver."""
         if hasattr(self, "_handle") and self._handle:
+            try:
+                if self._lib.conduit_is_running(self._handle):
+                    self._lib.conduit_stop(self._handle)
+            except Exception:
+                pass  # best-effort stop
             self._lib.conduit_destroy(self._handle)
             self._handle = None
             self._callback_refs.clear()
@@ -235,8 +240,6 @@ class Transceiver:
         return self
 
     def __exit__(self, *args):
-        if self.is_running():
-            self.stop()
         self.close()
 
     def add_peer(self, name: str, session_name: str,
