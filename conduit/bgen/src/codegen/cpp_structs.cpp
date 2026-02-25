@@ -847,6 +847,10 @@ void StructEmitter::emit_child_class_defs(const std::vector<model::StructChild>&
                 emit_synthetic_struct(ad->name + "Element", ad->children, parent_name);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            // Register typeName override for choice variant alias if present
+            if (cd->type_name) {
+                register_type_name_override(parent_name, cd->name + "Variant", *cd->type_name);
+            }
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
                     // Register typeName override if present

@@ -1472,6 +1472,11 @@ private:
             error(c.loc, "choice '" + c.name + "' must have at least one <case>");
         }
 
+        // Validate typeName on choice element itself (variant alias override)
+        if (c.type_name) {
+            validate_type_name(c.loc, *c.type_name, "choice", c.name, false);
+        }
+
         std::set<std::string> case_names;
         for (const auto& cs : c.cases) {
             // Each case needs value or range

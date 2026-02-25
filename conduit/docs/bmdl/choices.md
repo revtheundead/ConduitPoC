@@ -83,7 +83,9 @@ The same shorthand applies to `<otherwise>`:
 <otherwise name="unknown" type="RawPayload"/>
 ```
 
-## Naming Inline Cases with `typeName`
+## Naming with `typeName`
+
+### Renaming Inline Cases
 
 By default, inline case definitions generate C++ class names by prefixing the parent struct name: `ParentName_CaseName`. The `typeName` attribute overrides this to produce a cleaner, user-chosen class name:
 
@@ -107,9 +109,22 @@ By default, inline case definitions generate C++ class names by prefixing the pa
 
 Without `typeName`, the generated classes would be `MyMessage_heartbeat`, `MyMessage_position`, and `MyMessage_payloadOtherwise`. With `typeName`, they are `HeartbeatPayload`, `PositionPayload`, and `UnknownPayload`.
 
-**Rules:**
+### Renaming the Variant Alias
 
-- `typeName` is only valid on inline definitions -- it cannot be used when the `type` attribute is present (referencing an existing type).
+The `<choice>` element itself also accepts `typeName` to override the generated `std::variant` alias name. By default, the variant alias is `ParentName_ChoiceNameVariant`. With `typeName`, you can provide a cleaner name:
+
+```xml
+<choice name="payload" switch="msg-type" typeName="MessagePayload">
+  <case name="heartbeat" value="1">...</case>
+  <case name="position" value="2">...</case>
+</choice>
+```
+
+Without `typeName`, the variant alias would be `MyMessage_PayloadVariant`. With `typeName="MessagePayload"`, it becomes `MessagePayload`.
+
+### Rules
+
+- `typeName` on `<case>` and `<otherwise>` is only valid on inline definitions -- it cannot be used when the `type` attribute is present (referencing an existing type).
 - The value must be a valid C++ identifier: starts with a letter or underscore, contains only alphanumeric characters and underscores.
 - The value must not be a C++ keyword (`class`, `struct`, `int`, etc.).
 - The value must not conflict with any type, struct, or message name defined in the protocol.

@@ -744,6 +744,10 @@ public:
                   "(use only one of: length, length-from)");
         }
 
+        // typeName override for variant alias
+        auto type_name_attr = node.attribute("typeName");
+        if (type_name_attr) cd.type_name = type_name_attr.value();
+
         // Presence
         auto bit_attr = parse_int_attr(node, "bit");
         if (bit_attr) cd.bit = *bit_attr;
@@ -844,7 +848,7 @@ public:
         cd.annotations = parse_annotations(node);
 
         check_unknown_attrs(node, {
-            "name", "switch", "length", "length-from", "bit", "present-when"
+            "name", "switch", "length", "length-from", "bit", "present-when", "typeName"
         });
 
         return cd;

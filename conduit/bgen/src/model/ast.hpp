@@ -354,6 +354,8 @@ struct ChoiceDef {
     std::optional<int> bit;
     std::unique_ptr<Expr> present_when;
 
+    std::optional<std::string> type_name; // typeName override for variant alias
+
     std::vector<Annotation> annotations;
     std::string doc;
     SourceLoc loc;

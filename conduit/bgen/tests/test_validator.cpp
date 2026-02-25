@@ -2327,3 +2327,86 @@ TEST_CASE("typeName with reserved C++ identifier rejected", "[validator][type_na
     }
     CHECK(found);
 }
+
+// ============================================================================
+// Choice-level typeName validation
+// ============================================================================
+
+TEST_CASE("typeName on choice element passes validation", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("type_name_override.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+TEST_CASE("typeName on choice element that is C++ keyword rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_choice_keyword.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("C++ keyword") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Empty typeName on choice element rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_choice_empty.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("cannot be empty") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Duplicate typeName on choice element rejected", "[validator][type_name]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("invalid_typename_choice_duplicate.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    REQUIRE_FALSE(validate_result.has_value());
+    bool found = false;
+    for (const auto& e : validate_result.error()) {
+        if (e.message.find("typeName") != std::string::npos &&
+            e.message.find("already used") != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
