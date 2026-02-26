@@ -155,8 +155,18 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
         ctx.line(prefix + " (type_id == " + tid_hex + ") {");
         ctx.indent();
         ctx.line("auto* msg = std::any_cast<" + leaf_type + ">(&payload);");
-        ctx.line("if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,");
+        ctx.line(leaf_type + " _decoded;");
+        ctx.line("if (!msg) {");
+        ctx.indent();
+        ctx.line("auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);");
+        ctx.line("if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,");
         ctx.line("    \"payload type mismatch for " + lt.name + "\"));");
+        ctx.line("auto dec = " + leaf_type + "::decode_bytes(*raw);");
+        ctx.line("if (!dec) return std::unexpected(dec.error());");
+        ctx.line("_decoded = std::move(*dec);");
+        ctx.line("msg = &_decoded;");
+        ctx.dedent();
+        ctx.line("}");
         ctx.line("conduit::traits::EncodeResult result;");
         // Set message-level config fields on a mutable copy before wrapping
         if (!lt.config_fields.empty()) {
