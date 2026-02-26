@@ -143,6 +143,14 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     ]
     lib.conduit_send.restype = ctypes.c_int32
 
+    # Batch send
+    lib.conduit_send_batch.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint64,
+        ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)),
+        ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
+    ]
+    lib.conduit_send_batch.restype = ctypes.c_int32
+
     # Handler registration
     lib.conduit_on_message.argtypes = [
         ctypes.c_void_p, ctypes.c_uint64, _MSG_CALLBACK, ctypes.c_void_p,
@@ -289,6 +297,34 @@ class Transceiver:
         if err != 0:
             raise ConduitError(err, "send failed")
 
+    def send_batch(self, peer_id: int, type_id: int,
+                   payloads: list[bytes]) -> None:
+        """Send a batch of messages to a peer."""
+        count = len(payloads)
+        if count == 0:
+            return
+
+        ArrayOfPtr = ctypes.POINTER(ctypes.c_uint8) * count
+        ArrayOfLen = ctypes.c_size_t * count
+
+        buffers = []
+        ptrs = ArrayOfPtr()
+        lens = ArrayOfLen()
+
+        for i, payload in enumerate(payloads):
+            buf = (ctypes.c_uint8 * len(payload))(*payload)
+            buffers.append(buf)  # prevent GC
+            ptrs[i] = ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8))
+            lens[i] = len(payload)
+
+        err = self._lib.conduit_send_batch(
+            self._handle, peer_id, type_id,
+            ctypes.cast(ptrs, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8))),
+            ctypes.cast(lens, ctypes.POINTER(ctypes.c_size_t)),
+            count)
+        if err != 0:
+            raise ConduitError(err, "send_batch failed")
+
     def on(self, msg_class=None, *, type_id: Optional[int] = None):
         """Decorator for registering a message handler.
 
@@ -361,6 +397,28 @@ class Transceiver:
         if err != 0:
             raise ConduitError(err, f"peer_by_name('{name}') failed")
         return pid.value
+
+    def remove_handler(self, peer_id: int, type_id: int) -> bool:
+        """Remove a message handler. Returns True if removed."""
+        return bool(self._lib.conduit_remove_handler(
+            self._handle, peer_id, type_id))
+
+    def remove_state_change(self, callback_id: int) -> bool:
+        """Remove a state change callback. Returns True if removed."""
+        return bool(self._lib.conduit_remove_state_change(
+            self._handle, callback_id))
+
+    def remove_error_callback(self, callback_id: int) -> bool:
+        """Remove an error callback. Returns True if removed."""
+        return bool(self._lib.conduit_remove_error_callback(
+            self._handle, callback_id))
+
+    @staticmethod
+    def version() -> str:
+        """Get the library version string."""
+        lib = _get_lib()
+        v = lib.conduit_version()
+        return v.decode("utf-8") if v else ""
 
     def _register_message_handler(
         self, type_id: int, func: Callable,
