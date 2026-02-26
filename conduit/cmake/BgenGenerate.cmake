@@ -52,27 +52,21 @@ function(bgen_generate)
     if(BGEN_LANGUAGE STREQUAL "python")
         set(_outputs
             "${_output_abs}/__init__.py"
+            "${_output_abs}/bit_io.py"
             "${_output_abs}/constants.py"
             "${_output_abs}/types.py"
             "${_output_abs}/structs.py"
             "${_output_abs}/messages.py"
             "${_output_abs}/sessions.py"
-            "${_output_abs}/codec.py"
-            "${_output_abs}/framer.py"
             "${_output_abs}/protocol.py"
-            "${_output_abs}/errors.py"
         )
     elseif(BGEN_LANGUAGE STREQUAL "java")
         set(_outputs
             "${_output_abs}/Constants.java"
-            "${_output_abs}/Types.java"
             "${_output_abs}/BitReader.java"
             "${_output_abs}/BitWriter.java"
-            "${_output_abs}/StreamFramer.java"
-            "${_output_abs}/ProtocolDescriptor.java"
-            "${_output_abs}/DecodedMessage.java"
-            "${_output_abs}/EncodeResult.java"
-            "${_output_abs}/ConduitError.java"
+            "${_output_abs}/ConduitCodecException.java"
+            "${_output_abs}/Protocol.java"
         )
     else()
         # C++ outputs

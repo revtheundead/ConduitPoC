@@ -280,7 +280,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
     const uint8_t** /*payloads*/, const size_t* /*lens*/, size_t /*count*/) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
-    return CONDUIT_XCVR_ERR_UNKNOWN;
+    return CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED;
 }
 
 // ============================================================================

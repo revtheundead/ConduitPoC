@@ -244,6 +244,7 @@ catch_discover_tests(bgen_tests)
 
 add_executable(bgen_python_tests
     test_python_backend.cpp
+    test_python_codegen_extended.cpp
 )
 
 target_link_libraries(bgen_python_tests PRIVATE
@@ -264,6 +265,7 @@ catch_discover_tests(bgen_python_tests)
 
 add_executable(bgen_java_tests
     test_java_backend.cpp
+    test_java_codegen_extended.cpp
 )
 
 target_link_libraries(bgen_java_tests PRIVATE

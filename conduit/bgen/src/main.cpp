@@ -37,16 +37,29 @@ struct CliArgs {
     bool dump_ast = false;
 };
 
-bool is_valid_namespace(const std::string& ns) {
+bool is_valid_namespace(const std::string& ns, const std::string& language = "cpp") {
     if (ns.empty()) return false;
-    // Split by :: and validate each segment
+
+    // For Python and Java, accept dot-separated identifiers (e.g., "io.conduit.protocol")
+    // For C++, accept ::-separated identifiers (e.g., "my::namespace")
+    bool use_dot = (language == "python" || language == "java");
+
     std::string segment;
     for (size_t i = 0; i < ns.size(); ) {
-        if (ns[i] == ':' && i + 1 < ns.size() && ns[i+1] == ':') {
-            if (segment.empty()) return false; // starts with :: or has ::::
-            segment.clear();
-            i += 2;
-            continue;
+        if (use_dot) {
+            if (ns[i] == '.') {
+                if (segment.empty()) return false; // starts with . or has ..
+                segment.clear();
+                i++;
+                continue;
+            }
+        } else {
+            if (ns[i] == ':' && i + 1 < ns.size() && ns[i+1] == ':') {
+                if (segment.empty()) return false; // starts with :: or has ::::
+                segment.clear();
+                i += 2;
+                continue;
+            }
         }
         char ch = ns[i];
         // Allow hyphens (converted to underscores later)
@@ -59,7 +72,7 @@ bool is_valid_namespace(const std::string& ns) {
         segment += ch;
         i++;
     }
-    return !segment.empty(); // must not end with ::
+    return !segment.empty();
 }
 
 void print_usage(const char* program) {
@@ -99,11 +112,6 @@ std::optional<CliArgs> parse_args(int argc, char* argv[], int& exit_code) {
             args.output = argv[++i];
         } else if (arg == "--namespace" && i + 1 < argc) {
             args.ns = argv[++i];
-            if (!is_valid_namespace(args.ns)) {
-                std::cerr << "error: invalid namespace '" << args.ns
-                          << "' (must be valid C++ identifier(s) separated by ::)\n";
-                return std::nullopt;
-            }
         } else if (arg == "--language" && i + 1 < argc) {
             args.language = argv[++i];
             if (args.language != "cpp" && args.language != "python" && args.language != "java") {
@@ -124,6 +132,17 @@ std::optional<CliArgs> parse_args(int argc, char* argv[], int& exit_code) {
         }
     }
 
+    // Validate namespace with language-aware rules (deferred to after all args parsed)
+    if (!args.ns.empty() && !is_valid_namespace(args.ns, args.language)) {
+        if (args.language == "python" || args.language == "java")
+            std::cerr << "error: invalid namespace '" << args.ns
+                      << "' (must be valid identifier(s) separated by .)\n";
+        else
+            std::cerr << "error: invalid namespace '" << args.ns
+                      << "' (must be valid C++ identifier(s) separated by ::)\n";
+        return std::nullopt;
+    }
+
     if (args.input.empty()) {
         std::cerr << "error: --input is required\n";
         print_usage(argv[0]);
@@ -136,25 +155,6 @@ std::optional<CliArgs> parse_args(int argc, char* argv[], int& exit_code) {
     }
 
     return args;
-}
-
-// ============================================================================
-// File writing
-// ============================================================================
-
-bool write_file(const fs::path& path, const std::string& content) {
-    std::ofstream out(path, std::ios::binary);
-    if (!out) {
-        bgen::Logger::error("cannot write to " + path.string());
-        return false;
-    }
-    out << content;
-    out.flush();
-    if (!out) {
-        bgen::Logger::error("write failed for " + path.string());
-        return false;
-    }
-    return true;
 }
 
 // ============================================================================
