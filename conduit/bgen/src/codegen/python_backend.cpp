@@ -390,6 +390,27 @@ class ConstraintError(ConduitError):
     pass
 
 
+# EBCDIC <-> ASCII conversion tables (Code Page 037)
+_EBCDIC_TO_ASCII = bytearray(256)
+_ASCII_TO_EBCDIC = bytearray(256)
+_ebcdic_pairs = [
+    (0x40, 0x20), (0x4B, 0x2E), (0x4C, 0x3C), (0x4D, 0x28), (0x4E, 0x2B), (0x4F, 0x7C),
+    (0x50, 0x26), (0x5A, 0x21), (0x5B, 0x24), (0x5C, 0x2A), (0x5D, 0x29), (0x5E, 0x3B),
+    (0x60, 0x2D), (0x61, 0x2F), (0x6B, 0x2C), (0x6C, 0x25), (0x6D, 0x5F), (0x6E, 0x3E),
+    (0x6F, 0x3F), (0x7A, 0x3A), (0x7B, 0x23), (0x7C, 0x40), (0x7D, 0x27), (0x7E, 0x3D), (0x7F, 0x22),
+]
+for _i in range(9): _ebcdic_pairs.append((0xC1 + _i, 0x41 + _i))
+for _i in range(9): _ebcdic_pairs.append((0xD1 + _i, 0x4A + _i))
+for _i in range(8): _ebcdic_pairs.append((0xE2 + _i, 0x53 + _i))
+for _i in range(9): _ebcdic_pairs.append((0x81 + _i, 0x61 + _i))
+for _i in range(9): _ebcdic_pairs.append((0x91 + _i, 0x6A + _i))
+for _i in range(8): _ebcdic_pairs.append((0xA2 + _i, 0x73 + _i))
+for _i in range(10): _ebcdic_pairs.append((0xF0 + _i, 0x30 + _i))
+for _e, _a in _ebcdic_pairs:
+    _EBCDIC_TO_ASCII[_e] = _a
+    _ASCII_TO_EBCDIC[_a] = _e
+
+
 class BitReader:
     """Read individual bits and multi-byte values from a bytes buffer."""
 
@@ -456,8 +477,41 @@ class BitReader:
         b = bytes([self.read_bits(8) for _ in range(8)])
         return struct.unpack('>d' if big_endian else '<d', b)[0]
 
-    def read_string(self, length: int) -> str:
-        return bytes(self.read_bits(8) for _ in range(length)).decode('latin-1')
+    def read_string(self, length: int, encoding: int = 0) -> str:
+        b = bytearray(self.read_bits(8) for _ in range(length))
+        if encoding == 2:
+            b = bytearray(_EBCDIC_TO_ASCII[c] for c in b)
+        elif encoding == 1:
+            b = bytearray((c + 0x40 if 0 < c < 32 else c) for c in (v & 0x3F for v in b))
+        return bytes(b).decode('latin-1')
+
+    def read_packed_chars(self, count: int, char_bits: int) -> str:
+        chars = []
+        for _ in range(count):
+            c = self.read_bits(char_bits)
+            chars.append(chr(0 if c == 0 else (c + 0x40 if c < 32 else c)))
+        return ''.join(chars)
+
+    def read_terminated_string(self, terminator: int, max_len: int) -> str:
+        chars = []
+        for _ in range(max_len):
+            c = self.read_bits(8)
+            if c == terminator:
+                break
+            chars.append(chr(c))
+        return ''.join(chars)
+
+    def read_crlf_terminated_string(self, max_len: int) -> str:
+        chars = []
+        prev = 0
+        for _ in range(max_len):
+            c = self.read_bits(8)
+            if prev == 0x0D and c == 0x0A:
+                chars.pop()
+                break
+            chars.append(chr(c))
+            prev = c
+        return ''.join(chars)
 
     def read_bytes(self, length: int) -> bytes:
         return bytes(self.read_bits(8) for _ in range(length))
@@ -562,10 +616,30 @@ class BitWriter:
         for byte in struct.pack('>d' if big_endian else '<d', value):
             self.write_bits(byte, 8)
 
-    def write_string(self, s: str, length: int, pad: int = 0) -> None:
-        encoded = s.encode('latin-1')
+    def write_string(self, s: str, length: int, pad: int = 0, encoding: int = 0) -> None:
+        b = bytearray(s.encode('latin-1'))
+        if encoding == 2:
+            b = bytearray(_ASCII_TO_EBCDIC[c] for c in b)
+        elif encoding == 1:
+            b = bytearray((c - 0x40 if c >= 0x40 else c) for c in b)
         for i in range(length):
-            self.write_u8(encoded[i] if i < len(encoded) else pad)
+            self.write_u8(b[i] if i < len(b) else pad)
+
+    def write_packed_chars(self, s: str, count: int, char_bits: int) -> None:
+        for i in range(count):
+            c = ord(s[i]) if i < len(s) else 0
+            self.write_bits(c - 0x40 if c >= 0x40 else c, char_bits)
+
+    def write_terminated_string(self, s: str, terminator: int) -> None:
+        for c in s:
+            self.write_u8(ord(c))
+        self.write_u8(terminator)
+
+    def write_crlf_terminated_string(self, s: str) -> None:
+        for c in s:
+            self.write_u8(ord(c))
+        self.write_u8(0x0D)
+        self.write_u8(0x0A)
 
     def write_bytes(self, data: bytes | bytearray) -> None:
         for b in data:
@@ -914,6 +988,41 @@ std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi) {
     return "w.write_bits(" + val + ", " + std::to_string(fi.bits) + ")";
 }
 
+// Helper: return Python encoding constant for a field (0=ASCII, 1=IA5, 2=EBCDIC)
+std::string py_encoding_const(const model::Field& f) {
+    if (f.encoding) {
+        switch (*f.encoding) {
+            case model::StringEncoding::Ia5: return "1";
+            case model::StringEncoding::Ebcdic: return "2";
+            default: break;
+        }
+    }
+    return "";
+}
+
+bool py_field_needs_encoding(const model::Field& f) {
+    return f.encoding && (*f.encoding == model::StringEncoding::Ia5 || *f.encoding == model::StringEncoding::Ebcdic);
+}
+
+// Helper: emit Python string trim code based on field trim mode
+void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f) {
+    auto eff_trim = f.trim.value_or(model::StringTrim::Right);
+    std::string ch = (f.padding && *f.padding == model::StringPadding::Space) ? "' '" : "'\\x00'";
+    switch (eff_trim) {
+        case model::StringTrim::Right:
+            ctx.line(m + " = " + m + ".rstrip(" + ch + ")");
+            break;
+        case model::StringTrim::Left:
+            ctx.line(m + " = " + m + ".lstrip(" + ch + ")");
+            break;
+        case model::StringTrim::Both:
+            ctx.line(m + " = " + m + ".strip(" + ch + ")");
+            break;
+        case model::StringTrim::None:
+            break;
+    }
+}
+
 // ============================================================================
 // Decode/Encode children
 // ============================================================================
@@ -924,13 +1033,30 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     std::string m = pfx + "." + py_field(f.name);
     if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.py_type + ".decode(r)"); return; }
     if (fi.is_string) {
-        if (f.length) {
-            ctx.line(m + " = r.read_string(" + std::to_string(*f.length) + ")");
-            std::string ch = "'\\x00'";
-            if (f.padding && *f.padding == model::StringPadding::Space) ch = "' '";
-            ctx.line(m + " = " + m + ".rstrip(" + ch + ")");
+        bool has_enc = py_field_needs_encoding(f);
+        std::string enc_arg = has_enc ? (", " + py_encoding_const(f)) : "";
+        if (f.char_bits && f.length) {
+            // Packed character decode (e.g., ICAO 6-bit chars)
+            ctx.line(m + " = r.read_packed_chars(" + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ")");
+            emit_py_field_trim(ctx, m, f);
+        } else if (f.terminated) {
+            // Terminated string decode
+            int max_len = f.max_length ? *f.max_length : 65535;
+            if (*f.terminated == "crlf") {
+                ctx.line(m + " = r.read_crlf_terminated_string(" + std::to_string(max_len) + ")");
+            } else {
+                std::string term = "0";
+                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                    term = *f.terminated;
+                }
+                ctx.line(m + " = r.read_terminated_string(" + term + ", " + std::to_string(max_len) + ")");
+            }
+            emit_py_field_trim(ctx, m, f);
+        } else if (f.length) {
+            ctx.line(m + " = r.read_string(" + std::to_string(*f.length) + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else if (f.length_from) {
-            ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + "))");
+            ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + ")" + enc_arg + ")");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             std::string be = (pti.endian == model::Endian::Big) ? "True" : "False";
@@ -939,9 +1065,15 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             else ctx.line("_pl = r.read_u32(" + be + ")");
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)));
-            ctx.line(m + " = r.read_string(_pl)");
+            ctx.line(m + " = r.read_string(_pl" + enc_arg + ")");
+        } else if (f.length_star) {
+            ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
         } else {
-            ctx.line(m + " = r.read_string(r.remaining_bytes())");
+            ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
+        }
+        // max_length validation (matching C++ MaxLengthExceeded check)
+        if (f.max_length) {
+            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
         }
         return;
     }
@@ -950,6 +1082,9 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         if (len > 0) ctx.line(m + " = r.read_bytes(" + std::to_string(len) + ")");
         else if (f.length_from) ctx.line(m + " = r.read_bytes(int(" + py_expr(*f.length_from, pfx) + "))");
         else ctx.line(m + " = r.read_bytes(r.remaining_bytes())");
+        if (f.max_length) {
+            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
+        }
         return;
     }
     if (fi.has_scale) {
@@ -964,6 +1099,20 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     }
     if (fi.is_bool) { ctx.line(m + " = (" + py_read_expr(fi) + " != 0)"); return; }
     ctx.line(m + " = " + py_read_expr(fi));
+    // Field-level constraint checks (matching C++ emit_constraint_check)
+    // Skip deferred constraints (validated externally, not at decode time)
+    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
+        if (f.constraint->equals) {
+            ctx.line("if " + m + " != " + *f.constraint->equals + ": raise ConstraintError('" + f.name + " constraint violation: expected " + *f.constraint->equals + "')");
+        }
+        if (f.constraint->max) {
+            ctx.line("if " + m + " > " + *f.constraint->max + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+        }
+        bool is_signed = fi.is_signed;
+        if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
+            ctx.line("if " + m + " < " + *f.constraint->min + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
+        }
+    }
 }
 
 void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
@@ -994,9 +1143,25 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w)"); return; }
     if (fi.is_string) {
-        if (f.length) {
+        bool has_enc = py_field_needs_encoding(f);
+        std::string enc_arg = has_enc ? (", encoding=" + py_encoding_const(f)) : "";
+        if (f.char_bits && f.length) {
+            // Packed character encode
+            ctx.line("w.write_packed_chars(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ")");
+        } else if (f.terminated) {
+            // Terminated string encode
+            if (*f.terminated == "crlf") {
+                ctx.line("w.write_crlf_terminated_string(" + m + ")");
+            } else {
+                std::string term = "0";
+                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                    term = *f.terminated;
+                }
+                ctx.line("w.write_terminated_string(" + m + ", " + term + ")");
+            }
+        } else if (f.length) {
             int pad = (f.padding && *f.padding == model::StringPadding::Space) ? 0x20 : 0;
-            ctx.line("w.write_string(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + ")");
+            ctx.line("w.write_string(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + enc_arg + ")");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             std::string be = (pti.endian == model::Endian::Big) ? "True" : "False";
@@ -1005,8 +1170,10 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
             if (pti.bits <= 8) ctx.line("w.write_u8(" + le + ")");
             else if (pti.bits <= 16) ctx.line("w.write_u16(" + le + ", " + be + ")");
             else ctx.line("w.write_u32(" + le + ", " + be + ")");
-            ctx.line("w.write_string(" + m + ", len(" + m + "))");
-        } else ctx.line("w.write_string(" + m + ", len(" + m + "))");
+            ctx.line("w.write_string(" + m + ", len(" + m + ")" + enc_arg + ")");
+        } else {
+            ctx.line("w.write_string(" + m + ", len(" + m + ")" + enc_arg + ")");
+        }
         return;
     }
     if (fi.is_bytes) { ctx.line("w.write_bytes(" + m + ")"); return; }

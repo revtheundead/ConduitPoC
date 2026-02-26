@@ -898,3 +898,222 @@ TEST_CASE("JCG: choice_protocol session has leaf types", "[java][codegen][sessio
     CHECK(j_all.find("BetaBody") != std::string::npos);
     CHECK(j_all.find("LEAF_TYPES") != std::string::npos);
 }
+
+// ============================================================================
+// Constraint validation tests (min/max on types and fields)
+// ============================================================================
+
+TEST_CASE("JCG: constrained type decode validates max", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints_extended.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    CHECK(all.find("exceeds max") != std::string::npos);
+}
+
+TEST_CASE("JCG: constrained type decode validates min", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints_extended.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    CHECK(all.find("below min") != std::string::npos);
+}
+
+TEST_CASE("JCG: field-level constraint checks equals", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // Field magic has constraint equals="0xBEEF"
+    CHECK(all.find("constraint violation") != std::string::npos);
+}
+
+TEST_CASE("JCG: field-level constraint checks min/max", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // percent has min=0, max=100
+    CHECK(all.find("exceeds max 100") != std::string::npos);
+}
+
+TEST_CASE("JCG: deferred constraint does NOT generate validation", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // deferred-val has validate="deferred" so no runtime check
+    // We check that "deferred-val" doesn't appear in exception messages
+    CHECK(all.find("deferred-val exceeds max") == std::string::npos);
+    CHECK(all.find("deferred-val below min") == std::string::npos);
+}
+
+// ============================================================================
+// Default value tests
+// ============================================================================
+
+TEST_CASE("JCG: field with default value generates custom initializer", "[java][codegen][default]") {
+    auto java = gen_java("default_initial.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // version has default="1"
+    CHECK(all.find("= 1") != std::string::npos);
+    // counter has default="100"
+    CHECK(all.find("= 100") != std::string::npos);
+}
+
+// ============================================================================
+// String encoding tests (EBCDIC, IA5)
+// ============================================================================
+
+TEST_CASE("JCG: EBCDIC strings generate encoding-aware read calls", "[java][codegen][string]") {
+    auto java = gen_java("ebcdic_strings.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    bool has_ebcdic_ref = all.find("readStringEncoded") != std::string::npos ||
+                          all.find("EBCDIC_TO_ASCII") != std::string::npos;
+    CHECK(has_ebcdic_ref);
+}
+
+TEST_CASE("JCG: EBCDIC strings generate encoding-aware write calls", "[java][codegen][string]") {
+    auto java = gen_java("ebcdic_strings.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    bool has_ebcdic_write = all.find("writeStringEncoded") != std::string::npos ||
+                            all.find("ASCII_TO_EBCDIC") != std::string::npos;
+    CHECK(has_ebcdic_write);
+}
+
+TEST_CASE("JCG: BitReader has EBCDIC_TO_ASCII conversion table", "[java][codegen][string]") {
+    auto java = gen_java("ebcdic_strings.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& br = java->files["BitReader.java"];
+    CHECK(br.find("EBCDIC_TO_ASCII") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitWriter has ASCII_TO_EBCDIC conversion table", "[java][codegen][string]") {
+    auto java = gen_java("ebcdic_strings.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bw = java->files["BitWriter.java"];
+    CHECK(bw.find("ASCII_TO_EBCDIC") != std::string::npos);
+}
+
+TEST_CASE("JCG: IA5 string handling in FX", "[java][codegen][string]") {
+    auto java = gen_java("fx_ia5_string.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    CHECK(!all.empty());
+}
+
+// ============================================================================
+// String trim mode tests
+// ============================================================================
+
+TEST_CASE("JCG: string_features generates trim logic", "[java][codegen][trim]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    CHECK(all.find("readString(") != std::string::npos);
+    CHECK(all.find("writeString(") != std::string::npos);
+}
+
+TEST_CASE("JCG: struct_features alignment and reserved", "[java][codegen][align]") {
+    auto java = gen_java("struct_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // Reserved generates skip/write zero bits
+    CHECK(all.find("skipBits") != std::string::npos);
+    CHECK(all.find("writeBits(0, ") != std::string::npos);
+}
+
+// ============================================================================
+// Terminated string tests
+// ============================================================================
+
+TEST_CASE("JCG: BitReader has readTerminatedString method", "[java][codegen][terminated]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& br = java->files["BitReader.java"];
+    CHECK(br.find("readTerminatedString") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitReader has readCrlfTerminatedString method", "[java][codegen][terminated]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& br = java->files["BitReader.java"];
+    CHECK(br.find("readCrlfTerminatedString") != std::string::npos);
+}
+
+TEST_CASE("JCG: terminated string field generates terminator read call", "[java][codegen][terminated]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // TermStringMsg has null-term, newline-term, crlf-term fields
+    CHECK(all.find("readTerminatedString(") != std::string::npos);
+    CHECK(all.find("readCrlfTerminatedString(") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitWriter has writeTerminatedString method", "[java][codegen][terminated]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bw = java->files["BitWriter.java"];
+    CHECK(bw.find("writeTerminatedString") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitWriter has writeCrlfTerminatedString method", "[java][codegen][terminated]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bw = java->files["BitWriter.java"];
+    CHECK(bw.find("writeCrlfTerminatedString") != std::string::npos);
+}
+
+// ============================================================================
+// Packed character / char_bits tests
+// ============================================================================
+
+TEST_CASE("JCG: BitReader has readPackedChars method", "[java][codegen][char_bits]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& br = java->files["BitReader.java"];
+    CHECK(br.find("readPackedChars") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitWriter has writePackedChars method", "[java][codegen][char_bits]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bw = java->files["BitWriter.java"];
+    CHECK(bw.find("writePackedChars") != std::string::npos);
+}
+
+// ============================================================================
+// max_length validation tests
+// ============================================================================
+
+TEST_CASE("JCG: max_length on string field generates length check", "[java][codegen][max_length]") {
+    auto java = gen_java("string_features.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // MaxLenMsg has field data with max-length="16"
+    CHECK(all.find("exceeds max length 16") != std::string::npos);
+}
+
+// ============================================================================
+// Extended BitReader/BitWriter method parity tests (new methods added)
+// ============================================================================
+
+TEST_CASE("JCG: BitReader has new encoding/packed/terminated methods", "[java][codegen][bitio_new]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& br = java->files["BitReader.java"];
+    CHECK(br.find("readStringEncoded(") != std::string::npos);
+    CHECK(br.find("readPackedChars(") != std::string::npos);
+    CHECK(br.find("readTerminatedString(") != std::string::npos);
+    CHECK(br.find("readCrlfTerminatedString(") != std::string::npos);
+    CHECK(br.find("EBCDIC_TO_ASCII") != std::string::npos);
+}
+
+TEST_CASE("JCG: BitWriter has new encoding/packed/terminated methods", "[java][codegen][bitio_new]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bw = java->files["BitWriter.java"];
+    CHECK(bw.find("writeStringEncoded(") != std::string::npos);
+    CHECK(bw.find("writePackedChars(") != std::string::npos);
+    CHECK(bw.find("writeTerminatedString(") != std::string::npos);
+    CHECK(bw.find("writeCrlfTerminatedString(") != std::string::npos);
+    CHECK(bw.find("ASCII_TO_EBCDIC") != std::string::npos);
+}

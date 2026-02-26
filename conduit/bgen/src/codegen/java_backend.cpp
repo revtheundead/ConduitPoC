@@ -405,6 +405,35 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("private int bitPos;");
     ctx.line("private final int bitLen;");
     ctx.line();
+    // EBCDIC-to-ASCII conversion table (standard EBCDIC Code Page 037 mapping)
+    ctx.line("private static final byte[] EBCDIC_TO_ASCII = new byte[256];");
+    ctx.line("static {");
+    ctx.indent();
+    ctx.line("java.util.Arrays.fill(EBCDIC_TO_ASCII, (byte)0x3F);"); // default '?'
+    ctx.line("int[] map = {");
+    ctx.indent();
+    ctx.line("0x40,' ', 0x4B,'.', 0x4C,'<', 0x4D,'(', 0x4E,'+', 0x4F,'|',");
+    ctx.line("0x50,'&', 0x5A,'!', 0x5B,'$', 0x5C,'*', 0x5D,')', 0x5E,';',");
+    ctx.line("0x60,'-', 0x61,'/', 0x6B,',', 0x6C,'%', 0x6D,'_', 0x6E,'>',");
+    ctx.line("0x6F,'?', 0x7A,':', 0x7B,'#', 0x7C,'@', 0x7D,'\\'', 0x7E,'=', 0x7F,'\"',");
+    ctx.line("0xC1,'A', 0xC2,'B', 0xC3,'C', 0xC4,'D', 0xC5,'E', 0xC6,'F',");
+    ctx.line("0xC7,'G', 0xC8,'H', 0xC9,'I', 0xD1,'J', 0xD2,'K', 0xD3,'L',");
+    ctx.line("0xD4,'M', 0xD5,'N', 0xD6,'O', 0xD7,'P', 0xD8,'Q', 0xD9,'R',");
+    ctx.line("0xE2,'S', 0xE3,'T', 0xE4,'U', 0xE5,'V', 0xE6,'W', 0xE7,'X',");
+    ctx.line("0xE8,'Y', 0xE9,'Z',");
+    ctx.line("0x81,'a', 0x82,'b', 0x83,'c', 0x84,'d', 0x85,'e', 0x86,'f',");
+    ctx.line("0x87,'g', 0x88,'h', 0x89,'i', 0x91,'j', 0x92,'k', 0x93,'l',");
+    ctx.line("0x94,'m', 0x95,'n', 0x96,'o', 0x97,'p', 0x98,'q', 0x99,'r',");
+    ctx.line("0xA2,'s', 0xA3,'t', 0xA4,'u', 0xA5,'v', 0xA6,'w', 0xA7,'x',");
+    ctx.line("0xA8,'y', 0xA9,'z',");
+    ctx.line("0xF0,'0', 0xF1,'1', 0xF2,'2', 0xF3,'3', 0xF4,'4', 0xF5,'5',");
+    ctx.line("0xF6,'6', 0xF7,'7', 0xF8,'8', 0xF9,'9',");
+    ctx.line("};");
+    ctx.dedent();
+    ctx.line("for (int i=0;i<map.length;i+=2) EBCDIC_TO_ASCII[map[i]]=(byte)map[i+1];");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
     ctx.line("public BitReader(byte[] data) { this.data = data; this.bitPos = 0; this.bitLen = data.length * 8; }");
     ctx.line();
     ctx.line("public int remainingBits() { return Math.max(0, bitLen - bitPos); }");
@@ -479,6 +508,38 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("return new String(b, StandardCharsets.ISO_8859_1);");
     ctx.dedent();
     ctx.line("}");
+    // Encoding-aware string read: 0=ASCII, 1=IA5, 2=EBCDIC
+    ctx.line("public String readStringEncoded(int len, int enc) {");
+    ctx.indent();
+    ctx.line("byte[] b = new byte[len]; for (int i=0;i<len;i++) b[i]=(byte)readBits(8);");
+    ctx.line("if (enc == 2) { for (int i=0;i<b.length;i++) b[i]=EBCDIC_TO_ASCII[b[i]&0xFF]; }");
+    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) { int c=b[i]&0x3F; b[i]=(byte)(c<32?c+0x40:c); } }");
+    ctx.line("return new String(b, StandardCharsets.ISO_8859_1);");
+    ctx.dedent();
+    ctx.line("}");
+    // Packed character read: reads char_bits per character with IA5 6-bit mapping
+    ctx.line("public String readPackedChars(int count, int charBits) {");
+    ctx.indent();
+    ctx.line("StringBuilder sb = new StringBuilder(count);");
+    ctx.line("for (int i=0;i<count;i++) { int c=(int)readBits(charBits); sb.append((char)(c==0?0:(c<32?c+0x40:c))); }");
+    ctx.line("return sb.toString();");
+    ctx.dedent();
+    ctx.line("}");
+    // Terminated string read
+    ctx.line("public String readTerminatedString(int terminator, int maxLen) {");
+    ctx.indent();
+    ctx.line("StringBuilder sb = new StringBuilder();");
+    ctx.line("for (int i=0;i<maxLen;i++) { int c=(int)readBits(8); if (c==terminator) break; sb.append((char)c); }");
+    ctx.line("return sb.toString();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line("public String readCrlfTerminatedString(int maxLen) {");
+    ctx.indent();
+    ctx.line("StringBuilder sb = new StringBuilder(); int prev=0;");
+    ctx.line("for (int i=0;i<maxLen;i++) { int c=(int)readBits(8); if (prev==0x0D && c==0x0A) { sb.deleteCharAt(sb.length()-1); break; } sb.append((char)c); prev=c; }");
+    ctx.line("return sb.toString();");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line("public byte[] readBytes(int len) {");
     ctx.indent();
     ctx.line("byte[] b = new byte[len]; for (int i=0;i<len;i++) b[i]=(byte)readBits(8); return b;");
@@ -531,6 +592,35 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line();
     ctx.line("public final class BitWriter {");
     ctx.indent();
+    // ASCII-to-EBCDIC conversion table (reverse of EBCDIC_TO_ASCII in BitReader)
+    ctx.line("private static final byte[] ASCII_TO_EBCDIC = new byte[256];");
+    ctx.line("static {");
+    ctx.indent();
+    ctx.line("java.util.Arrays.fill(ASCII_TO_EBCDIC, (byte)0x40);"); // default space
+    ctx.line("int[] map = {");
+    ctx.indent();
+    ctx.line("' ',0x40, '.',0x4B, '<',0x4C, '(',0x4D, '+',0x4E, '|',0x4F,");
+    ctx.line("'&',0x50, '!',0x5A, '$',0x5B, '*',0x5C, ')',0x5D, ';',0x5E,");
+    ctx.line("'-',0x60, '/',0x61, ',',0x6B, '%',0x6C, '_',0x6D, '>',0x6E,");
+    ctx.line("'?',0x6F, ':',0x7A, '#',0x7B, '@',0x7C, '\\'',0x7D, '=',0x7E, '\"',0x7F,");
+    ctx.line("'A',0xC1, 'B',0xC2, 'C',0xC3, 'D',0xC4, 'E',0xC5, 'F',0xC6,");
+    ctx.line("'G',0xC7, 'H',0xC8, 'I',0xC9, 'J',0xD1, 'K',0xD2, 'L',0xD3,");
+    ctx.line("'M',0xD4, 'N',0xD5, 'O',0xD6, 'P',0xD7, 'Q',0xD8, 'R',0xD9,");
+    ctx.line("'S',0xE2, 'T',0xE3, 'U',0xE4, 'V',0xE5, 'W',0xE6, 'X',0xE7,");
+    ctx.line("'Y',0xE8, 'Z',0xE9,");
+    ctx.line("'a',0x81, 'b',0x82, 'c',0x83, 'd',0x84, 'e',0x85, 'f',0x86,");
+    ctx.line("'g',0x87, 'h',0x88, 'i',0x89, 'j',0x91, 'k',0x92, 'l',0x93,");
+    ctx.line("'m',0x94, 'n',0x95, 'o',0x96, 'p',0x97, 'q',0x98, 'r',0x99,");
+    ctx.line("'s',0xA2, 't',0xA3, 'u',0xA4, 'v',0xA5, 'w',0xA6, 'x',0xA7,");
+    ctx.line("'y',0xA8, 'z',0xA9,");
+    ctx.line("'0',0xF0, '1',0xF1, '2',0xF2, '3',0xF3, '4',0xF4, '5',0xF5,");
+    ctx.line("'6',0xF6, '7',0xF7, '8',0xF8, '9',0xF9,");
+    ctx.line("};");
+    ctx.dedent();
+    ctx.line("for (int i=0;i<map.length;i+=2) ASCII_TO_EBCDIC[map[i]]=(byte)map[i+1];");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
     ctx.line("private byte[] buf = new byte[64];");
     ctx.line("private int bitPos;");
     ctx.line();
@@ -578,6 +668,34 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.indent();
     ctx.line("byte[] enc = s.getBytes(StandardCharsets.ISO_8859_1);");
     ctx.line("for (int i=0;i<len;i++) writeU8(i<enc.length ? enc[i]&0xFF : pad);");
+    ctx.dedent();
+    ctx.line("}");
+    // Encoding-aware string write: 0=ASCII, 1=IA5, 2=EBCDIC
+    ctx.line("public void writeStringEncoded(String s, int len, int pad, int enc) {");
+    ctx.indent();
+    ctx.line("byte[] b = s.getBytes(StandardCharsets.ISO_8859_1);");
+    ctx.line("if (enc == 2) { for (int i=0;i<b.length;i++) b[i]=ASCII_TO_EBCDIC[b[i]&0xFF]; }");
+    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) { int c=b[i]&0xFF; b[i]=(byte)(c>=0x40?c-0x40:c); } }");
+    ctx.line("for (int i=0;i<len;i++) writeU8(i<b.length ? b[i]&0xFF : pad);");
+    ctx.dedent();
+    ctx.line("}");
+    // Packed character write: writes char_bits per character with IA5 6-bit mapping
+    ctx.line("public void writePackedChars(String s, int count, int charBits) {");
+    ctx.indent();
+    ctx.line("for (int i=0;i<count;i++) { int c=i<s.length()?(s.charAt(i)&0xFF):0; writeBits(c>=0x40?c-0x40:c, charBits); }");
+    ctx.dedent();
+    ctx.line("}");
+    // Terminated string write
+    ctx.line("public void writeTerminatedString(String s, int terminator) {");
+    ctx.indent();
+    ctx.line("for (int i=0;i<s.length();i++) writeU8(s.charAt(i)&0xFF);");
+    ctx.line("writeU8(terminator);");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line("public void writeCrlfTerminatedString(String s) {");
+    ctx.indent();
+    ctx.line("for (int i=0;i<s.length();i++) writeU8(s.charAt(i)&0xFF);");
+    ctx.line("writeU8(0x0D); writeU8(0x0A);");
     ctx.dedent();
     ctx.line("}");
     ctx.line("public void writeBytes(byte[] data) { for (byte b:data) writeU8(b&0xFF); }");
@@ -653,6 +771,43 @@ struct JFieldDef {
     std::string init;
 };
 
+// Helper: return Java encoding constant string for a field (0=ASCII, 1=IA5, 2=EBCDIC)
+std::string j_encoding_const(const model::Field& f) {
+    if (f.encoding) {
+        switch (*f.encoding) {
+            case model::StringEncoding::Ia5: return "1";
+            case model::StringEncoding::Ebcdic: return "2";
+            default: break;
+        }
+    }
+    return "";
+}
+
+bool j_field_needs_encoding(const model::Field& f) {
+    return f.encoding && (*f.encoding == model::StringEncoding::Ia5 || *f.encoding == model::StringEncoding::Ebcdic);
+}
+
+// Helper: emit Java string trim code based on field trim mode
+void emit_j_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f) {
+    // Determine effective trim — default to Right if not specified
+    auto eff_trim = f.trim.value_or(model::StringTrim::Right);
+    std::string ch = (f.padding && *f.padding == model::StringPadding::Space) ? "\" \"" : "\"\\0\"";
+    switch (eff_trim) {
+        case model::StringTrim::Right:
+            ctx.line("while (" + m + ".endsWith(" + ch + ")) " + m + " = " + m + ".substring(0, " + m + ".length()-1);");
+            break;
+        case model::StringTrim::Left:
+            ctx.line("while (" + m + ".startsWith(" + ch + ")) " + m + " = " + m + ".substring(1);");
+            break;
+        case model::StringTrim::Both:
+            ctx.line("while (" + m + ".endsWith(" + ch + ")) " + m + " = " + m + ".substring(0, " + m + ".length()-1);");
+            ctx.line("while (" + m + ".startsWith(" + ch + ")) " + m + " = " + m + ".substring(1);");
+            break;
+        case model::StringTrim::None:
+            break;
+    }
+}
+
 void collect_j_fields(const std::vector<model::StructChild>& children,
                       const analyzer::TypeIndex& index,
                       std::vector<JFieldDef>& fields) {
@@ -670,6 +825,8 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else if (fi.is_struct || fi.is_enum) jf.init = "null";
             else if (fi.j_type == "long") jf.init = "0L";
             else jf.init = "0";
+            // Apply explicit default value from BMDL spec (matching C++/Python)
+            if (f->default_value) jf.init = *f->default_value;
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             fields.push_back({j_field(sd->name), j_class(sd->name), "null"});
@@ -691,12 +848,32 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     std::string m = pfx + "." + j_field(f.name);
     if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.j_type + ".decode(r);"); return; }
     if (fi.is_string) {
-        if (f.length) {
-            ctx.line(m + " = r.readString(" + std::to_string(*f.length) + ");");
-            std::string ch = (f.padding && *f.padding == model::StringPadding::Space) ? "\" \"" : "\"\\0\"";
-            ctx.line("while (" + m + ".endsWith(" + ch + ")) " + m + " = " + m + ".substring(0, " + m + ".length()-1);");
+        bool has_enc = j_field_needs_encoding(f);
+        std::string enc_arg = has_enc ? (", " + j_encoding_const(f)) : "";
+        std::string read_fn = has_enc ? "readStringEncoded" : "readString";
+        if (f.char_bits && f.length) {
+            // Packed character decode (e.g., ICAO 6-bit chars)
+            ctx.line(m + " = r.readPackedChars(" + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ");");
+            emit_j_field_trim(ctx, m, f);
+        } else if (f.terminated) {
+            // Terminated string decode
+            int max_len = f.max_length ? *f.max_length : 65535;
+            if (*f.terminated == "crlf") {
+                ctx.line(m + " = r.readCrlfTerminatedString(" + std::to_string(max_len) + ");");
+            } else {
+                // Parse hex terminator like "0x00" or use null
+                std::string term = "0";
+                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                    term = *f.terminated;
+                }
+                ctx.line(m + " = r.readTerminatedString(" + term + ", " + std::to_string(max_len) + ");");
+            }
+            emit_j_field_trim(ctx, m, f);
+        } else if (f.length) {
+            ctx.line(m + " = r." + read_fn + "(" + std::to_string(*f.length) + enc_arg + ");");
+            emit_j_field_trim(ctx, m, f);
         } else if (f.length_from) {
-            ctx.line(m + " = r.readString((int)(" + j_expr(*f.length_from, pfx) + "));");
+            ctx.line(m + " = r." + read_fn + "((int)(" + j_expr(*f.length_from, pfx) + ")" + enc_arg + ");");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             bool pbe = (pti.endian == model::Endian::Big);
@@ -707,9 +884,15 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
             ctx.line("int _pl = " + rd + ";");
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)) + ";");
-            ctx.line(m + " = r.readString(_pl);");
+            ctx.line(m + " = r." + read_fn + "(_pl" + enc_arg + ");");
+        } else if (f.length_star) {
+            ctx.line(m + " = r." + read_fn + "(r.remainingBytes()" + enc_arg + ");");
         } else {
-            ctx.line(m + " = r.readString(r.remainingBytes());");
+            ctx.line(m + " = r." + read_fn + "(r.remainingBytes()" + enc_arg + ");");
+        }
+        // max_length validation (matching C++ MaxLengthExceeded check)
+        if (f.max_length) {
+            ctx.line("if (" + m + ".length() > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
         }
         return;
     }
@@ -718,6 +901,9 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         if (len > 0) ctx.line(m + " = r.readBytes(" + std::to_string(len) + ");");
         else if (f.length_from) ctx.line(m + " = r.readBytes((int)(" + j_expr(*f.length_from, pfx) + "));");
         else ctx.line(m + " = r.readBytes(r.remainingBytes());");
+        if (f.max_length) {
+            ctx.line("if (" + m + ".length > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
+        }
         return;
     }
     if (fi.has_scale) {
@@ -732,6 +918,20 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     }
     if (fi.is_bool) { ctx.line(m + " = (" + j_read_expr(fi) + " != 0);"); return; }
     ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+    // Field-level constraint checks (matching C++ emit_constraint_check)
+    // Skip deferred constraints (validated externally, not at decode time)
+    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
+        if (f.constraint->equals) {
+            ctx.line("if (" + m + " != " + *f.constraint->equals + ") throw new ConduitCodecException(\"" + f.name + " constraint violation: expected " + *f.constraint->equals + "\");");
+        }
+        if (f.constraint->max) {
+            ctx.line("if (" + m + " > " + *f.constraint->max + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
+        }
+        bool is_signed = fi.is_signed;
+        if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
+            ctx.line("if (" + m + " < " + *f.constraint->min + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
+        }
+    }
 }
 
 // Emit Java encode for field
@@ -763,9 +963,26 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); return; }
     if (fi.is_string) {
-        if (f.length) {
+        bool has_enc = j_field_needs_encoding(f);
+        std::string enc_arg = has_enc ? (", " + j_encoding_const(f)) : "";
+        std::string write_fn = has_enc ? "writeStringEncoded" : "writeString";
+        if (f.char_bits && f.length) {
+            // Packed character encode
+            ctx.line("w.writePackedChars(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ");");
+        } else if (f.terminated) {
+            // Terminated string encode
+            if (*f.terminated == "crlf") {
+                ctx.line("w.writeCrlfTerminatedString(" + m + ");");
+            } else {
+                std::string term = "0";
+                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                    term = *f.terminated;
+                }
+                ctx.line("w.writeTerminatedString(" + m + ", " + term + ");");
+            }
+        } else if (f.length) {
             int pad = (f.padding && *f.padding == model::StringPadding::Space) ? 0x20 : 0;
-            ctx.line("w.writeString(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + ");");
+            ctx.line("w." + write_fn + "(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + enc_arg + ");");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             bool pbe = (pti.endian == model::Endian::Big);
@@ -774,8 +991,10 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
             if (pti.bits <= 8) ctx.line("w.writeU8(" + le + ");");
             else if (pti.bits <= 16) ctx.line(std::string("w.writeU16(") + le + ", " + (pbe ? "true" : "false") + ");");
             else ctx.line(std::string("w.writeU32(") + le + ", " + (pbe ? "true" : "false") + ");");
-            ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
-        } else ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
+            ctx.line("w." + write_fn + "(" + m + ", " + m + ".length(), 0" + enc_arg + ");");
+        } else {
+            ctx.line("w." + write_fn + "(" + m + ", " + m + ".length(), 0" + enc_arg + ");");
+        }
         return;
     }
     if (fi.is_bytes) { ctx.line("w.writeBytes(" + m + ");"); return; }
@@ -2288,7 +2507,27 @@ bool JavaBackend::generate(
                     }
                     std::string rd = is_signed ? "readSignedBits" : "readBits";
                     std::string wr = is_signed ? "writeSignedBits" : "writeBits";
-                    tctx.line("public static " + name + " decode(BitReader r) { return new " + name + "(r." + rd + "(" + std::to_string(t.bits) + ")); }");
+                    // Generate decode with constraint validation (matching C++ emit_constraint_check)
+                    if (t.constraint && (t.constraint->max || (t.constraint->min && (*t.constraint->min != "0" || is_signed)) || t.constraint->equals)) {
+                        tctx.line("public static " + name + " decode(BitReader r) {");
+                        tctx.indent();
+                        tctx.line("long raw = r." + rd + "(" + std::to_string(t.bits) + ");");
+                        if (t.constraint->equals) {
+                            tctx.line("if (raw != " + *t.constraint->equals + ") throw new ConduitCodecException(\"" + name + " constraint violation: expected " + *t.constraint->equals + "\");");
+                        }
+                        if (t.constraint->max) {
+                            tctx.line("if (raw > " + *t.constraint->max + ") throw new ConduitCodecException(\"" + name + " exceeds max " + *t.constraint->max + "\");");
+                        }
+                        // Skip min=0 for unsigned types (always true)
+                        if (t.constraint->min && (*t.constraint->min != "0" || is_signed)) {
+                            tctx.line("if (raw < " + *t.constraint->min + ") throw new ConduitCodecException(\"" + name + " below min " + *t.constraint->min + "\");");
+                        }
+                        tctx.line("return new " + name + "(raw);");
+                        tctx.dedent();
+                        tctx.line("}");
+                    } else {
+                        tctx.line("public static " + name + " decode(BitReader r) { return new " + name + "(r." + rd + "(" + std::to_string(t.bits) + ")); }");
+                    }
                     tctx.line("public void encode(BitWriter w) { w." + wr + "(raw, " + std::to_string(t.bits) + "); }");
                     tctx.dedent();
                     tctx.line("}");
