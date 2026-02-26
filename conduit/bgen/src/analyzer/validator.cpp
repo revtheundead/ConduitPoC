@@ -754,7 +754,12 @@ private:
                     check_constant_refs(c.switch_expr.get(), "choice '" + c.name + "' switch");
                     check_constant_refs(c.present_when.get(), "choice '" + c.name + "' present-when");
                     check_constant_refs(c.length_from.get(), "choice '" + c.name + "' length-from");
-                    validate_choice(c, parent_name, in_bounded_container, &field_names);
+                    // Merge local field_names with parent_scope so nested choices
+                    // can reference fields from any ancestor scope.
+                    std::set<std::string> merged_scope = field_names;
+                    if (parent_scope)
+                        merged_scope.insert(parent_scope->begin(), parent_scope->end());
+                    validate_choice(c, parent_name, in_bounded_container, &merged_scope);
                     check_case_value_range(c, children);
                     if (!c.name.empty()) {
                         if (!field_names.insert(c.name).second) {

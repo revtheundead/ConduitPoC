@@ -889,6 +889,27 @@ TEST_CASE("Python: FX string generates output", "[python]") {
     CHECK(!py->files.empty());
 }
 
+TEST_CASE("Python: nested choice passes outer-scope params to inner decode", "[python][nested]") {
+    auto py = gen_python("arrays_choices.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Typed case decode should receive sub_type as an outer-scope param
+    CHECK(msgs.find("class Typed:") != std::string::npos);
+    CHECK(msgs.find("def decode(r: 'BitReader', sub_type)") != std::string::npos);
+}
+
+TEST_CASE("Python: deep nested choice generates 3-level classes with outer params", "[python][nested]") {
+    auto py = gen_python("arrays_choices.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // 3-level deep nested choice: L1 receives type_b+type_c, L2 receives type_c
+    CHECK(msgs.find("class L1:") != std::string::npos);
+    CHECK(msgs.find("class L2:") != std::string::npos);
+    CHECK(msgs.find("class L3:") != std::string::npos);
+    CHECK(msgs.find("def decode(r: 'BitReader', type_b, type_c)") != std::string::npos);
+    CHECK(msgs.find("def decode(r: 'BitReader', type_c)") != std::string::npos);
+}
+
 TEST_CASE("Python: session protocol generates output", "[python]") {
     auto py = gen_python("session_protocol.bmdl.xml");
     REQUIRE(py.has_value());

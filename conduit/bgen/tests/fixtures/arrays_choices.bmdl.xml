@@ -55,5 +55,46 @@
         <otherwise name="fallback" type="FallbackBody"/>
       </choice>
     </message>
+    <!-- Nested choice: inner choice switch references field from message scope (outer scope) -->
+    <message name="NestedChoiceMsg">
+      <field name="msg-type" type="uint8"/>
+      <field name="sub-type" type="uint8"/>
+      <choice name="body" switch="msg-type">
+        <case name="typed" value="1">
+          <!-- inner choice switches on sub-type, which lives in message scope -->
+          <choice name="detail" switch="sub-type">
+            <case name="alpha" value="SUB_X">
+              <field name="a-val" type="uint16"/>
+            </case>
+            <case name="beta" value="SUB_Y">
+              <field name="b-val" type="uint32"/>
+            </case>
+          </choice>
+        </case>
+        <case name="simple" value="2">
+          <field name="data" type="uint32"/>
+        </case>
+      </choice>
+    </message>
+
+    <!-- Deep nested choice: 3 levels, each switching on a different message-scope field -->
+    <message name="DeepNestedMsg">
+      <field name="type-a" type="uint8"/>
+      <field name="type-b" type="uint8"/>
+      <field name="type-c" type="uint8"/>
+      <choice name="outer" switch="type-a">
+        <case name="l1" value="1">
+          <choice name="mid" switch="type-b">
+            <case name="l2" value="SUB_X">
+              <choice name="inner" switch="type-c">
+                <case name="l3" value="SUB_Y">
+                  <field name="value" type="uint32"/>
+                </case>
+              </choice>
+            </case>
+          </choice>
+        </case>
+      </choice>
+    </message>
   </messages>
 </bmdl>

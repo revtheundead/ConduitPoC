@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
+#include <set>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -182,6 +183,168 @@ JFieldInfo j_resolve_field(const model::Field& f, const analyzer::TypeIndex& ind
     else if (ji.bits <= 32) { ji.j_type = "int"; ji.j_boxed = "Integer"; }
     else { ji.j_type = "long"; ji.j_boxed = "Long"; }
     return ji;
+}
+
+// ============================================================================
+// Outer-scope analysis for nested choices
+// ============================================================================
+
+struct JOuterParam {
+    std::string bmdl_name;
+    std::string java_type;  // e.g., "int", "long"
+};
+
+// Map from inline type BMDL name → list of outer-scope decode params it needs
+using JOuterScopeMap = std::unordered_map<std::string, std::vector<JOuterParam>>;
+
+// Current decode context: BMDL field name → Java param variable name
+using JOuterContext = std::unordered_map<std::string, std::string>;
+
+// Collect all FieldRef root names from an expression tree
+void j_collect_expr_refs(const model::Expr* expr, std::set<std::string>& refs) {
+    if (!expr) return;
+    if (expr->op == model::ExprOp::FieldRef) {
+        auto dot = expr->name.find('.');
+        refs.insert(dot != std::string::npos ? expr->name.substr(0, dot) : expr->name);
+    }
+    j_collect_expr_refs(expr->left.get(), refs);
+    j_collect_expr_refs(expr->right.get(), refs);
+}
+
+// Collect FieldRef root names from all direct-child expressions in a scope
+void j_collect_scope_refs(const std::vector<model::StructChild>& children,
+                           std::set<std::string>& refs) {
+    for (const auto& child : children) {
+        std::visit([&refs](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                j_collect_expr_refs(c.present_when.get(), refs);
+                j_collect_expr_refs(c.length_from.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                j_collect_expr_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                j_collect_expr_refs(c.count_from.get(), refs);
+                j_collect_expr_refs(c.length_from.get(), refs);
+                j_collect_expr_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                j_collect_expr_refs(c.switch_expr.get(), refs);
+                j_collect_expr_refs(c.present_when.get(), refs);
+                j_collect_expr_refs(c.length_from.get(), refs);
+                for (const auto& cs : c.cases) {
+                    if (cs.type_ref.empty()) j_collect_scope_refs(cs.children, refs);
+                }
+                if (c.otherwise && c.otherwise->type_ref.empty()) {
+                    j_collect_scope_refs(c.otherwise->children, refs);
+                }
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                j_collect_scope_refs(c.children, refs);
+            }
+        }, child);
+    }
+}
+
+// Collect locally-defined field names in a children list
+void j_collect_local_names(const std::vector<model::StructChild>& children,
+                            std::set<std::string>& names) {
+    for (const auto& child : children) {
+        std::visit([&names](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                j_collect_local_names(c.children, names);
+            }
+        }, child);
+    }
+}
+
+// Compute outer-scope params for a child inline type
+void j_analyze_outer_scope(const std::string& child_name,
+                            const std::vector<model::StructChild>& child_children,
+                            const std::vector<model::StructChild>& parent_children,
+                            const analyzer::TypeIndex& index,
+                            const std::string& current_type_name,
+                            JOuterScopeMap& map) {
+    std::set<std::string> refs;
+    j_collect_scope_refs(child_children, refs);
+
+    std::set<std::string> local;
+    j_collect_local_names(child_children, local);
+    for (const auto& n : local) refs.erase(n);
+
+    if (refs.empty()) return;
+
+    std::vector<JOuterParam> params;
+    for (const auto& ref : refs) {
+        bool found = false;
+        for (const auto& pc : parent_children) {
+            if (auto* f = std::get_if<model::Field>(&pc)) {
+                if (f->name == ref) {
+                    auto fi = j_resolve_field(*f, index);
+                    params.push_back({ref, fi.j_type});
+                    found = true;
+                    break;
+                }
+            }
+        }
+        // Transitive: check if parent already receives this as an outer-scope param
+        if (!found && !current_type_name.empty()) {
+            auto it = map.find(current_type_name);
+            if (it != map.end()) {
+                for (const auto& p : it->second) {
+                    if (p.bmdl_name == ref) {
+                        params.push_back(p);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!params.empty()) {
+        map[child_name] = std::move(params);
+    }
+}
+
+// Evaluate an expression with outer-scope context awareness
+std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
+                        const JOuterContext& outer_ctx) {
+    if (e.op == model::ExprOp::FieldRef && !outer_ctx.empty()) {
+        auto dot = e.name.find('.');
+        std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
+        auto it = outer_ctx.find(root);
+        if (it != outer_ctx.end()) {
+            return it->second;
+        }
+    }
+    return j_expr(e, obj);
+}
+
+// Build extra decode arguments for a type that has outer-scope params
+std::string j_build_outer_args(const std::string& type_name,
+                                const JOuterScopeMap& scope_map,
+                                const std::string& pfx,
+                                const JOuterContext& outer_ctx) {
+    auto it = scope_map.find(type_name);
+    if (it == scope_map.end()) return {};
+    std::string args;
+    for (const auto& p : it->second) {
+        // Check if this param is itself an outer-scope param (forwarding)
+        auto ctx_it = outer_ctx.find(p.bmdl_name);
+        if (ctx_it != outer_ctx.end()) {
+            args += ", " + ctx_it->second;
+        } else {
+            args += ", " + pfx + "." + j_field(p.bmdl_name);
+        }
+    }
+    return args;
 }
 
 // ============================================================================
@@ -609,17 +772,20 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
 }
 
 void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
-                             const analyzer::TypeIndex& index, const std::string& pfx) {
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const JOuterScopeMap& scope_map = {},
+                             const JOuterContext& outer_ctx = {}) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
-                ctx.line("if (" + j_expr(*f->present_when, pfx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
                 ctx.indent(); emit_j_field_decode(ctx, *f, index, pfx); ctx.dedent(); ctx.line("}");
             } else emit_j_field_decode(ctx, *f, index, pfx);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            std::string decode_line = pfx + "." + j_field(sd->name) + " = " + j_class(sd->name) + ".decode(r);";
+            std::string args = j_build_outer_args(sd->name, scope_map, pfx, outer_ctx);
+            std::string decode_line = pfx + "." + j_field(sd->name) + " = " + j_class(sd->name) + ".decode(r" + args + ");";
             if (sd->present_when) {
-                ctx.line("if (" + j_expr(*sd->present_when, pfx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*sd->present_when, pfx, outer_ctx) + ") {");
                 ctx.indent(); ctx.line(decode_line); ctx.dedent(); ctx.line("}");
             } else {
                 ctx.line(decode_line);
@@ -631,20 +797,20 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->count_from) {
-                    ctx.line("for (int _i=0; _i<(int)(" + j_expr(*ad->count_from, pfx) + "); _i++) " + m + ".add(" + elem + ".decode(r));");
+                    ctx.line("for (int _i=0; _i<(int)(" + j_expr_ctx(*ad->count_from, pfx, outer_ctx) + "); _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else {
                     ctx.line("while (r.remainingBytes() > 0) " + m + ".add(" + elem + ".decode(r));");
                 }
             };
             if (ad->present_when) {
-                ctx.line("if (" + j_expr(*ad->present_when, pfx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*ad->present_when, pfx, outer_ctx) + ") {");
                 ctx.indent(); emit_array_decode(); ctx.dedent(); ctx.line("}");
             } else {
                 emit_array_decode();
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
-            std::string sv = j_expr(*cd->switch_expr, pfx);
+            std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
             std::string m = pfx + "." + j_field(cd->name);
             auto emit_choice_decode = [&]() {
                 bool first = true;
@@ -653,7 +819,9 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                     ctx.line(std::string(first ? "if (" : "} else if (") + cond + ") {");
                     ctx.indent();
                     std::string et = cs.type_ref.empty() ? j_class(cs.name) : j_class(cs.type_ref);
-                    ctx.line(m + " = " + et + ".decode(r);");
+                    std::string case_name = cs.type_ref.empty() ? cs.name : cs.type_ref;
+                    std::string args = j_build_outer_args(case_name, scope_map, pfx, outer_ctx);
+                    ctx.line(m + " = " + et + ".decode(r" + args + ");");
                     ctx.dedent();
                     first = false;
                 }
@@ -661,13 +829,15 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                     ctx.line("} else {");
                     ctx.indent();
                     std::string et = cd->otherwise->type_ref.empty() ? j_class(cd->otherwise->name) : j_class(cd->otherwise->type_ref);
-                    ctx.line(m + " = " + et + ".decode(r);");
+                    std::string ow_name = cd->otherwise->type_ref.empty() ? cd->otherwise->name : cd->otherwise->type_ref;
+                    std::string args = j_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
+                    ctx.line(m + " = " + et + ".decode(r" + args + ");");
                     ctx.dedent();
                 }
                 if (!first) ctx.line("}");
             };
             if (cd->present_when) {
-                ctx.line("if (" + j_expr(*cd->present_when, pfx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*cd->present_when, pfx, outer_ctx) + ") {");
                 ctx.indent(); emit_choice_decode(); ctx.dedent(); ctx.line("}");
             } else {
                 emit_choice_decode();
@@ -677,7 +847,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.alignTo(" + std::to_string(al->to) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_j_decode_children(ctx, fx->children, index, pfx);
+            emit_j_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx);
         }
     }
 }
@@ -758,7 +928,8 @@ std::string generate_j_class(const std::string& name,
                               const analyzer::TypeIndex& index,
                               const std::string& pkg,
                               const std::unordered_map<std::string, uint64_t>& tid_map,
-                              const std::string& msg_id = "") {
+                              const std::string& msg_id = "",
+                              const JOuterScopeMap& scope_map = {}) {
     std::string cn = j_class(name);
     std::vector<JFieldDef> fields;
     collect_j_fields(children, index, fields);
@@ -785,19 +956,32 @@ std::string generate_j_class(const std::string& name,
         ctx.line("public " + f.j_type + " " + f.name + " = " + f.init + ";");
     ctx.line();
 
+    // Build outer-scope decode parameters and context for this class
+    auto osp_it = scope_map.find(name);
+    std::string decode_params;
+    JOuterContext outer_ctx;
+    if (osp_it != scope_map.end()) {
+        for (const auto& p : osp_it->second) {
+            decode_params += ", " + p.java_type + " " + j_field(p.bmdl_name);
+            outer_ctx[p.bmdl_name] = j_field(p.bmdl_name);
+        }
+    }
+
     // decode
-    ctx.line("public static " + cn + " decode(BitReader r) {");
+    ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") {");
     ctx.indent();
     ctx.line(cn + " result = new " + cn + "();");
-    emit_j_decode_children(ctx, children, index, "result");
+    emit_j_decode_children(ctx, children, index, "result", scope_map, outer_ctx);
     ctx.line("return result;");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
 
-    // decode from bytes
-    ctx.line("public static " + cn + " decodeBytes(byte[] data) { return decode(new BitReader(data)); }");
-    ctx.line();
+    // decode from bytes (only when no outer-scope params — otherwise it's an inline type)
+    if (osp_it == scope_map.end()) {
+        ctx.line("public static " + cn + " decodeBytes(byte[] data) { return decode(new BitReader(data)); }");
+        ctx.line();
+    }
 
     // encode - with auto-length backpatch support
     {
@@ -976,37 +1160,38 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                           const analyzer::TypeIndex& index,
                           const std::string& pkg,
                           const std::unordered_map<std::string, uint64_t>& tid_map,
+                          JOuterScopeMap& scope_map,
+                          const std::string& current_type_name,
                           std::vector<std::pair<std::string, std::string>>& out_files) {
     for (const auto& child : children) {
         if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            // Recurse first to handle nested inline types
-            collect_inline_types(sd->children, index, pkg, tid_map, out_files);
-            // Generate the inline struct class
-            std::string code = generate_j_class(sd->name, sd->children, index, pkg, tid_map);
+            j_analyze_outer_scope(sd->name, sd->children, children, index, current_type_name, scope_map);
+            collect_inline_types(sd->children, index, pkg, tid_map, scope_map, sd->name, out_files);
+            std::string code = generate_j_class(sd->name, sd->children, index, pkg, tid_map, {}, scope_map);
             out_files.push_back({j_class(sd->name) + ".java", code});
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
-                // Inline array element type - generate class from array's children
-                collect_inline_types(ad->children, index, pkg, tid_map, out_files);
-                std::string code = generate_j_class(ad->name, ad->children, index, pkg, tid_map);
+                collect_inline_types(ad->children, index, pkg, tid_map, scope_map, ad->name, out_files);
+                std::string code = generate_j_class(ad->name, ad->children, index, pkg, tid_map, {}, scope_map);
                 out_files.push_back({j_class(ad->name) + ".java", code});
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
-            // Choice cases with inline types
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
-                    collect_inline_types(cs.children, index, pkg, tid_map, out_files);
-                    std::string code = generate_j_class(cs.name, cs.children, index, pkg, tid_map);
+                    j_analyze_outer_scope(cs.name, cs.children, children, index, current_type_name, scope_map);
+                    collect_inline_types(cs.children, index, pkg, tid_map, scope_map, cs.name, out_files);
+                    std::string code = generate_j_class(cs.name, cs.children, index, pkg, tid_map, {}, scope_map);
                     out_files.push_back({j_class(cs.name) + ".java", code});
                 }
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
-                collect_inline_types(cd->otherwise->children, index, pkg, tid_map, out_files);
-                std::string code = generate_j_class(cd->otherwise->name, cd->otherwise->children, index, pkg, tid_map);
+                j_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, index, current_type_name, scope_map);
+                collect_inline_types(cd->otherwise->children, index, pkg, tid_map, scope_map, cd->otherwise->name, out_files);
+                std::string code = generate_j_class(cd->otherwise->name, cd->otherwise->children, index, pkg, tid_map, {}, scope_map);
                 out_files.push_back({j_class(cd->otherwise->name) + ".java", code});
             }
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            collect_inline_types(fx->children, index, pkg, tid_map, out_files);
+            collect_inline_types(fx->children, index, pkg, tid_map, scope_map, current_type_name, out_files);
         }
     }
 }
@@ -2101,12 +2286,13 @@ bool JavaBackend::generate(
     for (const auto& sd : protocol.structs) {
         // Generate inline struct/array types first
         std::vector<std::pair<std::string, std::string>> inline_files;
-        collect_inline_types(sd.children, index, java_pkg, empty, inline_files);
+        JOuterScopeMap scope_map;
+        collect_inline_types(sd.children, index, java_pkg, empty, scope_map, sd.name, inline_files);
         for (const auto& [fname, fcode] : inline_files) {
             ok &= write_file(output_dir / fname, fcode);
             file_count++;
         }
-        std::string code = generate_j_class(sd.name, sd.children, index, java_pkg, empty);
+        std::string code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map);
         ok &= write_file(output_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
     }
@@ -2114,12 +2300,13 @@ bool JavaBackend::generate(
     // Message classes (including inline children)
     for (const auto& md : protocol.messages) {
         std::vector<std::pair<std::string, std::string>> inline_files;
-        collect_inline_types(md.children, index, java_pkg, tid_map, inline_files);
+        JOuterScopeMap scope_map;
+        collect_inline_types(md.children, index, java_pkg, tid_map, scope_map, md.name, inline_files);
         for (const auto& [fname, fcode] : inline_files) {
             ok &= write_file(output_dir / fname, fcode);
             file_count++;
         }
-        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id);
+        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map);
         ok &= write_file(output_dir / (j_class(md.name) + ".java"), code);
         file_count++;
     }

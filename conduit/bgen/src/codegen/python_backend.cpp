@@ -212,6 +212,154 @@ PyFieldInfo py_resolve_field(const model::Field& f, const analyzer::TypeIndex& i
 }
 
 // ============================================================================
+// Outer-scope analysis for nested choices (Python)
+// ============================================================================
+
+struct PyOuterParam {
+    std::string bmdl_name;
+};
+
+using PyOuterScopeMap = std::unordered_map<std::string, std::vector<PyOuterParam>>;
+using PyOuterContext = std::unordered_map<std::string, std::string>;
+
+void py_collect_expr_refs(const model::Expr* expr, std::set<std::string>& refs) {
+    if (!expr) return;
+    if (expr->op == model::ExprOp::FieldRef) {
+        auto dot = expr->name.find('.');
+        refs.insert(dot != std::string::npos ? expr->name.substr(0, dot) : expr->name);
+    }
+    py_collect_expr_refs(expr->left.get(), refs);
+    py_collect_expr_refs(expr->right.get(), refs);
+}
+
+void py_collect_scope_refs(const std::vector<model::StructChild>& children,
+                            std::set<std::string>& refs) {
+    for (const auto& child : children) {
+        std::visit([&refs](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                py_collect_expr_refs(c.present_when.get(), refs);
+                py_collect_expr_refs(c.length_from.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                py_collect_expr_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                py_collect_expr_refs(c.count_from.get(), refs);
+                py_collect_expr_refs(c.length_from.get(), refs);
+                py_collect_expr_refs(c.present_when.get(), refs);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                py_collect_expr_refs(c.switch_expr.get(), refs);
+                py_collect_expr_refs(c.present_when.get(), refs);
+                py_collect_expr_refs(c.length_from.get(), refs);
+                for (const auto& cs : c.cases) {
+                    if (cs.type_ref.empty()) py_collect_scope_refs(cs.children, refs);
+                }
+                if (c.otherwise && c.otherwise->type_ref.empty()) {
+                    py_collect_scope_refs(c.otherwise->children, refs);
+                }
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                py_collect_scope_refs(c.children, refs);
+            }
+        }, child);
+    }
+}
+
+void py_collect_local_names(const std::vector<model::StructChild>& children,
+                             std::set<std::string>& names) {
+    for (const auto& child : children) {
+        std::visit([&names](const auto& c) {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+                if (!c.name.empty()) names.insert(c.name);
+            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+                py_collect_local_names(c.children, names);
+            }
+        }, child);
+    }
+}
+
+void py_analyze_outer_scope(const std::string& child_name,
+                             const std::vector<model::StructChild>& child_children,
+                             const std::vector<model::StructChild>& parent_children,
+                             const std::string& current_type_name,
+                             PyOuterScopeMap& map) {
+    std::set<std::string> refs;
+    py_collect_scope_refs(child_children, refs);
+
+    std::set<std::string> local;
+    py_collect_local_names(child_children, local);
+    for (const auto& n : local) refs.erase(n);
+
+    if (refs.empty()) return;
+
+    std::vector<PyOuterParam> params;
+    for (const auto& ref : refs) {
+        bool found = false;
+        for (const auto& pc : parent_children) {
+            if (auto* f = std::get_if<model::Field>(&pc)) {
+                if (f->name == ref) {
+                    params.push_back({ref});
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found && !current_type_name.empty()) {
+            auto it = map.find(current_type_name);
+            if (it != map.end()) {
+                for (const auto& p : it->second) {
+                    if (p.bmdl_name == ref) {
+                        params.push_back(p);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if (!params.empty()) {
+        map[child_name] = std::move(params);
+    }
+}
+
+std::string py_expr_ctx(const model::Expr& e, const std::string& obj,
+                         const PyOuterContext& outer_ctx) {
+    if (e.op == model::ExprOp::FieldRef && !outer_ctx.empty()) {
+        auto dot = e.name.find('.');
+        std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
+        auto it = outer_ctx.find(root);
+        if (it != outer_ctx.end()) {
+            return it->second;
+        }
+    }
+    return py_expr(e, obj);
+}
+
+std::string py_build_outer_args(const std::string& type_name,
+                                 const PyOuterScopeMap& scope_map,
+                                 const std::string& pfx,
+                                 const PyOuterContext& outer_ctx) {
+    auto it = scope_map.find(type_name);
+    if (it == scope_map.end()) return {};
+    std::string args;
+    for (const auto& p : it->second) {
+        auto ctx_it = outer_ctx.find(p.bmdl_name);
+        if (ctx_it != outer_ctx.end()) {
+            args += ", " + ctx_it->second;
+        } else {
+            args += ", " + pfx + "." + py_field(p.bmdl_name);
+        }
+    }
+    return args;
+}
+
+// ============================================================================
 // bit_io.py — Python BitReader/BitWriter
 // ============================================================================
 
@@ -862,21 +1010,24 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
 }
 
 void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
-                             const analyzer::TypeIndex& index, const std::string& pfx) {
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const PyOuterScopeMap& scope_map = {},
+                             const PyOuterContext& outer_ctx = {}) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
-                ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
+                ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
                 ctx.indent();
                 emit_py_field_decode(ctx, *f, index, pfx);
                 ctx.dedent();
             } else emit_py_field_decode(ctx, *f, index, pfx);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
+            std::string args = py_build_outer_args(sd->name, scope_map, pfx, outer_ctx);
             if (sd->present_when) {
-                ctx.line("if " + py_expr(*sd->present_when, pfx) + ":");
-                ctx.indent(); ctx.line(m + " = " + py_class(sd->name) + ".decode(r)"); ctx.dedent();
-            } else ctx.line(m + " = " + py_class(sd->name) + ".decode(r)");
+                ctx.line("if " + py_expr_ctx(*sd->present_when, pfx, outer_ctx) + ":");
+                ctx.indent(); ctx.line(m + " = " + py_class(sd->name) + ".decode(r" + args + ")"); ctx.dedent();
+            } else ctx.line(m + " = " + py_class(sd->name) + ".decode(r" + args + ")");
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
             std::string elem = ad->type_ref.empty() ? py_class(ad->name) : py_class(ad->type_ref);
@@ -884,7 +1035,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 if (ad->fixed_count) {
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
                 } else if (ad->count_from) {
-                    ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr(*ad->count_from, pfx) + "))]");
+                    ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr_ctx(*ad->count_from, pfx, outer_ctx) + "))]");
                 } else {
                     ctx.line(m + " = []");
                     ctx.line("while r.remaining_bytes() > 0:");
@@ -892,14 +1043,14 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 }
             };
             if (ad->present_when) {
-                ctx.line("if " + py_expr(*ad->present_when, pfx) + ":");
+                ctx.line("if " + py_expr_ctx(*ad->present_when, pfx, outer_ctx) + ":");
                 ctx.indent(); emit_array_decode(); ctx.dedent();
             } else {
                 emit_array_decode();
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
-            std::string sv = py_expr(*cd->switch_expr, pfx);
+            std::string sv = py_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
             std::string m = pfx + "." + py_field(cd->name);
             auto emit_choice_decode = [&]() {
                 bool first = true;
@@ -908,7 +1059,9 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
                     ctx.indent();
                     std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
-                    ctx.line(m + " = " + et + ".decode(r)");
+                    std::string case_name = cs.type_ref.empty() ? cs.name : cs.type_ref;
+                    std::string args = py_build_outer_args(case_name, scope_map, pfx, outer_ctx);
+                    ctx.line(m + " = " + et + ".decode(r" + args + ")");
                     ctx.dedent();
                     first = false;
                 }
@@ -916,12 +1069,14 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     ctx.line("else:");
                     ctx.indent();
                     std::string et = cd->otherwise->type_ref.empty() ? py_class(cd->otherwise->name) : py_class(cd->otherwise->type_ref);
-                    ctx.line(m + " = " + et + ".decode(r)");
+                    std::string ow_name = cd->otherwise->type_ref.empty() ? cd->otherwise->name : cd->otherwise->type_ref;
+                    std::string args = py_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
+                    ctx.line(m + " = " + et + ".decode(r" + args + ")");
                     ctx.dedent();
                 }
             };
             if (cd->present_when) {
-                ctx.line("if " + py_expr(*cd->present_when, pfx) + ":");
+                ctx.line("if " + py_expr_ctx(*cd->present_when, pfx, outer_ctx) + ":");
                 ctx.indent(); emit_choice_decode(); ctx.dedent();
             } else {
                 emit_choice_decode();
@@ -931,7 +1086,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_py_decode_children(ctx, fx->children, index, pfx);
+            emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx);
         }
     }
 }
@@ -1018,7 +1173,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                    const std::vector<model::StructChild>& children,
                    const analyzer::TypeIndex& index,
                    const std::unordered_map<std::string, uint64_t>& tid_map,
-                   const std::string& msg_id = "") {
+                   const std::string& msg_id = "",
+                   const PyOuterScopeMap& scope_map = {}) {
     std::string cn = py_class(name);
     std::vector<PyFieldDef> fields;
     collect_py_fields(children, index, fields);
@@ -1057,12 +1213,23 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.dedent();
     ctx.line();
 
+    // Build outer-scope decode parameters and context for this class
+    auto osp_it = scope_map.find(name);
+    std::string decode_params;
+    PyOuterContext outer_ctx;
+    if (osp_it != scope_map.end()) {
+        for (const auto& p : osp_it->second) {
+            decode_params += ", " + py_field(p.bmdl_name);
+            outer_ctx[p.bmdl_name] = py_field(p.bmdl_name);
+        }
+    }
+
     // decode
     ctx.line("@staticmethod");
-    ctx.line("def decode(r: 'BitReader') -> '" + cn + "':");
+    ctx.line("def decode(r: 'BitReader'" + decode_params + ") -> '" + cn + "':");
     ctx.indent();
     ctx.line("result = " + cn + "()");
-    emit_py_decode_children(ctx, children, index, "result");
+    emit_py_decode_children(ctx, children, index, "result", scope_map, outer_ctx);
     ctx.line("return result");
     ctx.dedent();
     ctx.line();
@@ -1136,29 +1303,34 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
 // Recursively emit Python classes for inline struct/array/choice types
 void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild>& children,
                            const analyzer::TypeIndex& index,
-                           const std::unordered_map<std::string, uint64_t>& tid_map) {
+                           const std::unordered_map<std::string, uint64_t>& tid_map,
+                           PyOuterScopeMap& scope_map,
+                           const std::string& current_type_name) {
     for (const auto& child : children) {
         if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            emit_py_inline_types(ctx, sd->children, index, tid_map);
-            emit_py_class(ctx, sd->name, sd->children, index, tid_map);
+            py_analyze_outer_scope(sd->name, sd->children, children, current_type_name, scope_map);
+            emit_py_inline_types(ctx, sd->children, index, tid_map, scope_map, sd->name);
+            emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
-                emit_py_inline_types(ctx, ad->children, index, tid_map);
-                emit_py_class(ctx, ad->name, ad->children, index, tid_map);
+                emit_py_inline_types(ctx, ad->children, index, tid_map, scope_map, ad->name);
+                emit_py_class(ctx, ad->name, ad->children, index, tid_map, {}, scope_map);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
-                    emit_py_inline_types(ctx, cs.children, index, tid_map);
-                    emit_py_class(ctx, cs.name, cs.children, index, tid_map);
+                    py_analyze_outer_scope(cs.name, cs.children, children, current_type_name, scope_map);
+                    emit_py_inline_types(ctx, cs.children, index, tid_map, scope_map, cs.name);
+                    emit_py_class(ctx, cs.name, cs.children, index, tid_map, {}, scope_map);
                 }
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
-                emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map);
-                emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map);
+                py_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, current_type_name, scope_map);
+                emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map, scope_map, cd->otherwise->name);
+                emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map, {}, scope_map);
             }
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_py_inline_types(ctx, fx->children, index, tid_map);
+            emit_py_inline_types(ctx, fx->children, index, tid_map, scope_map, current_type_name);
         }
     }
 }
@@ -1174,8 +1346,9 @@ std::string generate_py_structs(const model::Protocol& protocol,
 
     std::unordered_map<std::string, uint64_t> empty;
     for (const auto& sd : protocol.structs) {
-        emit_py_inline_types(ctx, sd.children, index, empty);
-        emit_py_class(ctx, sd.name, sd.children, index, empty);
+        PyOuterScopeMap scope_map;
+        emit_py_inline_types(ctx, sd.children, index, empty, scope_map, sd.name);
+        emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map);
     }
 
     ctx.line();
@@ -1607,8 +1780,9 @@ std::string generate_py_messages(const model::Protocol& protocol,
             tid_map[lt.name] = lt.type_id;
 
     for (const auto& md : protocol.messages) {
-        emit_py_inline_types(ctx, md.children, index, tid_map);
-        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id);
+        PyOuterScopeMap scope_map;
+        emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name);
+        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map);
     }
 
     // Generate frame classes (Packet, Frame, etc.)
