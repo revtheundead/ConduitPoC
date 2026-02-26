@@ -882,6 +882,118 @@ TEST_CASE("ChoiceMsg nested choice TypeA->SubY roundtrip", "[roundtrip][choice]"
     CHECK(decoded_sub.b() == 0x2222);
 }
 
+TEST_CASE("NestedChoiceMsg inner choice reaches outer scope field", "[roundtrip][choice][nested]") {
+    // 2-level nesting: inner choice "detail" switches on message-scope "sub-type"
+    // Path: msg-type=1 (typed), sub-type=SUB_X=10 (alpha) -> a-val=0xBEEF
+    arrays_choices::NestedChoiceMsg_typed_alpha alpha;
+    alpha.set_a_val(0xBEEF);
+
+    arrays_choices::NestedChoiceMsg_typed typed;
+    typed.set_detail(arrays_choices::NestedChoiceMsg_typed_detailVariant{alpha});
+
+    arrays_choices::NestedChoiceMsg msg;
+    msg.set_msg_type(1);
+    msg.set_sub_type(10); // SUB_X
+    msg.set_body(arrays_choices::NestedChoiceMsg_bodyVariant{typed});
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    // msg-type(1) + sub-type(1) + a-val(2) = 4
+    REQUIRE(bytes.size() == 4);
+
+    auto decoded = arrays_choices::NestedChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->msg_type() == 1);
+    CHECK(decoded->sub_type() == 10);
+    auto& d_typed = std::get<arrays_choices::NestedChoiceMsg_typed>(decoded->body());
+    auto& d_alpha = std::get<arrays_choices::NestedChoiceMsg_typed_alpha>(d_typed.detail());
+    CHECK(d_alpha.a_val() == 0xBEEF);
+}
+
+TEST_CASE("NestedChoiceMsg inner choice beta path", "[roundtrip][choice][nested]") {
+    // Path: msg-type=1 (typed), sub-type=SUB_Y=20 (beta) -> b-val=0xDEADBEEF
+    arrays_choices::NestedChoiceMsg_typed_beta beta;
+    beta.set_b_val(0xDEADBEEF);
+
+    arrays_choices::NestedChoiceMsg_typed typed;
+    typed.set_detail(arrays_choices::NestedChoiceMsg_typed_detailVariant{beta});
+
+    arrays_choices::NestedChoiceMsg msg;
+    msg.set_msg_type(1);
+    msg.set_sub_type(20); // SUB_Y
+    msg.set_body(arrays_choices::NestedChoiceMsg_bodyVariant{typed});
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    // msg-type(1) + sub-type(1) + b-val(4) = 6
+    REQUIRE(bytes.size() == 6);
+
+    auto decoded = arrays_choices::NestedChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->msg_type() == 1);
+    CHECK(decoded->sub_type() == 20);
+    auto& d_typed = std::get<arrays_choices::NestedChoiceMsg_typed>(decoded->body());
+    auto& d_beta = std::get<arrays_choices::NestedChoiceMsg_typed_beta>(d_typed.detail());
+    CHECK(d_beta.b_val() == 0xDEADBEEF);
+}
+
+TEST_CASE("NestedChoiceMsg outer simple path", "[roundtrip][choice][nested]") {
+    // Path: msg-type=2 (simple) -> data=0x12345678
+    arrays_choices::NestedChoiceMsg_simple simple;
+    simple.set_data(0x12345678);
+
+    arrays_choices::NestedChoiceMsg msg;
+    msg.set_msg_type(2);
+    msg.set_sub_type(0); // not used in this path
+    msg.set_body(arrays_choices::NestedChoiceMsg_bodyVariant{simple});
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+
+    auto decoded = arrays_choices::NestedChoiceMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->msg_type() == 2);
+    auto& d_simple = std::get<arrays_choices::NestedChoiceMsg_simple>(decoded->body());
+    CHECK(d_simple.data() == 0x12345678);
+}
+
+TEST_CASE("DeepNestedMsg 3-level nested choice roundtrip", "[roundtrip][choice][nested]") {
+    // 3-level nesting: outer switches on type-a, mid on type-b, inner on type-c
+    arrays_choices::DeepNestedMsg_l1_l2_l3 l3;
+    l3.set_value(0xCAFEBABE);
+
+    arrays_choices::DeepNestedMsg_l1_l2 l2;
+    l2.set_inner(arrays_choices::DeepNestedMsg_l1_l2_innerVariant{l3});
+
+    arrays_choices::DeepNestedMsg_l1 l1;
+    l1.set_mid(arrays_choices::DeepNestedMsg_l1_midVariant{l2});
+
+    arrays_choices::DeepNestedMsg msg;
+    msg.set_type_a(1);
+    msg.set_type_b(10);  // SUB_X
+    msg.set_type_c(20);  // SUB_Y
+    msg.set_outer(arrays_choices::DeepNestedMsg_outerVariant{l1});
+
+    auto enc_result = msg.encode_bytes();
+    REQUIRE(enc_result.has_value());
+    auto bytes = std::move(*enc_result);
+    // type-a(1) + type-b(1) + type-c(1) + value(4) = 7
+    REQUIRE(bytes.size() == 7);
+
+    auto decoded = arrays_choices::DeepNestedMsg::decode_bytes(bytes);
+    REQUIRE(decoded.has_value());
+    CHECK(decoded->type_a() == 1);
+    CHECK(decoded->type_b() == 10);
+    CHECK(decoded->type_c() == 20);
+    auto& d_l1 = std::get<arrays_choices::DeepNestedMsg_l1>(decoded->outer());
+    auto& d_l2 = std::get<arrays_choices::DeepNestedMsg_l1_l2>(d_l1.mid());
+    auto& d_l3 = std::get<arrays_choices::DeepNestedMsg_l1_l2_l3>(d_l2.inner());
+    CHECK(d_l3.value() == 0xCAFEBABE);
+}
+
 // ============================================================================
 // Section: Known Wire Vectors
 // ============================================================================

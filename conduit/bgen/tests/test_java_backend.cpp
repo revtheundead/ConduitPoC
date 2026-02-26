@@ -938,6 +938,28 @@ TEST_CASE("Java: non-overlap ranges generates output", "[java]") {
     CHECK(!java->files.empty());
 }
 
+TEST_CASE("Java: nested choice passes outer-scope params to inner decode", "[java][nested]") {
+    auto java = gen_java("arrays_choices.bmdl.xml");
+    REQUIRE(java.has_value());
+    // Typed inline case gets its own file with subType outer-scope param
+    CHECK(java->files.count("Typed.java"));
+    auto& typed = java->files["Typed.java"];
+    CHECK(typed.find("decode(BitReader r, int subType)") != std::string::npos);
+}
+
+TEST_CASE("Java: deep nested choice generates 3-level classes with outer params", "[java][nested]") {
+    auto java = gen_java("arrays_choices.bmdl.xml");
+    REQUIRE(java.has_value());
+    // 3-level deep: L1 receives typeB+typeC, L2 receives typeC
+    CHECK(java->files.count("L1.java"));
+    CHECK(java->files.count("L2.java"));
+    CHECK(java->files.count("L3.java"));
+    auto& l1 = java->files["L1.java"];
+    auto& l2 = java->files["L2.java"];
+    CHECK(l1.find("decode(BitReader r, int typeB, int typeC)") != std::string::npos);
+    CHECK(l2.find("decode(BitReader r, int typeC)") != std::string::npos);
+}
+
 TEST_CASE("Java: session protocol generates output", "[java]") {
     auto java = gen_java("session_protocol.bmdl.xml");
     REQUIRE(java.has_value());

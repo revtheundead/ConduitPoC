@@ -412,6 +412,7 @@ void StructEmitter::analyze_outer_scope(const std::string& child_bmdl_name,
     // Resolve remaining names against parent children to get C++ types
     std::vector<OuterScopeParam> params;
     for (const auto& ref_name : refs) {
+        bool resolved = false;
         for (const auto& parent_child : parent_children) {
             std::visit([&](const auto& pc) {
                 using T = std::decay_t<decltype(pc)>;
@@ -423,6 +424,7 @@ void StructEmitter::analyze_outer_scope(const std::string& child_bmdl_name,
                         p.cpp_type = fti.cpp_type;
                         p.pass_by_ref = fti.is_struct;
                         params.push_back(p);
+                        resolved = true;
                     }
                 } else if constexpr (std::is_same_v<T, model::StructDef>) {
                     if (pc.name == ref_name) {
@@ -431,9 +433,27 @@ void StructEmitter::analyze_outer_scope(const std::string& child_bmdl_name,
                         p.cpp_type = to_cpp_type_name(pc.name);
                         p.pass_by_ref = true;
                         params.push_back(p);
+                        resolved = true;
                     }
                 }
             }, parent_child);
+            if (resolved) break;
+        }
+
+        // Transitive propagation: if the ref wasn't found in the immediate parent,
+        // check if the current struct already receives it as an outer-scope param.
+        // This handles nested choices where inner scopes reference fields from
+        // grandparent (or deeper) scopes.
+        if (!resolved) {
+            auto current_it = struct_decode_params_.find(current_bmdl_name_);
+            if (current_it != struct_decode_params_.end()) {
+                for (const auto& p : current_it->second) {
+                    if (p.bmdl_name == ref_name) {
+                        params.push_back(p);
+                        break;
+                    }
+                }
+            }
         }
     }
 

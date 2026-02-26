@@ -608,11 +608,17 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                     auto sit = struct_decode_params_.find(c.name);
                     if (sit != struct_decode_params_.end()) {
                         for (const auto& p : sit->second) {
-                            std::string arg = result_var + "." + to_member_name(p.bmdl_name);
-                            if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
-                                arg = "(*" + arg + ")";
+                            // Forward outer-scope params via their parameter variable
+                            auto osp_it = outer_scope_params_.find(p.bmdl_name);
+                            if (osp_it != outer_scope_params_.end()) {
+                                decode_call += ", " + osp_it->second;
+                            } else {
+                                std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                                if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                                    arg = "(*" + arg + ")";
+                                }
+                                decode_call += ", " + arg;
                             }
-                            decode_call += ", " + arg;
                         }
                     }
                     decode_call += ")";
@@ -1279,11 +1285,18 @@ std::string StructEmitter::emit_case_decode_call(const std::string& case_type,
         auto it = struct_decode_params_.find(case_bmdl_name);
         if (it != struct_decode_params_.end()) {
             for (const auto& p : it->second) {
-                std::string arg = result_var + "." + to_member_name(p.bmdl_name);
-                if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
-                    arg = "(*" + arg + ")";
+                // If this param is itself an outer-scope param of the current struct,
+                // forward the parameter variable instead of accessing a (nonexistent) member.
+                auto osp_it = outer_scope_params_.find(p.bmdl_name);
+                if (osp_it != outer_scope_params_.end()) {
+                    call += ", " + osp_it->second;
+                } else {
+                    std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                    if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                        arg = "(*" + arg + ")";
+                    }
+                    call += ", " + arg;
                 }
-                call += ", " + arg;
             }
         }
     }
@@ -1587,11 +1600,17 @@ void StructEmitter::emit_decode_fx_children(const std::vector<model::StructChild
                     auto sit = struct_decode_params_.find(c.name);
                     if (sit != struct_decode_params_.end()) {
                         for (const auto& p : sit->second) {
-                            std::string arg = result_var + "." + to_member_name(p.bmdl_name);
-                            if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
-                                arg = "(*" + arg + ")";
+                            // Forward outer-scope params via their parameter variable
+                            auto osp_it = outer_scope_params_.find(p.bmdl_name);
+                            if (osp_it != outer_scope_params_.end()) {
+                                decode_call += ", " + osp_it->second;
+                            } else {
+                                std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                                if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                                    arg = "(*" + arg + ")";
+                                }
+                                decode_call += ", " + arg;
                             }
-                            decode_call += ", " + arg;
                         }
                     }
                     decode_call += ")";
