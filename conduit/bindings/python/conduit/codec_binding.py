@@ -44,9 +44,14 @@ class _Frame(ctypes.Structure):
 
 def _load_codec_lib() -> ctypes.CDLL:
     """Load the conduit_codec_cabi shared library."""
+    # If CONDUIT_CODEC_LIB points directly to a file, load it
+    env_path = os.environ.get("CONDUIT_CODEC_LIB", "")
+    if env_path and os.path.isfile(env_path):
+        return ctypes.CDLL(env_path)
+
     # Search in common locations
     search_paths = [
-        os.environ.get("CONDUIT_CODEC_LIB", ""),
+        env_path,
         os.path.join(os.path.dirname(__file__), "..", "..", "lib"),
         os.path.join(os.path.dirname(__file__), ".."),
     ]

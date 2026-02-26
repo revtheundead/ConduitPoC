@@ -83,3 +83,71 @@ endif()
 add_executable(conduit_tests ${CONDUIT_TEST_SOURCES})
 target_link_libraries(conduit_tests PRIVATE ${CONDUIT_TEST_LIBS})
 catch_discover_tests(conduit_tests)
+
+# ============================================================================
+# Test CABI shared libraries with registered sessions (for Python/Java tests)
+# ============================================================================
+
+if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
+    # Generate choice_protocol for CABI tests
+    bgen_generate(
+        TARGET    test_choice_protocol
+        INPUT     ${CMAKE_SOURCE_DIR}/bgen/tests/fixtures/choice_protocol.bmdl.xml
+        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/choice_protocol
+        NAMESPACE choice_test
+    )
+
+    # Build test codec CABI with sessions registered
+    add_library(conduit_codec_cabi_test SHARED
+        ${CMAKE_SOURCE_DIR}/src/cabi/conduit_codec_cabi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cabi/test_sessions_register.cpp
+    )
+    target_link_libraries(conduit_codec_cabi_test PRIVATE
+        conduit_codec
+        conduit_warnings
+        test_session_protocol
+        test_choice_protocol
+        test_sentry_link
+        test_direction_qualified
+    )
+    target_include_directories(conduit_codec_cabi_test PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    )
+    target_include_directories(conduit_codec_cabi_test PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+    target_compile_definitions(conduit_codec_cabi_test PRIVATE CONDUIT_CODEC_CABI_EXPORTS)
+    set_target_properties(conduit_codec_cabi_test PROPERTIES
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
+endif()
+
+if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
+    # Build test transceiver CABI with sessions registered
+    add_library(conduit_cabi_test SHARED
+        ${CMAKE_SOURCE_DIR}/src/cabi/conduit_cabi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cabi/test_sessions_register.cpp
+    )
+    target_link_libraries(conduit_cabi_test PRIVATE
+        conduit
+        conduit_warnings
+        test_session_protocol
+        test_choice_protocol
+        test_sentry_link
+        test_direction_qualified
+    )
+    target_include_directories(conduit_cabi_test PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    )
+    target_include_directories(conduit_cabi_test PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+    target_compile_definitions(conduit_cabi_test PRIVATE CONDUIT_CABI_EXPORTS)
+    set_target_properties(conduit_cabi_test PROPERTIES
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
+endif()

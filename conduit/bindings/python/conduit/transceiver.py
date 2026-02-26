@@ -59,8 +59,13 @@ _ERROR_CALLBACK = ctypes.CFUNCTYPE(
 
 def _load_cabi_lib() -> ctypes.CDLL:
     """Load the conduit_cabi shared library."""
+    # If CONDUIT_CABI_LIB points directly to a file, load it
+    env_path = os.environ.get("CONDUIT_CABI_LIB", "")
+    if env_path and os.path.isfile(env_path):
+        return ctypes.CDLL(env_path)
+
     search_paths = [
-        os.environ.get("CONDUIT_CABI_LIB", ""),
+        env_path,
         os.path.join(os.path.dirname(__file__), "..", "..", "lib"),
         os.path.join(os.path.dirname(__file__), ".."),
     ]

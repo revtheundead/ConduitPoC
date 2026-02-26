@@ -1182,6 +1182,414 @@ std::string generate_py_structs(const model::Protocol& protocol,
     return ctx.str();
 }
 
+// ============================================================================
+// Frame class generation (Packet, Frame, etc.)
+// ============================================================================
+
+void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
+                         const analyzer::TypeIndex& index) {
+    if (!si.frame) return;
+    const model::FrameDef& frame = *si.frame;
+    std::string cn = py_class(frame.name);
+
+    // Collect header fields
+    struct FrameFieldInfo {
+        std::string py_name;
+        PyFieldInfo fi;
+        const model::Field* field;
+    };
+    std::vector<FrameFieldInfo> header_fields;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            header_fields.push_back({py_field(f->name), py_resolve_field(*f, index), f});
+        }
+    }
+    std::vector<FrameFieldInfo> footer_fields;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            footer_fields.push_back({py_field(f->name), py_resolve_field(*f, index), f});
+        }
+    }
+
+    ctx.line();
+    ctx.line("class " + cn + ":");
+    ctx.indent();
+
+    // __slots__
+    {
+        std::string slots;
+        for (const auto& hf : header_fields) {
+            if (!slots.empty()) slots += ", ";
+            slots += "'" + hf.py_name + "'";
+        }
+        if (!slots.empty()) slots += ", ";
+        slots += "'payload'";
+        for (const auto& ff : footer_fields) {
+            if (!slots.empty()) slots += ", ";
+            slots += "'" + ff.py_name + "'";
+        }
+        ctx.line("__slots__ = (" + slots + ")");
+    }
+    ctx.line();
+
+    // __init__
+    ctx.line("def __init__(self) -> None:");
+    ctx.indent();
+    for (const auto& hf : header_fields) {
+        std::string def_val;
+        if (hf.fi.is_string) def_val = "''";
+        else if (hf.fi.is_bytes) def_val = "b''";
+        else if (hf.fi.is_bool) def_val = "False";
+        else if (hf.fi.is_float) def_val = "0.0";
+        else def_val = "0";
+        ctx.line("self." + hf.py_name + " = " + def_val);
+    }
+    if (si.payload_is_array) {
+        ctx.line("self.payload = []");
+    } else {
+        ctx.line("self.payload = None");
+    }
+    for (const auto& ff : footer_fields) {
+        std::string def_val;
+        if (ff.fi.is_string) def_val = "''";
+        else if (ff.fi.is_bytes) def_val = "b''";
+        else if (ff.fi.is_bool) def_val = "False";
+        else if (ff.fi.is_float) def_val = "0.0";
+        else def_val = "0";
+        ctx.line("self." + ff.py_name + " = " + def_val);
+    }
+    ctx.dedent();
+    ctx.line();
+
+    // wrap() static method — single method that works for any leaf type
+    // (Python doesn't support overloading, so one method handles all types)
+    ctx.line("@staticmethod");
+    ctx.line("def wrap(msg) -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("frame = " + cn + "()");
+    // Set constraint-equals header fields (e.g., sync = Constants.SYNC)
+    for (const auto& hf : header_fields) {
+        if (hf.field->constraint && hf.field->constraint->equals) {
+            std::string const_ref = *hf.field->constraint->equals;
+            // Qualify bare constant names with Constants. prefix
+            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
+                const_ref = "Constants." + const_ref;
+            }
+            ctx.line("frame." + hf.py_name + " = " + const_ref);
+        }
+    }
+    // Set id field from msg.ID_VALUE if the message class has it
+    if (!si.id_field_name.empty()) {
+        ctx.line("if hasattr(msg, 'ID_VALUE'):");
+        ctx.indent();
+        ctx.line("frame." + py_field(si.id_field_name) + " = msg.ID_VALUE");
+        ctx.dedent();
+    }
+    if (si.payload_is_array) {
+        ctx.line("frame.payload.append(msg)");
+    } else {
+        ctx.line("frame.payload = msg");
+    }
+    ctx.line("return frame");
+    ctx.dedent();
+    ctx.line();
+
+    // Find length field for backpatching
+    const model::Field* length_field = nullptr;
+    bool length_is_total_frame = false;
+    bool length_is_payload = false;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                length_field = f;
+                length_is_total_frame = f->auto_expr->field_ref.empty();
+                length_is_payload = (!f->auto_expr->field_ref.empty() &&
+                                     f->auto_expr->field_ref == "payload");
+            }
+        }
+    }
+
+    // encode() method
+    ctx.line("def encode(self, w: 'BitWriter') -> None:");
+    ctx.indent();
+    if (length_is_total_frame) {
+        ctx.line("_frame_start = w.size_bytes()");
+    }
+    for (const auto& hf : header_fields) {
+        if (hf.field->auto_expr && hf.field->auto_expr->kind == model::AutoKind::Length) {
+            ctx.line("_len_pos = w.size_bytes()");
+            ctx.line(py_write_stmt("0", hf.fi));
+            if (length_is_payload) {
+                ctx.line("_payload_start = w.size_bytes()");
+            }
+        } else if (hf.field->auto_expr && hf.field->auto_expr->kind == model::AutoKind::Count) {
+            if (hf.field->auto_expr->field_ref == "payload" && si.payload_is_array) {
+                ctx.line(py_write_stmt("len(self.payload)", hf.fi));
+            } else {
+                ctx.line(py_write_stmt("self." + hf.py_name, hf.fi));
+            }
+        } else if (hf.field->constraint && hf.field->constraint->equals) {
+            std::string const_ref = *hf.field->constraint->equals;
+            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
+                const_ref = "Constants." + const_ref;
+            }
+            ctx.line(py_write_stmt(const_ref, hf.fi));
+        } else {
+            std::string val = "self." + hf.py_name;
+            if (hf.fi.is_enum) val = val + ".value";
+            ctx.line(py_write_stmt(val, hf.fi));
+        }
+    }
+
+    // Write payload
+    if (si.payload_is_array) {
+        ctx.line("for _item in self.payload:");
+        ctx.indent();
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = py_class(lt.name);
+            ctx.line(std::string(first ? "if " : "elif ") + "isinstance(_item, " + leaf_class + "):");
+            ctx.indent();
+            ctx.line("_item.encode(w)");
+            ctx.dedent();
+            first = false;
+        }
+        ctx.dedent();
+    } else {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = py_class(lt.name);
+            ctx.line(std::string(first ? "if " : "elif ") + "isinstance(self.payload, " + leaf_class + "):");
+            ctx.indent();
+            ctx.line("self.payload.encode(w)");
+            ctx.dedent();
+            first = false;
+        }
+    }
+
+    // Write footer fields
+    for (const auto& ff : footer_fields) {
+        std::string val = "self." + ff.py_name;
+        if (ff.fi.is_enum) val = val + ".value";
+        ctx.line(py_write_stmt(val, ff.fi));
+    }
+
+    // Backpatch length
+    if (length_field) {
+        auto al_fi = py_resolve_field(*length_field, index);
+        bool be = (al_fi.endian == model::Endian::Big);
+        std::string raw_length;
+        if (length_is_payload) {
+            raw_length = "w.size_bytes() - _payload_start";
+        } else {
+            raw_length = "w.size_bytes() - _frame_start";
+        }
+        // Apply arithmetic modifier
+        if (length_field->auto_expr->modifier.has_modifier()) {
+            std::string op_str;
+            switch (length_field->auto_expr->modifier.op) {
+                case model::ArithOp::Add: op_str = " + "; break;
+                case model::ArithOp::Sub: op_str = " - "; break;
+                case model::ArithOp::Mul: op_str = " * "; break;
+                case model::ArithOp::Div: op_str = " / "; break;
+                default: break;
+            }
+            if (!op_str.empty()) {
+                raw_length = "((" + raw_length + ")" + op_str +
+                             std::to_string(length_field->auto_expr->modifier.literal) + ")";
+            }
+        }
+        if (al_fi.bits <= 8) {
+            ctx.line("w.patch_u8(_len_pos, int(" + raw_length + "))");
+        } else if (al_fi.bits <= 16) {
+            ctx.line("w.patch_u16(_len_pos, int(" + raw_length + "), " + (be ? "True" : "False") + ")");
+        } else {
+            ctx.line("w.patch_u32(_len_pos, int(" + raw_length + "), " + (be ? "True" : "False") + ")");
+        }
+    }
+
+    ctx.dedent();
+    ctx.line();
+
+    // encode_bytes()
+    ctx.line("def encode_bytes(self) -> bytes:");
+    ctx.indent();
+    ctx.line("w = BitWriter()");
+    ctx.line("self.encode(w)");
+    ctx.line("return w.to_bytes()");
+    ctx.dedent();
+    ctx.line();
+
+    // decode() static method
+    ctx.line("@staticmethod");
+    ctx.line("def decode(r: 'BitReader') -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("result = " + cn + "()");
+
+    // Read header fields
+    for (const auto& hf : header_fields) {
+        std::string m = "result." + hf.py_name;
+        if (hf.fi.is_enum) {
+            ctx.line(m + " = " + hf.fi.py_type + ".decode(r)");
+        } else if (hf.fi.is_bool) {
+            ctx.line(m + " = (" + py_read_expr(hf.fi) + " != 0)");
+        } else {
+            ctx.line(m + " = " + py_read_expr(hf.fi));
+        }
+    }
+
+    // Compute header/footer sizes for payload bounding
+    int header_bits = 0;
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = py_resolve_field(*f, index);
+            header_bits += fi.bits;
+        } else if (auto* r = std::get_if<model::Reserved>(&child)) {
+            header_bits += r->bits;
+        }
+    }
+    int footer_bits = 0;
+    for (const auto& child : frame.footer_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = py_resolve_field(*f, index);
+            footer_bits += fi.bits;
+        } else if (auto* r = std::get_if<model::Reserved>(&child)) {
+            footer_bits += r->bits;
+        }
+    }
+    int header_bytes = (header_bits + 7) / 8;
+    int footer_bytes = (footer_bits + 7) / 8;
+
+    // Build payload sub-reader when bounded by length field
+    bool use_sub_reader = false;
+    if (!si.length_field_name.empty() && si.count_field_name.empty()) {
+        std::string len_member = "result." + py_field(si.length_field_name);
+        std::string raw_val = "int(" + len_member + ")";
+        std::string total_expr = raw_val;
+        if (si.frame_length_modifier.has_modifier()) {
+            switch (si.frame_length_modifier.op) {
+                case model::ArithOp::Add:
+                    total_expr = "(" + raw_val + " - " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Sub:
+                    total_expr = "(" + raw_val + " + " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Mul:
+                    total_expr = "(" + raw_val + " / " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                case model::ArithOp::Div:
+                    total_expr = "(" + raw_val + " * " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    break;
+                default: break;
+            }
+        }
+        std::string size_expr;
+        if (si.frame_length_field_ref.empty()) {
+            int overhead = header_bytes + footer_bytes;
+            size_expr = total_expr + " - " + std::to_string(overhead);
+        } else {
+            if (footer_bytes > 0) {
+                size_expr = total_expr + " - " + std::to_string(footer_bytes);
+            } else {
+                size_expr = total_expr;
+            }
+        }
+        ctx.line("_payload_r = r.sub_reader(" + size_expr + ")");
+        use_sub_reader = true;
+    } else if (footer_bits > 0 && si.length_field_name.empty() && si.count_field_name.empty()) {
+        ctx.line("_payload_r = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ")");
+        use_sub_reader = true;
+    }
+
+    std::string reader_name = use_sub_reader ? "_payload_r" : "r";
+    std::string id_member = "result." + py_field(si.id_field_name);
+
+    if (si.payload_is_array) {
+        if (!si.count_field_name.empty()) {
+            ctx.line("for _i in range(int(result." + py_field(si.count_field_name) + ")):");
+        } else {
+            ctx.line("while " + reader_name + ".remaining_bytes() > 0:");
+        }
+        ctx.indent();
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            if (lt.send_only) continue;
+            std::string leaf_class = py_class(lt.name);
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            ctx.line(std::string(first ? "if " : "elif ") + id_member + " == " + id_val + ":");
+            ctx.indent();
+            ctx.line("_msg = " + leaf_class + ".decode(" + reader_name + ")");
+            ctx.line("result.payload.append(_msg)");
+            ctx.dedent();
+            first = false;
+        }
+        ctx.dedent();
+    } else {
+        // Single payload dispatch
+        std::map<std::string, std::vector<const analyzer::LeafTypeInfo*>> id_groups;
+        for (const auto& lt : si.leaf_types) {
+            std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
+            id_groups[id_val].push_back(&lt);
+        }
+        bool first = true;
+        for (const auto& [id_val, leaves] : id_groups) {
+            const analyzer::LeafTypeInfo* decode_leaf = leaves[0];
+            for (const auto* lt : leaves) {
+                if (!lt->send_only) { decode_leaf = lt; break; }
+            }
+            std::string leaf_class = py_class(decode_leaf->name);
+            ctx.line(std::string(first ? "if " : "elif ") + id_member + " == " + id_val + ":");
+            ctx.indent();
+            ctx.line("result.payload = " + leaf_class + ".decode(" + reader_name + ")");
+            ctx.dedent();
+            first = false;
+        }
+    }
+
+    // Read footer fields
+    for (const auto& ff : footer_fields) {
+        std::string m = "result." + ff.py_name;
+        if (ff.fi.is_enum) {
+            ctx.line(m + " = " + ff.fi.py_type + ".decode(r)");
+        } else if (ff.fi.is_bool) {
+            ctx.line(m + " = (" + py_read_expr(ff.fi) + " != 0)");
+        } else {
+            ctx.line(m + " = " + py_read_expr(ff.fi));
+        }
+    }
+
+    ctx.line("return result");
+    ctx.dedent();
+    ctx.line();
+
+    // decode_bytes()
+    ctx.line("@staticmethod");
+    ctx.line("def decode_bytes(data: bytes) -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("return " + cn + ".decode(BitReader(data))");
+    ctx.dedent();
+    ctx.line();
+
+    // __repr__
+    ctx.line("def __repr__(self) -> str:");
+    ctx.indent();
+    std::string repr_parts;
+    for (const auto& hf : header_fields) {
+        if (!repr_parts.empty()) repr_parts += ", ";
+        repr_parts += hf.py_name + "={self." + hf.py_name + "}";
+    }
+    if (!repr_parts.empty()) repr_parts += ", ";
+    repr_parts += "payload={self.payload}";
+    for (const auto& ff : footer_fields) {
+        repr_parts += ", " + ff.py_name + "={self." + ff.py_name + "}";
+    }
+    ctx.line("return f'" + cn + "(" + repr_parts + ")'");
+    ctx.dedent();
+
+    ctx.dedent(); // end class
+    ctx.line();
+}
+
 std::string generate_py_messages(const model::Protocol& protocol,
                                   const analyzer::TypeIndex& index,
                                   const std::vector<analyzer::SessionInfo>& sessions) {
@@ -1201,6 +1609,13 @@ std::string generate_py_messages(const model::Protocol& protocol,
     for (const auto& md : protocol.messages) {
         emit_py_inline_types(ctx, md.children, index, tid_map);
         emit_py_class(ctx, md.name, md.children, index, tid_map, md.id);
+    }
+
+    // Generate frame classes (Packet, Frame, etc.)
+    for (const auto& si : sessions) {
+        if (si.is_frame_based && si.frame) {
+            emit_py_frame_class(ctx, si, index);
+        }
     }
 
     ctx.line();
