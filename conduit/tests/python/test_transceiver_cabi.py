@@ -37,6 +37,12 @@ _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
 if _BINDINGS_DIR not in sys.path:
     sys.path.insert(0, _BINDINGS_DIR)
 
+# The transceiver CABI test library references conduit_register_session (from
+# the codec CABI) because test_sessions_register.cpp includes the codec header.
+# We must preload the codec CABI library with RTLD_GLOBAL so the linker can
+# resolve the symbol when the transceiver CABI library is loaded.
+_codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
+
 # Force the transceiver module to reload with the new env var
 import conduit.transceiver as _xcvr_mod
 _xcvr_mod._lib = None

@@ -5,6 +5,9 @@
 // protocols are available via conduit_session_create("session_protocol"), etc.
 
 #include <conduit/cabi/conduit_codec_cabi.h>
+#ifdef CONDUIT_CABI_EXPORTS
+#include <conduit/cabi/conduit_cabi.h>
+#endif
 #include <conduit/traits/session_traits.hpp>
 
 // Generated sessions
@@ -39,10 +42,18 @@ void* create_direction_qualified() {
 // Auto-register on library load
 struct SessionRegistrar {
     SessionRegistrar() {
+        // Codec CABI registry
         conduit_register_session("session_protocol", create_session_protocol);
         conduit_register_session("choice_protocol", create_choice_protocol);
         conduit_register_session("sentry_link", create_sentry_link);
         conduit_register_session("direction_qualified", create_direction_qualified);
+#ifdef CONDUIT_CABI_EXPORTS
+        // Transceiver CABI registry (only when building xcvr lib)
+        conduit_xcvr_register_session("session_protocol", create_session_protocol);
+        conduit_xcvr_register_session("choice_protocol", create_choice_protocol);
+        conduit_xcvr_register_session("sentry_link", create_sentry_link);
+        conduit_xcvr_register_session("direction_qualified", create_direction_qualified);
+#endif
     }
 };
 
