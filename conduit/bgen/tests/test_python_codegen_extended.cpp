@@ -917,3 +917,151 @@ TEST_CASE("PyCG: choice_protocol session has leaf types", "[python][codegen][ses
     CHECK(py_sess.find("BetaBody") != std::string::npos);
     CHECK(py_sess.find("LEAF_TYPES") != std::string::npos);
 }
+
+// ============================================================================
+// Field-level constraint checks
+// ============================================================================
+
+TEST_CASE("PyCG: field-level constraint checks equals", "[python][codegen][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    // Field magic has constraint equals="0xBEEF"
+    CHECK(all.find("constraint violation") != std::string::npos);
+}
+
+TEST_CASE("PyCG: field-level constraint checks min/max", "[python][codegen][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    // percent has min=0, max=100
+    CHECK(all.find("exceeds max 100") != std::string::npos);
+}
+
+TEST_CASE("PyCG: deferred constraint does NOT generate validation", "[python][codegen][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    CHECK(all.find("deferred-val exceeds max") == std::string::npos);
+    CHECK(all.find("deferred-val below min") == std::string::npos);
+}
+
+// ============================================================================
+// String encoding tests (EBCDIC, IA5)
+// ============================================================================
+
+TEST_CASE("PyCG: EBCDIC strings generate encoding-aware read calls", "[python][codegen][string]") {
+    auto py = gen_python("ebcdic_strings.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    bool has_ebcdic_ref = all.find("encoding=2") != std::string::npos ||
+                          all.find("_EBCDIC_TO_ASCII") != std::string::npos;
+    CHECK(has_ebcdic_ref);
+}
+
+TEST_CASE("PyCG: bit_io has EBCDIC conversion tables", "[python][codegen][string]") {
+    auto py = gen_python("ebcdic_strings.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("_EBCDIC_TO_ASCII") != std::string::npos);
+    CHECK(bio.find("_ASCII_TO_EBCDIC") != std::string::npos);
+}
+
+// ============================================================================
+// String trim mode tests
+// ============================================================================
+
+TEST_CASE("PyCG: string_features generates field-level trim with rstrip", "[python][codegen][trim]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    CHECK(all.find("rstrip(") != std::string::npos);
+}
+
+// ============================================================================
+// Terminated string tests
+// ============================================================================
+
+TEST_CASE("PyCG: bit_io has read_terminated_string method", "[python][codegen][terminated]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def read_terminated_string(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bit_io has read_crlf_terminated_string method", "[python][codegen][terminated]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def read_crlf_terminated_string(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: terminated string field generates terminator read call", "[python][codegen][terminated]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    CHECK(all.find("read_terminated_string(") != std::string::npos);
+    CHECK(all.find("read_crlf_terminated_string(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bit_io has write_terminated_string method", "[python][codegen][terminated]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def write_terminated_string(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bit_io has write_crlf_terminated_string method", "[python][codegen][terminated]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def write_crlf_terminated_string(") != std::string::npos);
+}
+
+// ============================================================================
+// Packed character / char_bits tests
+// ============================================================================
+
+TEST_CASE("PyCG: bit_io has read_packed_chars method", "[python][codegen][char_bits]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def read_packed_chars(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bit_io has write_packed_chars method", "[python][codegen][char_bits]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def write_packed_chars(") != std::string::npos);
+}
+
+// ============================================================================
+// max_length validation tests
+// ============================================================================
+
+TEST_CASE("PyCG: max_length on string field generates length check", "[python][codegen][max_length]") {
+    auto py = gen_python("string_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto all = all_output(*py);
+    CHECK(all.find("exceeds max length 16") != std::string::npos);
+}
+
+// ============================================================================
+// BitReader/BitWriter extended method parity tests
+// ============================================================================
+
+TEST_CASE("PyCG: BitReader has encoding-aware read_string", "[python][codegen][bitio]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    // read_string should accept optional encoding parameter
+    CHECK(bio.find("def read_string(self, length: int, encoding: int = 0)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: BitWriter has encoding-aware write_string", "[python][codegen][bitio]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("def write_string(self, s: str, length: int, pad: int = 0, encoding: int = 0)") != std::string::npos);
+}
