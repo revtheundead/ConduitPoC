@@ -786,3 +786,134 @@ TEST_CASE("PyCG: bit_io has to_bytes method", "[python][codegen][bitio]") {
     auto& bio = py->files["bit_io.py"];
     CHECK(bio.find("def to_bytes(") != std::string::npos);
 }
+
+// ============================================================================
+// BitReader/BitWriter method parity tests
+// ============================================================================
+
+TEST_CASE("PyCG: BitReader has align_to method", "[python][codegen][bitio]") {
+    auto py = gen_python("struct_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    auto bw_start = bio.find("class BitWriter:");
+    REQUIRE(bw_start != std::string::npos);
+    auto align_pos = bio.find("def align_to(", 0);
+    CHECK(align_pos != std::string::npos);
+    CHECK(align_pos < bw_start);
+}
+
+TEST_CASE("PyCG: BitWriter still has align_to method", "[python][codegen][bitio]") {
+    auto py = gen_python("struct_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    auto bw_start = bio.find("class BitWriter:");
+    REQUIRE(bw_start != std::string::npos);
+    auto align_pos = bio.find("def align_to(", bw_start);
+    CHECK(align_pos != std::string::npos);
+}
+
+TEST_CASE("PyCG: BitReader has all C++ BitReader methods", "[python][codegen][bitio]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    auto bw_start = bio.find("class BitWriter:");
+    REQUIRE(bw_start != std::string::npos);
+    std::string br_section = bio.substr(0, bw_start);
+    CHECK(br_section.find("def read_bits(") != std::string::npos);
+    CHECK(br_section.find("def read_signed_bits(") != std::string::npos);
+    CHECK(br_section.find("def read_u8(") != std::string::npos);
+    CHECK(br_section.find("def read_u16(") != std::string::npos);
+    CHECK(br_section.find("def read_u32(") != std::string::npos);
+    CHECK(br_section.find("def read_u64(") != std::string::npos);
+    CHECK(br_section.find("def read_f32(") != std::string::npos);
+    CHECK(br_section.find("def read_f64(") != std::string::npos);
+    CHECK(br_section.find("def read_string(") != std::string::npos);
+    CHECK(br_section.find("def read_bytes(") != std::string::npos);
+    CHECK(br_section.find("def read_bcd(") != std::string::npos);
+    CHECK(br_section.find("def read_bcd_signed(") != std::string::npos);
+    CHECK(br_section.find("def read_sign_magnitude(") != std::string::npos);
+    CHECK(br_section.find("def skip_bits(") != std::string::npos);
+    CHECK(br_section.find("def sub_reader(") != std::string::npos);
+    CHECK(br_section.find("def align_to(") != std::string::npos);
+    CHECK(br_section.find("def remaining_bits(") != std::string::npos);
+    CHECK(br_section.find("def remaining_bytes(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: BitWriter has all C++ BitWriter methods", "[python][codegen][bitio]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    auto bw_start = bio.find("class BitWriter:");
+    REQUIRE(bw_start != std::string::npos);
+    std::string bw_section = bio.substr(bw_start);
+    CHECK(bw_section.find("def write_bits(") != std::string::npos);
+    CHECK(bw_section.find("def write_signed_bits(") != std::string::npos);
+    CHECK(bw_section.find("def write_u8(") != std::string::npos);
+    CHECK(bw_section.find("def write_u16(") != std::string::npos);
+    CHECK(bw_section.find("def write_u32(") != std::string::npos);
+    CHECK(bw_section.find("def write_u64(") != std::string::npos);
+    CHECK(bw_section.find("def write_f32(") != std::string::npos);
+    CHECK(bw_section.find("def write_f64(") != std::string::npos);
+    CHECK(bw_section.find("def write_string(") != std::string::npos);
+    CHECK(bw_section.find("def write_bytes(") != std::string::npos);
+    CHECK(bw_section.find("def write_bcd(") != std::string::npos);
+    CHECK(bw_section.find("def write_bcd_signed(") != std::string::npos);
+    CHECK(bw_section.find("def write_sign_magnitude(") != std::string::npos);
+    CHECK(bw_section.find("def size_bytes(") != std::string::npos);
+    CHECK(bw_section.find("def to_bytes(") != std::string::npos);
+    CHECK(bw_section.find("def patch_u8(") != std::string::npos);
+    CHECK(bw_section.find("def patch_u16(") != std::string::npos);
+    CHECK(bw_section.find("def patch_u32(") != std::string::npos);
+    CHECK(bw_section.find("def align_to(") != std::string::npos);
+}
+
+// ============================================================================
+// Alignment and wire format codegen consistency
+// ============================================================================
+
+TEST_CASE("PyCG: struct_features alignment calls present", "[python][codegen][align]") {
+    auto py = gen_python("struct_features.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& py_msgs = py->files["messages.py"];
+    CHECK(py_msgs.find("r.align_to(2)") != std::string::npos);
+    CHECK(py_msgs.find("w.align_to(2)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: all_types has decode/encode/decode_bytes/encode_bytes", "[python][codegen][parity]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& py_msgs = py->files["messages.py"];
+    CHECK(py_msgs.find("def decode(") != std::string::npos);
+    CHECK(py_msgs.find("def encode(") != std::string::npos);
+    CHECK(py_msgs.find("decode_bytes") != std::string::npos);
+    CHECK(py_msgs.find("encode_bytes") != std::string::npos);
+}
+
+TEST_CASE("PyCG: wire_encodings has BCD/BNR_S calls", "[python][codegen][parity]") {
+    auto py = gen_python("wire_encodings.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& py_msgs = py->files["messages.py"];
+    CHECK(py_msgs.find("read_bcd(") != std::string::npos);
+    CHECK(py_msgs.find("write_bcd(") != std::string::npos);
+    CHECK(py_msgs.find("read_bcd_signed(") != std::string::npos);
+    CHECK(py_msgs.find("write_bcd_signed(") != std::string::npos);
+    CHECK(py_msgs.find("read_sign_magnitude(") != std::string::npos);
+    CHECK(py_msgs.find("write_sign_magnitude(") != std::string::npos);
+}
+
+TEST_CASE("PyCG: mixed_endian uses True/False endian flags", "[python][codegen][parity]") {
+    auto py = gen_python("mixed_endian.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& py_msgs = py->files["messages.py"];
+    CHECK(py_msgs.find("True") != std::string::npos);
+    CHECK(py_msgs.find("False") != std::string::npos);
+}
+
+TEST_CASE("PyCG: choice_protocol session has leaf types", "[python][codegen][session]") {
+    auto py = gen_python("choice_protocol.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& py_sess = py->files["sessions.py"];
+    CHECK(py_sess.find("AlphaBody") != std::string::npos);
+    CHECK(py_sess.find("BetaBody") != std::string::npos);
+    CHECK(py_sess.find("LEAF_TYPES") != std::string::npos);
+}

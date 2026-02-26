@@ -280,26 +280,6 @@ target_compile_definitions(bgen_java_tests PRIVATE
 
 catch_discover_tests(bgen_java_tests)
 
-# ============================================================================
-# Python + Java cross-backend tests (separate executable)
-# ============================================================================
-
-add_executable(bgen_cross_backend_tests
-    test_python_java_backends.cpp
-)
-
-target_link_libraries(bgen_cross_backend_tests PRIVATE
-    bgen_lib
-    conduit_warnings
-    Catch2::Catch2WithMain
-)
-
-target_compile_definitions(bgen_cross_backend_tests PRIVATE
-    BGEN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
-)
-
-catch_discover_tests(bgen_cross_backend_tests)
-
 # bgen fuzz
 if(CONDUIT_BUILD_FUZZ)
     add_subdirectory(fuzz)
