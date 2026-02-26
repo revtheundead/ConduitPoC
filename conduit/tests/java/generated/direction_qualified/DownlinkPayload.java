@@ -8,6 +8,7 @@ public final class DownlinkPayload {
     public static final String TYPE_NAME = "DownlinkPayload";
     public static final int ID_VALUE = 1;
 
+    public int tag = 0;
     public int rxData = 0;
 
     public static DownlinkPayload decode(BitReader r) {

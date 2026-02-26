@@ -61,13 +61,13 @@ public class Transceiver implements AutoCloseable {
      */
     public int addPeer(String name, String sessionName, TransportConfig transport) {
         try {
-            var nameStr = arena.allocateFrom(name);
-            var sessionStr = arena.allocateFrom(sessionName);
+            var nameStr = arena.allocateUtf8String(name);
+            var sessionStr = arena.allocateUtf8String(sessionName);
 
             // Allocate transport config struct with correct layout
             var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
             cfg.set(ValueLayout.JAVA_INT, 0, transport.type().value());
-            var addrStr = arena.allocateFrom(transport.address());
+            var addrStr = arena.allocateUtf8String(transport.address());
             cfg.set(ValueLayout.ADDRESS, 8, addrStr);
             cfg.set(ValueLayout.JAVA_INT, 16, transport.baudRate());
 
@@ -160,7 +160,7 @@ public class Transceiver implements AutoCloseable {
      */
     public int peerByName(String name) {
         try {
-            var nameStr = arena.allocateFrom(name);
+            var nameStr = arena.allocateUtf8String(name);
             var pidOut = arena.allocate(ValueLayout.JAVA_INT);
             int err = (int) CabiBindings.conduit_peer_by_name.invokeExact(handle, nameStr, pidOut);
             if (err != 0) {
@@ -183,7 +183,7 @@ public class Transceiver implements AutoCloseable {
      */
     public void send(int peerId, long typeId, byte[] data) {
         try (var sendArena = Arena.ofConfined()) {
-            var buf = sendArena.allocateFrom(ValueLayout.JAVA_BYTE, data);
+            var buf = sendArena.allocateArray(ValueLayout.JAVA_BYTE, data);
             int err = (int) CabiBindings.conduit_send.invokeExact(
                 handle, peerId, typeId, buf, (long) data.length);
             if (err != 0) {
@@ -201,7 +201,7 @@ public class Transceiver implements AutoCloseable {
         try {
             var ptr = (MemorySegment) CabiBindings.conduit_version.invokeExact();
             if (ptr == MemorySegment.NULL) return "";
-            return ptr.reinterpret(256).getString(0);
+            return ptr.reinterpret(256).getUtf8String(0);
         } catch (Throwable e) {
             throw new RuntimeException("version failed", e);
         }

@@ -12,7 +12,7 @@ public final class Frame {
 
     public static Frame wrap(HeartbeatBody msg) {
         Frame frame = new Frame();
-        frame.sync = SYNC;
+        frame.sync = (int) Constants.SYNC;
         frame.msgType = HeartbeatBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -20,7 +20,7 @@ public final class Frame {
 
     public static Frame wrap(SensorBody msg) {
         Frame frame = new Frame();
-        frame.sync = SYNC;
+        frame.sync = (int) Constants.SYNC;
         frame.msgType = SensorBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -28,7 +28,7 @@ public final class Frame {
 
     public static Frame wrap(ConfigBody msg) {
         Frame frame = new Frame();
-        frame.sync = SYNC;
+        frame.sync = (int) Constants.SYNC;
         frame.msgType = ConfigBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -36,7 +36,7 @@ public final class Frame {
 
     public static Frame wrap(AlertBody msg) {
         Frame frame = new Frame();
-        frame.sync = SYNC;
+        frame.sync = (int) Constants.SYNC;
         frame.msgType = AlertBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -44,7 +44,7 @@ public final class Frame {
 
     public void encode(BitWriter w) {
         int _frameStart = w.sizeBytes();
-        w.writeU16((int)SYNC, true);
+        w.writeU16((int) Constants.SYNC, true);
         w.writeU8((int)this.msgType);
         int _lenPos = w.sizeBytes();
         w.writeU16((int)0, true);
@@ -72,31 +72,15 @@ public final class Frame {
         BitReader payloadReader = r.subReader((int)(result.length) - 6);
         if (result.msgType == 1) {
             HeartbeatBody _msg = HeartbeatBody.decode(payloadReader);
-            _msg.sync = result.sync;
-            _msg.msgType = result.msgType;
-            _msg.length = result.length;
-            _msg.sequence = result.sequence;
             result.payload = _msg;
         } else if (result.msgType == 2) {
             SensorBody _msg = SensorBody.decode(payloadReader);
-            _msg.sync = result.sync;
-            _msg.msgType = result.msgType;
-            _msg.length = result.length;
-            _msg.sequence = result.sequence;
             result.payload = _msg;
         } else if (result.msgType == 3) {
             ConfigBody _msg = ConfigBody.decode(payloadReader);
-            _msg.sync = result.sync;
-            _msg.msgType = result.msgType;
-            _msg.length = result.length;
-            _msg.sequence = result.sequence;
             result.payload = _msg;
         } else if (result.msgType == 4) {
             AlertBody _msg = AlertBody.decode(payloadReader);
-            _msg.sync = result.sync;
-            _msg.msgType = result.msgType;
-            _msg.length = result.length;
-            _msg.sequence = result.sequence;
             result.payload = _msg;
         }
         return result;

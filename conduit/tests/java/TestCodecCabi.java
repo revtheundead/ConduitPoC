@@ -56,7 +56,7 @@ public class TestCodecCabi {
     @BeforeEach
     void setUp() throws Throwable {
         arena = Arena.ofConfined();
-        var nameStr = arena.allocateFrom("session_protocol");
+        var nameStr = arena.allocateUtf8String("session_protocol");
         session = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
         assertNotNull(session, "Session should be created successfully");
         assertNotEquals(MemorySegment.NULL, session, "Session handle should not be NULL");
@@ -81,7 +81,7 @@ public class TestCodecCabi {
     void versionReturnsNonEmpty() throws Throwable {
         MemorySegment versionPtr = (MemorySegment) CodecBindings.conduit_codec_version.invokeExact();
         assertNotEquals(MemorySegment.NULL, versionPtr, "Version pointer should not be NULL");
-        String version = versionPtr.reinterpret(256).getString(0);
+        String version = versionPtr.reinterpret(256).getUtf8String(0);
         assertNotNull(version);
         assertFalse(version.isEmpty(), "Version string should not be empty");
     }
@@ -90,7 +90,7 @@ public class TestCodecCabi {
     @DisplayName("Codec version: matches expected format")
     void versionMatchesFormat() throws Throwable {
         MemorySegment versionPtr = (MemorySegment) CodecBindings.conduit_codec_version.invokeExact();
-        String version = versionPtr.reinterpret(256).getString(0);
+        String version = versionPtr.reinterpret(256).getUtf8String(0);
         assertTrue(version.matches("\\d+\\.\\d+\\.\\d+.*"),
             "Version should match semver pattern, got: " + version);
     }
@@ -104,7 +104,7 @@ public class TestCodecCabi {
     void sessionCreateReturnsHandle() throws Throwable {
         // Already verified in @BeforeEach, but explicit test
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("session_protocol");
+            var nameStr = localArena.allocateUtf8String("session_protocol");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertNotEquals(MemorySegment.NULL, s, "Should create session_protocol session");
             CodecBindings.conduit_session_destroy.invokeExact(s);
@@ -115,7 +115,7 @@ public class TestCodecCabi {
     @DisplayName("Session create: returns NULL for unknown session name")
     void sessionCreateUnknownReturnsNull() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("nonexistent_session");
+            var nameStr = localArena.allocateUtf8String("nonexistent_session");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertEquals(MemorySegment.NULL, s, "Unknown session name should return NULL");
         }
@@ -125,7 +125,7 @@ public class TestCodecCabi {
     @DisplayName("Session create: returns NULL for empty string")
     void sessionCreateEmptyStringReturnsNull() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("");
+            var nameStr = localArena.allocateUtf8String("");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertEquals(MemorySegment.NULL, s, "Empty session name should return NULL");
         }
@@ -135,7 +135,7 @@ public class TestCodecCabi {
     @DisplayName("Session create: choice_protocol session creates successfully")
     void sessionCreateChoiceProtocol() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("choice_protocol");
+            var nameStr = localArena.allocateUtf8String("choice_protocol");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertNotEquals(MemorySegment.NULL, s, "choice_protocol should be a registered session");
             CodecBindings.conduit_session_destroy.invokeExact(s);
@@ -146,7 +146,7 @@ public class TestCodecCabi {
     @DisplayName("Session create: sentry_link session creates successfully")
     void sessionCreateSentryLink() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("sentry_link");
+            var nameStr = localArena.allocateUtf8String("sentry_link");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertNotEquals(MemorySegment.NULL, s, "sentry_link should be a registered session");
             CodecBindings.conduit_session_destroy.invokeExact(s);
@@ -157,7 +157,7 @@ public class TestCodecCabi {
     @DisplayName("Session create: direction_qualified session creates successfully")
     void sessionCreateDirectionQualified() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("direction_qualified");
+            var nameStr = localArena.allocateUtf8String("direction_qualified");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertNotEquals(MemorySegment.NULL, s, "direction_qualified should be a registered session");
             CodecBindings.conduit_session_destroy.invokeExact(s);
@@ -168,7 +168,7 @@ public class TestCodecCabi {
     @DisplayName("Session destroy: double destroy does not crash")
     void sessionDestroyTwiceNoCrash() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var nameStr = localArena.allocateFrom("session_protocol");
+            var nameStr = localArena.allocateUtf8String("session_protocol");
             MemorySegment s = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(nameStr);
             assertNotEquals(MemorySegment.NULL, s);
             CodecBindings.conduit_session_destroy.invokeExact(s);
@@ -231,7 +231,7 @@ public class TestCodecCabi {
         MemorySegment namePtr = (MemorySegment) CodecBindings.conduit_session_type_name
             .invokeExact(session, PING_TYPE_ID);
         assertNotEquals(MemorySegment.NULL, namePtr);
-        String name = namePtr.reinterpret(256).getString(0);
+        String name = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("PingBody", name);
     }
 
@@ -240,7 +240,7 @@ public class TestCodecCabi {
     void typeNameDataBody() throws Throwable {
         MemorySegment namePtr = (MemorySegment) CodecBindings.conduit_session_type_name
             .invokeExact(session, DATA_TYPE_ID);
-        String name = namePtr.reinterpret(256).getString(0);
+        String name = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("DataBody", name);
     }
 
@@ -249,7 +249,7 @@ public class TestCodecCabi {
     void typeNameAckBody() throws Throwable {
         MemorySegment namePtr = (MemorySegment) CodecBindings.conduit_session_type_name
             .invokeExact(session, ACK_TYPE_ID);
-        String name = namePtr.reinterpret(256).getString(0);
+        String name = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("AckBody", name);
     }
 
@@ -258,7 +258,7 @@ public class TestCodecCabi {
     void typeNameUnknown() throws Throwable {
         MemorySegment namePtr = (MemorySegment) CodecBindings.conduit_session_type_name
             .invokeExact(session, 0xDEADDEADDEADDEADL);
-        String name = namePtr.reinterpret(256).getString(0);
+        String name = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("", name, "Unknown type ID should return empty string");
     }
 
@@ -272,7 +272,7 @@ public class TestCodecCabi {
         MemorySegment namePtr = (MemorySegment) CodecBindings.conduit_session_protocol_name
             .invokeExact(session);
         assertNotEquals(MemorySegment.NULL, namePtr);
-        String name = namePtr.reinterpret(256).getString(0);
+        String name = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("session_test", name);
     }
 
@@ -317,7 +317,7 @@ public class TestCodecCabi {
         session_test.Packet frame = session_test.Packet.wrap(ping);
         byte[] frameBytes = frame.encodeBytes();
 
-        var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, frameBytes);
+        var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, frameBytes);
         var outMsgs = arena.allocate(ValueLayout.ADDRESS);
         var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -340,20 +340,20 @@ public class TestCodecCabi {
 
         // Check type_name
         MemorySegment namePtr = msgs.get(ValueLayout.ADDRESS, MSG_TYPE_NAME_OFFSET);
-        String typeName = namePtr.reinterpret(256).getString(0);
+        String typeName = namePtr.reinterpret(256).getUtf8String(0);
         assertEquals("PingBody", typeName);
 
         // Check payload data exists
         long dataLen = msgs.get(ValueLayout.JAVA_LONG, MSG_DATA_LEN_OFFSET);
         assertTrue(dataLen > 0, "Decoded message should have payload data");
 
-        // Verify payload content by decoding the raw bytes
+        // Verify payload data exists and can be decoded as a full frame
         MemorySegment dataPtr = msgs.get(ValueLayout.ADDRESS, MSG_DATA_OFFSET);
         byte[] payloadBytes = dataPtr.reinterpret(dataLen).toArray(ValueLayout.JAVA_BYTE);
-        // The raw bytes from the CABI decode include the full frame bytes
-        // Decode the payload as PingBody from the raw field bytes
-        // Note: the raw field contains the message payload bytes (not the frame)
-        session_test.PingBody decodedPing = session_test.PingBody.decodeBytes(payloadBytes);
+        // The CABI decode returns the full frame bytes; decode as Packet
+        session_test.Packet decodedFrame = session_test.Packet.decodeBytes(payloadBytes);
+        assertInstanceOf(session_test.PingBody.class, decodedFrame.payload);
+        session_test.PingBody decodedPing = (session_test.PingBody) decodedFrame.payload;
         assertEquals(0x12345678, decodedPing.timestamp, "Decoded PingBody timestamp should match");
 
         // Free decoded messages
@@ -370,7 +370,7 @@ public class TestCodecCabi {
         session_test.Packet frame = session_test.Packet.wrap(data);
         byte[] frameBytes = frame.encodeBytes();
 
-        var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, frameBytes);
+        var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, frameBytes);
         var outMsgs = arena.allocate(ValueLayout.ADDRESS);
         var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -390,9 +390,12 @@ public class TestCodecCabi {
         long dataLen = msgs.get(ValueLayout.JAVA_LONG, MSG_DATA_LEN_OFFSET);
         assertTrue(dataLen > 0);
 
+        // CABI decode returns the full frame bytes
         MemorySegment dataPtr = msgs.get(ValueLayout.ADDRESS, MSG_DATA_OFFSET);
         byte[] payloadBytes = dataPtr.reinterpret(dataLen).toArray(ValueLayout.JAVA_BYTE);
-        session_test.DataBody decodedData = session_test.DataBody.decodeBytes(payloadBytes);
+        session_test.Packet decodedFrame = session_test.Packet.decodeBytes(payloadBytes);
+        assertInstanceOf(session_test.DataBody.class, decodedFrame.payload);
+        session_test.DataBody decodedData = (session_test.DataBody) decodedFrame.payload;
         assertEquals(42, decodedData.channel);
         assertEquals(0xDEADBEEF, decodedData.payloadA);
         assertEquals(0xCAFEBABE, decodedData.payloadB);
@@ -408,7 +411,7 @@ public class TestCodecCabi {
         session_test.Packet frame = session_test.Packet.wrap(ack);
         byte[] frameBytes = frame.encodeBytes();
 
-        var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, frameBytes);
+        var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, frameBytes);
         var outMsgs = arena.allocate(ValueLayout.ADDRESS);
         var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -428,9 +431,12 @@ public class TestCodecCabi {
         long dataLen = msgs.get(ValueLayout.JAVA_LONG, MSG_DATA_LEN_OFFSET);
         assertTrue(dataLen > 0);
 
+        // CABI decode returns the full frame bytes
         MemorySegment dataPtr = msgs.get(ValueLayout.ADDRESS, MSG_DATA_OFFSET);
         byte[] payloadBytes = dataPtr.reinterpret(dataLen).toArray(ValueLayout.JAVA_BYTE);
-        session_test.AckBody decodedAck = session_test.AckBody.decodeBytes(payloadBytes);
+        session_test.Packet decodedFrame = session_test.Packet.decodeBytes(payloadBytes);
+        assertInstanceOf(session_test.AckBody.class, decodedFrame.payload);
+        session_test.AckBody decodedAck = (session_test.AckBody) decodedFrame.payload;
         assertEquals(12345, decodedAck.ackedSeq);
 
         CodecBindings.conduit_free_decoded_msgs.invokeExact(msgsPtr, count);
@@ -448,7 +454,7 @@ public class TestCodecCabi {
         ping.timestamp = 0xAABBCCDD;
         byte[] payload = ping.encodeBytes();
 
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
         var encodeResult = arena.allocate(ENCODE_RESULT_SIZE);
 
         int err = (int) CodecBindings.conduit_encode_message.invokeExact(
@@ -482,7 +488,7 @@ public class TestCodecCabi {
         data.payloadB = 0x55667788;
         byte[] payload = data.encodeBytes();
 
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
         var encodeResult = arena.allocate(ENCODE_RESULT_SIZE);
 
         int err = (int) CodecBindings.conduit_encode_message.invokeExact(
@@ -511,7 +517,7 @@ public class TestCodecCabi {
         ping.timestamp = 42;
         byte[] payload = ping.encodeBytes();
 
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
         var encodeResult = arena.allocate(ENCODE_RESULT_SIZE);
 
         int encErr = (int) CodecBindings.conduit_encode_message.invokeExact(
@@ -523,7 +529,7 @@ public class TestCodecCabi {
         byte[] encodedFrame = encData.reinterpret(encLen).toArray(ValueLayout.JAVA_BYTE);
 
         // Now decode the frame via CABI
-        var frameSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, encodedFrame);
+        var frameSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, encodedFrame);
         var outMsgs = arena.allocate(ValueLayout.ADDRESS);
         var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -543,7 +549,10 @@ public class TestCodecCabi {
         long dataLen = msgs.get(ValueLayout.JAVA_LONG, MSG_DATA_LEN_OFFSET);
         MemorySegment dataPtr = msgs.get(ValueLayout.ADDRESS, MSG_DATA_OFFSET);
         byte[] decodedPayload = dataPtr.reinterpret(dataLen).toArray(ValueLayout.JAVA_BYTE);
-        session_test.PingBody decodedPing = session_test.PingBody.decodeBytes(decodedPayload);
+        // CABI decode returns the full frame bytes
+        session_test.Packet decodedFrame = session_test.Packet.decodeBytes(decodedPayload);
+        assertInstanceOf(session_test.PingBody.class, decodedFrame.payload);
+        session_test.PingBody decodedPing = (session_test.PingBody) decodedFrame.payload;
         assertEquals(42, decodedPing.timestamp, "Full encode-decode CABI roundtrip should preserve data");
 
         CodecBindings.conduit_free_decoded_msgs.invokeExact(msgsPtr, count);
@@ -554,7 +563,7 @@ public class TestCodecCabi {
     @DisplayName("Encode: unknown type ID returns error")
     void encodeUnknownTypeReturnsError() throws Throwable {
         byte[] payload = new byte[] { 0x00, 0x01 };
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
         var encodeResult = arena.allocate(ENCODE_RESULT_SIZE);
 
         int err = (int) CodecBindings.conduit_encode_message.invokeExact(
@@ -573,7 +582,7 @@ public class TestCodecCabi {
         session_test.PingBody ping = new session_test.PingBody();
         ping.timestamp = 1;
         byte[] payload = ping.encodeBytes();
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
         var encodeResult1 = arena.allocate(ENCODE_RESULT_SIZE);
 
         int err1 = (int) CodecBindings.conduit_encode_message.invokeExact(
@@ -643,7 +652,7 @@ public class TestCodecCabi {
             session_test.Packet frame = session_test.Packet.wrap(ping);
             byte[] frameBytes = frame.encodeBytes();
 
-            var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, frameBytes);
+            var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, frameBytes);
             var outFrames = arena.allocate(ValueLayout.ADDRESS);
             var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -697,7 +706,7 @@ public class TestCodecCabi {
             System.arraycopy(frame1, 0, combined, 0, frame1.length);
             System.arraycopy(frame2, 0, combined, frame1.length, frame2.length);
 
-            var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, combined);
+            var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, combined);
             var outFrames = arena.allocate(ValueLayout.ADDRESS);
             var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -738,7 +747,7 @@ public class TestCodecCabi {
             byte[] part2 = Arrays.copyOfRange(fullFrame, splitPoint, fullFrame.length);
 
             // Feed first part - should extract nothing
-            var dataSeg1 = arena.allocateFrom(ValueLayout.JAVA_BYTE, part1);
+            var dataSeg1 = arena.allocateArray(ValueLayout.JAVA_BYTE, part1);
             var outFrames1 = arena.allocate(ValueLayout.ADDRESS);
             var outCount1 = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -750,7 +759,7 @@ public class TestCodecCabi {
             assertEquals(0, count1, "Partial frame data should yield zero extracted frames");
 
             // Feed second part - should now extract the complete frame
-            var dataSeg2 = arena.allocateFrom(ValueLayout.JAVA_BYTE, part2);
+            var dataSeg2 = arena.allocateArray(ValueLayout.JAVA_BYTE, part2);
             var outFrames2 = arena.allocate(ValueLayout.ADDRESS);
             var outCount2 = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -794,7 +803,7 @@ public class TestCodecCabi {
 
             for (int i = 0; i < fullFrame.length; i++) {
                 byte[] singleByte = new byte[] { fullFrame[i] };
-                var dataSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, singleByte);
+                var dataSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, singleByte);
                 var outFrames = arena.allocate(ValueLayout.ADDRESS);
                 var outCount = arena.allocate(ValueLayout.JAVA_LONG);
 
@@ -834,7 +843,7 @@ public class TestCodecCabi {
         session_test.PingBody ping = new session_test.PingBody();
         ping.timestamp = 1;
         byte[] payload = ping.encodeBytes();
-        var payloadSeg = arena.allocateFrom(ValueLayout.JAVA_BYTE, payload);
+        var payloadSeg = arena.allocateArray(ValueLayout.JAVA_BYTE, payload);
 
         int[] seqs = new int[3];
         for (int i = 0; i < 3; i++) {
@@ -861,8 +870,8 @@ public class TestCodecCabi {
     @DisplayName("Introspection: multiple sessions can coexist")
     void multipleSessionsCoexist() throws Throwable {
         try (var localArena = Arena.ofConfined()) {
-            var name1 = localArena.allocateFrom("session_protocol");
-            var name2 = localArena.allocateFrom("choice_protocol");
+            var name1 = localArena.allocateUtf8String("session_protocol");
+            var name2 = localArena.allocateUtf8String("choice_protocol");
             MemorySegment s1 = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(name1);
             MemorySegment s2 = (MemorySegment) CodecBindings.conduit_session_create.invokeExact(name2);
 
@@ -878,8 +887,8 @@ public class TestCodecCabi {
             // Protocol names should differ
             MemorySegment pn1 = (MemorySegment) CodecBindings.conduit_session_protocol_name.invokeExact(s1);
             MemorySegment pn2 = (MemorySegment) CodecBindings.conduit_session_protocol_name.invokeExact(s2);
-            String name1Str = pn1.reinterpret(256).getString(0);
-            String name2Str = pn2.reinterpret(256).getString(0);
+            String name1Str = pn1.reinterpret(256).getUtf8String(0);
+            String name2Str = pn2.reinterpret(256).getUtf8String(0);
             assertNotEquals(name1Str, name2Str, "Different sessions should have different protocol names");
 
             CodecBindings.conduit_session_destroy.invokeExact(s1);
