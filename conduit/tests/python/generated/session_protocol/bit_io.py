@@ -123,6 +123,19 @@ class BitReader:
     def sub_reader(self, byte_count: int) -> 'BitReader':
         return BitReader(self.read_bytes(byte_count))
 
+    def align_to(self, boundary: int) -> None:
+        if boundary <= 0:
+            return
+        rem = self._bit_pos % 8
+        if rem != 0:
+            self._bit_pos += (8 - rem)
+        byte_pos = self._bit_pos // 8
+        b_rem = byte_pos % boundary
+        if b_rem != 0:
+            self._bit_pos += (boundary - b_rem) * 8
+        if self._bit_pos > self._bit_len:
+            self._bit_pos = self._bit_len
+
 
 class BitWriter:
     """Write individual bits and multi-byte values to a growable buffer."""

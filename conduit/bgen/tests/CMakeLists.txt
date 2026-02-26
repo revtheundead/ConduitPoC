@@ -286,6 +286,7 @@ catch_discover_tests(bgen_java_tests)
 
 add_executable(bgen_cross_backend_tests
     test_python_java_backends.cpp
+    test_cross_backend_wire_format.cpp
 )
 
 target_link_libraries(bgen_cross_backend_tests PRIVATE
