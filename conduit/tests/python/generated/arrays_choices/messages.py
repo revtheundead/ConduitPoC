@@ -75,9 +75,9 @@ class ChoiceMsg:
         result = ChoiceMsg()
         result.msg_type = r.read_u8()
         result.length = r.read_u16(True)
-        if result.msg_type == TYPE_A:
+        if result.msg_type == Constants.TYPE_A:
             result.body = TypeABody.decode(r)
-        elif result.msg_type == TYPE_B:
+        elif result.msg_type == Constants.TYPE_B:
             result.body = TypeBBody.decode(r)
         else:
             result.body = FallbackBody.decode(r)
@@ -99,4 +99,271 @@ class ChoiceMsg:
 
     def __repr__(self) -> str:
         return f'ChoiceMsg(msg_type={self.msg_type}, length={self.length}, body={self.body})'
+
+class Alpha:
+    __slots__ = ('a_val')
+
+    def __init__(self) -> None:
+        self.a_val = 0
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'Alpha':
+        result = Alpha()
+        result.a_val = r.read_u16(True)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'Alpha':
+        return Alpha.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u16(self.a_val, True)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'Alpha(a_val={self.a_val})'
+
+class Beta:
+    __slots__ = ('b_val')
+
+    def __init__(self) -> None:
+        self.b_val = 0
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'Beta':
+        result = Beta()
+        result.b_val = r.read_u32(True)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'Beta':
+        return Beta.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u32(self.b_val, True)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'Beta(b_val={self.b_val})'
+
+class Typed:
+    __slots__ = ('detail')
+
+    def __init__(self) -> None:
+        self.detail = None
+
+    @staticmethod
+    def decode(r: 'BitReader', sub_type) -> 'Typed':
+        result = Typed()
+        if sub_type == Constants.SUB_X:
+            result.detail = Alpha.decode(r)
+        elif sub_type == Constants.SUB_Y:
+            result.detail = Beta.decode(r)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'Typed':
+        return Typed.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        if self.detail is not None: self.detail.encode(w)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'Typed(detail={self.detail})'
+
+class Simple:
+    __slots__ = ('data')
+
+    def __init__(self) -> None:
+        self.data = 0
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'Simple':
+        result = Simple()
+        result.data = r.read_u32(True)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'Simple':
+        return Simple.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u32(self.data, True)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'Simple(data={self.data})'
+
+class NestedChoiceMsg:
+    __slots__ = ('msg_type', 'sub_type', 'body')
+
+    def __init__(self) -> None:
+        self.msg_type = 0
+        self.sub_type = 0
+        self.body = None
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'NestedChoiceMsg':
+        result = NestedChoiceMsg()
+        result.msg_type = r.read_u8()
+        result.sub_type = r.read_u8()
+        if result.msg_type == 1:
+            result.body = Typed.decode(r, result.sub_type)
+        elif result.msg_type == 2:
+            result.body = Simple.decode(r)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'NestedChoiceMsg':
+        return NestedChoiceMsg.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u8(self.msg_type)
+        w.write_u8(self.sub_type)
+        if self.body is not None: self.body.encode(w)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'NestedChoiceMsg(msg_type={self.msg_type}, sub_type={self.sub_type}, body={self.body})'
+
+class L3:
+    __slots__ = ('value')
+
+    def __init__(self) -> None:
+        self.value = 0
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'L3':
+        result = L3()
+        result.value = r.read_u32(True)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'L3':
+        return L3.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u32(self.value, True)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'L3(value={self.value})'
+
+class L2:
+    __slots__ = ('inner')
+
+    def __init__(self) -> None:
+        self.inner = None
+
+    @staticmethod
+    def decode(r: 'BitReader', type_c) -> 'L2':
+        result = L2()
+        if type_c == Constants.SUB_Y:
+            result.inner = L3.decode(r)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'L2':
+        return L2.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        if self.inner is not None: self.inner.encode(w)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'L2(inner={self.inner})'
+
+class L1:
+    __slots__ = ('mid')
+
+    def __init__(self) -> None:
+        self.mid = None
+
+    @staticmethod
+    def decode(r: 'BitReader', type_b, type_c) -> 'L1':
+        result = L1()
+        if type_b == Constants.SUB_X:
+            result.mid = L2.decode(r, type_c)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'L1':
+        return L1.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        if self.mid is not None: self.mid.encode(w)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'L1(mid={self.mid})'
+
+class DeepNestedMsg:
+    __slots__ = ('type_a', 'type_b', 'type_c', 'outer')
+
+    def __init__(self) -> None:
+        self.type_a = 0
+        self.type_b = 0
+        self.type_c = 0
+        self.outer = None
+
+    @staticmethod
+    def decode(r: 'BitReader') -> 'DeepNestedMsg':
+        result = DeepNestedMsg()
+        result.type_a = r.read_u8()
+        result.type_b = r.read_u8()
+        result.type_c = r.read_u8()
+        if result.type_a == 1:
+            result.outer = L1.decode(r, result.type_b, result.type_c)
+        return result
+
+    @staticmethod
+    def decode_bytes(data: bytes) -> 'DeepNestedMsg':
+        return DeepNestedMsg.decode(BitReader(data))
+
+    def encode(self, w: 'BitWriter') -> None:
+        w.write_u8(self.type_a)
+        w.write_u8(self.type_b)
+        w.write_u8(self.type_c)
+        if self.outer is not None: self.outer.encode(w)
+
+    def encode_bytes(self) -> bytes:
+        w = BitWriter()
+        self.encode(w)
+        return w.to_bytes()
+
+    def __repr__(self) -> str:
+        return f'DeepNestedMsg(type_a={self.type_a}, type_b={self.type_b}, type_c={self.type_c}, outer={self.outer})'
 

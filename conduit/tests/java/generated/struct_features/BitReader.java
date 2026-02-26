@@ -81,17 +81,5 @@ public final class BitReader {
         long sign = readBits(1); long mag = readBits(bits-1); return sign != 0 ? -mag : mag;
     }
     public void skipBits(int n) { check(n); bitPos += n; }
-    public void alignTo(int byteAlignment) {
-        // First align to byte boundary
-        if (bitPos % 8 != 0) {
-            bitPos = ((bitPos + 7) / 8) * 8;
-        }
-        // Then align to the requested byte alignment
-        int bytePos = bitPos / 8;
-        int rem = bytePos % byteAlignment;
-        if (rem != 0) {
-            bitPos += (byteAlignment - rem) * 8;
-        }
-    }
     public BitReader subReader(int byteCount) { return new BitReader(readBytes(byteCount)); }
 }

@@ -8,7 +8,6 @@ public final class CommonPayload {
     public static final String TYPE_NAME = "CommonPayload";
     public static final int ID_VALUE = 2;
 
-    public int tag = 0;
     public int commonData = 0;
 
     public static CommonPayload decode(BitReader r) {
