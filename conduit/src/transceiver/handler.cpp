@@ -79,6 +79,77 @@ void HandlerRegistry::remove_peer(PeerId peer) {
     per_peer_catch_all_.erase(peer.value());
 }
 
+void HandlerRegistry::set_raw_catch_all(RawCatchAllFn cb) {
+    std::unique_lock lock(mutex_);
+    raw_catch_all_ = std::make_shared<const RawCatchAllFn>(std::move(cb));
+}
+
+DispatchResult HandlerRegistry::dispatch(PeerId peer, uint64_t type_id,
+                                          const std::any& payload,
+                                          std::span<const uint8_t> raw) {
+    std::shared_ptr<const ErasedHandler> handler_ptr;
+    std::shared_ptr<const CatchAllFn> catch_all_ptr;
+    std::shared_ptr<const RawCatchAllFn> raw_catch_all_ptr;
+
+    {
+        std::shared_lock lock(mutex_);
+
+        auto it = per_peer_handlers_.find(HandlerKey{peer, type_id});
+        if (it != per_peer_handlers_.end()) {
+            handler_ptr = it->second;
+        } else {
+            auto git = global_handlers_.find(type_id);
+            if (git != global_handlers_.end()) {
+                handler_ptr = git->second;
+            } else {
+                auto cit = per_peer_catch_all_.find(peer.value());
+                if (cit != per_peer_catch_all_.end()) {
+                    catch_all_ptr = cit->second;
+                } else if (catch_all_) {
+                    catch_all_ptr = catch_all_;
+                }
+            }
+        }
+        // Raw catch-all fires in addition to typed handlers
+        if (raw_catch_all_) {
+            raw_catch_all_ptr = raw_catch_all_;
+        }
+    }
+
+    try {
+        // Always fire the raw catch-all if set (for C ABI forwarding)
+        if (raw_catch_all_ptr) {
+            (*raw_catch_all_ptr)(peer, type_id, payload, raw);
+        }
+
+        if (handler_ptr) {
+            handler_ptr->invoke(payload);
+            return DispatchResult::Handled;
+        }
+        if (catch_all_ptr) {
+            (*catch_all_ptr)(type_id, payload);
+            return DispatchResult::Handled;
+        }
+    } catch (const std::bad_any_cast& e) {
+        LOG_ERRORF("Handler type mismatch for type_id={}: {}", type_id, e.what());
+        return DispatchResult::Error;
+    } catch (const std::exception& e) {
+        LOG_ERRORF("Handler threw exception for type_id={}: {}", type_id, e.what());
+        return DispatchResult::Error;
+    } catch (...) {
+        LOG_ERRORF("Handler threw unknown exception for type_id={}", type_id);
+        return DispatchResult::Error;
+    }
+
+    // If raw_catch_all handled it but no typed handler was found,
+    // still count as Handled (C ABI dispatched it)
+    if (raw_catch_all_ptr) {
+        return DispatchResult::Handled;
+    }
+
+    return DispatchResult::NotFound;
+}
+
 DispatchResult HandlerRegistry::dispatch(PeerId peer, uint64_t type_id, const std::any& payload) {
     std::shared_ptr<const ErasedHandler> handler_ptr;
     std::shared_ptr<const CatchAllFn> catch_all_ptr;

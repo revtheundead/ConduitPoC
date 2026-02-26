@@ -123,6 +123,12 @@ public:
     // Send
     // ========================================================================
 
+    // Send raw payload bytes for a given type to a specific peer.
+    // The session's encode_wrap will decode the bytes to get the typed message,
+    // then re-encode with framing, auto-fields, etc.
+    VoidResult send_raw(PeerId peer, uint64_t type_id,
+                        std::span<const uint8_t> payload_bytes);
+
     // Send typed message to a specific peer.
     template<traits::Message T>
     VoidResult send(PeerId peer, const T& msg) {
@@ -175,6 +181,9 @@ public:
     [[nodiscard]] size_t peer_count() const;
     [[nodiscard]] std::vector<PeerId> peer_ids() const;
     [[nodiscard]] const TransceiverStats& stats() const noexcept { return stats_; }
+
+    // Access the handler registry (for C ABI raw catch-all installation).
+    HandlerRegistry& handlers() noexcept { return handlers_; }
 
 private:
     // Internal peer context

@@ -57,8 +57,8 @@ struct TransceiverWrapper {
     conduit::transceiver::Transceiver xcvr;
     uint32_t next_cb_id = 1;
 
-    // Track the catch-all handler that dispatches to C callbacks
-    bool catch_all_installed = false;
+    // Track the raw catch-all that dispatches to C callbacks
+    bool raw_catch_all_installed = false;
 
     // Message callback entries
     struct MsgCbEntry {
@@ -70,31 +70,29 @@ struct TransceiverWrapper {
     std::mutex msg_cb_mutex;
     std::vector<MsgCbEntry> msg_callbacks;
 
-    // Install a global catch-all that dispatches to registered C callbacks
-    void ensure_catch_all() {
-        if (catch_all_installed) return;
-        catch_all_installed = true;
+    // Install a raw catch-all that dispatches to registered C callbacks.
+    // Uses the raw-bytes-aware path so callbacks receive actual message data.
+    void ensure_raw_catch_all() {
+        if (raw_catch_all_installed) return;
+        raw_catch_all_installed = true;
 
-        // Install a catch-all that fires all registered C callbacks
-        conduit::transceiver::MessageHandler handler;
-        handler.on_any([this](uint64_t type_id, const std::any& /*payload*/) {
-            // Try to extract DecodedMessage info
-            // The catch-all receives (type_id, payload-as-any)
-            // We need to find the raw bytes. The payload is the typed message,
-            // not the raw bytes. For C ABI we need raw bytes.
-            // Unfortunately, the catch-all gets the typed std::any, not raw bytes.
-
-            // For the C ABI, we invoke callbacks that registered for this type_id
-            std::lock_guard lock(msg_cb_mutex);
-            for (auto& entry : msg_callbacks) {
-                if (entry.type_id == 0 || entry.type_id == type_id) {
-                    // We don't have raw bytes in the catch-all path.
-                    // Pass nullptr/0 for data since we can't extract raw bytes here.
-                    entry.callback(0, type_id, "", nullptr, 0, entry.user_data);
+        xcvr.handlers().set_raw_catch_all(
+            [this](conduit::transceiver::PeerId peer,
+                   uint64_t type_id,
+                   const std::any& /*payload*/,
+                   std::span<const uint8_t> raw) {
+                // Look up type name from session (best-effort; may be empty)
+                // The type_name will be set by callbacks that need it.
+                std::lock_guard lock(msg_cb_mutex);
+                for (auto& entry : msg_callbacks) {
+                    if (entry.type_id == 0 || entry.type_id == type_id) {
+                        entry.callback(
+                            peer.value(), type_id, "",
+                            raw.data(), raw.size(),
+                            entry.user_data);
+                    }
                 }
-            }
-        });
-        xcvr.set_handler(handler);
+            });
     }
 };
 
@@ -256,21 +254,24 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_sole_peer(
 }
 
 // ============================================================================
-// Messaging (send is not available without typed messages in the public API)
-// These are placeholders that return errors for raw-bytes send.
-// Full implementation would require extending Transceiver with raw-bytes API.
+// Messaging
 // ============================================================================
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_send(
     conduit_transceiver_t* xcvr,
-    conduit_peer_id /*peer*/,
-    uint64_t /*type_id*/,
-    const uint8_t* /*data*/, size_t /*len*/) {
+    conduit_peer_id peer,
+    uint64_t type_id,
+    const uint8_t* data, size_t len) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
-    // Raw-bytes send requires extending Transceiver's public API.
-    // For now, return not supported.
-    return CONDUIT_XCVR_ERR_UNKNOWN;
+    if (!data && len > 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    auto result = wrapper->xcvr.send_raw(
+        conduit::transceiver::PeerId{peer}, type_id,
+        std::span<const uint8_t>(data, len));
+    if (!result) return map_xcvr_error(result.error());
+    return CONDUIT_XCVR_OK;
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
@@ -300,7 +301,7 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_message(
     std::lock_guard lock(wrapper->msg_cb_mutex);
     auto id = wrapper->next_cb_id++;
     wrapper->msg_callbacks.push_back({id, type_id, callback, user_data});
-    wrapper->ensure_catch_all();
+    wrapper->ensure_raw_catch_all();
 
     return id;
 }
@@ -407,6 +408,42 @@ CONDUIT_CABI_API int32_t conduit_peer_state(
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     return static_cast<int32_t>(
         wrapper->xcvr.peer_state(conduit::transceiver::PeerId{peer}));
+}
+
+// ============================================================================
+// Statistics
+// ============================================================================
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats(
+    const conduit_transceiver_t* xcvr,
+    conduit_stats_snapshot_t* out) {
+
+    if (!xcvr || !out) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
+    auto snap = wrapper->xcvr.stats().snapshot();
+
+    out->messages_received  = snap.messages_received;
+    out->messages_dispatched = snap.messages_dispatched;
+    out->messages_dropped   = snap.messages_dropped;
+    out->decode_errors      = snap.decode_errors;
+    out->handler_errors     = snap.handler_errors;
+    out->handler_timeouts   = snap.handler_timeouts;
+    out->bytes_received     = snap.bytes_received;
+    out->bytes_sent         = snap.bytes_sent;
+
+    return CONDUIT_XCVR_OK;
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
+    conduit_transceiver_t* xcvr) {
+
+    if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    const_cast<conduit::transceiver::TransceiverStats&>(wrapper->xcvr.stats()).reset();
+
+    return CONDUIT_XCVR_OK;
 }
 
 // ============================================================================

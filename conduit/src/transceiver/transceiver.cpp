@@ -434,6 +434,15 @@ std::vector<PeerId> Transceiver::peer_ids() const {
 // Send pipeline
 // ============================================================================
 
+VoidResult Transceiver::send_raw(PeerId peer, uint64_t type_id,
+                                 std::span<const uint8_t> payload_bytes) {
+    // Wrap raw bytes in a vector<uint8_t> any — the generated encode_wrap()
+    // already handles this case: it tries any_cast<T> first, and if that fails,
+    // falls back to any_cast<vector<uint8_t>>, decodes, then encodes with framing.
+    std::vector<uint8_t> raw(payload_bytes.begin(), payload_bytes.end());
+    return send_impl(peer, type_id, std::any(std::move(raw)));
+}
+
 VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
                                   const std::any& payload) {
     CONDUIT_ENSURE(running_, ErrorCode::NotRunning,
@@ -882,7 +891,8 @@ void Transceiver::worker_loop() {
         auto before = std::chrono::steady_clock::now();
 
         auto result = handlers_.dispatch(
-            msg->peer, msg->decoded.type_id, msg->decoded.payload);
+            msg->peer, msg->decoded.type_id, msg->decoded.payload,
+            msg->decoded.raw);
 
         // Handler timeout warning
         auto handler_timeout = config_.worker.handler_timeout;
