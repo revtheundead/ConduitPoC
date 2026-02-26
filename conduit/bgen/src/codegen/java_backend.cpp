@@ -573,6 +573,11 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         ctx.line(j_write_stmt("(int)" + array_member + ".size()", fi) + ";");
         return;
     }
+    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Id) {
+        // auto="id": write the message's ID_VALUE constant
+        ctx.line(j_write_stmt("ID_VALUE", fi) + ";");
+        return;
+    }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); return; }
     if (fi.is_string) {
         if (f.length) {
@@ -669,6 +674,8 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("r.alignTo(" + std::to_string(al->to) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             emit_j_decode_children(ctx, fx->children, index, pfx);
         }
@@ -737,6 +744,8 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("w.alignTo(" + std::to_string(al->to) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             emit_j_encode_children(ctx, fx->children, index, pfx, len_ref_target);
         }
@@ -1508,16 +1517,28 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     ctx.line("public final class " + session_class + " {");
     ctx.indent();
 
-    // LEAF_TYPES map
-    ctx.line("public static final Map<Long, String> LEAF_TYPES = Map.of(");
-    ctx.indent();
-    for (size_t i = 0; i < si.leaf_types.size(); i++) {
-        const auto& lt = si.leaf_types[i];
-        std::string comma = (i + 1 < si.leaf_types.size()) ? "," : "";
-        ctx.line(j_hex64(lt.type_id) + ", \"" + lt.name + "\"" + comma);
+    // LEAF_TYPES map (use Map.ofEntries for >10 entries to avoid Map.of() limit)
+    if (si.leaf_types.size() > 10) {
+        ctx.line("public static final Map<Long, String> LEAF_TYPES = Map.ofEntries(");
+        ctx.indent();
+        for (size_t i = 0; i < si.leaf_types.size(); i++) {
+            const auto& lt = si.leaf_types[i];
+            std::string comma = (i + 1 < si.leaf_types.size()) ? "," : "";
+            ctx.line("Map.entry(" + j_hex64(lt.type_id) + ", \"" + lt.name + "\")" + comma);
+        }
+        ctx.dedent();
+        ctx.line(");");
+    } else {
+        ctx.line("public static final Map<Long, String> LEAF_TYPES = Map.of(");
+        ctx.indent();
+        for (size_t i = 0; i < si.leaf_types.size(); i++) {
+            const auto& lt = si.leaf_types[i];
+            std::string comma = (i + 1 < si.leaf_types.size()) ? "," : "";
+            ctx.line(j_hex64(lt.type_id) + ", \"" + lt.name + "\"" + comma);
+        }
+        ctx.dedent();
+        ctx.line(");");
     }
-    ctx.dedent();
-    ctx.line(");");
     ctx.line();
 
     // Private state

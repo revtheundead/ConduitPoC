@@ -809,10 +809,27 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx) {
     auto fi = py_resolve_field(f, index);
     std::string m = pfx + "." + py_field(f.name);
-    if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
-        ctx.line("_len_pos = w.size_bytes()");
-        ctx.line(py_write_stmt("0", fi));
-        return;
+    if (f.auto_expr) {
+        if (f.auto_expr->kind == model::AutoKind::Length) {
+            ctx.line("_len_pos = w.size_bytes()");
+            ctx.line(py_write_stmt("0", fi));
+            return;
+        }
+        if (f.auto_expr->kind == model::AutoKind::Count) {
+            // Auto-count: write the length of the referenced array
+            std::string ref_name = f.auto_expr->field_ref.empty() ? "" : py_field(f.auto_expr->field_ref);
+            if (!ref_name.empty()) {
+                ctx.line(py_write_stmt("len(" + pfx + "." + ref_name + ")", fi));
+            } else {
+                ctx.line(py_write_stmt("0", fi));
+            }
+            return;
+        }
+        if (f.auto_expr->kind == model::AutoKind::Id) {
+            // Auto-id: write the ID_VALUE constant
+            ctx.line(py_write_stmt(pfx + ".ID_VALUE", fi));
+            return;
+        }
     }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w)"); return; }
     if (fi.is_string) {
@@ -911,6 +928,8 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skip_bits(" + std::to_string(res->bits) + ")");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("r.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             emit_py_decode_children(ctx, fx->children, index, pfx);
         }
@@ -943,6 +962,8 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("if " + m + " is not None: " + m + ".encode(w)");
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.write_bits(0, " + std::to_string(res->bits) + ")");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("w.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             emit_py_encode_children(ctx, fx->children, index, pfx);
         }
@@ -1058,7 +1079,32 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.line("def encode(self, w: 'BitWriter') -> None:");
     ctx.indent();
     if (children.empty()) ctx.line("pass");
-    else emit_py_encode_children(ctx, children, index, "self");
+    else {
+        emit_py_encode_children(ctx, children, index, "self");
+        // Auto-length backpatching: find any field with auto="length" and patch the written placeholder
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                    auto lfi = py_resolve_field(*f, index);
+                    std::string length_expr = "w.size_bytes() - _len_pos";
+                    if (f->auto_expr->modifier.has_modifier()) {
+                        auto& mod = f->auto_expr->modifier;
+                        // Reverse the modifier: if wire = actual + offset, then patch = actual - offset
+                        if (mod.op == model::ArithOp::Add)
+                            length_expr += " - " + std::to_string(mod.literal);
+                        else if (mod.op == model::ArithOp::Sub)
+                            length_expr += " + " + std::to_string(mod.literal);
+                    }
+                    if (lfi.bits <= 8) ctx.line("w.patch_u8(_len_pos, " + length_expr + ")");
+                    else if (lfi.bits <= 16) ctx.line("w.patch_u16(_len_pos, " + length_expr + ", " +
+                        std::string((lfi.endian == model::Endian::Big) ? "True" : "False") + ")");
+                    else ctx.line("w.patch_u32(_len_pos, " + length_expr + ", " +
+                        std::string((lfi.endian == model::Endian::Big) ? "True" : "False") + ")");
+                    break; // Only one length field per struct
+                }
+            }
+        }
+    }
     ctx.dedent();
     ctx.line();
 

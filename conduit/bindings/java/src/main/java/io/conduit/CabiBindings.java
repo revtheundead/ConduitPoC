@@ -47,6 +47,21 @@ public final class CabiBindings {
     public static final MethodHandle conduit_peer_count;
     public static final MethodHandle conduit_peer_state;
 
+    // Messaging
+    public static final MethodHandle conduit_send;
+    public static final MethodHandle conduit_send_batch;
+
+    // Handler registration
+    public static final MethodHandle conduit_on_message;
+    public static final MethodHandle conduit_on_any_message;
+    public static final MethodHandle conduit_remove_handler;
+
+    // State & error callbacks
+    public static final MethodHandle conduit_on_state_change;
+    public static final MethodHandle conduit_remove_state_change;
+    public static final MethodHandle conduit_on_error;
+    public static final MethodHandle conduit_remove_error_callback;
+
     // Version
     public static final MethodHandle conduit_version;
 
@@ -76,6 +91,44 @@ public final class CabiBindings {
         conduit_peer_count = lookup("conduit_peer_count",
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
         conduit_peer_state = lookup("conduit_peer_state",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+
+        // Messaging: conduit_send(xcvr, peer, type_id, data, len) -> error
+        conduit_send = lookup("conduit_send",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        // conduit_send_batch(xcvr, peer, type_id, payloads, lens, count) -> error
+        conduit_send_batch = lookup("conduit_send_batch",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+
+        // Handler registration: conduit_on_message(xcvr, type_id, callback, user_data) -> callback_id
+        conduit_on_message = lookup("conduit_on_message",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        conduit_on_any_message = lookup("conduit_on_any_message",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        // conduit_remove_handler(xcvr, peer, type_id) -> int
+        conduit_remove_handler = lookup("conduit_remove_handler",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
+
+        // State & error callbacks
+        conduit_on_state_change = lookup("conduit_on_state_change",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        conduit_remove_state_change = lookup("conduit_remove_state_change",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        conduit_on_error = lookup("conduit_on_error",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        conduit_remove_error_callback = lookup("conduit_remove_error_callback",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
 

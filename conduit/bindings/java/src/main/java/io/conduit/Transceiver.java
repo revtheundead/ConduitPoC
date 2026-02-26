@@ -152,6 +152,50 @@ public class Transceiver implements AutoCloseable {
         }
     }
 
+    /**
+     * Look up a peer by name.
+     *
+     * @param name  The peer name
+     * @return Peer ID
+     */
+    public int peerByName(String name) {
+        try {
+            var nameStr = arena.allocateFrom(name);
+            var pidOut = arena.allocate(ValueLayout.JAVA_INT);
+            int err = (int) CabiBindings.conduit_peer_by_name.invokeExact(handle, nameStr, pidOut);
+            if (err != 0) {
+                throw new ConduitError(err, "Peer not found: '" + name + "'");
+            }
+            return pidOut.get(ValueLayout.JAVA_INT, 0);
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("peerByName failed", e);
+        }
+    }
+
+    /**
+     * Send raw bytes as a message.
+     *
+     * @param peerId  Target peer ID
+     * @param typeId  Message type ID
+     * @param data    Raw message payload
+     */
+    public void send(int peerId, long typeId, byte[] data) {
+        try (var sendArena = Arena.ofConfined()) {
+            var buf = sendArena.allocateFrom(ValueLayout.JAVA_BYTE, data);
+            int err = (int) CabiBindings.conduit_send.invokeExact(
+                handle, peerId, typeId, buf, (long) data.length);
+            if (err != 0) {
+                throw new ConduitError(err, "send failed");
+            }
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("send failed", e);
+        }
+    }
+
     /** Get the library version string. */
     public static String version() {
         try {
@@ -165,22 +209,25 @@ public class Transceiver implements AutoCloseable {
 
     @Override
     public void close() {
-        if (handle != null && handle != MemorySegment.NULL) {
+        var h = handle;
+        if (h != null && h != MemorySegment.NULL) {
+            handle = MemorySegment.NULL;
             try {
                 // Stop before destroying to avoid undefined behavior with running I/O threads
-                if (isRunning()) {
-                    stop();
+                if ((int) CabiBindings.conduit_is_running.invokeExact(h) != 0) {
+                    CabiBindings.conduit_stop.invokeExact(h);
                 }
             } catch (Throwable ignored) {
                 // Best-effort stop; proceed with destroy
             }
             try {
-                CabiBindings.conduit_destroy.invokeExact(handle);
+                CabiBindings.conduit_destroy.invokeExact(h);
             } catch (Throwable e) {
                 throw new RuntimeException("destroy failed", e);
             }
-            handle = MemorySegment.NULL;
         }
-        arena.close();
+        if (arena.scope().isAlive()) {
+            arena.close();
+        }
     }
 }

@@ -281,6 +281,8 @@ CONDUIT_CODEC_API conduit_error_t conduit_encode_batch(
 
     if (!session || !session->session || !out_result)
         return CONDUIT_ERR_UNKNOWN;
+    if (count > 0 && (!payloads || !payload_lens))
+        return CONDUIT_ERR_UNKNOWN;
 
     out_result->data = nullptr;
     out_result->data_len = 0;
@@ -352,7 +354,7 @@ CONDUIT_CODEC_API conduit_error_t conduit_format_message(
     const uint8_t* payload, size_t payload_len,
     char* buf, size_t buf_len, size_t* out_written) {
 
-    if (!session || !session->session || !buf || !out_written)
+    if (!session || !session->session || !buf || !out_written || buf_len == 0)
         return CONDUIT_ERR_UNKNOWN;
 
     *out_written = 0;

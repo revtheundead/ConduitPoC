@@ -253,8 +253,10 @@ class CodecSession:
         if err != 0:
             raise ConduitCodecError(err, "encode_message failed")
 
-        wire_bytes = bytes(result.data[i] for i in range(result.data_len)) if result.data else b""
-        self._lib.conduit_free_encode_result(ctypes.byref(result))
+        try:
+            wire_bytes = bytes(result.data[i] for i in range(result.data_len)) if result.data else b""
+        finally:
+            self._lib.conduit_free_encode_result(ctypes.byref(result))
         return wire_bytes
 
     def type_name(self, type_id: int) -> str:
