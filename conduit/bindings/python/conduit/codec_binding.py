@@ -121,6 +121,24 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     lib.conduit_free_encode_result.argtypes = [ctypes.POINTER(_EncodeResult)]
     lib.conduit_free_encode_result.restype = None
 
+    # Batch encode
+    lib.conduit_encode_batch.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint64,
+        ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)),
+        ctypes.POINTER(ctypes.c_size_t), ctypes.c_size_t,
+        ctypes.POINTER(_EncodeResult),
+    ]
+    lib.conduit_encode_batch.restype = ctypes.c_int32
+
+    # Human-readable formatting
+    lib.conduit_format_message.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint64,
+        ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_char), ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_size_t),
+    ]
+    lib.conduit_format_message.restype = ctypes.c_int32
+
     # Introspection
     lib.conduit_session_type_name.argtypes = [ctypes.c_void_p, ctypes.c_uint64]
     lib.conduit_session_type_name.restype = ctypes.c_char_p
@@ -263,6 +281,63 @@ class CodecSession:
         finally:
             self._lib.conduit_free_encode_result(ctypes.byref(result))
         return wire_bytes
+
+    def encode_batch(self, type_id: int, payloads: list[bytes]) -> bytes:
+        """Encode a batch of payloads into wire bytes."""
+        if not self._handle:
+            raise ConduitCodecError(-99, "session is closed")
+        count = len(payloads)
+        if count == 0:
+            return b""
+
+        ArrayOfPtr = ctypes.POINTER(ctypes.c_uint8) * count
+        ArrayOfLen = ctypes.c_size_t * count
+
+        buffers = []
+        ptrs = ArrayOfPtr()
+        lens = ArrayOfLen()
+
+        for i, payload in enumerate(payloads):
+            buf = (ctypes.c_uint8 * len(payload))(*payload)
+            buffers.append(buf)  # prevent GC
+            ptrs[i] = ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8))
+            lens[i] = len(payload)
+
+        result = _EncodeResult()
+        err = self._lib.conduit_encode_batch(
+            self._handle, type_id,
+            ctypes.cast(ptrs, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8))),
+            ctypes.cast(lens, ctypes.POINTER(ctypes.c_size_t)),
+            count, ctypes.byref(result))
+
+        if err != 0:
+            raise ConduitCodecError(err, "encode_batch failed")
+
+        try:
+            wire_bytes = bytes(result.data[i] for i in range(result.data_len)) if result.data else b""
+        finally:
+            self._lib.conduit_free_encode_result(ctypes.byref(result))
+        return wire_bytes
+
+    def format_message(self, type_id: int, payload: bytes,
+                       buf_size: int = 4096) -> str:
+        """Format a message as a human-readable string."""
+        if not self._handle:
+            raise ConduitCodecError(-99, "session is closed")
+
+        buf_in = (ctypes.c_uint8 * len(payload))(*payload)
+        buf_out = ctypes.create_string_buffer(buf_size)
+        written = ctypes.c_size_t(0)
+
+        err = self._lib.conduit_format_message(
+            self._handle, type_id,
+            buf_in, len(payload),
+            buf_out, buf_size, ctypes.byref(written))
+
+        if err != 0:
+            raise ConduitCodecError(err, "format_message failed")
+
+        return buf_out.value.decode("utf-8")
 
     def type_name(self, type_id: int) -> str:
         """Get the type name for a given type ID."""

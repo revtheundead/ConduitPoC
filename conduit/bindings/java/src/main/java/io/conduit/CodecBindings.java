@@ -43,6 +43,12 @@ public final class CodecBindings {
     public static final MethodHandle conduit_encode_message;
     public static final MethodHandle conduit_free_encode_result;
 
+    // Batch encode
+    public static final MethodHandle conduit_encode_batch;
+
+    // Human-readable formatting
+    public static final MethodHandle conduit_format_message;
+
     // Introspection
     public static final MethodHandle conduit_session_type_name;
     public static final MethodHandle conduit_session_leaf_type_count;
@@ -81,6 +87,21 @@ public final class CodecBindings {
                 ValueLayout.ADDRESS));
         conduit_free_encode_result = lookup("conduit_free_encode_result",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+
+        // conduit_encode_batch(session, type_id, payloads, payload_lens, count, out_result) -> error
+        conduit_encode_batch = lookup("conduit_encode_batch",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS));
+
+        // conduit_format_message(session, type_id, payload, len, buf, buf_len, out_written) -> error
+        conduit_format_message = lookup("conduit_format_message",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS));
 
         conduit_session_type_name = lookup("conduit_session_type_name",
             FunctionDescriptor.of(ValueLayout.ADDRESS,
