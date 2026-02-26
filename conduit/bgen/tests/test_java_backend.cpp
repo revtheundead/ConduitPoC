@@ -971,3 +971,148 @@ TEST_CASE("Java: struct features generate output", "[java]") {
     REQUIRE(java.has_value());
     CHECK(!java->files.empty());
 }
+
+// ============================================================================
+// Java backend basic codegen tests (moved from cross-backend tests)
+// ============================================================================
+
+TEST_CASE("Java: generates infrastructure files", "[codegen][java]") {
+    auto java = gen_java("minimal.bmdl.xml");
+    REQUIRE(java.has_value());
+    CHECK(java->files.count("BitReader.java"));
+    CHECK(java->files.count("BitWriter.java"));
+    CHECK(java->files.count("ConduitCodecException.java"));
+    CHECK(java->files.count("Constants.java"));
+    CHECK(java->files.count("Protocol.java"));
+}
+
+TEST_CASE("Java: message class has decode/encode", "[codegen][java]") {
+    auto java = gen_java("minimal.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["SimpleMessage.java"];
+    CHECK(msg.find("public final class SimpleMessage") != std::string::npos);
+    CHECK(msg.find("public static SimpleMessage decode(BitReader r)") != std::string::npos);
+    CHECK(msg.find("public void encode(BitWriter w)") != std::string::npos);
+    CHECK(msg.find("decodeBytes") != std::string::npos);
+    CHECK(msg.find("encodeBytes") != std::string::npos);
+}
+
+TEST_CASE("Java: bool field uses correct encode (not (int)cast)", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["AllTypesMessage.java"];
+    CHECK(msg.find("this.flag ? 1 : 0") != std::string::npos);
+    CHECK(msg.find("(int)this.flag") == std::string::npos);
+}
+
+TEST_CASE("Java: double field uses 0.0 init (not 0.0f)", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["AllTypesMessage.java"];
+    CHECK(msg.find("public float f32 = 0.0f;") != std::string::npos);
+    CHECK(msg.find("public double f64 = 0.0;") != std::string::npos);
+    CHECK(msg.find("double f64 = 0.0f") == std::string::npos);
+}
+
+TEST_CASE("Java: enum type generates enum class", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    REQUIRE(java->files.count("ColorEnum.java"));
+    auto& ce = java->files["ColorEnum.java"];
+    CHECK(ce.find("public enum ColorEnum") != std::string::npos);
+    CHECK(ce.find("RED(") != std::string::npos);
+    CHECK(ce.find("GREEN(") != std::string::npos);
+    CHECK(ce.find("BLUE(") != std::string::npos);
+    CHECK(ce.find("decode(BitReader r)") != std::string::npos);
+    CHECK(ce.find("encode(BitWriter w)") != std::string::npos);
+}
+
+TEST_CASE("Java: flags type uses long raw", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    REQUIRE(java->files.count("StatusFlags.java"));
+    auto& sf = java->files["StatusFlags.java"];
+    CHECK(sf.find("private long raw;") != std::string::npos);
+    CHECK(sf.find("1L<<") != std::string::npos);
+}
+
+TEST_CASE("Java: scaled type generates wrapper class", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    REQUIRE(java->files.count("ScaledTemp.java"));
+    auto& st = java->files["ScaledTemp.java"];
+    CHECK(st.find("public final class ScaledTemp") != std::string::npos);
+    CHECK(st.find("0.01") != std::string::npos);
+    CHECK(st.find("double value()") != std::string::npos);
+}
+
+TEST_CASE("Java: inline choice types get separate files", "[codegen][java]") {
+    auto java = gen_java("arrays_choices.bmdl.xml");
+    REQUIRE(java.has_value());
+    CHECK(java->files.count("TypeABody.java"));
+    CHECK(java->files.count("TypeBBody.java"));
+    CHECK(java->files.count("FallbackBody.java"));
+}
+
+TEST_CASE("Java: arrays have List type", "[codegen][java]") {
+    auto java = gen_java("arrays_choices.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["FixedArrayMsg.java"];
+    CHECK(msg.find("java.util.List<") != std::string::npos);
+    CHECK(msg.find("new java.util.ArrayList<>()") != std::string::npos);
+}
+
+TEST_CASE("Java: protocol class has type registry", "[codegen][java]") {
+    auto java = gen_java("choice_protocol.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& prot = java->files["Protocol.java"];
+    CHECK(prot.find("public final class Protocol") != std::string::npos);
+    CHECK(prot.find("TypeInfo") != std::string::npos);
+    CHECK(prot.find("findById") != std::string::npos);
+    CHECK(prot.find("findByName") != std::string::npos);
+}
+
+TEST_CASE("Java: byte[] field toString uses Arrays.toString", "[codegen][java]") {
+    auto java = gen_java("bytes_numeric.bmdl.xml");
+    REQUIRE(java.has_value());
+    REQUIRE(java->files.count("LargeBytesMsg.java"));
+    auto& msg = java->files["LargeBytesMsg.java"];
+    CHECK(msg.find("java.util.Arrays.toString(blob)") != std::string::npos);
+}
+
+TEST_CASE("Java: LE fields use false for big_endian", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["AllTypesMessage.java"];
+    CHECK(msg.find("readU16(false)") != std::string::npos);
+    CHECK(msg.find("readU32(false)") != std::string::npos);
+}
+
+TEST_CASE("Java: package declaration present", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["AllTypesMessage.java"];
+    CHECK(msg.find("package all_types;") != std::string::npos);
+}
+
+TEST_CASE("Java: generates output for all_types fixture", "[codegen][java]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    CHECK(java->files.size() >= 8);
+}
+
+TEST_CASE("Java: generates output for major fixtures", "[codegen][java]") {
+    std::vector<std::string> fixtures = {
+        "choice_protocol.bmdl.xml", "arrays_choices.bmdl.xml",
+        "string_features.bmdl.xml", "inline_field_types.bmdl.xml",
+        "wire_encodings.bmdl.xml", "mixed_endian.bmdl.xml",
+        "bitmap_fx.bmdl.xml", "constraints.bmdl.xml",
+        "field_scale.bmdl.xml", "expr_features.bmdl.xml",
+        "format_binary.bmdl.xml",
+    };
+    for (const auto& fixture : fixtures) {
+        INFO("Fixture: " << fixture);
+        auto java = gen_java(fixture);
+        CHECK(java.has_value());
+    }
+}

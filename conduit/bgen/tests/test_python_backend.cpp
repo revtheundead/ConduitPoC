@@ -915,3 +915,144 @@ TEST_CASE("Python: session protocol generates output", "[python]") {
     REQUIRE(py.has_value());
     CHECK(!py->files.empty());
 }
+
+// ============================================================================
+// Python backend basic codegen tests (moved from cross-backend tests)
+// ============================================================================
+
+TEST_CASE("Python: generates all expected files", "[codegen][python]") {
+    auto py = gen_python("minimal.bmdl.xml");
+    REQUIRE(py.has_value());
+    CHECK(py->files.count("__init__.py"));
+    CHECK(py->files.count("bit_io.py"));
+    CHECK(py->files.count("constants.py"));
+    CHECK(py->files.count("types.py"));
+    CHECK(py->files.count("structs.py"));
+    CHECK(py->files.count("messages.py"));
+    CHECK(py->files.count("sessions.py"));
+    CHECK(py->files.count("protocol.py"));
+}
+
+TEST_CASE("Python: message class has decode/encode", "[codegen][python]") {
+    auto py = gen_python("minimal.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    CHECK(msgs.find("class SimpleMessage:") != std::string::npos);
+    CHECK(msgs.find("def decode(r:") != std::string::npos);
+    CHECK(msgs.find("def encode(self, w:") != std::string::npos);
+    CHECK(msgs.find("decode_bytes") != std::string::npos);
+    CHECK(msgs.find("encode_bytes") != std::string::npos);
+}
+
+TEST_CASE("Python: bool field uses correct encode", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    CHECK(msgs.find("write_bits(1 if self.flag else 0") != std::string::npos);
+    CHECK(msgs.find("(r.read_u8() != 0)") != std::string::npos);
+}
+
+TEST_CASE("Python: float64 field init", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    CHECK(msgs.find("self.f64 = 0.0") != std::string::npos);
+}
+
+TEST_CASE("Python: enum/flags types generated", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& types = py->files["types.py"];
+    CHECK(types.find("class ColorEnum") != std::string::npos);
+    CHECK(types.find("class StatusFlags") != std::string::npos);
+    CHECK(types.find("RED") != std::string::npos);
+    CHECK(types.find("active") != std::string::npos);
+}
+
+TEST_CASE("Python: scaled type generated", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& types = py->files["types.py"];
+    CHECK(types.find("class ScaledTemp") != std::string::npos);
+    CHECK(types.find("0.01") != std::string::npos);
+    CHECK(types.find("-40") != std::string::npos);
+}
+
+TEST_CASE("Python: little-endian fields use False", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    CHECK(msgs.find("read_u16(False)") != std::string::npos);
+    CHECK(msgs.find("read_u32(False)") != std::string::npos);
+}
+
+TEST_CASE("Python: session class generated for frame-based protocol", "[codegen][python]") {
+    auto py = gen_python("choice_protocol.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& sessions = py->files["sessions.py"];
+    CHECK(sessions.find("class FrameSession:") != std::string::npos);
+    CHECK(sessions.find("LEAF_TYPES") != std::string::npos);
+    CHECK(sessions.find("AlphaBody") != std::string::npos);
+    CHECK(sessions.find("BetaBody") != std::string::npos);
+}
+
+TEST_CASE("Python: protocol.py has type registry", "[codegen][python]") {
+    auto py = gen_python("choice_protocol.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& protocol = py->files["protocol.py"];
+    CHECK(protocol.find("class ProtocolDescriptor:") != std::string::npos);
+    CHECK(protocol.find("TYPES") != std::string::npos);
+    CHECK(protocol.find("find_by_id") != std::string::npos);
+    CHECK(protocol.find("find_by_name") != std::string::npos);
+}
+
+TEST_CASE("Python: struct types used in choices get classes", "[codegen][python]") {
+    auto py = gen_python("arrays_choices.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+    CHECK(structs.find("class TypeABody:") != std::string::npos);
+    CHECK(structs.find("class TypeBBody:") != std::string::npos);
+    CHECK(structs.find("class Point:") != std::string::npos);
+}
+
+TEST_CASE("Python: constants file", "[codegen][python]") {
+    auto py = gen_python("choice_protocol.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& consts = py->files["constants.py"];
+    CHECK(consts.find("SYNC") != std::string::npos);
+    CHECK(consts.find("0xBEEF") != std::string::npos);
+}
+
+TEST_CASE("Python: bit_io contains BitReader and BitWriter", "[codegen][python]") {
+    auto py = gen_python("minimal.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& bio = py->files["bit_io.py"];
+    CHECK(bio.find("class BitReader:") != std::string::npos);
+    CHECK(bio.find("class BitWriter:") != std::string::npos);
+    CHECK(bio.find("read_u8") != std::string::npos);
+    CHECK(bio.find("write_u8") != std::string::npos);
+    CHECK(bio.find("read_bits") != std::string::npos);
+    CHECK(bio.find("write_bits") != std::string::npos);
+}
+
+TEST_CASE("Python: generates output for all_types fixture", "[codegen][python]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    CHECK(py->files.size() == 8);
+}
+
+TEST_CASE("Python: generates output for major fixtures", "[codegen][python]") {
+    std::vector<std::string> fixtures = {
+        "choice_protocol.bmdl.xml", "arrays_choices.bmdl.xml",
+        "string_features.bmdl.xml", "inline_field_types.bmdl.xml",
+        "wire_encodings.bmdl.xml", "mixed_endian.bmdl.xml",
+        "bitmap_fx.bmdl.xml", "constraints.bmdl.xml",
+        "field_scale.bmdl.xml", "expr_features.bmdl.xml",
+        "format_binary.bmdl.xml",
+    };
+    for (const auto& fixture : fixtures) {
+        INFO("Fixture: " << fixture);
+        auto py = gen_python(fixture);
+        CHECK(py.has_value());
+    }
+}
