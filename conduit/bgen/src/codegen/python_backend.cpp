@@ -1055,7 +1055,11 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             auto emit_choice_decode = [&]() {
                 bool first = true;
                 for (const auto& cs : cd->cases) {
-                    std::string cond = sv + " == " + (cs.value ? *cs.value : "0");
+                    std::string val = cs.value ? *cs.value : "0";
+                    if (cs.value && index.constants.count(*cs.value)) {
+                        val = "Constants." + py_snake(*cs.value);
+                    }
+                    std::string cond = sv + " == " + val;
                     ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
                     ctx.indent();
                     std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);

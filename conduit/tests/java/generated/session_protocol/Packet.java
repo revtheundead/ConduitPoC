@@ -12,7 +12,7 @@ public final class Packet {
 
     public static Packet wrap(PingBody msg) {
         Packet frame = new Packet();
-        frame.sync = (int) Constants.SYNC;
+        frame.sync = SYNC;
         frame.msgId = PingBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -20,7 +20,7 @@ public final class Packet {
 
     public static Packet wrap(DataBody msg) {
         Packet frame = new Packet();
-        frame.sync = (int) Constants.SYNC;
+        frame.sync = SYNC;
         frame.msgId = DataBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -28,7 +28,7 @@ public final class Packet {
 
     public static Packet wrap(AckBody msg) {
         Packet frame = new Packet();
-        frame.sync = (int) Constants.SYNC;
+        frame.sync = SYNC;
         frame.msgId = AckBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -36,7 +36,7 @@ public final class Packet {
 
     public void encode(BitWriter w) {
         int _frameStart = w.sizeBytes();
-        w.writeU16((int)Constants.SYNC, true);
+        w.writeU16((int)SYNC, true);
         w.writeU16((int)this.seq, true);
         w.writeU8((int)this.msgId);
         int _lenPos = w.sizeBytes();
@@ -62,12 +62,24 @@ public final class Packet {
         BitReader payloadReader = r.subReader((int)(result.length) - 7);
         if (result.msgId == 1) {
             PingBody _msg = PingBody.decode(payloadReader);
+            _msg.sync = result.sync;
+            _msg.seq = result.seq;
+            _msg.msgId = result.msgId;
+            _msg.length = result.length;
             result.payload = _msg;
         } else if (result.msgId == 2) {
             DataBody _msg = DataBody.decode(payloadReader);
+            _msg.sync = result.sync;
+            _msg.seq = result.seq;
+            _msg.msgId = result.msgId;
+            _msg.length = result.length;
             result.payload = _msg;
         } else if (result.msgId == 3) {
             AckBody _msg = AckBody.decode(payloadReader);
+            _msg.sync = result.sync;
+            _msg.seq = result.seq;
+            _msg.msgId = result.msgId;
+            _msg.length = result.length;
             result.payload = _msg;
         }
         return result;

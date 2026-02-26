@@ -8,17 +8,6 @@ _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 if _generated_dir not in sys.path:
     sys.path.insert(0, _generated_dir)
 
-# Patch arrays_choices module-level constants that are referenced as bare names
-# in the generated code but only defined inside the Constants class.
-import arrays_choices.messages as _acm
-import arrays_choices.structs as _acs
-from arrays_choices.constants import Constants as _AC_Constants
-
-_acm.TYPE_A = _AC_Constants.TYPE_A
-_acm.TYPE_B = _AC_Constants.TYPE_B
-_acs.SUB_X = _AC_Constants.SUB_X
-_acs.SUB_Y = _AC_Constants.SUB_Y
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

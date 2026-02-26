@@ -11,7 +11,7 @@ public final class Frame {
 
     public static Frame wrap(AlphaBody msg) {
         Frame frame = new Frame();
-        frame.sync = (int) Constants.SYNC;
+        frame.sync = SYNC;
         frame.messageType = AlphaBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -19,7 +19,7 @@ public final class Frame {
 
     public static Frame wrap(BetaBody msg) {
         Frame frame = new Frame();
-        frame.sync = (int) Constants.SYNC;
+        frame.sync = SYNC;
         frame.messageType = BetaBody.ID_VALUE;
         frame.payload = msg;
         return frame;
@@ -27,7 +27,7 @@ public final class Frame {
 
     public void encode(BitWriter w) {
         int _frameStart = w.sizeBytes();
-        w.writeU16((int)Constants.SYNC, true);
+        w.writeU16((int)SYNC, true);
         w.writeU8((int)this.messageType);
         int _lenPos = w.sizeBytes();
         w.writeU16((int)0, true);
@@ -49,9 +49,15 @@ public final class Frame {
         BitReader payloadReader = r.subReader((int)(result.length) - 5);
         if (result.messageType == 1) {
             AlphaBody _msg = AlphaBody.decode(payloadReader);
+            _msg.sync = result.sync;
+            _msg.messageType = result.messageType;
+            _msg.length = result.length;
             result.payload = _msg;
         } else if (result.messageType == 2) {
             BetaBody _msg = BetaBody.decode(payloadReader);
+            _msg.sync = result.sync;
+            _msg.messageType = result.messageType;
+            _msg.length = result.length;
             result.payload = _msg;
         }
         return result;

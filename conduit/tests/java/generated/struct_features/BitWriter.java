@@ -59,18 +59,4 @@ public final class BitWriter {
     public void patchU8(int off, int v) { if (off<buf.length) buf[off]=(byte)(v&0xFF); }
     public void patchU16(int off, int v, boolean be) { byte[] b=new byte[2]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putShort((short)v); for(int i=0;i<2&&off+i<buf.length;i++) buf[off+i]=b[i]; }
     public void patchU32(int off, int v, boolean be) { byte[] b=new byte[4]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putInt(v); for(int i=0;i<4&&off+i<buf.length;i++) buf[off+i]=b[i]; }
-    public void alignTo(int byteAlignment) {
-        // First align to byte boundary
-        if (bitPos % 8 != 0) {
-            int pad = 8 - (bitPos % 8);
-            writeBits(0, pad);
-        }
-        // Then align to the requested byte alignment
-        int bytePos = bitPos / 8;
-        int rem = bytePos % byteAlignment;
-        if (rem != 0) {
-            int padBytes = byteAlignment - rem;
-            for (int i = 0; i < padBytes; i++) writeU8(0);
-        }
-    }
 }

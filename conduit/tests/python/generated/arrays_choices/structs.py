@@ -102,9 +102,9 @@ class TypeABody:
     def decode(r: 'BitReader') -> 'TypeABody':
         result = TypeABody()
         result.sub_type = r.read_u8()
-        if result.sub_type == SUB_X:
+        if result.sub_type == Constants.SUB_X:
             result.sub_body = SubX.decode(r)
-        elif result.sub_type == SUB_Y:
+        elif result.sub_type == Constants.SUB_Y:
             result.sub_body = SubY.decode(r)
         return result
 
