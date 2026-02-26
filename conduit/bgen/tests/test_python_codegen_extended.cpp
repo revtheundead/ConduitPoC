@@ -1065,3 +1065,162 @@ TEST_CASE("PyCG: BitWriter has encoding-aware write_string", "[python][codegen][
     auto& bio = py->files["bit_io.py"];
     CHECK(bio.find("def write_string(self, s: str, length: int, pad: int = 0, encoding: int = 0)") != std::string::npos);
 }
+
+// ============================================================================
+// Inline struct overlap tests — verify parent-prefixed naming prevents collisions
+// ============================================================================
+
+TEST_CASE("PyCG: inline struct overlap produces distinct classes", "[python][codegen][collision]") {
+    auto py = gen_python("inline_struct_overlap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // MsgFoo and MsgBar both define inline struct "items" — they must get distinct class names
+    CHECK(msgs.find("class MsgFooItems:") != std::string::npos);
+    CHECK(msgs.find("class MsgBarItems:") != std::string::npos);
+    // MsgFoo's Items has foo_x/foo_y fields, MsgBar's has bar_a/bar_b/bar_c
+    CHECK(msgs.find("self.foo_x") != std::string::npos);
+    CHECK(msgs.find("self.bar_a") != std::string::npos);
+    // Parent messages reference the correct prefixed class
+    CHECK(msgs.find("MsgFooItems.decode(r)") != std::string::npos);
+    CHECK(msgs.find("MsgBarItems.decode(r)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: inline array overlap produces distinct element classes", "[python][codegen][collision]") {
+    auto py = gen_python("inline_struct_overlap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // MsgAlpha and MsgBeta both define inline array "entries" — elements must get distinct names
+    CHECK(msgs.find("class MsgAlphaEntries:") != std::string::npos);
+    CHECK(msgs.find("class MsgBetaEntries:") != std::string::npos);
+    CHECK(msgs.find("self.alpha_val") != std::string::npos);
+    CHECK(msgs.find("self.beta_val") != std::string::npos);
+}
+
+TEST_CASE("PyCG: inline case collision produces parent-prefixed classes", "[python][codegen][collision]") {
+    auto py = gen_python("inline_case_collision.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // MsgAlpha and MsgBeta both define inline case "TypeA" — must be distinct
+    CHECK(msgs.find("class MsgAlphaTypeA:") != std::string::npos);
+    CHECK(msgs.find("class MsgBetaTypeA:") != std::string::npos);
+    // Each class has the correct fields
+    CHECK(msgs.find("self.alpha_val") != std::string::npos);
+    CHECK(msgs.find("self.beta_x") != std::string::npos);
+}
+
+// ============================================================================
+// typeName override tests
+// ============================================================================
+
+TEST_CASE("PyCG: typeName override on inline struct", "[python][codegen][typename]") {
+    auto py = gen_python("type_name_override.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // struct "header" with typeName="MsgHeader" should use MsgHeader as class name
+    CHECK(msgs.find("class MsgHeader:") != std::string::npos);
+    CHECK(msgs.find("MsgHeader.decode(r)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: typeName override on inline array", "[python][codegen][typename]") {
+    auto py = gen_python("type_name_override.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // array "items" with typeName="ArrayItem" should use ArrayItem as element class name
+    CHECK(msgs.find("class ArrayItem:") != std::string::npos);
+    CHECK(msgs.find("ArrayItem.decode(r)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: typeName override on choice cases", "[python][codegen][typename]") {
+    auto py = gen_python("type_name_override.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Cases with typeName overrides
+    CHECK(msgs.find("class HeartbeatPayload:") != std::string::npos);
+    CHECK(msgs.find("class PositionPayload:") != std::string::npos);
+    CHECK(msgs.find("class UnknownPayload:") != std::string::npos);
+}
+
+TEST_CASE("PyCG: typeName override disambiguates colliding inline structs", "[python][codegen][typename]") {
+    auto py = gen_python("type_name_override.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // MsgOne and MsgTwo both define "details" but with different typeName overrides
+    CHECK(msgs.find("class MsgOneDetails:") != std::string::npos);
+    CHECK(msgs.find("class MsgTwoDetails:") != std::string::npos);
+}
+
+// ============================================================================
+// Inline enum field tests
+// ============================================================================
+
+TEST_CASE("PyCG: inline enum generates IntEnum classes", "[python][codegen][inline_enum]") {
+    auto py = gen_python("inline_enum.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Inline enum classes should be generated with parent-prefixed names
+    CHECK(msgs.find("class InlineEnumMsgMode(IntEnum):") != std::string::npos);
+    CHECK(msgs.find("class InlineEnumMsgPriority(IntEnum):") != std::string::npos);
+}
+
+TEST_CASE("PyCG: inline enum has correct values", "[python][codegen][inline_enum]") {
+    auto py = gen_python("inline_enum.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Check enum values
+    CHECK(msgs.find("OFF = 0") != std::string::npos);
+    CHECK(msgs.find("STANDBY = 1") != std::string::npos);
+    CHECK(msgs.find("ACTIVE = 2") != std::string::npos);
+    CHECK(msgs.find("LOW = 0") != std::string::npos);
+    CHECK(msgs.find("MEDIUM = 1") != std::string::npos);
+    CHECK(msgs.find("HIGH = 2") != std::string::npos);
+}
+
+TEST_CASE("PyCG: inline enum field type in parent class", "[python][codegen][inline_enum]") {
+    auto py = gen_python("inline_enum.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Parent class should use enum type for decode
+    CHECK(msgs.find("result.mode = InlineEnumMsgMode.decode(r)") != std::string::npos);
+    CHECK(msgs.find("result.priority = InlineEnumMsgPriority.decode(r)") != std::string::npos);
+    // Encode should call enum.encode
+    CHECK(msgs.find("self.mode.encode(w)") != std::string::npos);
+    CHECK(msgs.find("self.priority.encode(w)") != std::string::npos);
+}
+
+TEST_CASE("PyCG: inline enum decode/encode methods", "[python][codegen][inline_enum]") {
+    auto py = gen_python("inline_enum.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // decode reads bits
+    CHECK(msgs.find("raw = r.read_bits(4)") != std::string::npos);
+    CHECK(msgs.find("raw = r.read_bits(2)") != std::string::npos);
+    // encode writes bits
+    CHECK(msgs.find("w.write_bits(self.value, 4)") != std::string::npos);
+    CHECK(msgs.find("w.write_bits(self.value, 2)") != std::string::npos);
+}
+
+// ============================================================================
+// DisplayFormat tests
+// ============================================================================
+
+TEST_CASE("PyCG: display format binary in repr", "[python][codegen][display_format]") {
+    auto py = gen_python("format_binary.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // mask has explicit format="binary" → repr should use bin()
+    CHECK(msgs.find("mask={bin(self.mask)}") != std::string::npos);
+    // flags has type bin8 with format="binary" → repr should use bin()
+    CHECK(msgs.find("flags={bin(self.flags)}") != std::string::npos);
+    // tag has no format → standard repr
+    CHECK(msgs.find("tag={self.tag}") != std::string::npos);
+    // value has no format → standard repr
+    CHECK(msgs.find("value={self.value}") != std::string::npos);
+}
+
+TEST_CASE("PyCG: display format hex in repr", "[python][codegen][display_format]") {
+    auto py = gen_python("all_types.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // hex field in AllTypesMsg → repr should use hex()
+    CHECK(msgs.find("hex={hex(self.hex)}") != std::string::npos);
+}

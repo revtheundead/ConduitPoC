@@ -60,5 +60,19 @@
         <field name="value" type="uint32"/>
       </array>
     </message>
+
+    <!-- Test typeName used to disambiguate otherwise-colliding inline types -->
+    <message name="MsgOne">
+      <field name="tag" type="uint8"/>
+      <struct name="details" typeName="MsgOneDetails">
+        <field name="x" type="uint16"/>
+      </struct>
+    </message>
+    <message name="MsgTwo">
+      <field name="tag" type="uint8"/>
+      <struct name="details" typeName="MsgTwoDetails">
+        <field name="y" type="uint32"/>
+      </struct>
+    </message>
   </messages>
 </bmdl>

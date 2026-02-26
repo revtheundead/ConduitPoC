@@ -1117,3 +1117,166 @@ TEST_CASE("JCG: BitWriter has new encoding/packed/terminated methods", "[java][c
     CHECK(bw.find("writeCrlfTerminatedString(") != std::string::npos);
     CHECK(bw.find("ASCII_TO_EBCDIC") != std::string::npos);
 }
+
+// ============================================================================
+// Inline struct overlap tests — verify parent-prefixed naming prevents collisions
+// ============================================================================
+
+TEST_CASE("JCG: inline struct overlap produces distinct Java files", "[java][codegen][collision]") {
+    auto java = gen_java("inline_struct_overlap.bmdl.xml");
+    REQUIRE(java.has_value());
+    // MsgFoo and MsgBar both define inline struct "items" — they must get distinct class files
+    CHECK(java->files.count("MsgFooItems.java"));
+    CHECK(java->files.count("MsgBarItems.java"));
+    // Each class has the correct fields
+    auto& foo_items = java->files["MsgFooItems.java"];
+    auto& bar_items = java->files["MsgBarItems.java"];
+    CHECK(foo_items.find("fooX") != std::string::npos);
+    CHECK(foo_items.find("fooY") != std::string::npos);
+    CHECK(bar_items.find("barA") != std::string::npos);
+    CHECK(bar_items.find("barB") != std::string::npos);
+    // Parent messages reference the correct prefixed class
+    auto& msg_foo = java->files["MsgFoo.java"];
+    CHECK(msg_foo.find("MsgFooItems") != std::string::npos);
+    auto& msg_bar = java->files["MsgBar.java"];
+    CHECK(msg_bar.find("MsgBarItems") != std::string::npos);
+}
+
+TEST_CASE("JCG: inline array overlap produces distinct element Java files", "[java][codegen][collision]") {
+    auto java = gen_java("inline_struct_overlap.bmdl.xml");
+    REQUIRE(java.has_value());
+    // MsgAlpha and MsgBeta both define inline array "entries" — elements must get distinct names
+    CHECK(java->files.count("MsgAlphaEntries.java"));
+    CHECK(java->files.count("MsgBetaEntries.java"));
+    auto& alpha = java->files["MsgAlphaEntries.java"];
+    auto& beta = java->files["MsgBetaEntries.java"];
+    CHECK(alpha.find("alphaVal") != std::string::npos);
+    CHECK(beta.find("betaVal") != std::string::npos);
+}
+
+TEST_CASE("JCG: inline case collision produces parent-prefixed Java files", "[java][codegen][collision]") {
+    auto java = gen_java("inline_case_collision.bmdl.xml");
+    REQUIRE(java.has_value());
+    // MsgAlpha and MsgBeta both define inline case "TypeA" — must be distinct
+    CHECK(java->files.count("MsgAlphaTypeA.java"));
+    CHECK(java->files.count("MsgBetaTypeA.java"));
+    auto& alpha = java->files["MsgAlphaTypeA.java"];
+    auto& beta = java->files["MsgBetaTypeA.java"];
+    CHECK(alpha.find("alphaVal") != std::string::npos);
+    CHECK(beta.find("betaX") != std::string::npos);
+}
+
+// ============================================================================
+// typeName override tests
+// ============================================================================
+
+TEST_CASE("JCG: typeName override on inline struct", "[java][codegen][typename]") {
+    auto java = gen_java("type_name_override.bmdl.xml");
+    REQUIRE(java.has_value());
+    // struct "header" with typeName="MsgHeader" should use MsgHeader as class name
+    CHECK(java->files.count("MsgHeader.java"));
+    auto& hdr = java->files["MsgHeader.java"];
+    CHECK(hdr.find("class MsgHeader") != std::string::npos);
+}
+
+TEST_CASE("JCG: typeName override on inline array", "[java][codegen][typename]") {
+    auto java = gen_java("type_name_override.bmdl.xml");
+    REQUIRE(java.has_value());
+    // array "items" with typeName="ArrayItem" should use ArrayItem as element class name
+    CHECK(java->files.count("ArrayItem.java"));
+    auto& item = java->files["ArrayItem.java"];
+    CHECK(item.find("class ArrayItem") != std::string::npos);
+}
+
+TEST_CASE("JCG: typeName override on choice cases", "[java][codegen][typename]") {
+    auto java = gen_java("type_name_override.bmdl.xml");
+    REQUIRE(java.has_value());
+    CHECK(java->files.count("HeartbeatPayload.java"));
+    CHECK(java->files.count("PositionPayload.java"));
+    CHECK(java->files.count("UnknownPayload.java"));
+}
+
+TEST_CASE("JCG: typeName override disambiguates colliding inline structs", "[java][codegen][typename]") {
+    auto java = gen_java("type_name_override.bmdl.xml");
+    REQUIRE(java.has_value());
+    // MsgOne and MsgTwo both define "details" but with different typeName overrides
+    CHECK(java->files.count("MsgOneDetails.java"));
+    CHECK(java->files.count("MsgTwoDetails.java"));
+}
+
+// ============================================================================
+// Inline enum field tests
+// ============================================================================
+
+TEST_CASE("JCG: inline enum generates Java enum files", "[java][codegen][inline_enum]") {
+    auto java = gen_java("inline_enum.bmdl.xml");
+    REQUIRE(java.has_value());
+    // Inline enum files should be generated with parent-prefixed names
+    CHECK(java->files.count("InlineEnumMsgMode.java"));
+    CHECK(java->files.count("InlineEnumMsgPriority.java"));
+}
+
+TEST_CASE("JCG: inline enum has correct values", "[java][codegen][inline_enum]") {
+    auto java = gen_java("inline_enum.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& mode_file = java->files["InlineEnumMsgMode.java"];
+    auto& prio_file = java->files["InlineEnumMsgPriority.java"];
+    CHECK(mode_file.find("OFF(0)") != std::string::npos);
+    CHECK(mode_file.find("STANDBY(1)") != std::string::npos);
+    CHECK(mode_file.find("ACTIVE(2)") != std::string::npos);
+    CHECK(prio_file.find("LOW(0)") != std::string::npos);
+    CHECK(prio_file.find("MEDIUM(1)") != std::string::npos);
+    CHECK(prio_file.find("HIGH(2)") != std::string::npos);
+}
+
+TEST_CASE("JCG: inline enum field type in parent class", "[java][codegen][inline_enum]") {
+    auto java = gen_java("inline_enum.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg_file = java->files["InlineEnumMsg.java"];
+    // Parent class field declarations
+    CHECK(msg_file.find("public InlineEnumMsgMode mode = null;") != std::string::npos);
+    CHECK(msg_file.find("public InlineEnumMsgPriority priority = null;") != std::string::npos);
+    // Decode
+    CHECK(msg_file.find("result.mode = InlineEnumMsgMode.decode(r);") != std::string::npos);
+    CHECK(msg_file.find("result.priority = InlineEnumMsgPriority.decode(r);") != std::string::npos);
+    // Encode
+    CHECK(msg_file.find("this.mode.encode(w);") != std::string::npos);
+    CHECK(msg_file.find("this.priority.encode(w);") != std::string::npos);
+}
+
+TEST_CASE("JCG: inline enum decode/encode methods", "[java][codegen][inline_enum]") {
+    auto java = gen_java("inline_enum.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& mode_file = java->files["InlineEnumMsgMode.java"];
+    auto& prio_file = java->files["InlineEnumMsgPriority.java"];
+    // decode reads bits
+    CHECK(mode_file.find("r.readBits(4)") != std::string::npos);
+    CHECK(prio_file.find("r.readBits(2)") != std::string::npos);
+    // encode writes bits
+    CHECK(mode_file.find("w.writeBits(value, 4)") != std::string::npos);
+    CHECK(prio_file.find("w.writeBits(value, 2)") != std::string::npos);
+}
+
+// ============================================================================
+// DisplayFormat tests
+// ============================================================================
+
+TEST_CASE("JCG: display format binary in toString", "[java][codegen][display_format]") {
+    auto java = gen_java("format_binary.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg_file = java->files["BinaryMsg.java"];
+    // mask has explicit format="binary" → toString should use Long.toBinaryString
+    CHECK(msg_file.find("Long.toBinaryString(mask)") != std::string::npos);
+    // flags has type bin8 with format="binary" → toString should use Long.toBinaryString
+    CHECK(msg_file.find("Long.toBinaryString(flags)") != std::string::npos);
+    // tag has no format → standard toString (just field name)
+    CHECK(msg_file.find("\"tag=\" + tag") != std::string::npos);
+}
+
+TEST_CASE("JCG: display format hex in toString", "[java][codegen][display_format]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg_file = java->files["AllTypesMessage.java"];
+    // hex field has format="hex" → toString should use Long.toHexString
+    CHECK(msg_file.find("Long.toHexString(hex)") != std::string::npos);
+}

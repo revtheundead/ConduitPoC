@@ -894,7 +894,8 @@ TEST_CASE("Python: nested choice passes outer-scope params to inner decode", "[p
     REQUIRE(py.has_value());
     auto& msgs = py->files["messages.py"];
     // Typed case decode should receive sub_type as an outer-scope param
-    CHECK(msgs.find("class Typed:") != std::string::npos);
+    // Class is parent-prefixed to prevent collisions across messages
+    CHECK(msgs.find("class NestedChoiceMsgTyped:") != std::string::npos);
     CHECK(msgs.find("def decode(r: 'BitReader', sub_type)") != std::string::npos);
 }
 
@@ -902,10 +903,10 @@ TEST_CASE("Python: deep nested choice generates 3-level classes with outer param
     auto py = gen_python("arrays_choices.bmdl.xml");
     REQUIRE(py.has_value());
     auto& msgs = py->files["messages.py"];
-    // 3-level deep nested choice: L1 receives type_b+type_c, L2 receives type_c
-    CHECK(msgs.find("class L1:") != std::string::npos);
-    CHECK(msgs.find("class L2:") != std::string::npos);
-    CHECK(msgs.find("class L3:") != std::string::npos);
+    // 3-level deep nested choice: classes are parent-prefixed to prevent collisions
+    CHECK(msgs.find("class DeepNestedMsgL1:") != std::string::npos);
+    CHECK(msgs.find("class DeepNestedMsgL1L2:") != std::string::npos);
+    CHECK(msgs.find("class DeepNestedMsgL1L2L3:") != std::string::npos);
     CHECK(msgs.find("def decode(r: 'BitReader', type_b, type_c)") != std::string::npos);
     CHECK(msgs.find("def decode(r: 'BitReader', type_c)") != std::string::npos);
 }

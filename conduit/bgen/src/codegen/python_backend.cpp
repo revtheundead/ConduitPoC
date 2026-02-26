@@ -222,6 +222,28 @@ struct PyOuterParam {
 using PyOuterScopeMap = std::unordered_map<std::string, std::vector<PyOuterParam>>;
 using PyOuterContext = std::unordered_map<std::string, std::string>;
 
+// Map from BMDL inline type name → resolved Python class name (parent-prefixed or typeName-overridden)
+using PyInlineNameMap = std::unordered_map<std::string, std::string>;
+
+// Resolve the Python class name for an inline type, applying parent-prefix or typeName override.
+std::string py_resolve_inline_name(const std::string& bmdl_name,
+                                    const std::string& parent_name,
+                                    const std::optional<std::string>& type_name_override) {
+    if (type_name_override && !type_name_override->empty())
+        return py_class(*type_name_override);
+    std::string name = py_class(bmdl_name);
+    if (!parent_name.empty())
+        name = py_class(parent_name) + name;
+    return name;
+}
+
+// Look up the resolved class name for an inline type, falling back to py_class(bmdl_name)
+std::string py_inline_class(const std::string& bmdl_name, const PyInlineNameMap& name_map) {
+    auto it = name_map.find(bmdl_name);
+    if (it != name_map.end()) return it->second;
+    return py_class(bmdl_name);
+}
+
 void py_collect_expr_refs(const model::Expr* expr, std::set<std::string>& refs) {
     if (!expr) return;
     if (expr->op == model::ExprOp::FieldRef) {
@@ -1028,7 +1050,15 @@ void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Fie
 // ============================================================================
 
 void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
-                          const analyzer::TypeIndex& index, const std::string& pfx) {
+                          const analyzer::TypeIndex& index, const std::string& pfx,
+                          const std::string& parent_class_name = {}) {
+    // Inline enum field: enum_values populated, type_ref empty
+    if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
+        std::string enum_name = parent_class_name + py_class(f.name);
+        std::string m = pfx + "." + py_field(f.name);
+        ctx.line(m + " = " + enum_name + ".decode(r)");
+        return;
+    }
     auto fi = py_resolve_field(f, index);
     std::string m = pfx + "." + py_field(f.name);
     if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.py_type + ".decode(r)"); return; }
@@ -1116,7 +1146,14 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
 }
 
 void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
-                          const analyzer::TypeIndex& index, const std::string& pfx) {
+                          const analyzer::TypeIndex& index, const std::string& pfx,
+                          const std::string& parent_class_name = {}) {
+    // Inline enum field: enum_values populated, type_ref empty
+    if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
+        std::string m = pfx + "." + py_field(f.name);
+        ctx.line(m + ".encode(w)");
+        return;
+    }
     auto fi = py_resolve_field(f, index);
     std::string m = pfx + "." + py_field(f.name);
     if (f.auto_expr) {
@@ -1192,25 +1229,28 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
 void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
                              const PyOuterScopeMap& scope_map = {},
-                             const PyOuterContext& outer_ctx = {}) {
+                             const PyOuterContext& outer_ctx = {},
+                             const PyInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {}) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
                 ctx.indent();
-                emit_py_field_decode(ctx, *f, index, pfx);
+                emit_py_field_decode(ctx, *f, index, pfx, parent_class_name);
                 ctx.dedent();
-            } else emit_py_field_decode(ctx, *f, index, pfx);
+            } else emit_py_field_decode(ctx, *f, index, pfx, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
+            std::string resolved = py_inline_class(sd->name, name_map);
             std::string args = py_build_outer_args(sd->name, scope_map, pfx, outer_ctx);
             if (sd->present_when) {
                 ctx.line("if " + py_expr_ctx(*sd->present_when, pfx, outer_ctx) + ":");
-                ctx.indent(); ctx.line(m + " = " + py_class(sd->name) + ".decode(r" + args + ")"); ctx.dedent();
-            } else ctx.line(m + " = " + py_class(sd->name) + ".decode(r" + args + ")");
+                ctx.indent(); ctx.line(m + " = " + resolved + ".decode(r" + args + ")"); ctx.dedent();
+            } else ctx.line(m + " = " + resolved + ".decode(r" + args + ")");
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
-            std::string elem = ad->type_ref.empty() ? py_class(ad->name) : py_class(ad->type_ref);
+            std::string elem = ad->type_ref.empty() ? py_inline_class(ad->name, name_map) : py_class(ad->type_ref);
             auto emit_array_decode = [&]() {
                 if (ad->fixed_count) {
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
@@ -1242,7 +1282,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     std::string cond = sv + " == " + val;
                     ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
                     ctx.indent();
-                    std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
+                    std::string et = cs.type_ref.empty() ? py_inline_class(cs.name, name_map) : py_class(cs.type_ref);
                     std::string case_name = cs.type_ref.empty() ? cs.name : cs.type_ref;
                     std::string args = py_build_outer_args(case_name, scope_map, pfx, outer_ctx);
                     ctx.line(m + " = " + et + ".decode(r" + args + ")");
@@ -1252,7 +1292,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 if (cd->otherwise) {
                     ctx.line("else:");
                     ctx.indent();
-                    std::string et = cd->otherwise->type_ref.empty() ? py_class(cd->otherwise->name) : py_class(cd->otherwise->type_ref);
+                    std::string et = cd->otherwise->type_ref.empty() ? py_inline_class(cd->otherwise->name, name_map) : py_class(cd->otherwise->type_ref);
                     std::string ow_name = cd->otherwise->type_ref.empty() ? cd->otherwise->name : cd->otherwise->type_ref;
                     std::string args = py_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
                     ctx.line(m + " = " + et + ".decode(r" + args + ")");
@@ -1270,19 +1310,21 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx);
+            emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
         }
     }
 }
 
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
-                             const analyzer::TypeIndex& index, const std::string& pfx) {
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const PyInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {}) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
-                ctx.indent(); emit_py_field_encode(ctx, *f, index, pfx); ctx.dedent();
-            } else emit_py_field_encode(ctx, *f, index, pfx);
+                ctx.indent(); emit_py_field_encode(ctx, *f, index, pfx, parent_class_name); ctx.dedent();
+            } else emit_py_field_encode(ctx, *f, index, pfx, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             if (sd->present_when) {
@@ -1304,7 +1346,7 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("w.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_py_encode_children(ctx, fx->children, index, pfx);
+            emit_py_encode_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
         }
     }
 }
@@ -1317,17 +1359,30 @@ struct PyFieldDef {
     std::string name;
     std::string py_type;
     std::string default_val;
+    model::DisplayFormat format = model::DisplayFormat::Decimal;
+    bool is_numeric = false;  // true for simple int fields (not struct/enum/string/bytes)
 };
 
 void collect_py_fields(const std::vector<model::StructChild>& children,
                        const analyzer::TypeIndex& index,
-                       std::vector<PyFieldDef>& fields) {
+                       std::vector<PyFieldDef>& fields,
+                       const PyInlineNameMap& name_map = {},
+                       const std::string& parent_class_name = {}) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
+            // Inline enum field: enum_values populated, type_ref empty
+            if (!f->enum_values.empty() && f->type_ref.empty() && !parent_class_name.empty()) {
+                std::string enum_name = parent_class_name + py_class(f->name);
+                fields.push_back({py_field(f->name), enum_name, "None"});
+                continue;
+            }
             auto fi = py_resolve_field(*f, index);
             PyFieldDef pf;
             pf.name = py_field(f->name);
             pf.py_type = fi.py_type;
+            pf.format = f->format;
+            pf.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
+                            !fi.is_float && !fi.has_scale && (fi.bits > 0);
             bool optional = (f->present_when != nullptr || f->bit.has_value());
             if (optional || fi.is_struct || fi.is_enum) pf.default_val = "None";
             else if (fi.is_string) pf.default_val = "''";
@@ -1338,13 +1393,13 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             if (f->default_value) pf.default_val = *f->default_value;
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            fields.push_back({py_field(sd->name), py_class(sd->name), "None"});
+            fields.push_back({py_field(sd->name), py_inline_class(sd->name, name_map), "None"});
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             fields.push_back({py_field(ad->name), "list", "None"});
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             fields.push_back({py_field(cd->name), "object", "None"});
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            collect_py_fields(fx->children, index, fields);
+            collect_py_fields(fx->children, index, fields, name_map, parent_class_name);
         }
     }
 }
@@ -1358,10 +1413,12 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                    const analyzer::TypeIndex& index,
                    const std::unordered_map<std::string, uint64_t>& tid_map,
                    const std::string& msg_id = "",
-                   const PyOuterScopeMap& scope_map = {}) {
-    std::string cn = py_class(name);
+                   const PyOuterScopeMap& scope_map = {},
+                   const PyInlineNameMap& name_map = {},
+                   const std::string& class_name_override = {}) {
+    std::string cn = class_name_override.empty() ? py_class(name) : class_name_override;
     std::vector<PyFieldDef> fields;
-    collect_py_fields(children, index, fields);
+    collect_py_fields(children, index, fields, name_map, cn);
 
     ctx.line();
     ctx.line("class " + cn + ":");
@@ -1413,7 +1470,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.line("def decode(r: 'BitReader'" + decode_params + ") -> '" + cn + "':");
     ctx.indent();
     ctx.line("result = " + cn + "()");
-    emit_py_decode_children(ctx, children, index, "result", scope_map, outer_ctx);
+    emit_py_decode_children(ctx, children, index, "result", scope_map, outer_ctx, name_map, cn);
     ctx.line("return result");
     ctx.dedent();
     ctx.line();
@@ -1431,7 +1488,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (children.empty()) ctx.line("pass");
     else {
-        emit_py_encode_children(ctx, children, index, "self");
+        emit_py_encode_children(ctx, children, index, "self", name_map, cn);
         // Auto-length backpatching: find any field with auto="length" and patch the written placeholder
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
@@ -1476,7 +1533,14 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         std::string fmt = "return f'" + cn + "(";
         for (size_t i = 0; i < fields.size(); i++) {
             if (i > 0) fmt += ", ";
-            fmt += fields[i].name + "={self." + fields[i].name + "}";
+            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
+                fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
+            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
+                fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
+            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
+                fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
+            else
+                fmt += fields[i].name + "={self." + fields[i].name + "}";
         }
         ctx.line(fmt + ")'");
     }
@@ -1484,37 +1548,84 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.dedent();
 }
 
-// Recursively emit Python classes for inline struct/array/choice types
+// Recursively emit Python classes for inline struct/array/choice types.
+// current_bmdl_name: the BMDL name of the current parent (for outer-scope analysis)
+// current_resolved_name: the resolved class name of the current parent (for child prefixing)
 void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild>& children,
                            const analyzer::TypeIndex& index,
                            const std::unordered_map<std::string, uint64_t>& tid_map,
                            PyOuterScopeMap& scope_map,
-                           const std::string& current_type_name) {
+                           const std::string& current_bmdl_name,
+                           PyInlineNameMap& name_map,
+                           const std::string& current_resolved_name = {}) {
+    // Use resolved name for child prefixing; fall back to PascalCase of BMDL name
+    const std::string& prefix = current_resolved_name.empty()
+        ? current_bmdl_name : current_resolved_name;
     for (const auto& child : children) {
-        if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            py_analyze_outer_scope(sd->name, sd->children, children, current_type_name, scope_map);
-            emit_py_inline_types(ctx, sd->children, index, tid_map, scope_map, sd->name);
-            emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map);
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            // Generate Python IntEnum class for inline enum fields
+            if (!f->enum_values.empty() && f->type_ref.empty()) {
+                std::string enum_name = py_class(prefix) + py_class(f->name);
+                int bits = f->bits.value_or(8);
+                ctx.line();
+                ctx.line("class " + enum_name + "(IntEnum):");
+                ctx.indent();
+                for (const auto& ev : f->enum_values)
+                    ctx.line(py_enum_val(ev.name) + " = " + std::to_string(ev.id));
+                ctx.line();
+                ctx.line("@staticmethod");
+                ctx.line("def decode(r: BitReader) -> '" + enum_name + "':");
+                ctx.indent();
+                ctx.line("raw = r.read_bits(" + std::to_string(bits) + ")");
+                ctx.line("try:");
+                ctx.indent();
+                ctx.line("return " + enum_name + "(raw)");
+                ctx.dedent();
+                ctx.line("except ValueError:");
+                ctx.indent();
+                ctx.line("raise DecodeError(f'unknown " + enum_name + " value: {raw}')");
+                ctx.dedent();
+                ctx.dedent();
+                ctx.line();
+                ctx.line("def encode(self, w: BitWriter) -> None:");
+                ctx.indent();
+                ctx.line("w.write_bits(self.value, " + std::to_string(bits) + ")");
+                ctx.dedent();
+                ctx.dedent();
+                ctx.line();
+            }
+        } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            std::string resolved = py_resolve_inline_name(sd->name, prefix, sd->type_name);
+            name_map[sd->name] = resolved;
+            py_analyze_outer_scope(sd->name, sd->children, children, current_bmdl_name, scope_map);
+            emit_py_inline_types(ctx, sd->children, index, tid_map, scope_map, sd->name, name_map, resolved);
+            emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map, name_map, resolved);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
-                emit_py_inline_types(ctx, ad->children, index, tid_map, scope_map, ad->name);
-                emit_py_class(ctx, ad->name, ad->children, index, tid_map, {}, scope_map);
+                std::string resolved = py_resolve_inline_name(ad->name, prefix, ad->type_name);
+                name_map[ad->name] = resolved;
+                emit_py_inline_types(ctx, ad->children, index, tid_map, scope_map, ad->name, name_map, resolved);
+                emit_py_class(ctx, ad->name, ad->children, index, tid_map, {}, scope_map, name_map, resolved);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             for (const auto& cs : cd->cases) {
                 if (cs.type_ref.empty() && !cs.children.empty()) {
-                    py_analyze_outer_scope(cs.name, cs.children, children, current_type_name, scope_map);
-                    emit_py_inline_types(ctx, cs.children, index, tid_map, scope_map, cs.name);
-                    emit_py_class(ctx, cs.name, cs.children, index, tid_map, {}, scope_map);
+                    std::string resolved = py_resolve_inline_name(cs.name, prefix, cs.type_name);
+                    name_map[cs.name] = resolved;
+                    py_analyze_outer_scope(cs.name, cs.children, children, current_bmdl_name, scope_map);
+                    emit_py_inline_types(ctx, cs.children, index, tid_map, scope_map, cs.name, name_map, resolved);
+                    emit_py_class(ctx, cs.name, cs.children, index, tid_map, {}, scope_map, name_map, resolved);
                 }
             }
             if (cd->otherwise && cd->otherwise->type_ref.empty() && !cd->otherwise->children.empty()) {
-                py_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, current_type_name, scope_map);
-                emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map, scope_map, cd->otherwise->name);
-                emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map, {}, scope_map);
+                std::string resolved = py_resolve_inline_name(cd->otherwise->name, prefix, cd->otherwise->type_name);
+                name_map[cd->otherwise->name] = resolved;
+                py_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, current_bmdl_name, scope_map);
+                emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map, scope_map, cd->otherwise->name, name_map, resolved);
+                emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map, {}, scope_map, name_map, resolved);
             }
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            emit_py_inline_types(ctx, fx->children, index, tid_map, scope_map, current_type_name);
+            emit_py_inline_types(ctx, fx->children, index, tid_map, scope_map, current_bmdl_name, name_map, prefix);
         }
     }
 }
@@ -1531,8 +1642,9 @@ std::string generate_py_structs(const model::Protocol& protocol,
     std::unordered_map<std::string, uint64_t> empty;
     for (const auto& sd : protocol.structs) {
         PyOuterScopeMap scope_map;
-        emit_py_inline_types(ctx, sd.children, index, empty, scope_map, sd.name);
-        emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map);
+        PyInlineNameMap name_map;
+        emit_py_inline_types(ctx, sd.children, index, empty, scope_map, sd.name, name_map);
+        emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map);
     }
 
     ctx.line();
@@ -1965,8 +2077,9 @@ std::string generate_py_messages(const model::Protocol& protocol,
 
     for (const auto& md : protocol.messages) {
         PyOuterScopeMap scope_map;
-        emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name);
-        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map);
+        PyInlineNameMap name_map;
+        emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name, name_map);
+        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map);
     }
 
     // Generate frame classes (Packet, Frame, etc.)
