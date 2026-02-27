@@ -1316,7 +1316,7 @@ struct JBitmapField {
 std::string generate_j_bitmap_class(const model::StructDef& sd,
                                      const analyzer::TypeIndex& index,
                                      const std::string& pkg,
-                                     const std::unordered_map<std::string, uint64_t>& tid_map,
+                                     const std::unordered_map<std::string, uint64_t>& /*tid_map*/,
                                      const JOuterScopeMap& scope_map = {},
                                      const JInlineNameMap& name_map = {},
                                      const std::string& class_name_override = {}) {
