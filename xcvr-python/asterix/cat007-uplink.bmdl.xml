@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Category 007 - Directed Interrogation Messages (Uplink UAP)
+  Edition 1.8, 14/08/2017 (EUROCONTROL-SPEC-0149-21)
+
+  Uplink UAP applies to message types 5-8:
+    5 - Interrogation Request Type A
+    6 - Interrogation Request Type B
+    7 - Interrogation Request Type C
+    8 - Selective BDS-Register Request
+-->
+<bmdl version="2.0">
+  <import href="cat007-shared.bmdl.xml"/>
+
+  <types>
+
+    <!-- =======================================================================
+         I007/415 - Required Interrogation Modes (Compound)
+         Primary subfield: 1 octet with FX extension (bit 0).
+         Subfield #1 (bit 2): RIM - Required Interrogation Modes (6 octets)
+         Subfield #2 (bit 1): MIPT - MIP Table Reference Number (1 octet)
+         ======================================================================= -->
+
+    <!-- Subfield #1: Specific MIP (6 octets = 48 bits) -->
+    <struct name="Cat007I415Rim">
+      <doc>Required Interrogation Modes - Specific MIP</doc>
+      <!-- Octet 1 -->
+      <reserved bits="7"/>
+      <field name="lo" bits="1">
+        <doc>Lockout Override: 0 = No, 1 = Yes</doc>
+      </field>
+      <!-- Octet 2 -->
+      <field name="msProb" bits="3">
+        <doc>Mode S Probability</doc>
+      </field>
+      <field name="m5Format" bits="5">
+        <doc>Mode 5 Format</doc>
+      </field>
+      <!-- Octet 3 -->
+      <field name="m4cs" bits="2">
+        <doc>Mode 4 Code Selection</doc>
+      </field>
+      <field name="m5s" bits="1">
+        <doc>Mode 5 Selective Interrogation</doc>
+      </field>
+      <field name="sm5s" bits="1">
+        <doc>Surveillance Mode 5 Selective</doc>
+      </field>
+      <field name="sm54" bits="1">
+        <doc>Surveillance Mode 5/4</doc>
+      </field>
+      <field name="sm5c" bits="1">
+        <doc>Surveillance Mode 5 Combined</doc>
+      </field>
+      <field name="sm53" bits="1">
+        <doc>Surveillance Mode 5/3</doc>
+      </field>
+      <field name="sm52" bits="1">
+        <doc>Surveillance Mode 5/2</doc>
+      </field>
+      <!-- Octet 4 -->
+      <field name="sm51" bits="1">
+        <doc>Surveillance Mode 5/1</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="m5" bits="1">
+        <doc>Mode 5 Interrogation</doc>
+      </field>
+      <field name="rcma" bits="1">
+        <doc>Roll Call Mode A</doc>
+      </field>
+      <field name="rcmc" bits="1">
+        <doc>Roll Call Mode C</doc>
+      </field>
+      <field name="cmc" bits="1">
+        <doc>Combined Mode C</doc>
+      </field>
+      <field name="cm3a" bits="1">
+        <doc>Combined Mode 3/A</doc>
+      </field>
+      <field name="ms" bits="1">
+        <doc>Mode S All Call</doc>
+      </field>
+      <!-- Octet 5 -->
+      <field name="m4s" bits="1">
+        <doc>Mode 4 Selective</doc>
+      </field>
+      <field name="smc" bits="1">
+        <doc>Surveillance Mode C</doc>
+      </field>
+      <field name="sm3a" bits="1">
+        <doc>Surveillance Mode 3/A</doc>
+      </field>
+      <field name="sm2" bits="1">
+        <doc>Surveillance Mode 2</doc>
+      </field>
+      <field name="sm1" bits="1">
+        <doc>Surveillance Mode 1</doc>
+      </field>
+      <field name="mco" bits="1">
+        <doc>Mode C Only</doc>
+      </field>
+      <field name="m3o" bits="1">
+        <doc>Mode 3/A Only</doc>
+      </field>
+      <field name="mcs" bits="1">
+        <doc>Mode C + S</doc>
+      </field>
+      <!-- Octet 6 -->
+      <field name="m3s" bits="1">
+        <doc>Mode 3/A + S</doc>
+      </field>
+      <field name="md" bits="1">
+        <doc>Mode D</doc>
+      </field>
+      <field name="mc" bits="1">
+        <doc>Mode C</doc>
+      </field>
+      <field name="mb" bits="1">
+        <doc>Mode B</doc>
+      </field>
+      <field name="m4" bits="1">
+        <doc>Mode 4</doc>
+      </field>
+      <field name="m3a" bits="1">
+        <doc>Mode 3/A</doc>
+      </field>
+      <field name="m2" bits="1">
+        <doc>Mode 2</doc>
+      </field>
+      <field name="m1" bits="1">
+        <doc>Mode 1</doc>
+      </field>
+    </struct>
+
+    <!-- I007/415 Compound Item -->
+    <struct name="Cat007I415">
+      <doc>
+        I007/415 - Required Interrogation Modes
+        Compound data item with FX-extensible primary subfield.
+        Subfield #1: RIM - Required Interrogation Modes (6 octets)
+        Subfield #2: MIPT - MIP Table Reference Number (1 octet)
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="rim" bit="2" type="Cat007I415Rim">
+          <doc>Subfield #1: Required Interrogation Modes - Specific MIP</doc>
+        </field>
+        <field name="mipt" bit="1" type="uint8">
+          <doc>Subfield #2: MIP Table Reference Number</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I007/420 - Directed Interrogation Window
+         Fixed 8 octets: rho-start(u16) + rho-end(u16) + theta-start(u16) + theta-end(u16)
+         ======================================================================= -->
+    <struct name="Cat007I420">
+      <doc>I007/420 - Directed Interrogation Window</doc>
+      <field name="rhoStart" type="uint16">
+        <doc>Start of range window, LSB = 1/256 NM</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="rhoEnd" type="uint16">
+        <doc>End of range window, LSB = 1/256 NM</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="thetaStart" type="uint16">
+        <doc>Start of azimuth window, LSB = 360/2^16 degrees</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="thetaEnd" type="uint16">
+        <doc>End of azimuth window, LSB = 360/2^16 degrees</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/440 - Directed Interrogation BDS Register Request
+         Repetitive: REP(8) + N * { BDS1(4) + BDS2(4) }
+         ======================================================================= -->
+    <struct name="Cat007I440">
+      <doc>I007/440 - Directed Interrogation BDS Register Request</doc>
+      <field name="rep" type="uint8" auto="count(registers)">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="registers" count-from="rep">
+        <field name="bds1" bits="4">
+          <doc>Comm B Data Buffer Store 1 Address</doc>
+        </field>
+        <field name="bds2" bits="4">
+          <doc>Comm B Data Buffer Store 2 Address</doc>
+        </field>
+      </array>
+    </struct>
+
+  </types>
+
+  <messages>
+    <!-- =======================================================================
+         CAT007 Uplink Record
+         FSPEC bitmap with 3 FSPEC octets (21 FRN positions)
+         Uplink UAP (Table 3)
+         ======================================================================= -->
+    <message id="7" name="Cat007UplinkRecord" direction="send">
+      <doc>
+        CAT007 Uplink Record (Uplink UAP, Table 3)
+        Applies to message types 5-8 as defined in I007/410:
+        5 = Interrogation Request Type A, 6 = Interrogation Request Type B,
+        7 = Interrogation Request Type C, 8 = Selective BDS-Register Request
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FSPEC Octet 1 (FRN 1-7) -->
+
+        <!-- FRN 1: I007/010 - Data Source Identifier (2 octets) -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I007/010 - Data Source Identifier</doc>
+        </field>
+
+        <!-- FRN 2: I007/025 - Data Destination Identifier (2 octets) -->
+        <field name="i025" bit="6" type="DataSourceId">
+          <doc>I007/025 - Data Destination Identifier</doc>
+        </field>
+
+        <!-- FRN 3: I007/410 - Directed Interrogation Message Type (1 octet) -->
+        <field name="i410" bit="5" type="Cat007I410">
+          <doc>I007/410 - Directed Interrogation Message Type</doc>
+        </field>
+
+        <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
+        <field name="i140" bit="4" type="TimeOfDay">
+          <doc>I007/140 - Time of Day</doc>
+        </field>
+
+        <!-- FRN 5: I007/400 - Directed Interrogation Request Number (2 octets) -->
+        <field name="i400" bit="3" type="Cat007I400">
+          <doc>I007/400 - Directed Interrogation Request Number</doc>
+        </field>
+
+        <!-- FRN 6: I007/040 - Measured Position in Slant Polar (4 octets) -->
+        <field name="i040" bit="2" type="Cat007I040">
+          <doc>I007/040 - Measured Position in Slant Polar Coordinates</doc>
+        </field>
+
+        <!-- FRN 7: I007/220 - Aircraft Address (3 octets) -->
+        <field name="i220" bit="1" type="AircraftAddress">
+          <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
+        </field>
+
+        <!-- FSPEC Octet 2 (FRN 8-14) -->
+
+        <!-- FRN 8: I007/161 - Track Number (2 octets) -->
+        <field name="i161" bit="15" type="Cat007I161">
+          <doc>I007/161 - Track Number</doc>
+        </field>
+
+        <!-- FRN 9: I007/042 - Calculated Position in Cartesian (4 octets) -->
+        <field name="i042" bit="14" type="Cat007I042">
+          <doc>I007/042 - Calculated Position in Cartesian Coordinates</doc>
+        </field>
+
+        <!-- FRN 10: I007/200 - Calculated Track Velocity in Polar (4 octets) -->
+        <field name="i200" bit="13" type="Cat007I200">
+          <doc>I007/200 - Calculated Track Velocity in Polar Representation</doc>
+        </field>
+
+        <!-- FRN 11: I007/415 - Required Interrogation Modes (compound) -->
+        <field name="i415" bit="12" type="Cat007I415">
+          <doc>I007/415 - Required Interrogation Modes</doc>
+        </field>
+
+        <!-- FRN 12: I007/420 - Directed Interrogation Window (8 octets) -->
+        <field name="i420" bit="11" type="Cat007I420">
+          <doc>I007/420 - Directed Interrogation Window</doc>
+        </field>
+
+        <!-- FRN 13: I007/440 - BDS Register Request (repetitive) -->
+        <field name="i440" bit="10" type="Cat007I440">
+          <doc>I007/440 - Directed Interrogation BDS Register Request</doc>
+        </field>
+
+        <!-- FRN 14: Unused -->
+
+        <!-- FSPEC Octet 3 (FRN 15-21) -->
+
+        <!-- FRN 15-19: Unused -->
+
+        <!-- FRN 20: SPF - Special Purpose Field -->
+        <struct name="spf" bit="18">
+          <doc>Special Purpose Field</doc>
+          <field name="len" type="uint8">
+            <doc>Length of SPF including this length byte</doc>
+            <constraint equals="29"/>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+        <!-- FRN 21: REF - Reserved Expansion Field -->
+        <struct name="ref" bit="17">
+          <doc>Reserved Expansion Field</doc>
+          <field name="len" type="uint8" auto="length">
+            <doc>Length of REF including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+      </struct>
+    </message>
+  </messages>
+
+</bmdl>
