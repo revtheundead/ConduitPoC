@@ -23,6 +23,10 @@ set "BUILD_ALL=0"
 set "RUN_TESTS=0"
 set "BUILD_DIR=build"
 
+:: Auto-detect number of CPU cores for parallel builds
+set "JOBS=%NUMBER_OF_PROCESSORS%"
+if not defined JOBS set "JOBS=4"
+
 :: ============================================================================
 :: Parse arguments
 :: ============================================================================
@@ -137,7 +141,7 @@ if "%THIRD_PARTY_ONLY%"=="1" (
         exit /b 1
     )
 
-    cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% --target Catch2 Catch2WithMain
+    cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% -j %JOBS% --target Catch2 Catch2WithMain
     if errorlevel 1 (
         echo Error: Third-party build failed.
         exit /b 1
@@ -162,7 +166,33 @@ if "%BUILD_ALL%"=="1" (
     set "BENCHMARKS_FLAG=-DCONDUIT_BUILD_BENCHMARKS=ON"
 )
 
+:: Determine if (re)configuration is needed
+set "NEEDS_CONFIGURE=0"
+
 if not exist "%BUILD_DIR%\CMakeCache.txt" (
+    set "NEEDS_CONFIGURE=1"
+) else (
+    :: Check if cached build type or options differ from requested values
+    set "CACHED_TYPE="
+    set "CACHED_EXAMPLES="
+    set "CACHED_BENCHMARKS="
+
+    for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CMAKE_BUILD_TYPE"') do set "CACHED_TYPE=%%a"
+    for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_EXAMPLES"') do set "CACHED_EXAMPLES=%%a"
+    for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_BENCHMARKS"') do set "CACHED_BENCHMARKS=%%a"
+
+    if not "!CACHED_TYPE!"=="%BUILD_TYPE%" set "NEEDS_CONFIGURE=1"
+
+    if "%BUILD_ALL%"=="1" (
+        if not "!CACHED_EXAMPLES!"=="ON" set "NEEDS_CONFIGURE=1"
+        if not "!CACHED_BENCHMARKS!"=="ON" set "NEEDS_CONFIGURE=1"
+    ) else (
+        if not "!CACHED_EXAMPLES!"=="OFF" set "NEEDS_CONFIGURE=1"
+        if not "!CACHED_BENCHMARKS!"=="OFF" set "NEEDS_CONFIGURE=1"
+    )
+)
+
+if "%NEEDS_CONFIGURE%"=="1" (
     echo.
     echo ==^> Configuring (%BUILD_TYPE%)
 
@@ -186,9 +216,9 @@ if not exist "%BUILD_DIR%\CMakeCache.txt" (
 :: ============================================================================
 
 echo.
-echo ==^> Building (%BUILD_TYPE%)
+echo ==^> Building (%BUILD_TYPE%, %JOBS% jobs)
 
-cmake --build "%BUILD_DIR%" --config %BUILD_TYPE%
+cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% -j %JOBS%
 if errorlevel 1 (
     echo Error: Build failed.
     exit /b 1
@@ -202,9 +232,18 @@ echo ==^> Build succeeded
 :: ============================================================================
 
 if "%RUN_TESTS%"=="1" (
+    :: Detect test binary path: multi-config (MSVC) vs single-config (Ninja)
+    if exist "%BUILD_DIR%\tests\%BUILD_TYPE%\conduit_tests.exe" (
+        set "TEST_PREFIX=%BUILD_DIR%\tests\%BUILD_TYPE%"
+        set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests\%BUILD_TYPE%"
+    ) else (
+        set "TEST_PREFIX=%BUILD_DIR%\tests"
+        set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests"
+    )
+
     echo.
     echo ==^> Running conduit tests
-    "%BUILD_DIR%\tests\%BUILD_TYPE%\conduit_tests.exe"
+    "!TEST_PREFIX!\conduit_tests.exe"
     if errorlevel 1 (
         echo Error: Conduit tests failed.
         exit /b 1
@@ -212,10 +251,30 @@ if "%RUN_TESTS%"=="1" (
 
     echo.
     echo ==^> Running bgen tests
-    "%BUILD_DIR%\bgen\tests\%BUILD_TYPE%\bgen_tests.exe"
+    "!BGEN_TEST_PREFIX!\bgen_tests.exe"
     if errorlevel 1 (
         echo Error: Bgen tests failed.
         exit /b 1
+    )
+
+    if exist "!BGEN_TEST_PREFIX!\bgen_python_tests.exe" (
+        echo.
+        echo ==^> Running bgen Python backend tests
+        "!BGEN_TEST_PREFIX!\bgen_python_tests.exe"
+        if errorlevel 1 (
+            echo Error: Bgen Python tests failed.
+            exit /b 1
+        )
+    )
+
+    if exist "!BGEN_TEST_PREFIX!\bgen_java_tests.exe" (
+        echo.
+        echo ==^> Running bgen Java backend tests
+        "!BGEN_TEST_PREFIX!\bgen_java_tests.exe"
+        if errorlevel 1 (
+            echo Error: Bgen Java tests failed.
+            exit /b 1
+        )
     )
 
     echo.

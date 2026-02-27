@@ -9,6 +9,8 @@ import sys
 import struct
 import pytest
 
+from conftest import resolve_native_lib
+
 # ---------------------------------------------------------------------------
 # Environment setup: point to the test CABI library before importing bindings
 # ---------------------------------------------------------------------------
@@ -16,11 +18,8 @@ import pytest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
-# Path to the test codec CABI shared library
-_CODEC_LIB_PATH = os.environ.get(
-    "CONDUIT_CODEC_LIB",
-    os.path.join(_PROJECT_ROOT, "build", "tests", "libconduit_codec_cabi_test.so"),
-)
+# Path to the test codec CABI shared library (platform-aware)
+_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_LIB", "conduit_codec_cabi_test")
 os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
 # Ensure Python bindings are importable

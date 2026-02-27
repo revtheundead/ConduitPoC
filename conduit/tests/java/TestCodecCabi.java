@@ -21,7 +21,8 @@ import io.conduit.CodecBindings;
  */
 public class TestCodecCabi {
 
-    private static final String CODEC_LIB = "/home/user/ConduitPoC/conduit/build/tests/libconduit_codec_cabi_test.so";
+    private static final String CODEC_LIB = TestLibraryResolver.resolve(
+        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test");
 
     // Known type IDs from session_protocol (session_test package)
     private static final long PING_TYPE_ID = session_test.PingBody.TYPE_ID;   // 0x0ad7bb3ecc473399L

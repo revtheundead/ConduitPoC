@@ -11,6 +11,8 @@ import time
 import threading
 import pytest
 
+from conftest import resolve_native_lib
+
 # ---------------------------------------------------------------------------
 # Environment setup: point to the test CABI libraries before importing bindings
 # ---------------------------------------------------------------------------
@@ -18,18 +20,11 @@ import pytest
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
-# Path to the test transceiver CABI shared library
-_CABI_LIB_PATH = os.environ.get(
-    "CONDUIT_CABI_LIB",
-    os.path.join(_PROJECT_ROOT, "build", "tests", "libconduit_cabi_test.so"),
-)
+# Path to the test CABI shared libraries (platform-aware)
+_CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_LIB", "conduit_cabi_test")
 os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
 
-# Also set codec lib for any codec operations needed
-_CODEC_LIB_PATH = os.environ.get(
-    "CONDUIT_CODEC_LIB",
-    os.path.join(_PROJECT_ROOT, "build", "tests", "libconduit_codec_cabi_test.so"),
-)
+_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_LIB", "conduit_codec_cabi_test")
 os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
 # Ensure Python bindings are importable
@@ -39,9 +34,15 @@ if _BINDINGS_DIR not in sys.path:
 
 # The transceiver CABI test library references conduit_register_session (from
 # the codec CABI) because test_sessions_register.cpp includes the codec header.
-# We must preload the codec CABI library with RTLD_GLOBAL so the linker can
-# resolve the symbol when the transceiver CABI library is loaded.
-_codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
+# On POSIX we preload with RTLD_GLOBAL so the linker can resolve the symbol.
+# On Windows, DLL dependencies are resolved automatically via LoadLibrary.
+if sys.platform == "win32":
+    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
+    if hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(_lib_dir)
+    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
+else:
+    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
 
 # Force the transceiver module to reload with the new env var
 import conduit.transceiver as _xcvr_mod

@@ -27,8 +27,10 @@ import session_protocol.DataBody;
  */
 public class TestTransceiverCabi {
 
-    private static final String CODEC_LIB = "/home/user/ConduitPoC/conduit/build/tests/libconduit_codec_cabi_test.so";
-    private static final String CABI_LIB = "/home/user/ConduitPoC/conduit/build/tests/libconduit_cabi_test.so";
+    private static final String CODEC_LIB = TestLibraryResolver.resolve(
+        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test");
+    private static final String CABI_LIB = TestLibraryResolver.resolve(
+        "conduit.cabi.test.path", "CONDUIT_CABI_LIB", "conduit_cabi_test");
 
     // Transport type constants (matching conduit_transport_type_t)
     private static final int TRANSPORT_UDP = 0;
