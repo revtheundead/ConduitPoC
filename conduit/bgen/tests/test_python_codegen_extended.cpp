@@ -1224,3 +1224,95 @@ TEST_CASE("PyCG: display format hex in repr", "[python][codegen][display_format]
     // hex field in AllTypesMsg → repr should use hex()
     CHECK(msgs.find("hex={hex(self.hex)}") != std::string::npos);
 }
+
+// ============================================================================
+// Constraint equals implies default
+// ============================================================================
+
+TEST_CASE("PyCG: constraint equals implies default value", "[python][codegen][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // magic has constraint equals="0xBEEF" with no explicit default,
+    // so it should be initialized to 0xBEEF
+    CHECK(msgs.find("magic = 0xBEEF") != std::string::npos);
+}
+
+TEST_CASE("PyCG: constraint equals generates validate method", "[python][codegen][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    CHECK(msgs.find("def validate(self)") != std::string::npos);
+    // Validate checks equals constraint
+    CHECK(msgs.find("magic != 0xBEEF") != std::string::npos);
+    // Validate checks max constraint
+    CHECK(msgs.find("percent > 100") != std::string::npos);
+}
+
+// ============================================================================
+// FX bit logic
+// ============================================================================
+
+TEST_CASE("PyCG: FX block generates read_bits(1) check on decode", "[python][codegen][fx]") {
+    auto py = gen_python("fx_block.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // FX decode should read 1 bit and conditionally decode
+    CHECK(msgs.find("r.read_bits(1)") != std::string::npos);
+    CHECK(msgs.find("if r.read_bits(1) != 0:") != std::string::npos);
+}
+
+TEST_CASE("PyCG: FX block writes FX continuation bit on encode", "[python][codegen][fx]") {
+    auto py = gen_python("fx_block.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // FX encode should write 1-bit continuation flag
+    CHECK(msgs.find("write_bits(") != std::string::npos);
+    CHECK(msgs.find("_fx_continue") != std::string::npos);
+}
+
+TEST_CASE("PyCG: FX child fields default to None", "[python][codegen][fx]") {
+    auto py = gen_python("fx_block.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // FX children should default to None
+    CHECK(msgs.find("item1 = None") != std::string::npos);
+    CHECK(msgs.find("item2 = None") != std::string::npos);
+    CHECK(msgs.find("item3 = None") != std::string::npos);
+}
+
+// ============================================================================
+// Bitmap/FSPEC support
+// ============================================================================
+
+TEST_CASE("PyCG: bitmap struct generates FSPEC read logic", "[python][codegen][bitmap]") {
+    auto py = gen_python("bitmap_fx.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+    REQUIRE(!structs.empty());
+    // Should read FSPEC bytes
+    CHECK(structs.find("fspec") != std::string::npos);
+    // Should have conditional field decode based on fspec bits
+    CHECK(structs.find("fspec[") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bitmap struct generates FSPEC write logic", "[python][codegen][bitmap]") {
+    auto py = gen_python("bitmap_fx.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+    REQUIRE(!structs.empty());
+    // Should build and write FSPEC byte array
+    CHECK(structs.find("def encode(") != std::string::npos);
+    CHECK(structs.find("fspec") != std::string::npos);
+}
+
+TEST_CASE("PyCG: bitmap fields default to None", "[python][codegen][bitmap]") {
+    auto py = gen_python("bitmap_fx.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+    REQUIRE(!structs.empty());
+    // All bitmap-controlled fields should default to None
+    CHECK(structs.find("item010 = None") != std::string::npos);
+    CHECK(structs.find("item020 = None") != std::string::npos);
+    CHECK(structs.find("item030 = None") != std::string::npos);
+}

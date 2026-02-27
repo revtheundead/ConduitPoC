@@ -1280,3 +1280,94 @@ TEST_CASE("JCG: display format hex in toString", "[java][codegen][display_format
     // hex field has format="hex" → toString should use Long.toHexString
     CHECK(msg_file.find("Long.toHexString(hex)") != std::string::npos);
 }
+
+// ============================================================================
+// Constraint equals implies default
+// ============================================================================
+
+TEST_CASE("JCG: constraint equals implies default value", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["ConstraintMsg.java"];
+    // magic has constraint equals="0xBEEF" with no explicit default,
+    // so it should be initialized to 0xBEEF
+    CHECK(msg.find("magic = 0xBEEF") != std::string::npos);
+}
+
+TEST_CASE("JCG: constraint equals generates validate method", "[java][codegen][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["ConstraintMsg.java"];
+    CHECK(msg.find("public void validate()") != std::string::npos);
+    // Validate checks equals constraint
+    CHECK(msg.find("magic != 0xBEEF") != std::string::npos);
+    // Validate checks max constraint
+    CHECK(msg.find("percent > 100") != std::string::npos);
+}
+
+// ============================================================================
+// FX bit logic
+// ============================================================================
+
+TEST_CASE("JCG: FX block generates readBits(1) check on decode", "[java][codegen][fx]") {
+    auto java = gen_java("fx_block.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["FxMessage.java"];
+    // FX decode should read 1 bit and conditionally decode
+    CHECK(msg.find("r.readBits(1)") != std::string::npos);
+    CHECK(msg.find("if (r.readBits(1) != 0)") != std::string::npos);
+}
+
+TEST_CASE("JCG: FX block writes FX continuation bit on encode", "[java][codegen][fx]") {
+    auto java = gen_java("fx_block.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["FxMessage.java"];
+    // FX encode should write 1-bit continuation flag
+    CHECK(msg.find("writeBits(") != std::string::npos);
+    CHECK(msg.find("_fxContinue") != std::string::npos);
+}
+
+TEST_CASE("JCG: FX child fields are nullable (boxed types)", "[java][codegen][fx]") {
+    auto java = gen_java("fx_block.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& msg = java->files["FxMessage.java"];
+    // FX children should use boxed types with null init
+    CHECK(msg.find("Integer") != std::string::npos);
+    CHECK(msg.find("= null") != std::string::npos);
+}
+
+// ============================================================================
+// Bitmap/FSPEC support
+// ============================================================================
+
+TEST_CASE("JCG: bitmap struct generates FSPEC read logic", "[java][codegen][bitmap]") {
+    auto java = gen_java("bitmap_fx.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bm = java->files["BitmapItems.java"];
+    REQUIRE(!bm.empty());
+    // Should read FSPEC bytes
+    CHECK(bm.find("fspec") != std::string::npos);
+    // Should have conditional field decode based on fspec bits
+    CHECK(bm.find("fspec[") != std::string::npos);
+}
+
+TEST_CASE("JCG: bitmap struct generates FSPEC write logic", "[java][codegen][bitmap]") {
+    auto java = gen_java("bitmap_fx.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bm = java->files["BitmapItems.java"];
+    REQUIRE(!bm.empty());
+    // Should build and write FSPEC byte array
+    CHECK(bm.find("encode(") != std::string::npos);
+    CHECK(bm.find("fspec") != std::string::npos);
+}
+
+TEST_CASE("JCG: bitmap fields are nullable", "[java][codegen][bitmap]") {
+    auto java = gen_java("bitmap_fx.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& bm = java->files["BitmapItems.java"];
+    REQUIRE(!bm.empty());
+    // All bitmap-controlled fields should be nullable (init to null)
+    CHECK(bm.find("item010 = null") != std::string::npos);
+    CHECK(bm.find("item020 = null") != std::string::npos);
+    CHECK(bm.find("item030 = null") != std::string::npos);
+}
