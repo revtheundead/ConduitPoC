@@ -1,0 +1,14 @@
+[project]
+name = "conduit-xcvr-python"
+version = "0.1.0"
+description = "ASTERIX Transceiver PoC — Python"
+requires-python = ">=3.10"
+
+dependencies = [
+    # Conduit Python bindings (built from ../conduit)
+    # Install via: pip install -e ../conduit/python
+]
+
+[project.scripts]
+poc-app = "src.poc_app:main"
+dummy-peer = "src.dummy_peer:main"
