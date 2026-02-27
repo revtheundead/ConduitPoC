@@ -44,8 +44,16 @@ public:
     encode_wrap(uint64_t type_id, const std::any& payload) override {
         if (type_id == 0x526296abfa532d01ULL) {
             auto* msg = std::any_cast<Cat007DownlinkRecord>(&payload);
-            if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                "payload type mismatch for Cat007DownlinkRecord"));
+            Cat007DownlinkRecord _decoded;
+            if (!msg) {
+                auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+                if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat007DownlinkRecord"));
+                auto dec = Cat007DownlinkRecord::decode_bytes(*raw);
+                if (!dec) return std::unexpected(dec.error());
+                _decoded = std::move(*dec);
+                msg = &_decoded;
+            }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
             result.auto_fields.push_back({"cat", std::to_string(Cat007DownlinkRecord::ID_VALUE)});
@@ -56,8 +64,16 @@ public:
             return result;
         } else if (type_id == 0x8d0fb175aeb7de98ULL) {
             auto* msg = std::any_cast<Cat007UplinkRecord>(&payload);
-            if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                "payload type mismatch for Cat007UplinkRecord"));
+            Cat007UplinkRecord _decoded;
+            if (!msg) {
+                auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+                if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat007UplinkRecord"));
+                auto dec = Cat007UplinkRecord::decode_bytes(*raw);
+                if (!dec) return std::unexpected(dec.error());
+                _decoded = std::move(*dec);
+                msg = &_decoded;
+            }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
             result.auto_fields.push_back({"cat", std::to_string(Cat007UplinkRecord::ID_VALUE)});
@@ -68,8 +84,16 @@ public:
             return result;
         } else if (type_id == 0xd597a1ab87dbb779ULL) {
             auto* msg = std::any_cast<Cat021Record>(&payload);
-            if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                "payload type mismatch for Cat021Record"));
+            Cat021Record _decoded;
+            if (!msg) {
+                auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+                if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat021Record"));
+                auto dec = Cat021Record::decode_bytes(*raw);
+                if (!dec) return std::unexpected(dec.error());
+                _decoded = std::move(*dec);
+                msg = &_decoded;
+            }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
             result.auto_fields.push_back({"cat", std::to_string(Cat021Record::ID_VALUE)});
@@ -80,8 +104,16 @@ public:
             return result;
         } else if (type_id == 0x85be2a9ab4cf6c50ULL) {
             auto* msg = std::any_cast<Cat048Record>(&payload);
-            if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                "payload type mismatch for Cat048Record"));
+            Cat048Record _decoded;
+            if (!msg) {
+                auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+                if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat048Record"));
+                auto dec = Cat048Record::decode_bytes(*raw);
+                if (!dec) return std::unexpected(dec.error());
+                _decoded = std::move(*dec);
+                msg = &_decoded;
+            }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
             result.auto_fields.push_back({"cat", std::to_string(Cat048Record::ID_VALUE)});
@@ -92,8 +124,16 @@ public:
             return result;
         } else if (type_id == 0x7f7b50444b289e0eULL) {
             auto* msg = std::any_cast<Cat253Record>(&payload);
-            if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                "payload type mismatch for Cat253Record"));
+            Cat253Record _decoded;
+            if (!msg) {
+                auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+                if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                    "payload type mismatch for Cat253Record"));
+                auto dec = Cat253Record::decode_bytes(*raw);
+                if (!dec) return std::unexpected(dec.error());
+                _decoded = std::move(*dec);
+                msg = &_decoded;
+            }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
             result.auto_fields.push_back({"cat", std::to_string(Cat253Record::ID_VALUE)});

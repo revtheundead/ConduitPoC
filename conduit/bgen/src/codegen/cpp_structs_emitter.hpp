@@ -147,6 +147,8 @@ public:
     void populate_local_field_names(const std::vector<model::StructChild>& children);
     void emit_decode_children(const std::vector<model::StructChild>& children,
                              const std::string& result_var);
+    void emit_decode_child(const model::StructChild& child,
+                           const std::string& result_var);
     void emit_decode_field(const model::Field& f, const std::string& result_var);
     void emit_decode_field_body(const model::Field& f, const std::string& result_var);
     void emit_decode_array(const model::ArrayDef& a, const std::string& result_var);

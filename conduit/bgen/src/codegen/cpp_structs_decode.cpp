@@ -593,103 +593,155 @@ void StructEmitter::populate_local_field_names(const std::vector<model::StructCh
 
 void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& children,
                                           const std::string& result_var) {
-    for (const auto& child : children) {
-        std::visit([this, &result_var](const auto& c) {
-            using T = std::decay_t<decltype(c)>;
-            if constexpr (std::is_same_v<T, model::Field>) {
-                emit_decode_field(c, result_var);
-                // Alignment tracking for fields is done inside emit_decode_field_body
-            } else if constexpr (std::is_same_v<T, model::StructDef>) {
-                if (!c.name.empty()) {
-                    std::string member = result_var + "." + to_member_name(c.name);
-                    std::string type = get_child_class_name(c.name);
-                    // Build decode call with outer-scope params if any
-                    std::string decode_call = type + "::decode(r";
-                    auto sit = struct_decode_params_.find(c.name);
-                    if (sit != struct_decode_params_.end()) {
-                        for (const auto& p : sit->second) {
-                            // Forward outer-scope params via their parameter variable
-                            auto osp_it = outer_scope_params_.find(p.bmdl_name);
-                            if (osp_it != outer_scope_params_.end()) {
-                                decode_call += ", " + osp_it->second;
-                            } else {
-                                std::string arg = result_var + "." + to_member_name(p.bmdl_name);
-                                if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
-                                    arg = "(*" + arg + ")";
-                                }
-                                decode_call += ", " + arg;
+    // Pre-scan: find struct-level auto-length field (auto="length" with no field_ref).
+    // When present, we create a bounded sub_reader after reading the length field
+    // so that subsequent children cannot over-read past the struct boundary.
+    int auto_length_idx = -1;
+    model::ArithModifier auto_length_mod;
+    std::string auto_length_field_name;
+    for (size_t i = 0; i < children.size(); ++i) {
+        if (auto* f = std::get_if<model::Field>(&children[i])) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
+                && f->auto_expr->field_ref.empty()) {
+                auto_length_idx = static_cast<int>(i);
+                auto_length_mod = f->auto_expr->modifier;
+                auto_length_field_name = f->name;
+                break;
+            }
+        }
+    }
+
+    // Emit start position marker if auto-length is present
+    if (auto_length_idx >= 0 && auto_length_idx + 1 < static_cast<int>(children.size())) {
+        ctx_.line("auto auto_len_start_ = r.remaining_bytes();");
+    }
+
+    bool in_sub_reader_scope = false;
+    for (size_t idx = 0; idx < children.size(); ++idx) {
+        const auto& child = children[idx];
+        emit_decode_child(child, result_var);
+
+        // After auto-length field, create sub_reader for remaining children
+        if (auto_length_idx >= 0 && static_cast<int>(idx) == auto_length_idx
+            && idx + 1 < children.size()) {
+            std::string len_member = result_var + "." + to_member_name(auto_length_field_name);
+            std::string raw_len = reverse_arith(len_member, auto_length_mod);
+            // Compute remaining bytes: total struct length minus bytes already consumed
+            // (auto="length" measures from struct start, so we track consumed bytes at runtime)
+            std::string remaining = "static_cast<size_t>(" + raw_len
+                + " - (auto_len_start_ - r.remaining_bytes()))";
+            ctx_.line("{");
+            ctx_.indent();
+            ctx_.line("auto auto_len_sub_ = r.sub_reader(" + remaining + ");");
+            ctx_.line("if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());");
+            ctx_.line("auto& r = *auto_len_sub_;");
+            in_sub_reader_scope = true;
+        }
+    }
+
+    if (in_sub_reader_scope) {
+        ctx_.dedent();
+        ctx_.line("}");
+    }
+}
+
+void StructEmitter::emit_decode_child(const model::StructChild& child,
+                                       const std::string& result_var) {
+    std::visit([this, &result_var](const auto& c) {
+        using T = std::decay_t<decltype(c)>;
+        if constexpr (std::is_same_v<T, model::Field>) {
+            emit_decode_field(c, result_var);
+            // Alignment tracking for fields is done inside emit_decode_field_body
+        } else if constexpr (std::is_same_v<T, model::StructDef>) {
+            if (!c.name.empty()) {
+                std::string member = result_var + "." + to_member_name(c.name);
+                std::string type = get_child_class_name(c.name);
+                // Build decode call with outer-scope params if any
+                std::string decode_call = type + "::decode(r";
+                auto sit = struct_decode_params_.find(c.name);
+                if (sit != struct_decode_params_.end()) {
+                    for (const auto& p : sit->second) {
+                        // Forward outer-scope params via their parameter variable
+                        auto osp_it = outer_scope_params_.find(p.bmdl_name);
+                        if (osp_it != outer_scope_params_.end()) {
+                            decode_call += ", " + osp_it->second;
+                        } else {
+                            std::string arg = result_var + "." + to_member_name(p.bmdl_name);
+                            if (optional_field_names_.count(to_member_name(p.bmdl_name))) {
+                                arg = "(*" + arg + ")";
                             }
+                            decode_call += ", " + arg;
                         }
                     }
-                    decode_call += ")";
-                    if (c.present_when) {
-                        std::string cond = emit_expr_code(*c.present_when, result_var);
-                        ctx_.line("if (" + cond + ") {");
-                        ctx_.indent();
-                        ctx_.line("{");
-                        ctx_.indent();
-                        ctx_.line("auto val = " + decode_call + ";");
-                        ctx_.line("if (!val) return std::unexpected(val.error());");
-                        ctx_.line(member + " = std::move(*val);");
-                        ctx_.dedent();
-                        ctx_.line("}");
-                        ctx_.dedent();
-                        ctx_.line("}");
-                        // Conditional struct: alignment becomes unknown if not byte-aligned
-                        advance_bits_variable();
-                    } else {
-                        ctx_.line("{");
-                        ctx_.indent();
-                        ctx_.line("auto val = " + decode_call + ";");
-                        ctx_.line("if (!val) return std::unexpected(val.error());");
-                        ctx_.line(member + " = std::move(*val);");
-                        ctx_.dedent();
-                        ctx_.line("}");
-                        // Sub-structs decode whole bytes (their own decode starts at byte 0)
-                        advance_bits_variable();
-                    }
                 }
-            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+                decode_call += ")";
                 if (c.present_when) {
                     std::string cond = emit_expr_code(*c.present_when, result_var);
                     ctx_.line("if (" + cond + ") {");
                     ctx_.indent();
-                    emit_decode_array(c, result_var);
-                    ctx_.dedent();
-                    ctx_.line("}");
-                } else {
-                    emit_decode_array(c, result_var);
-                }
-                advance_bits_variable();
-            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
-                if (c.present_when) {
-                    std::string cond = emit_expr_code(*c.present_when, result_var);
-                    ctx_.line("if (" + cond + ") {");
+                    ctx_.line("{");
                     ctx_.indent();
-                    emit_decode_choice(c, result_var);
+                    ctx_.line("auto val = " + decode_call + ";");
+                    ctx_.line("if (!val) return std::unexpected(val.error());");
+                    ctx_.line(member + " = std::move(*val);");
                     ctx_.dedent();
                     ctx_.line("}");
+                    ctx_.dedent();
+                    ctx_.line("}");
+                    // Conditional struct: alignment becomes unknown if not byte-aligned
+                    advance_bits_variable();
                 } else {
-                    emit_decode_choice(c, result_var);
+                    ctx_.line("{");
+                    ctx_.indent();
+                    ctx_.line("auto val = " + decode_call + ";");
+                    ctx_.line("if (!val) return std::unexpected(val.error());");
+                    ctx_.line(member + " = std::move(*val);");
+                    ctx_.dedent();
+                    ctx_.line("}");
+                    // Sub-structs decode whole bytes (their own decode starts at byte 0)
+                    advance_bits_variable();
                 }
-                advance_bits_variable();
-            } else if constexpr (std::is_same_v<T, model::FxBlock>) {
-                emit_decode_fx(c, result_var);
-                advance_bits_variable();
-            } else if constexpr (std::is_same_v<T, model::Reserved>) {
-                int remaining = c.bits;
-                while (remaining > 64) {
-                    ctx_.line("CONDUIT_TRY(r.skip_bits(64));");
-                    remaining -= 64;
-                }
-                ctx_.line("CONDUIT_TRY(r.skip_bits(" + std::to_string(remaining) + "));");
-                advance_bits(c.bits);
-            } else if constexpr (std::is_same_v<T, model::Align>) {
-                ctx_.line("r.align_to(" + std::to_string(c.to) + ");");
-                bit_mod8_ = 0; // align resets to byte boundary
             }
-        }, child);
-    }
+        } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
+            if (c.present_when) {
+                std::string cond = emit_expr_code(*c.present_when, result_var);
+                ctx_.line("if (" + cond + ") {");
+                ctx_.indent();
+                emit_decode_array(c, result_var);
+                ctx_.dedent();
+                ctx_.line("}");
+            } else {
+                emit_decode_array(c, result_var);
+            }
+            advance_bits_variable();
+        } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+            if (c.present_when) {
+                std::string cond = emit_expr_code(*c.present_when, result_var);
+                ctx_.line("if (" + cond + ") {");
+                ctx_.indent();
+                emit_decode_choice(c, result_var);
+                ctx_.dedent();
+                ctx_.line("}");
+            } else {
+                emit_decode_choice(c, result_var);
+            }
+            advance_bits_variable();
+        } else if constexpr (std::is_same_v<T, model::FxBlock>) {
+            emit_decode_fx(c, result_var);
+            advance_bits_variable();
+        } else if constexpr (std::is_same_v<T, model::Reserved>) {
+            int remaining = c.bits;
+            while (remaining > 64) {
+                ctx_.line("CONDUIT_TRY(r.skip_bits(64));");
+                remaining -= 64;
+            }
+            ctx_.line("CONDUIT_TRY(r.skip_bits(" + std::to_string(remaining) + "));");
+            advance_bits(c.bits);
+        } else if constexpr (std::is_same_v<T, model::Align>) {
+            ctx_.line("r.align_to(" + std::to_string(c.to) + ");");
+            bit_mod8_ = 0; // align resets to byte boundary
+        }
+    }, child);
 }
 
 void StructEmitter::emit_decode_field(const model::Field& f, const std::string& result_var) {
