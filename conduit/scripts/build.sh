@@ -155,6 +155,24 @@ elif [ "CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ] || \
      [ "tests/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ] || \
      [ "bgen/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]; then
     NEEDS_CONFIGURE=true
+else
+    # Reconfigure if build type or options changed from cached values
+    CACHED_TYPE=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CMAKE_BUILD_TYPE' | cut -d= -f2)
+    CACHED_EXAMPLES=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CONDUIT_BUILD_EXAMPLES' | cut -d= -f2)
+    CACHED_BENCHMARKS=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CONDUIT_BUILD_BENCHMARKS' | cut -d= -f2)
+
+    if [ "$CACHED_TYPE" != "$BUILD_TYPE" ]; then
+        NEEDS_CONFIGURE=true
+    fi
+    if [ "$BUILD_ALL" = true ]; then
+        if [ "$CACHED_EXAMPLES" != "ON" ] || [ "$CACHED_BENCHMARKS" != "ON" ]; then
+            NEEDS_CONFIGURE=true
+        fi
+    else
+        if [ "$CACHED_EXAMPLES" != "OFF" ] || [ "$CACHED_BENCHMARKS" != "OFF" ]; then
+            NEEDS_CONFIGURE=true
+        fi
+    fi
 fi
 
 if [ "$NEEDS_CONFIGURE" = true ]; then
@@ -188,6 +206,16 @@ if [ "$RUN_TESTS" = true ]; then
 
     step "Running bgen tests"
     "$BUILD_DIR/bgen/tests/bgen_tests"
+
+    if [ -x "$BUILD_DIR/bgen/tests/bgen_python_tests" ]; then
+        step "Running bgen Python backend tests"
+        "$BUILD_DIR/bgen/tests/bgen_python_tests"
+    fi
+
+    if [ -x "$BUILD_DIR/bgen/tests/bgen_java_tests" ]; then
+        step "Running bgen Java backend tests"
+        "$BUILD_DIR/bgen/tests/bgen_java_tests"
+    fi
 
     step "All tests passed"
 fi

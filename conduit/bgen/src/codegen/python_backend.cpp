@@ -1476,7 +1476,7 @@ struct PyBitmapField {
 
 void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                            const analyzer::TypeIndex& index,
-                           const std::unordered_map<std::string, uint64_t>& tid_map,
+                           const std::unordered_map<std::string, uint64_t>& /*tid_map*/,
                            const PyOuterScopeMap& scope_map = {},
                            const PyInlineNameMap& name_map = {},
                            const std::string& class_name_override = {}) {
@@ -2666,10 +2666,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                 all_config.try_emplace(cf.key, cf);
         bool has_config = !all_config.empty();
 
-        // Check if any leaf has auto-increment fields
-        bool has_auto_fields = false;
+        // Check if any leaf has auto-increment fields (reserved for future use)
         for (const auto& lt : si.leaf_types)
-            if (!lt.auto_fields.empty()) { has_auto_fields = true; break; }
+            if (!lt.auto_fields.empty()) { break; }
 
         ctx.line();
         ctx.line("class " + sc + ":");
