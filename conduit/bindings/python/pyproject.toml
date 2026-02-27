@@ -9,5 +9,8 @@ description = "Python bindings for the Conduit binary protocol library"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 
+[project.scripts]
+conduit-codegen = "conduit.codegen_cli:main"
+
 [tool.setuptools.packages.find]
 include = ["conduit*"]

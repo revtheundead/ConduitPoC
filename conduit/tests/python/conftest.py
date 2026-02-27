@@ -1,12 +1,56 @@
 """Pytest configuration and shared fixtures for Conduit generated Python codec tests."""
 import sys
 import os
+import platform
 import pytest
 
 # Add the generated code directory to sys.path so packages are importable
 _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 if _generated_dir not in sys.path:
     sys.path.insert(0, _generated_dir)
+
+
+# ---------------------------------------------------------------------------
+# Shared native library resolution (used by test_codec_cabi and test_transceiver_cabi)
+# ---------------------------------------------------------------------------
+
+_TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
+
+
+def resolve_native_lib(env_var: str, base_name: str) -> str:
+    """Resolve a native test library path with platform-aware defaults.
+
+    Checks (in order):
+      1. Environment variable *env_var* pointing to a file
+      2. Single-config layout: build/tests/<lib>
+      3. Multi-config layout: build/tests/{Debug,Release,RelWithDebInfo}/<lib>
+    """
+    env_path = os.environ.get(env_var, "")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+
+    system = platform.system()
+    if system == "Windows":
+        lib_name = f"{base_name}.dll"
+    elif system == "Darwin":
+        lib_name = f"lib{base_name}.dylib"
+    else:
+        lib_name = f"lib{base_name}.so"
+
+    # Single-config (Ninja, Make)
+    direct = os.path.join(_PROJECT_ROOT, "build", "tests", lib_name)
+    if os.path.isfile(direct):
+        return direct
+
+    # Multi-config (MSVC)
+    for config in ("Debug", "Release", "RelWithDebInfo"):
+        multi = os.path.join(_PROJECT_ROOT, "build", "tests", config, lib_name)
+        if os.path.isfile(multi):
+            return multi
+
+    # Fallback — will fail with a clear error at load time
+    return direct
 
 
 # ---------------------------------------------------------------------------
