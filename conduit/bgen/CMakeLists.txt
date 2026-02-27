@@ -31,6 +31,7 @@ set(BGEN_LIB_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_session.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_protocol.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_umbrella.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/cpp_json.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/python_backend.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/codegen/java_backend.cpp
 )

@@ -34,6 +34,7 @@ macro(bgen_generate_fixture FIXTURE_NAME)
                "${FIXTURE_OUTPUT_DIR}/messages.hpp"
                "${FIXTURE_OUTPUT_DIR}/sessions.hpp"
                "${FIXTURE_OUTPUT_DIR}/protocol.hpp"
+               "${FIXTURE_OUTPUT_DIR}/json.hpp"
         COMMAND bgen --input "${FIXTURE_INPUT}" --output "${FIXTURE_OUTPUT_DIR}"
         DEPENDS bgen "${FIXTURE_INPUT}"
         COMMENT "Generating code from ${FIXTURE_NAME}.bmdl.xml"
@@ -46,6 +47,7 @@ macro(bgen_generate_fixture FIXTURE_NAME)
                 "${FIXTURE_OUTPUT_DIR}/messages.hpp"
                 "${FIXTURE_OUTPUT_DIR}/sessions.hpp"
                 "${FIXTURE_OUTPUT_DIR}/protocol.hpp"
+                "${FIXTURE_OUTPUT_DIR}/json.hpp"
     )
 endmacro()
 
@@ -170,6 +172,8 @@ add_executable(bgen_tests
     test_bytes_numeric.cpp
     test_string_encoding_edge_cases.cpp
     test_type_name_override.cpp
+    # JSON serialization roundtrip tests
+    test_json_roundtrip.cpp
 )
 
 add_dependencies(bgen_tests
@@ -224,6 +228,7 @@ target_link_libraries(bgen_tests PRIVATE
     bgen_lib
     conduit
     conduit_warnings
+    nlohmann_json::nlohmann_json
     Catch2::Catch2WithMain
 )
 
