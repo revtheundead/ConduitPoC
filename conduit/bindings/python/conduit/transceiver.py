@@ -1,13 +1,16 @@
 """Conduit Transceiver Python bindings via ctypes.
 
 Wraps libconduit_cabi for full Transceiver operations.
+Provides both typed message APIs (matching C++ UX) and raw byte-level access.
 """
 
 from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import inspect
 import os
+from collections import namedtuple
 from typing import Callable, Optional
 
 from conduit.types import TransportConfig, TransportType
@@ -51,6 +54,27 @@ _ERROR_CALLBACK = ctypes.CFUNCTYPE(
     ctypes.c_char_p,       # error_message
     ctypes.c_void_p,       # user_data
 )
+
+# Stats snapshot structure matching C ABI
+class _CONDUIT_STATS(ctypes.Structure):
+    _fields_ = [
+        ("messages_received", ctypes.c_uint64),
+        ("messages_dispatched", ctypes.c_uint64),
+        ("messages_dropped", ctypes.c_uint64),
+        ("decode_errors", ctypes.c_uint64),
+        ("handler_errors", ctypes.c_uint64),
+        ("handler_timeouts", ctypes.c_uint64),
+        ("bytes_received", ctypes.c_uint64),
+        ("bytes_sent", ctypes.c_uint64),
+    ]
+
+
+# Named tuple for Python-friendly stats access
+Stats = namedtuple("Stats", [
+    "messages_received", "messages_dispatched", "messages_dropped",
+    "decode_errors", "handler_errors", "handler_timeouts",
+    "bytes_received", "bytes_sent",
+])
 
 
 # ============================================================================
@@ -191,9 +215,41 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     lib.conduit_peer_state.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
     lib.conduit_peer_state.restype = ctypes.c_int32
 
+    # Stats
+    lib.conduit_stats.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(_CONDUIT_STATS),
+    ]
+    lib.conduit_stats.restype = ctypes.c_int32
+
+    lib.conduit_stats_reset.argtypes = [ctypes.c_void_p]
+    lib.conduit_stats_reset.restype = ctypes.c_int32
+
     # Version
     lib.conduit_version.argtypes = []
     lib.conduit_version.restype = ctypes.c_char_p
+
+
+# ============================================================================
+# Helper: check if an object is a bgen-generated message class
+# ============================================================================
+
+def _is_message_class(cls) -> bool:
+    """Check if cls is a bgen-generated message class with TYPE_ID and codec methods."""
+    return (
+        isinstance(cls, type)
+        and hasattr(cls, "TYPE_ID")
+        and hasattr(cls, "encode_bytes")
+        and hasattr(cls, "decode_bytes")
+    )
+
+
+def _is_message_instance(obj) -> bool:
+    """Check if obj is an instance of a bgen-generated message class."""
+    return (
+        hasattr(obj, "TYPE_ID")
+        and hasattr(obj, "encode_bytes")
+        and callable(getattr(obj, "encode_bytes", None))
+    )
 
 
 # ============================================================================
@@ -210,19 +266,19 @@ class ConduitError(Exception):
 class Transceiver:
     """Python wrapper for the Conduit Transceiver.
 
-    Provides a Pythonic API over libconduit_cabi, with context manager support,
-    decorator-based handler registration, and automatic lifecycle management.
+    Provides a Pythonic API over libconduit_cabi that mirrors the C++ experience.
+    Users work with typed message objects — never raw bytes or type IDs.
 
     Usage:
         with Transceiver() as t:
             t.add_peer("radar", "my_session", UdpConfig("0.0.0.0:5000"))
 
-            @t.on(type_id=0x1234)
-            def handle_msg(peer_id, type_id, type_name, data):
-                print(f"Got {type_name}: {data.hex()}")
+            @t.on(PingBody)
+            def handle_ping(peer_id, msg):
+                print(f"Received: {msg}")
 
             t.start()
-            # ... do work ...
+            t.send(peer_id, ping_msg)
     """
 
     def __init__(self):
@@ -289,8 +345,43 @@ class Transceiver:
         """Check if the transceiver is running."""
         return bool(self._lib.conduit_is_running(self._handle))
 
-    def send(self, peer_id: int, type_id: int, data: bytes) -> None:
-        """Send raw bytes to a peer."""
+    # ========================================================================
+    # Send — typed message API (matches C++ UX)
+    # ========================================================================
+
+    def send(self, peer_id_or_msg, msg=None) -> None:
+        """Send a typed message to a peer.
+
+        Usage:
+            t.send(peer_id, msg)    # explicit peer
+            t.send(msg)             # sole peer (convenience)
+
+        The message must be a bgen-generated object with TYPE_ID and
+        encode_bytes(). This mirrors the C++ transceiver.send<T>(msg) API.
+        """
+        if msg is None:
+            # sole-peer convenience: send(msg)
+            msg = peer_id_or_msg
+            if not _is_message_instance(msg):
+                raise TypeError(
+                    f"Expected a message object with TYPE_ID and encode_bytes(), "
+                    f"got {type(msg).__name__}"
+                )
+            peer_id = self.sole_peer()
+        else:
+            peer_id = peer_id_or_msg
+            if not _is_message_instance(msg):
+                raise TypeError(
+                    f"Expected a message object with TYPE_ID and encode_bytes(), "
+                    f"got {type(msg).__name__}"
+                )
+
+        type_id = msg.TYPE_ID
+        data = msg.encode_bytes()
+        self.send_raw(peer_id, type_id, data)
+
+    def send_raw(self, peer_id: int, type_id: int, data: bytes) -> None:
+        """Send raw bytes to a peer (low-level API)."""
         buf = (ctypes.c_uint8 * len(data))(*data)
         err = self._lib.conduit_send(
             self._handle, peer_id, type_id, buf, len(data))
@@ -325,23 +416,58 @@ class Transceiver:
         if err != 0:
             raise ConduitError(err, "send_batch failed")
 
+    # ========================================================================
+    # Receive — typed handler registration (matches C++ UX)
+    # ========================================================================
+
     def on(self, msg_class=None, *, type_id: Optional[int] = None):
         """Decorator for registering a message handler.
 
-        Can be used with a message class that has TYPE_ID:
-            @t.on(Heartbeat)
-            def handle_hb(peer_id, type_id, type_name, data): ...
+        Typed handler (auto-deserialization, matches C++ UX):
+            @t.on(PingBody)
+            def handle_ping(peer_id, msg):
+                print(msg.timestamp)   # msg is already a PingBody instance
 
-        Or with an explicit type_id:
+        Raw handler (explicit type_id, receives raw bytes):
             @t.on(type_id=0x1234)
-            def handle_msg(peer_id, type_id, type_name, data): ...
+            def handle_msg(peer_id, type_id, type_name, data):
+                print(data.hex())
         """
         if msg_class is not None and type_id is None:
-            # msg_class should have TYPE_ID attribute
-            type_id = getattr(msg_class, "TYPE_ID", 0)
+            # Typed handler: @t.on(PingBody)
+            if not _is_message_class(msg_class):
+                raise TypeError(
+                    f"Expected a message class with TYPE_ID, encode_bytes, "
+                    f"and decode_bytes, got {msg_class!r}"
+                )
+            resolved_type_id = msg_class.TYPE_ID
+
+            def decorator(func):
+                # Wrap user's typed callback to auto-decode
+                def _typed_handler(peer_id, tid, type_name, raw):
+                    try:
+                        decoded = msg_class.decode_bytes(raw)
+                    except Exception:
+                        # Decode failed — skip this message silently
+                        # (error callback on the C++ side fires for decode errors)
+                        return
+                    func(peer_id, decoded)
+
+                self._register_message_handler(resolved_type_id, _typed_handler)
+                return func
+
+            return decorator
+
+        # Raw handler: @t.on(type_id=0x1234)
+        if type_id is not None:
+            resolved_type_id = type_id
+        elif msg_class is not None:
+            resolved_type_id = getattr(msg_class, "TYPE_ID", 0)
+        else:
+            resolved_type_id = 0
 
         def decorator(func):
-            self._register_message_handler(type_id or 0, func)
+            self._register_message_handler(resolved_type_id, func)
             return func
 
         return decorator
@@ -349,6 +475,10 @@ class Transceiver:
     def on_any(self, func: Callable) -> int:
         """Register a catch-all message handler."""
         return self._register_message_handler(0, func, any_message=True)
+
+    # ========================================================================
+    # State & error callbacks
+    # ========================================================================
 
     def on_state_change(self, func: Callable[[int, int], None]) -> int:
         """Register a connection state change callback. Returns callback ID."""
@@ -372,6 +502,10 @@ class Transceiver:
 
         self._callback_refs.append(_cb)
         return self._lib.conduit_on_error(self._handle, _cb, None)
+
+    # ========================================================================
+    # Query
+    # ========================================================================
 
     def peer_count(self) -> int:
         """Get the number of peers."""
@@ -398,6 +532,43 @@ class Transceiver:
             raise ConduitError(err, f"peer_by_name('{name}') failed")
         return pid.value
 
+    # ========================================================================
+    # Statistics
+    # ========================================================================
+
+    def stats(self) -> Stats:
+        """Get a snapshot of transceiver statistics.
+
+        Returns a Stats namedtuple with:
+            messages_received, messages_dispatched, messages_dropped,
+            decode_errors, handler_errors, handler_timeouts,
+            bytes_received, bytes_sent
+        """
+        snap = _CONDUIT_STATS()
+        err = self._lib.conduit_stats(self._handle, ctypes.byref(snap))
+        if err != 0:
+            raise ConduitError(err, "stats failed")
+        return Stats(
+            messages_received=snap.messages_received,
+            messages_dispatched=snap.messages_dispatched,
+            messages_dropped=snap.messages_dropped,
+            decode_errors=snap.decode_errors,
+            handler_errors=snap.handler_errors,
+            handler_timeouts=snap.handler_timeouts,
+            bytes_received=snap.bytes_received,
+            bytes_sent=snap.bytes_sent,
+        )
+
+    def stats_reset(self) -> None:
+        """Reset all statistics counters to zero."""
+        err = self._lib.conduit_stats_reset(self._handle)
+        if err != 0:
+            raise ConduitError(err, "stats_reset failed")
+
+    # ========================================================================
+    # Handler/callback removal
+    # ========================================================================
+
     def remove_handler(self, peer_id: int, type_id: int) -> bool:
         """Remove a message handler. Returns True if removed."""
         return bool(self._lib.conduit_remove_handler(
@@ -419,6 +590,10 @@ class Transceiver:
         lib = _get_lib()
         v = lib.conduit_version()
         return v.decode("utf-8") if v else ""
+
+    # ========================================================================
+    # Internal
+    # ========================================================================
 
     def _register_message_handler(
         self, type_id: int, func: Callable,

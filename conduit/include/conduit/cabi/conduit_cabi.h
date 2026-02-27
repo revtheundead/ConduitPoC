@@ -174,6 +174,27 @@ CONDUIT_CABI_API int32_t conduit_peer_state(
     const conduit_transceiver_t* xcvr, conduit_peer_id peer);
 
 /* ================================================================
+ * Statistics
+ * ================================================================ */
+typedef struct {
+    uint64_t messages_received;
+    uint64_t messages_dispatched;
+    uint64_t messages_dropped;
+    uint64_t decode_errors;
+    uint64_t handler_errors;
+    uint64_t handler_timeouts;
+    uint64_t bytes_received;
+    uint64_t bytes_sent;
+} conduit_stats_snapshot_t;
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats(
+    const conduit_transceiver_t* xcvr,
+    conduit_stats_snapshot_t* out);
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
+    conduit_transceiver_t* xcvr);
+
+/* ================================================================
  * Session registry (shared with codec CABI)
  * ================================================================ */
 typedef void* (*conduit_session_factory_t)(void);

@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <shared_mutex>
+#include <span>
 #include <unordered_map>
 
 namespace conduit::transceiver {
@@ -94,6 +95,18 @@ public:
     // NotFound if no handler matched, or Error if a handler threw.
     DispatchResult dispatch(PeerId peer, uint64_t type_id, const std::any& payload);
 
+    // Dispatch with raw bytes available for catch-all handlers.
+    // Typed handlers still receive the typed payload; only the raw catch-all
+    // receives the raw frame bytes alongside the payload.
+    DispatchResult dispatch(PeerId peer, uint64_t type_id,
+                            const std::any& payload,
+                            std::span<const uint8_t> raw);
+
+    // Set a global raw catch-all that receives (peer, type_id, payload, raw_bytes).
+    // This is used by the C ABI to forward raw bytes across the FFI boundary.
+    using RawCatchAllFn = std::function<void(PeerId, uint64_t, const std::any&, std::span<const uint8_t>)>;
+    void set_raw_catch_all(RawCatchAllFn cb);
+
 private:
     struct HandlerKey {
         PeerId peer;
@@ -123,6 +136,7 @@ private:
     std::unordered_map<uint64_t, std::shared_ptr<const ErasedHandler>> global_handlers_;
     std::unordered_map<uint32_t, std::shared_ptr<const CatchAllFn>> per_peer_catch_all_;  // keyed by peer id
     std::shared_ptr<const CatchAllFn> catch_all_;
+    std::shared_ptr<const RawCatchAllFn> raw_catch_all_;
 };
 
 } // namespace conduit::transceiver

@@ -12,8 +12,12 @@ import java.lang.invoke.MethodType;
 
 import io.conduit.CabiBindings;
 import io.conduit.Transceiver;
+import io.conduit.Transceiver.StatsSnapshot;
 import io.conduit.TransportConfig;
 import io.conduit.ConduitError;
+
+import session_protocol.PingBody;
+import session_protocol.DataBody;
 
 /**
  * Comprehensive tests for the Conduit Transceiver C ABI bindings via Project Panama.
@@ -832,6 +836,280 @@ public class TestTransceiverCabi {
             assertEquals(2, t.peerCount());
             t.stop();
             assertFalse(t.isRunning());
+        }
+    }
+
+    // ========================================================================
+    // Typed send (happy path)
+    // ========================================================================
+
+    @Test
+    @DisplayName("Typed send: send PingBody to a peer")
+    void sendTypedPingBody() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9500"));
+            t.start();
+
+            PingBody msg = new PingBody();
+            msg.timestamp = 42;
+            assertDoesNotThrow(() -> t.send(peerId, msg));
+
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: send DataBody to a peer")
+    void sendTypedDataBody() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9501"));
+            t.start();
+
+            DataBody msg = new DataBody();
+            msg.channel = 5;
+            msg.payloadA = 100;
+            msg.payloadB = 200;
+            assertDoesNotThrow(() -> t.send(peerId, msg));
+
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: sole peer convenience")
+    void sendTypedSolePeer() {
+        try (Transceiver t = new Transceiver()) {
+            t.addPeer("only", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9502"));
+            t.start();
+
+            PingBody msg = new PingBody();
+            msg.timestamp = 99;
+            assertDoesNotThrow(() -> t.send(msg));
+
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: multiple messages in sequence")
+    void sendTypedMultipleMessages() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9503"));
+            t.start();
+
+            for (int i = 0; i < 10; i++) {
+                PingBody msg = new PingBody();
+                msg.timestamp = i;
+                t.send(peerId, msg);
+            }
+
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Raw send: sendRaw still works")
+    void sendRawStillWorks() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9504"));
+            t.start();
+
+            // PingBody: timestamp=1 is 4 bytes big-endian
+            assertDoesNotThrow(() ->
+                t.sendRaw(peerId, PING_TYPE_ID, new byte[]{0, 0, 0, 1}));
+
+            t.stop();
+        }
+    }
+
+    // ========================================================================
+    // Typed send (error path)
+    // ========================================================================
+
+    @Test
+    @DisplayName("Typed send: before start throws ConduitError")
+    void sendTypedBeforeStartThrows() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9510"));
+            PingBody msg = new PingBody();
+            msg.timestamp = 1;
+            assertThrows(ConduitError.class, () -> t.send(peerId, msg));
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: invalid peer throws ConduitError")
+    void sendTypedInvalidPeerThrows() {
+        try (Transceiver t = new Transceiver()) {
+            t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9511"));
+            t.start();
+            PingBody msg = new PingBody();
+            msg.timestamp = 1;
+            assertThrows(ConduitError.class, () -> t.send(99999, msg));
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: null message throws NullPointerException")
+    void sendTypedNullThrows() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9512"));
+            t.start();
+            assertThrows(NullPointerException.class, () -> t.send(peerId, (Object) null));
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: non-message object throws IllegalArgumentException")
+    void sendTypedNonMessageThrows() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9513"));
+            t.start();
+            assertThrows(IllegalArgumentException.class,
+                () -> t.send(peerId, "not a message"));
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Typed send: sole peer with multiple peers throws ConduitError")
+    void sendTypedSolePeerMultipleThrows() {
+        try (Transceiver t = new Transceiver()) {
+            t.addPeer("a", "session_protocol", TransportConfig.udp("127.0.0.1:9514"));
+            t.addPeer("b", "session_protocol", TransportConfig.udp("127.0.0.1:9515"));
+            t.start();
+            PingBody msg = new PingBody();
+            msg.timestamp = 1;
+            assertThrows(ConduitError.class, () -> t.send(msg));
+            t.stop();
+        }
+    }
+
+    // ========================================================================
+    // Typed handler registration (happy path)
+    // ========================================================================
+
+    @Test
+    @DisplayName("Typed onMessage: registers typed handler for PingBody")
+    void onMessageTypedPingBody() {
+        try (Transceiver t = new Transceiver()) {
+            int cbId = t.onMessage(PingBody.class, (peerId, msg) -> {
+                // Auto-deserialized callback
+                assertNotNull(msg);
+            });
+            assertTrue(cbId > 0);
+        }
+    }
+
+    @Test
+    @DisplayName("Typed onMessage: registers handlers for multiple types")
+    void onMessageTypedMultipleTypes() {
+        try (Transceiver t = new Transceiver()) {
+            int id1 = t.onMessage(PingBody.class, (peerId, msg) -> {});
+            int id2 = t.onMessage(DataBody.class, (peerId, msg) -> {});
+            assertTrue(id1 > 0);
+            assertTrue(id2 > 0);
+            assertNotEquals(id1, id2);
+        }
+    }
+
+    // ========================================================================
+    // Typed handler registration (error path)
+    // ========================================================================
+
+    @Test
+    @DisplayName("Typed onMessage: non-message class throws IllegalArgumentException")
+    void onMessageTypedNonMessageClassThrows() {
+        try (Transceiver t = new Transceiver()) {
+            assertThrows(IllegalArgumentException.class,
+                () -> t.onMessage(String.class, (peerId, msg) -> {}));
+        }
+    }
+
+    // ========================================================================
+    // Statistics (happy path)
+    // ========================================================================
+
+    @Test
+    @DisplayName("Stats: returns StatsSnapshot")
+    void statsReturnsSnapshot() {
+        try (Transceiver t = new Transceiver()) {
+            StatsSnapshot s = t.stats();
+            assertNotNull(s);
+        }
+    }
+
+    @Test
+    @DisplayName("Stats: initial values are all zero")
+    void statsInitialZeros() {
+        try (Transceiver t = new Transceiver()) {
+            StatsSnapshot s = t.stats();
+            assertEquals(0, s.messagesReceived());
+            assertEquals(0, s.messagesDispatched());
+            assertEquals(0, s.messagesDropped());
+            assertEquals(0, s.decodeErrors());
+            assertEquals(0, s.handlerErrors());
+            assertEquals(0, s.handlerTimeouts());
+            assertEquals(0, s.bytesReceived());
+            assertEquals(0, s.bytesSent());
+        }
+    }
+
+    @Test
+    @DisplayName("Stats: bytes_sent increments after typed send")
+    void statsAfterSend() throws Exception {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9520"));
+            t.start();
+
+            StatsSnapshot before = t.stats();
+            PingBody msg = new PingBody();
+            msg.timestamp = 42;
+            t.send(peerId, msg);
+
+            Thread.sleep(50);
+            StatsSnapshot after = t.stats();
+            assertTrue(after.bytesSent() > before.bytesSent(),
+                "bytes_sent should increase after send");
+
+            t.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("Stats: reset zeroes all counters")
+    void statsReset() throws Exception {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("test", "session_protocol",
+                TransportConfig.udp("127.0.0.1:9521"));
+            t.start();
+
+            PingBody msg = new PingBody();
+            msg.timestamp = 1;
+            t.send(peerId, msg);
+            Thread.sleep(50);
+
+            StatsSnapshot s = t.stats();
+            assertTrue(s.bytesSent() > 0);
+
+            t.statsReset();
+            s = t.stats();
+            assertEquals(0, s.bytesSent());
+            assertEquals(0, s.messagesReceived());
+
+            t.stop();
         }
     }
 }

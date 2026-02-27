@@ -62,6 +62,10 @@ public final class CabiBindings {
     public static final MethodHandle conduit_on_error;
     public static final MethodHandle conduit_remove_error_callback;
 
+    // Stats
+    public static final MethodHandle conduit_stats;
+    public static final MethodHandle conduit_stats_reset;
+
     // Version
     public static final MethodHandle conduit_version;
 
@@ -131,6 +135,13 @@ public final class CabiBindings {
         conduit_remove_error_callback = lookup("conduit_remove_error_callback",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+
+        // Stats: conduit_stats(xcvr, &snapshot) -> error
+        conduit_stats = lookup("conduit_stats",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        conduit_stats_reset = lookup("conduit_stats_reset",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
 
         conduit_version = lookup("conduit_version",
             FunctionDescriptor.of(ValueLayout.ADDRESS));

@@ -11,16 +11,17 @@ import java.util.List;
 /**
  * Java wrapper for the Conduit Transceiver.
  * <p>
- * Provides a Java API over libconduit_cabi with AutoCloseable lifecycle management.
+ * Provides a Java API over libconduit_cabi that mirrors the C++ experience.
+ * Users work with typed message objects — never raw bytes or type IDs.
  * Uses the Java Foreign Function and Memory API (JDK 21+, Panama FFI).
  *
  * <pre>{@code
  * try (var t = new Transceiver()) {
  *     t.addPeer("radar", "my_session", TransportConfig.udp("0.0.0.0:5000"));
- *     t.onMessage(0x1234L, (peerId, typeId, typeName, data) ->
- *         System.out.println("Got " + typeName));
+ *     t.onMessage(PingBody.class, (peerId, msg) ->
+ *         System.out.println("Got: " + msg));
  *     t.start();
- *     // ...
+ *     t.send(peerId, pingMsg);
  * }
  * }</pre>
  */
@@ -30,9 +31,16 @@ public class Transceiver implements AutoCloseable {
     // Callback functional interfaces
     // ================================================================
 
+    /** Raw message callback (receives raw bytes). */
     @FunctionalInterface
     public interface MessageCallback {
         void onMessage(int peerId, long typeId, String typeName, byte[] data);
+    }
+
+    /** Typed message callback (receives decoded message object). */
+    @FunctionalInterface
+    public interface TypedMessageCallback<T> {
+        void onMessage(int peerId, T msg);
     }
 
     @FunctionalInterface
@@ -44,6 +52,18 @@ public class Transceiver implements AutoCloseable {
     public interface ErrorCallback {
         void onError(int peerId, String peerName, int errorCode, String errorMessage);
     }
+
+    /** Statistics snapshot matching C++ TransceiverStats::Snapshot. */
+    public record StatsSnapshot(
+        long messagesReceived,
+        long messagesDispatched,
+        long messagesDropped,
+        long decodeErrors,
+        long handlerErrors,
+        long handlerTimeouts,
+        long bytesReceived,
+        long bytesSent
+    ) {}
 
     // ================================================================
     // Callback FunctionDescriptors matching C ABI callback signatures
@@ -232,13 +252,50 @@ public class Transceiver implements AutoCloseable {
     // ================================================================
 
     /**
-     * Send raw bytes as a message.
+     * Send a typed message to a specific peer.
+     * <p>
+     * The message object must be a bgen-generated class with static fields
+     * {@code TYPE_ID} (long) and method {@code encodeBytes()} (byte[]).
+     * This mirrors the C++ {@code transceiver.send<T>(peer, msg)} API.
+     *
+     * @param peerId  Target peer ID
+     * @param msg     Typed message object
+     */
+    public void send(int peerId, Object msg) {
+        if (msg == null) throw new NullPointerException("msg must not be null");
+        try {
+            var cls = msg.getClass();
+            long typeId = cls.getField("TYPE_ID").getLong(null);
+            byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
+            sendRaw(peerId, typeId, data);
+        } catch (ConduitError e) {
+            throw e;
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                "Message class " + msg.getClass().getName() +
+                " must have static TYPE_ID field and encodeBytes() method", e);
+        } catch (Throwable e) {
+            throw new RuntimeException("send failed", e);
+        }
+    }
+
+    /**
+     * Send a typed message to the sole peer (convenience).
+     *
+     * @param msg  Typed message object
+     */
+    public void send(Object msg) {
+        send(solePeer(), msg);
+    }
+
+    /**
+     * Send raw bytes as a message (low-level API).
      *
      * @param peerId  Target peer ID
      * @param typeId  Message type ID
      * @param data    Raw message payload
      */
-    public void send(int peerId, long typeId, byte[] data) {
+    public void sendRaw(int peerId, long typeId, byte[] data) {
         try (var sendArena = Arena.ofConfined()) {
             var buf = sendArena.allocateArray(ValueLayout.JAVA_BYTE, data);
             int err = (int) CabiBindings.conduit_send.invokeExact(
@@ -297,10 +354,10 @@ public class Transceiver implements AutoCloseable {
     // ================================================================
 
     /**
-     * Register a typed message handler.
+     * Register a raw message handler for a specific type ID.
      *
      * @param typeId    Message type ID to listen for
-     * @param callback  Handler invoked on receipt
+     * @param callback  Handler invoked on receipt (receives raw bytes)
      * @return Callback ID (can be used for removal)
      */
     public int onMessage(long typeId, MessageCallback callback) {
@@ -309,6 +366,40 @@ public class Transceiver implements AutoCloseable {
             callbackStubs.add(stub);
             return (int) CabiBindings.conduit_on_message.invokeExact(
                 handle, typeId, stub, MemorySegment.NULL);
+        } catch (Throwable e) {
+            throw new RuntimeException("onMessage failed", e);
+        }
+    }
+
+    /**
+     * Register a typed message handler with auto-deserialization.
+     * <p>
+     * The message class must have {@code TYPE_ID} (long), and
+     * {@code decodeBytes(byte[])} static method. This mirrors the C++
+     * {@code transceiver.on<T>([](const T& msg) { ... })} API.
+     *
+     * @param msgClass  The bgen-generated message class
+     * @param callback  Handler invoked with the decoded message
+     * @return Callback ID
+     */
+    public <T> int onMessage(Class<T> msgClass, TypedMessageCallback<T> callback) {
+        try {
+            long typeId = msgClass.getField("TYPE_ID").getLong(null);
+            var decodeMethod = msgClass.getMethod("decodeBytes", byte[].class);
+
+            return onMessage(typeId, (peerId, tid, typeName, data) -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    T msg = (T) decodeMethod.invoke(null, data);
+                    callback.onMessage(peerId, msg);
+                } catch (Exception e) {
+                    // Decode failed — skip silently (error fires on C++ side)
+                }
+            });
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                "Class " + msgClass.getName() +
+                " must have static TYPE_ID field and decodeBytes(byte[]) method", e);
         } catch (Throwable e) {
             throw new RuntimeException("onMessage failed", e);
         }
@@ -412,6 +503,65 @@ public class Transceiver implements AutoCloseable {
                 handle, callbackId) != 0;
         } catch (Throwable e) {
             throw new RuntimeException("removeErrorCallback failed", e);
+        }
+    }
+
+    // ================================================================
+    // Statistics
+    // ================================================================
+
+    /** Layout for conduit_stats_snapshot_t: 8 uint64_t fields */
+    private static final StructLayout STATS_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.JAVA_LONG.withName("messages_received"),
+        ValueLayout.JAVA_LONG.withName("messages_dispatched"),
+        ValueLayout.JAVA_LONG.withName("messages_dropped"),
+        ValueLayout.JAVA_LONG.withName("decode_errors"),
+        ValueLayout.JAVA_LONG.withName("handler_errors"),
+        ValueLayout.JAVA_LONG.withName("handler_timeouts"),
+        ValueLayout.JAVA_LONG.withName("bytes_received"),
+        ValueLayout.JAVA_LONG.withName("bytes_sent")
+    );
+
+    /**
+     * Get a snapshot of transceiver statistics.
+     *
+     * @return Statistics snapshot
+     */
+    public StatsSnapshot stats() {
+        try (var statsArena = Arena.ofConfined()) {
+            var snap = statsArena.allocate(STATS_LAYOUT);
+            int err = (int) CabiBindings.conduit_stats.invokeExact(handle, snap);
+            if (err != 0) {
+                throw new ConduitError(err, "stats failed");
+            }
+            return new StatsSnapshot(
+                snap.get(ValueLayout.JAVA_LONG, 0),   // messages_received
+                snap.get(ValueLayout.JAVA_LONG, 8),   // messages_dispatched
+                snap.get(ValueLayout.JAVA_LONG, 16),  // messages_dropped
+                snap.get(ValueLayout.JAVA_LONG, 24),  // decode_errors
+                snap.get(ValueLayout.JAVA_LONG, 32),  // handler_errors
+                snap.get(ValueLayout.JAVA_LONG, 40),  // handler_timeouts
+                snap.get(ValueLayout.JAVA_LONG, 48),  // bytes_received
+                snap.get(ValueLayout.JAVA_LONG, 56)   // bytes_sent
+            );
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("stats failed", e);
+        }
+    }
+
+    /** Reset all statistics counters to zero. */
+    public void statsReset() {
+        try {
+            int err = (int) CabiBindings.conduit_stats_reset.invokeExact(handle);
+            if (err != 0) {
+                throw new ConduitError(err, "statsReset failed");
+            }
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new RuntimeException("statsReset failed", e);
         }
     }
 
