@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <functional>
 #include <set>
 #include <sstream>
 
@@ -1310,7 +1311,31 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // FX extension: read continuation bit, conditionally decode children
+            ctx.line("if r.read_bits(1) != 0:");
+            ctx.indent();
             emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            ctx.dedent();
+        }
+    }
+}
+
+// Helper: emit code to check if any FX child fields have non-None values
+void py_fx_has_fields_check(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                             const std::string& pfx, const std::string& flag_var) {
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            ctx.line("if " + pfx + "." + py_field(f->name) + " is not None: " + flag_var + " = True");
+        } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            if (!sd->name.empty()) {
+                ctx.line("if " + pfx + "." + py_field(sd->name) + " is not None: " + flag_var + " = True");
+            }
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            ctx.line("if " + pfx + "." + py_field(ad->name) + " is not None: " + flag_var + " = True");
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            ctx.line("if " + pfx + "." + py_field(cd->name) + " is not None: " + flag_var + " = True");
+        } else if (auto* nested_fx = std::get_if<model::FxBlock>(&child)) {
+            py_fx_has_fields_check(ctx, nested_fx->children, pfx, flag_var);
         }
     }
 }
@@ -1346,7 +1371,14 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("w.align_to(" + std::to_string(al->to) + ")");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // FX extension: check if any children are set, write FX bit, conditionally encode
+            ctx.line("_fx_continue = False");
+            py_fx_has_fields_check(ctx, fx->children, pfx, "_fx_continue");
+            ctx.line("w.write_bits(1 if _fx_continue else 0, 1)");
+            ctx.line("if _fx_continue:");
+            ctx.indent();
             emit_py_encode_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
+            ctx.dedent();
         }
     }
 }
@@ -1367,7 +1399,8 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
                        const analyzer::TypeIndex& index,
                        std::vector<PyFieldDef>& fields,
                        const PyInlineNameMap& name_map = {},
-                       const std::string& parent_class_name = {}) {
+                       const std::string& parent_class_name = {},
+                       bool in_fx = false) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             // Inline enum field: enum_values populated, type_ref empty
@@ -1383,7 +1416,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             pf.format = f->format;
             pf.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
                             !fi.is_float && !fi.has_scale && (fi.bits > 0);
-            bool optional = (f->present_when != nullptr || f->bit.has_value());
+            bool optional = in_fx || (f->present_when != nullptr || f->bit.has_value());
             if (optional || fi.is_struct || fi.is_enum) pf.default_val = "None";
             else if (fi.is_string) pf.default_val = "''";
             else if (fi.is_bytes) pf.default_val = "b''";
@@ -1391,6 +1424,10 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             else if (fi.is_bool) pf.default_val = "False";
             else pf.default_val = "0";
             if (f->default_value) pf.default_val = *f->default_value;
+            // constraint equals="X" implies default="X" (matching C++ behavior)
+            if (!f->default_value && f->constraint && f->constraint->equals) {
+                pf.default_val = *f->constraint->equals;
+            }
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             fields.push_back({py_field(sd->name), py_inline_class(sd->name, name_map), "None"});
@@ -1399,13 +1436,439 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             fields.push_back({py_field(cd->name), "object", "None"});
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            collect_py_fields(fx->children, index, fields, name_map, parent_class_name);
+            collect_py_fields(fx->children, index, fields, name_map, parent_class_name, true);
         }
     }
 }
 
 // ============================================================================
-// structs.py + messages.py
+// Python Bitmap/FSPEC class generation
+// ============================================================================
+
+static const int PY_BITS_PER_BYTE = 8;
+
+struct PyBitmapField {
+    std::string name;
+    std::string py_type;
+    int bit = 0;
+    bool is_struct = false;
+    bool is_enum = false;
+    bool is_string = false;
+    bool is_bytes = false;
+    bool is_float = false;
+    bool is_bool = false;
+    bool is_signed = false;
+    bool has_scale = false;
+    double scale = 1.0;
+    double offset = 0.0;
+    int bits = 0;
+    int raw_bits = 0;
+    bool raw_signed = false;
+    model::Endian endian = model::Endian::Big;
+    model::Endian raw_endian = model::Endian::Big;
+    model::WireEncoding wire_enc = model::WireEncoding::Default;
+    std::optional<int> length;
+    std::optional<int> bytes_attr;
+    bool is_choice = false;
+    const model::ChoiceDef* choice_def = nullptr;
+    const model::Field* source_field = nullptr;
+};
+
+void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
+                           const analyzer::TypeIndex& index,
+                           const std::unordered_map<std::string, uint64_t>& tid_map,
+                           const PyOuterScopeMap& scope_map = {},
+                           const PyInlineNameMap& name_map = {},
+                           const std::string& class_name_override = {}) {
+    std::string cn = class_name_override.empty() ? py_class(sd.name) : class_name_override;
+
+    // Collect bitmap-controlled fields
+    std::vector<PyBitmapField> bfields;
+    for (const auto& child : sd.children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->bit) {
+                PyBitmapField bf;
+                bf.name = f->name;
+                auto fi = py_resolve_field(*f, index);
+                bf.py_type = fi.py_type;
+                bf.bit = *f->bit;
+                bf.is_struct = fi.is_struct;
+                bf.is_enum = fi.is_enum;
+                bf.is_string = fi.is_string;
+                bf.is_bytes = fi.is_bytes;
+                bf.is_float = fi.is_float;
+                bf.is_bool = fi.is_bool;
+                bf.is_signed = fi.is_signed;
+                bf.has_scale = fi.has_scale;
+                bf.scale = fi.scale;
+                bf.offset = fi.offset;
+                bf.bits = fi.bits;
+                bf.raw_bits = fi.raw_bits;
+                bf.raw_signed = fi.raw_signed;
+                bf.endian = fi.endian;
+                bf.raw_endian = fi.endian;
+                bf.wire_enc = fi.wire_enc;
+                bf.length = f->length;
+                bf.bytes_attr = f->bytes_attr;
+                bf.source_field = f;
+                bfields.push_back(bf);
+            }
+        } else if (auto* child_sd = std::get_if<model::StructDef>(&child)) {
+            if (child_sd->bit) {
+                PyBitmapField bf;
+                bf.name = child_sd->name;
+                bf.py_type = py_inline_class(child_sd->name, name_map);
+                bf.bit = *child_sd->bit;
+                bf.is_struct = true;
+                bfields.push_back(bf);
+            }
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            if (cd->bit) {
+                PyBitmapField bf;
+                bf.name = cd->name;
+                bf.py_type = "object";
+                bf.bit = *cd->bit;
+                bf.is_struct = true;
+                bf.is_choice = true;
+                bf.choice_def = cd;
+                bfields.push_back(bf);
+            }
+        }
+    }
+
+    int max_bit = 0;
+    for (const auto& bf : bfields) max_bit = std::max(max_bit, bf.bit);
+    bool has_ext = sd.bitmap_ext.has_value();
+    int max_octet = max_bit / PY_BITS_PER_BYTE;
+    int num_octets = max_octet + 1;
+
+    auto sorted_fields = bfields;
+    std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
+        int a_oct = a.bit / 8;
+        int b_oct = b.bit / 8;
+        if (a_oct != b_oct) return a_oct < b_oct;
+        return a.bit > b.bit;
+    });
+
+    ctx.line();
+    ctx.line("class " + cn + ":");
+    ctx.indent();
+
+    // __slots__
+    if (!bfields.empty()) {
+        std::string slots = "__slots__ = (";
+        for (size_t i = 0; i < bfields.size(); i++) {
+            if (i > 0) slots += ", ";
+            slots += "'" + py_field(bfields[i].name) + "'";
+        }
+        ctx.line(slots + ")");
+    }
+    ctx.line();
+
+    // __init__
+    ctx.line("def __init__(self) -> None:");
+    ctx.indent();
+    if (bfields.empty()) ctx.line("pass");
+    else for (const auto& bf : bfields) {
+        ctx.line("self." + py_field(bf.name) + " = None");
+    }
+    ctx.dedent();
+    ctx.line();
+
+    // Build outer-scope decode parameters
+    auto osp_it = scope_map.find(sd.name);
+    std::string decode_params;
+    PyOuterContext outer_ctx;
+    if (osp_it != scope_map.end()) {
+        for (const auto& p : osp_it->second) {
+            decode_params += ", " + py_field(p.bmdl_name);
+            outer_ctx[p.bmdl_name] = py_field(p.bmdl_name);
+        }
+    }
+
+    // decode
+    ctx.line("@staticmethod");
+    ctx.line("def decode(r: 'BitReader'" + decode_params + ") -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("result = " + cn + "()");
+    ctx.line();
+    ctx.line("# Read FSPEC bitmap");
+    ctx.line("fspec = bytearray(" + std::to_string(num_octets) + ")");
+    ctx.line("fspec_len = 0");
+    if (has_ext) {
+        ctx.line("while True:");
+        ctx.indent();
+        ctx.line("b = r.read_u8()");
+        ctx.line("if fspec_len < " + std::to_string(num_octets) + ": fspec[fspec_len] = b");
+        ctx.line("fspec_len += 1");
+        ctx.line("if not (b & (1 << " + std::to_string(*sd.bitmap_ext) + ")): break");
+        ctx.dedent();
+    } else {
+        ctx.line("for i in range(" + std::to_string(num_octets) + "):");
+        ctx.indent();
+        ctx.line("fspec[i] = r.read_u8()");
+        ctx.dedent();
+        ctx.line("fspec_len = " + std::to_string(num_octets));
+    }
+    ctx.line();
+
+    // Decode fields based on FSPEC bits
+    for (const auto& bf : sorted_fields) {
+        int byte_idx = bf.bit / PY_BITS_PER_BYTE;
+        int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+        std::string m = "result." + py_field(bf.name);
+        ctx.line("if fspec_len > " + std::to_string(byte_idx) +
+                 " and (fspec[" + std::to_string(byte_idx) +
+                 "] & (1 << " + std::to_string(bit_in_byte) + ")):");
+        ctx.indent();
+        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+            std::string args;
+            auto child_osp = scope_map.find(bf.name);
+            if (child_osp != scope_map.end()) {
+                for (const auto& p : child_osp->second)
+                    args += ", result." + py_field(p.bmdl_name);
+            }
+            ctx.line(m + " = " + bf.py_type + ".decode(r" + args + ")");
+        } else if (bf.is_enum) {
+            ctx.line(m + " = " + bf.py_type + ".decode(r)");
+        } else if (bf.has_scale) {
+            std::string read;
+            if (bf.raw_signed) {
+                read = "r.read_signed_bits(" + std::to_string(bf.raw_bits) + ")";
+            } else {
+                if (bf.raw_bits <= 8) read = "r.read_bits(" + std::to_string(bf.raw_bits) + ")";
+                else if (bf.raw_bits <= 16) {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    read = "r.read_u16(" + be + ")";
+                } else if (bf.raw_bits <= 32) {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    read = "r.read_u32(" + be + ")";
+                } else {
+                    read = "r.read_bits(" + std::to_string(bf.raw_bits) + ")";
+                }
+            }
+            ctx.line(m + " = " + read + " * " + std::to_string(bf.scale) +
+                     (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : ""));
+        } else if (bf.is_string) {
+            if (bf.length)
+                ctx.line(m + " = r.read_string(" + std::to_string(*bf.length) + ")");
+            else
+                ctx.line(m + " = r.read_string(r.remaining_bytes())");
+        } else if (bf.is_bytes) {
+            if (bf.length)
+                ctx.line(m + " = r.read_bytes(" + std::to_string(*bf.length) + ")");
+            else if (bf.bytes_attr)
+                ctx.line(m + " = r.read_bytes(" + std::to_string(*bf.bytes_attr) + ")");
+            else
+                ctx.line(m + " = r.read_bytes(r.remaining_bytes())");
+        } else if (bf.is_bool) {
+            ctx.line(m + " = r.read_bits(1) != 0");
+        } else {
+            // Primitive integer
+            std::string be = (bf.endian == model::Endian::Big) ? "True" : "False";
+            std::string read;
+            if (bf.wire_enc == model::WireEncoding::BCD) {
+                read = "r.read_bcd(" + std::to_string(bf.bits) + ")";
+            } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
+                read = "r.read_bcd_signed(" + std::to_string(bf.bits) + ")";
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
+                       bf.wire_enc == model::WireEncoding::CB2) {
+                read = "r.read_sign_magnitude(" + std::to_string(bf.bits) + ")";
+            } else if (bf.is_signed) {
+                read = "r.read_signed_bits(" + std::to_string(bf.bits) + ")";
+            } else {
+                if (bf.bits <= 8) read = "r.read_bits(" + std::to_string(bf.bits) + ")";
+                else if (bf.bits <= 16) read = "r.read_u16(" + be + ")";
+                else if (bf.bits <= 32) read = "r.read_u32(" + be + ")";
+                else read = "r.read_bits(" + std::to_string(bf.bits) + ")";
+            }
+            if (bf.is_float) {
+                if (bf.bits == 32) read = "r.read_f32(" + be + ")";
+                else read = "r.read_f64(" + be + ")";
+            }
+            ctx.line(m + " = " + read);
+        }
+        ctx.dedent();
+    }
+
+    ctx.line("return result");
+    ctx.dedent();
+    ctx.line();
+
+    // decode_bytes
+    ctx.line("@staticmethod");
+    ctx.line("def decode_bytes(data: bytes) -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("return " + cn + ".decode(BitReader(data))");
+    ctx.dedent();
+    ctx.line();
+
+    // encode
+    ctx.line("def encode(self, w: 'BitWriter') -> None:");
+    ctx.indent();
+    ctx.line("fspec = bytearray(" + std::to_string(num_octets) + ")");
+    if (has_ext) {
+        ctx.line("last_octet = 0");
+        for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / PY_BITS_PER_BYTE;
+            int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+            ctx.line("if self." + py_field(bf.name) + " is not None: fspec[" +
+                     std::to_string(byte_idx) + "] |= (1 << " +
+                     std::to_string(bit_in_byte) + "); last_octet = max(last_octet, " +
+                     std::to_string(byte_idx) + ")");
+        }
+        ctx.line("for i in range(last_octet): fspec[i] |= (1 << " +
+                 std::to_string(*sd.bitmap_ext) + ")");
+        ctx.line("w.write_bytes(bytes(fspec[:last_octet + 1]))");
+    } else {
+        for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / PY_BITS_PER_BYTE;
+            int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+            ctx.line("if self." + py_field(bf.name) + " is not None: fspec[" +
+                     std::to_string(byte_idx) + "] |= (1 << " +
+                     std::to_string(bit_in_byte) + ")");
+        }
+        ctx.line("w.write_bytes(bytes(fspec))");
+    }
+
+    // Encode present fields
+    for (const auto& bf : sorted_fields) {
+        std::string m = "self." + py_field(bf.name);
+        ctx.line("if " + m + " is not None:");
+        ctx.indent();
+        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+            ctx.line(m + ".encode(w)");
+        } else if (bf.is_enum) {
+            ctx.line(m + ".encode(w)");
+        } else if (bf.has_scale) {
+            std::string reverse_scale = "int((" + m + " - " + std::to_string(bf.offset) + ") / " + std::to_string(bf.scale) + ")";
+            if (bf.raw_signed) {
+                ctx.line("w.write_signed_bits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ")");
+            } else {
+                if (bf.raw_bits <= 8) ctx.line("w.write_bits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ")");
+                else {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    if (bf.raw_bits <= 16) ctx.line("w.write_u16(" + reverse_scale + ", " + be + ")");
+                    else ctx.line("w.write_u32(" + reverse_scale + ", " + be + ")");
+                }
+            }
+        } else if (bf.is_string) {
+            if (bf.length)
+                ctx.line("w.write_string(" + m + ", " + std::to_string(*bf.length) + ")");
+            else
+                ctx.line("w.write_string(" + m + ", len(" + m + "))");
+        } else if (bf.is_bytes) {
+            ctx.line("w.write_bytes(" + m + ")");
+        } else if (bf.is_bool) {
+            ctx.line("w.write_bits(1 if " + m + " else 0, 1)");
+        } else {
+            std::string be = (bf.endian == model::Endian::Big) ? "True" : "False";
+            if (bf.is_float) {
+                if (bf.bits == 32) ctx.line("w.write_f32(" + m + ", " + be + ")");
+                else ctx.line("w.write_f64(" + m + ", " + be + ")");
+            } else if (bf.wire_enc == model::WireEncoding::BCD) {
+                ctx.line("w.write_bcd(" + m + ", " + std::to_string(bf.bits) + ")");
+            } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
+                ctx.line("w.write_bcd_signed(" + m + ", " + std::to_string(bf.bits) + ")");
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
+                       bf.wire_enc == model::WireEncoding::CB2) {
+                ctx.line("w.write_sign_magnitude(" + m + ", " + std::to_string(bf.bits) + ")");
+            } else if (bf.is_signed) {
+                ctx.line("w.write_signed_bits(" + m + ", " + std::to_string(bf.bits) + ")");
+            } else {
+                if (bf.bits <= 8) ctx.line("w.write_bits(" + m + ", " + std::to_string(bf.bits) + ")");
+                else if (bf.bits <= 16) ctx.line("w.write_u16(" + m + ", " + be + ")");
+                else if (bf.bits <= 32) ctx.line("w.write_u32(" + m + ", " + be + ")");
+                else ctx.line("w.write_bits(" + m + ", " + std::to_string(bf.bits) + ")");
+            }
+        }
+        ctx.dedent();
+    }
+
+    ctx.dedent();
+    ctx.line();
+
+    // encode_bytes
+    ctx.line("def encode_bytes(self) -> bytes:");
+    ctx.indent();
+    ctx.line("w = BitWriter()");
+    ctx.line("self.encode(w)");
+    ctx.line("return w.to_bytes()");
+    ctx.dedent();
+    ctx.line();
+
+    // __repr__
+    ctx.line("def __repr__(self) -> str:");
+    ctx.indent();
+    if (bfields.empty()) {
+        ctx.line("return '" + cn + "()'");
+    } else {
+        std::string fmt = "return f'" + cn + "(";
+        for (size_t i = 0; i < bfields.size(); i++) {
+            if (i > 0) fmt += ", ";
+            fmt += py_field(bfields[i].name) + "={self." + py_field(bfields[i].name) + "}";
+        }
+        ctx.line(fmt + ")'");
+    }
+    ctx.dedent();
+
+    // validate() for bitmap class
+    {
+        bool has_any = false;
+        for (const auto& child : sd.children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint &&
+                    f->constraint->validate != model::ValidateTiming::Deferred &&
+                    (f->constraint->equals || f->constraint->min || f->constraint->max)) {
+                    has_any = true; break;
+                }
+            }
+        }
+        if (has_any) {
+            ctx.line();
+            ctx.line("def validate(self) -> None:");
+            ctx.indent();
+            for (const auto& child : sd.children) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    if (!f->constraint) continue;
+                    const auto& con = *f->constraint;
+                    if (con.validate == model::ValidateTiming::Deferred) continue;
+                    if (!con.equals && !con.min && !con.max) continue;
+                    auto fi = py_resolve_field(*f, index);
+                    if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
+                    std::string m = "self." + py_field(f->name);
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent();
+                    if (con.equals) {
+                        ctx.line("if " + m + " != " + *con.equals + ":");
+                        ctx.indent();
+                        ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
+                        ctx.dedent();
+                    }
+                    if (con.max) {
+                        ctx.line("if " + m + " > " + *con.max + ":");
+                        ctx.indent();
+                        ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
+                        ctx.dedent();
+                    }
+                    if (con.min && (*con.min != "0" || fi.is_signed)) {
+                        ctx.line("if " + m + " < " + *con.min + ":");
+                        ctx.indent();
+                        ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
+                        ctx.dedent();
+                    }
+                    ctx.dedent();
+                }
+            }
+            ctx.dedent();
+        }
+    }
+
+    ctx.dedent();
+}
+
+// ============================================================================
+// structs.py + messages.py (normal non-bitmap classes)
 // ============================================================================
 
 void emit_py_class(EmitContext& ctx, const std::string& name,
@@ -1545,6 +2008,75 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         ctx.line(fmt + ")'");
     }
     ctx.dedent();
+
+    // validate()
+    {
+        bool has_any = false;
+        std::function<bool(const std::vector<model::StructChild>&)> has_constraints =
+            [&](const std::vector<model::StructChild>& cs) -> bool {
+            for (const auto& c : cs) {
+                if (auto* f = std::get_if<model::Field>(&c)) {
+                    if (f->constraint &&
+                        f->constraint->validate != model::ValidateTiming::Deferred &&
+                        (f->constraint->equals || f->constraint->min || f->constraint->max))
+                        return true;
+                } else if (auto* fx = std::get_if<model::FxBlock>(&c)) {
+                    if (has_constraints(fx->children)) return true;
+                }
+            }
+            return false;
+        };
+        has_any = has_constraints(children);
+        if (has_any) {
+            ctx.line();
+            ctx.line("def validate(self) -> None:");
+            ctx.indent();
+            std::function<void(const std::vector<model::StructChild>&, bool)> emit_checks =
+                [&](const std::vector<model::StructChild>& cs, bool nullable) {
+                for (const auto& child : cs) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        if (!f->constraint) continue;
+                        const auto& con = *f->constraint;
+                        if (con.validate == model::ValidateTiming::Deferred) continue;
+                        if (!con.equals && !con.min && !con.max) continue;
+                        auto fi = py_resolve_field(*f, index);
+                        if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
+                        std::string m = "self." + py_field(f->name);
+                        if (nullable) {
+                            ctx.line("if " + m + " is not None:");
+                            ctx.indent();
+                        }
+                        if (con.equals) {
+                            ctx.line("if " + m + " != " + *con.equals + ":");
+                            ctx.indent();
+                            ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
+                            ctx.dedent();
+                        }
+                        if (con.max) {
+                            ctx.line("if " + m + " > " + *con.max + ":");
+                            ctx.indent();
+                            ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
+                            ctx.dedent();
+                        }
+                        if (con.min && (*con.min != "0" || fi.is_signed)) {
+                            ctx.line("if " + m + " < " + *con.min + ":");
+                            ctx.indent();
+                            ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
+                            ctx.dedent();
+                        }
+                        if (nullable) {
+                            ctx.dedent();
+                        }
+                    } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+                        emit_checks(fx->children, true);
+                    }
+                }
+            };
+            emit_checks(children, false);
+            ctx.dedent();
+        }
+    }
+
     ctx.dedent();
 }
 
@@ -1599,7 +2131,11 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
             name_map[sd->name] = resolved;
             py_analyze_outer_scope(sd->name, sd->children, children, current_bmdl_name, scope_map);
             emit_py_inline_types(ctx, sd->children, index, tid_map, scope_map, sd->name, name_map, resolved);
-            emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map, name_map, resolved);
+            if (sd->is_bitmap) {
+                emit_py_bitmap_class(ctx, *sd, index, tid_map, scope_map, name_map, resolved);
+            } else {
+                emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map, name_map, resolved);
+            }
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
                 std::string resolved = py_resolve_inline_name(ad->name, prefix, ad->type_name);
@@ -1644,7 +2180,11 @@ std::string generate_py_structs(const model::Protocol& protocol,
         PyOuterScopeMap scope_map;
         PyInlineNameMap name_map;
         emit_py_inline_types(ctx, sd.children, index, empty, scope_map, sd.name, name_map);
-        emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map);
+        if (sd.is_bitmap) {
+            emit_py_bitmap_class(ctx, sd, index, empty, scope_map, name_map);
+        } else {
+            emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map);
+        }
     }
 
     ctx.line();

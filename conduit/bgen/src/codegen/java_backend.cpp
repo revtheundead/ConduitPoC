@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <set>
 #include <sstream>
@@ -838,7 +839,8 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
                       const analyzer::TypeIndex& index,
                       std::vector<JFieldDef>& fields,
                       const JInlineNameMap& name_map = {},
-                      const std::string& parent_class_name = {}) {
+                      const std::string& parent_class_name = {},
+                      bool in_fx = false) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             // Inline enum field: enum_values populated, type_ref empty
@@ -854,7 +856,17 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             jf.format = f->format;
             jf.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
                             !fi.is_float && !fi.has_scale && (fi.bits > 0);
-            if (fi.is_string) jf.init = "\"\"";
+            // FX or bitmap-controlled fields are optional (nullable)
+            bool optional = in_fx || f->present_when != nullptr || f->bit.has_value();
+            if (optional) {
+                // Use boxed types for primitives inside FX/bitmap blocks
+                if (fi.j_type == "int") jf.j_type = "Integer";
+                else if (fi.j_type == "long") jf.j_type = "Long";
+                else if (fi.j_type == "float") jf.j_type = "Float";
+                else if (fi.j_type == "double") jf.j_type = "Double";
+                else if (fi.j_type == "boolean") jf.j_type = "Boolean";
+                jf.init = "null";
+            } else if (fi.is_string) jf.init = "\"\"";
             else if (fi.is_bytes) jf.init = "new byte[0]";
             else if (fi.is_bool) jf.init = "false";
             else if (fi.j_type == "float") jf.init = "0.0f";
@@ -864,16 +876,24 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else jf.init = "0";
             // Apply explicit default value from BMDL spec (matching C++/Python)
             if (f->default_value) jf.init = *f->default_value;
+            // constraint equals="X" implies default="X" (matching C++ behavior)
+            if (!f->default_value && f->constraint && f->constraint->equals) {
+                jf.init = *f->constraint->equals;
+            }
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             fields.push_back({j_field(sd->name), j_inline_class(sd->name, name_map), "null"});
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
-            fields.push_back({j_field(ad->name), "java.util.List<" + elem + ">", "new java.util.ArrayList<>()"});
+            if (in_fx) {
+                fields.push_back({j_field(ad->name), "java.util.List<" + elem + ">", "null"});
+            } else {
+                fields.push_back({j_field(ad->name), "java.util.List<" + elem + ">", "new java.util.ArrayList<>()"});
+            }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             fields.push_back({j_field(cd->name), "Object", "null"});
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
-            collect_j_fields(fx->children, index, fields, name_map, parent_class_name);
+            collect_j_fields(fx->children, index, fields, name_map, parent_class_name, true);
         }
     }
 }
@@ -1145,7 +1165,32 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.alignTo(" + std::to_string(al->to) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // FX extension: read continuation bit, conditionally decode children
+            ctx.line("if (r.readBits(1) != 0) {");
+            ctx.indent();
             emit_j_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            ctx.dedent();
+            ctx.line("}");
+        }
+    }
+}
+
+// Helper: emit code to check if any FX child fields have non-null values
+void j_fx_has_fields_check(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                            const std::string& pfx, const std::string& flag_var) {
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            ctx.line("if (" + pfx + "." + j_field(f->name) + " != null) " + flag_var + " = true;");
+        } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            if (!sd->name.empty()) {
+                ctx.line("if (" + pfx + "." + j_field(sd->name) + " != null) " + flag_var + " = true;");
+            }
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            ctx.line("if (" + pfx + "." + j_field(ad->name) + " != null) " + flag_var + " = true;");
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            ctx.line("if (" + pfx + "." + j_field(cd->name) + " != null) " + flag_var + " = true;");
+        } else if (auto* nested_fx = std::get_if<model::FxBlock>(&child)) {
+            j_fx_has_fields_check(ctx, nested_fx->children, pfx, flag_var);
         }
     }
 }
@@ -1217,12 +1262,474 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("w.alignTo(" + std::to_string(al->to) + ");");
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+            // FX extension: check if any children are set, write FX bit, conditionally encode
+            ctx.line("{");
+            ctx.indent();
+            ctx.line("boolean _fxContinue = false;");
+            j_fx_has_fields_check(ctx, fx->children, pfx, "_fxContinue");
+            ctx.line("w.writeBits(_fxContinue ? 1 : 0, 1);");
+            ctx.line("if (_fxContinue) {");
+            ctx.indent();
             emit_j_encode_children(ctx, fx->children, index, pfx, len_ref_target, name_map, parent_class_name);
+            ctx.dedent();
+            ctx.line("}");
+            ctx.dedent();
+            ctx.line("}");
         }
     }
 }
 
 // Generate one Java class file for a struct or message
+// ============================================================================
+// Java Bitmap/FSPEC class generation
+// ============================================================================
+
+static const int J_BITS_PER_BYTE = 8;
+
+struct JBitmapField {
+    std::string name;
+    std::string j_type;
+    int bit = 0;
+    bool is_struct = false;
+    bool is_enum = false;
+    bool is_string = false;
+    bool is_bytes = false;
+    bool is_float = false;
+    bool is_bool = false;
+    bool is_signed = false;
+    bool has_scale = false;
+    double scale = 1.0;
+    double offset = 0.0;
+    int bits = 0;
+    int raw_bits = 0;
+    bool raw_signed = false;
+    model::Endian endian = model::Endian::Big;
+    model::Endian raw_endian = model::Endian::Big;
+    model::WireEncoding wire_enc = model::WireEncoding::Default;
+    std::optional<int> length;
+    std::optional<int> bytes_attr;
+    bool is_choice = false;
+    const model::ChoiceDef* choice_def = nullptr;
+    const model::Field* source_field = nullptr;
+};
+
+std::string generate_j_bitmap_class(const model::StructDef& sd,
+                                     const analyzer::TypeIndex& index,
+                                     const std::string& pkg,
+                                     const std::unordered_map<std::string, uint64_t>& tid_map,
+                                     const JOuterScopeMap& scope_map = {},
+                                     const JInlineNameMap& name_map = {},
+                                     const std::string& class_name_override = {}) {
+    std::string cn = class_name_override.empty() ? j_class(sd.name) : class_name_override;
+
+    // Collect bitmap-controlled fields
+    std::vector<JBitmapField> bfields;
+    for (const auto& child : sd.children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->bit) {
+                JBitmapField bf;
+                bf.name = f->name;
+                auto fi = j_resolve_field(*f, index);
+                bf.j_type = fi.j_type;
+                bf.bit = *f->bit;
+                bf.is_struct = fi.is_struct;
+                bf.is_enum = fi.is_enum;
+                bf.is_string = fi.is_string;
+                bf.is_bytes = fi.is_bytes;
+                bf.is_float = fi.is_float;
+                bf.is_bool = fi.is_bool;
+                bf.is_signed = fi.is_signed;
+                bf.has_scale = fi.has_scale;
+                bf.scale = fi.scale;
+                bf.offset = fi.offset;
+                bf.bits = fi.bits;
+                bf.raw_bits = fi.raw_bits;
+                bf.raw_signed = fi.raw_signed;
+                bf.endian = fi.endian;
+                bf.raw_endian = fi.endian;
+                bf.wire_enc = fi.wire_enc;
+                bf.length = f->length;
+                bf.bytes_attr = f->bytes_attr;
+                bf.source_field = f;
+                // Use boxed types for primitives
+                if (bf.j_type == "int") bf.j_type = "Integer";
+                else if (bf.j_type == "long") bf.j_type = "Long";
+                else if (bf.j_type == "float") bf.j_type = "Float";
+                else if (bf.j_type == "double") bf.j_type = "Double";
+                else if (bf.j_type == "boolean") bf.j_type = "Boolean";
+                bfields.push_back(bf);
+            }
+        } else if (auto* child_sd = std::get_if<model::StructDef>(&child)) {
+            if (child_sd->bit) {
+                JBitmapField bf;
+                bf.name = child_sd->name;
+                bf.j_type = j_inline_class(child_sd->name, name_map);
+                bf.bit = *child_sd->bit;
+                bf.is_struct = true;
+                bfields.push_back(bf);
+            }
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            if (cd->bit) {
+                JBitmapField bf;
+                bf.name = cd->name;
+                bf.j_type = "Object";
+                bf.bit = *cd->bit;
+                bf.is_struct = true;
+                bf.is_choice = true;
+                bf.choice_def = cd;
+                bfields.push_back(bf);
+            }
+        }
+    }
+
+    int max_bit = 0;
+    for (const auto& bf : bfields) max_bit = std::max(max_bit, bf.bit);
+    bool has_ext = sd.bitmap_ext.has_value();
+    int max_octet = max_bit / J_BITS_PER_BYTE;
+    int num_octets = max_octet + 1;
+
+    // Sort by bit position (octet first, then descending bit within octet)
+    auto sorted_fields = bfields;
+    std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
+        int a_oct = a.bit / 8;
+        int b_oct = b.bit / 8;
+        if (a_oct != b_oct) return a_oct < b_oct;
+        return a.bit > b.bit;
+    });
+
+    EmitContext ctx;
+    ctx.line("// Generated by bgen - DO NOT EDIT");
+    ctx.line("package " + pkg + ";");
+    ctx.line();
+    ctx.line("import java.util.*;");
+    ctx.line();
+    ctx.line("public final class " + cn + " {");
+    ctx.indent();
+
+    // Fields — all nullable
+    for (const auto& bf : bfields) {
+        ctx.line("public " + bf.j_type + " " + j_field(bf.name) + " = null;");
+    }
+    ctx.line();
+
+    // Build outer-scope decode parameters
+    auto osp_it = scope_map.find(sd.name);
+    std::string decode_params;
+    JOuterContext outer_ctx;
+    if (osp_it != scope_map.end()) {
+        for (const auto& p : osp_it->second) {
+            decode_params += ", " + p.java_type + " " + j_field(p.bmdl_name);
+            outer_ctx[p.bmdl_name] = j_field(p.bmdl_name);
+        }
+    }
+
+    // decode()
+    ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") {");
+    ctx.indent();
+    ctx.line(cn + " result = new " + cn + "();");
+    ctx.line();
+    ctx.line("// Read FSPEC bitmap");
+    ctx.line("byte[] fspec = new byte[" + std::to_string(num_octets) + "];");
+    ctx.line("int fspecLen = 0;");
+    if (has_ext) {
+        ctx.line("while (true) {");
+        ctx.indent();
+        ctx.line("int b = (int) r.readU8();");
+        ctx.line("if (fspecLen < " + std::to_string(num_octets) + ") fspec[fspecLen] = (byte) b;");
+        ctx.line("fspecLen++;");
+        ctx.line("if ((b & (1 << " + std::to_string(*sd.bitmap_ext) + ")) == 0) break;");
+        ctx.dedent();
+        ctx.line("}");
+    } else {
+        ctx.line("for (int i = 0; i < " + std::to_string(num_octets) + "; i++) {");
+        ctx.indent();
+        ctx.line("fspec[i] = (byte) r.readU8();");
+        ctx.dedent();
+        ctx.line("}");
+        ctx.line("fspecLen = " + std::to_string(num_octets) + ";");
+    }
+    ctx.line();
+
+    // Decode fields based on FSPEC bits
+    for (const auto& bf : sorted_fields) {
+        int byte_idx = bf.bit / J_BITS_PER_BYTE;
+        int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+        std::string m = "result." + j_field(bf.name);
+        ctx.line("if (fspecLen > " + std::to_string(byte_idx) +
+                 " && (fspec[" + std::to_string(byte_idx) +
+                 "] & (1 << " + std::to_string(bit_in_byte) + ")) != 0) {");
+        ctx.indent();
+        if (bf.is_choice && bf.choice_def) {
+            // Use switch expression for choice decode
+            std::string switch_field = j_field(bf.choice_def->switch_expr->name);
+            ctx.line("// Choice decode based on " + switch_field);
+            ctx.line(m + " = null; // TODO: choice decode in bitmap");
+        } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+            std::string args;
+            auto child_osp = scope_map.find(bf.name);
+            if (child_osp != scope_map.end()) {
+                for (const auto& p : child_osp->second) {
+                    args += ", result." + j_field(p.bmdl_name);
+                }
+            }
+            ctx.line(m + " = " + bf.j_type + ".decode(r" + args + ");");
+        } else if (bf.is_enum) {
+            ctx.line(m + " = " + bf.j_type + ".decode(r);");
+        } else if (bf.has_scale) {
+            // Scaled field
+            std::string be = (bf.raw_endian == model::Endian::Big) ? "true" : "false";
+            std::string read;
+            if (bf.raw_signed) {
+                if (bf.raw_bits <= 8) read = "r.readSignedBits(" + std::to_string(bf.raw_bits) + ")";
+                else if (bf.raw_bits <= 16) read = "r.readS16(" + be + ")";
+                else read = "r.readS32(" + be + ")";
+            } else {
+                if (bf.raw_bits <= 8) read = "r.readBits(" + std::to_string(bf.raw_bits) + ")";
+                else if (bf.raw_bits <= 16) read = "r.readU16(" + be + ")";
+                else if (bf.raw_bits <= 32) read = "r.readU32(" + be + ")";
+                else read = "r.readU64(" + be + ")";
+            }
+            ctx.line(m + " = (double) " + read + " * " + std::to_string(bf.scale) +
+                     (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : "") + ";");
+        } else if (bf.is_string) {
+            if (bf.length) {
+                ctx.line(m + " = r.readString(" + std::to_string(*bf.length) + ");");
+            } else {
+                ctx.line(m + " = r.readString(r.remainingBytes());");
+            }
+        } else if (bf.is_bytes) {
+            if (bf.length) {
+                ctx.line(m + " = r.readBytes(" + std::to_string(*bf.length) + ");");
+            } else if (bf.bytes_attr) {
+                ctx.line(m + " = r.readBytes(" + std::to_string(*bf.bytes_attr) + ");");
+            } else {
+                ctx.line(m + " = r.readBytes(r.remainingBytes());");
+            }
+        } else if (bf.is_bool) {
+            ctx.line(m + " = r.readBits(1) != 0;");
+        } else {
+            // Primitive integer
+            std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
+            std::string read;
+            if (bf.wire_enc == model::WireEncoding::BCD) {
+                read = "r.readBcd(" + std::to_string(bf.bits) + ")";
+            } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
+                read = "r.readBcdSigned(" + std::to_string(bf.bits) + ")";
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
+                       bf.wire_enc == model::WireEncoding::CB2) {
+                read = "r.readSignMagnitude(" + std::to_string(bf.bits) + ")";
+            } else if (bf.is_signed) {
+                if (bf.bits <= 8) read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
+                else if (bf.bits <= 16) read = "(int) r.readS16(" + be + ")";
+                else if (bf.bits <= 32) read = "(int) r.readS32(" + be + ")";
+                else read = "r.readSignedBits(" + std::to_string(bf.bits) + ")";
+            } else {
+                if (bf.bits <= 8) read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
+                else if (bf.bits <= 16) read = "(int) r.readU16(" + be + ")";
+                else if (bf.bits <= 32) read = "(int) r.readU32(" + be + ")";
+                else read = "r.readU64(" + be + ")";
+            }
+            if (bf.is_float) {
+                if (bf.bits == 32) read = "r.readF32(" + be + ")";
+                else read = "r.readF64(" + be + ")";
+            }
+            ctx.line(m + " = " + read + ";");
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+
+    ctx.line();
+    ctx.line("return result;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // decodeBytes
+    ctx.line("public static " + cn + " decodeBytes(byte[] data) {");
+    ctx.indent();
+    ctx.line("return " + cn + ".decode(new BitReader(data));");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // encode()
+    ctx.line("public void encode(BitWriter w) {");
+    ctx.indent();
+
+    ctx.line("byte[] fspec = new byte[" + std::to_string(num_octets) + "];");
+    if (has_ext) {
+        ctx.line("int lastOctet = 0;");
+        for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / J_BITS_PER_BYTE;
+            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            ctx.line("if (" + j_field(bf.name) + " != null) { fspec[" +
+                     std::to_string(byte_idx) + "] |= (1 << " +
+                     std::to_string(bit_in_byte) + "); lastOctet = Math.max(lastOctet, " +
+                     std::to_string(byte_idx) + "); }");
+        }
+        ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] |= (1 << " +
+                 std::to_string(*sd.bitmap_ext) + ");");
+        ctx.line("for (int i = 0; i <= lastOctet; i++) w.writeU8(fspec[i] & 0xFF);");
+    } else {
+        for (const auto& bf : bfields) {
+            int byte_idx = bf.bit / J_BITS_PER_BYTE;
+            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            ctx.line("if (" + j_field(bf.name) + " != null) fspec[" +
+                     std::to_string(byte_idx) + "] |= (1 << " +
+                     std::to_string(bit_in_byte) + ");");
+        }
+        ctx.line("for (int i = 0; i < " + std::to_string(num_octets) + "; i++) w.writeU8(fspec[i] & 0xFF);");
+    }
+
+    // Encode present fields
+    for (const auto& bf : sorted_fields) {
+        std::string m = j_field(bf.name);
+        ctx.line("if (" + m + " != null) {");
+        ctx.indent();
+        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+            ctx.line(m + ".encode(w);");
+        } else if (bf.is_enum) {
+            ctx.line(m + ".encode(w);");
+        } else if (bf.has_scale) {
+            std::string be = (bf.raw_endian == model::Endian::Big) ? "true" : "false";
+            std::string reverse_scale = "(long) ((" + m + " - " + std::to_string(bf.offset) + ") / " + std::to_string(bf.scale) + ")";
+            if (bf.raw_signed) {
+                if (bf.raw_bits <= 8) ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
+                else if (bf.raw_bits <= 16) ctx.line("w.writeS16((int) " + reverse_scale + ", " + be + ");");
+                else ctx.line("w.writeS32((int) " + reverse_scale + ", " + be + ");");
+            } else {
+                if (bf.raw_bits <= 8) ctx.line("w.writeBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
+                else if (bf.raw_bits <= 16) ctx.line("w.writeU16((int) " + reverse_scale + ", " + be + ");");
+                else if (bf.raw_bits <= 32) ctx.line("w.writeU32(" + reverse_scale + ", " + be + ");");
+                else ctx.line("w.writeU64(" + reverse_scale + ", " + be + ");");
+            }
+        } else if (bf.is_string) {
+            if (bf.length)
+                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ");");
+            else
+                ctx.line("w.writeString(" + m + ", " + m + ".length());");
+        } else if (bf.is_bytes) {
+            ctx.line("w.writeBytes(" + m + ");");
+        } else if (bf.is_bool) {
+            ctx.line("w.writeBits(" + m + " ? 1 : 0, 1);");
+        } else {
+            std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
+            if (bf.is_float) {
+                if (bf.bits == 32) ctx.line("w.writeF32(" + m + ", " + be + ");");
+                else ctx.line("w.writeF64(" + m + ", " + be + ");");
+            } else if (bf.wire_enc == model::WireEncoding::BCD) {
+                ctx.line("w.writeBcd(" + m + ", " + std::to_string(bf.bits) + ");");
+            } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
+                ctx.line("w.writeBcdSigned(" + m + ", " + std::to_string(bf.bits) + ");");
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
+                       bf.wire_enc == model::WireEncoding::CB2) {
+                ctx.line("w.writeSignMagnitude(" + m + ", " + std::to_string(bf.bits) + ");");
+            } else if (bf.is_signed) {
+                if (bf.bits <= 8) ctx.line("w.writeSignedBits(" + m + ", " + std::to_string(bf.bits) + ");");
+                else if (bf.bits <= 16) ctx.line("w.writeS16(" + m + ", " + be + ");");
+                else ctx.line("w.writeS32(" + m + ", " + be + ");");
+            } else {
+                if (bf.bits <= 8) ctx.line("w.writeBits(" + m + ", " + std::to_string(bf.bits) + ");");
+                else if (bf.bits <= 16) ctx.line("w.writeU16(" + m + ", " + be + ");");
+                else if (bf.bits <= 32) ctx.line("w.writeU32(" + m + ", " + be + ");");
+                else ctx.line("w.writeU64(" + m + ", " + be + ");");
+            }
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // encodeBytes
+    ctx.line("public byte[] encodeBytes() {");
+    ctx.indent();
+    ctx.line("BitWriter w = new BitWriter();");
+    ctx.line("this.encode(w);");
+    ctx.line("return w.toBytes();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // toString
+    ctx.line("@Override public String toString() {");
+    ctx.indent();
+    if (bfields.empty()) {
+        ctx.line("return \"" + cn + "()\";");
+    } else {
+        std::string fmt = "return \"" + cn + "(\" + ";
+        bool first = true;
+        for (const auto& bf : bfields) {
+            if (!first) fmt += " + \", \" + ";
+            fmt += "\"" + j_field(bf.name) + "=\" + " + j_field(bf.name);
+            first = false;
+        }
+        ctx.line(fmt + " + \")\";");
+    }
+    ctx.dedent();
+    ctx.line("}");
+
+    // validate() for bitmap class
+    {
+        bool has_any = false;
+        for (const auto& child : sd.children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint &&
+                    f->constraint->validate != model::ValidateTiming::Deferred &&
+                    (f->constraint->equals || f->constraint->min || f->constraint->max)) {
+                    has_any = true; break;
+                }
+            }
+        }
+        if (has_any) {
+            ctx.line();
+            ctx.line("public void validate() {");
+            ctx.indent();
+            for (const auto& child : sd.children) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    if (!f->constraint) continue;
+                    const auto& con = *f->constraint;
+                    if (con.validate == model::ValidateTiming::Deferred) continue;
+                    if (!con.equals && !con.min && !con.max) continue;
+                    auto fi = j_resolve_field(*f, index);
+                    if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
+                    std::string m = j_field(f->name);
+                    // All bitmap fields are nullable
+                    ctx.line("if (" + m + " != null) {");
+                    ctx.indent();
+                    if (con.equals)
+                        ctx.line("if (" + m + " != " + *con.equals +
+                                 ") throw new ConduitCodecException(\"" + f->name +
+                                 ": expected " + *con.equals + "\");");
+                    if (con.max)
+                        ctx.line("if (" + m + " > " + *con.max +
+                                 ") throw new ConduitCodecException(\"" + f->name +
+                                 " exceeds max " + *con.max + "\");");
+                    if (con.min && (*con.min != "0" || fi.is_signed))
+                        ctx.line("if (" + m + " < " + *con.min +
+                                 ") throw new ConduitCodecException(\"" + f->name +
+                                 " below min " + *con.min + "\");");
+                    ctx.dedent();
+                    ctx.line("}");
+                }
+            }
+            ctx.dedent();
+            ctx.line("}");
+        }
+    }
+
+    ctx.dedent();
+    ctx.line("}");
+    return ctx.str();
+}
+
+// ============================================================================
+// Normal (non-bitmap) Java class generation
+// ============================================================================
+
 std::string generate_j_class(const std::string& name,
                               const std::vector<model::StructChild>& children,
                               const analyzer::TypeIndex& index,
@@ -1403,6 +1910,75 @@ std::string generate_j_class(const std::string& name,
     ctx.dedent();
     ctx.line("}");
 
+    // validate()
+    {
+        bool has_any = false;
+        // Check if any field has an immediate constraint
+        std::function<bool(const std::vector<model::StructChild>&)> has_constraints =
+            [&](const std::vector<model::StructChild>& cs) -> bool {
+            for (const auto& c : cs) {
+                if (auto* f = std::get_if<model::Field>(&c)) {
+                    if (f->constraint &&
+                        f->constraint->validate != model::ValidateTiming::Deferred &&
+                        (f->constraint->equals || f->constraint->min || f->constraint->max))
+                        return true;
+                } else if (auto* fx = std::get_if<model::FxBlock>(&c)) {
+                    if (has_constraints(fx->children)) return true;
+                }
+            }
+            return false;
+        };
+        has_any = has_constraints(children);
+        if (has_any) {
+            ctx.line();
+            ctx.line("public void validate() {");
+            ctx.indent();
+            std::function<void(const std::vector<model::StructChild>&, bool)> emit_checks =
+                [&](const std::vector<model::StructChild>& cs, bool nullable) {
+                for (const auto& child : cs) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        if (!f->constraint) continue;
+                        const auto& con = *f->constraint;
+                        if (con.validate == model::ValidateTiming::Deferred) continue;
+                        if (!con.equals && !con.min && !con.max) continue;
+                        // Skip non-numeric fields (struct, enum, string, bytes)
+                        auto fi = j_resolve_field(*f, index);
+                        if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
+                        std::string m = j_field(f->name);
+                        if (nullable) {
+                            ctx.line("if (" + m + " != null) {");
+                            ctx.indent();
+                        }
+                        if (con.equals) {
+                            ctx.line("if (" + m + " != " + *con.equals +
+                                     ") throw new ConduitCodecException(\"" + f->name +
+                                     ": expected " + *con.equals + "\");");
+                        }
+                        if (con.max) {
+                            ctx.line("if (" + m + " > " + *con.max +
+                                     ") throw new ConduitCodecException(\"" + f->name +
+                                     " exceeds max " + *con.max + "\");");
+                        }
+                        if (con.min && (*con.min != "0" || fi.is_signed)) {
+                            ctx.line("if (" + m + " < " + *con.min +
+                                     ") throw new ConduitCodecException(\"" + f->name +
+                                     " below min " + *con.min + "\");");
+                        }
+                        if (nullable) {
+                            ctx.dedent();
+                            ctx.line("}");
+                        }
+                    } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+                        emit_checks(fx->children, true);
+                    }
+                }
+            };
+            emit_checks(children, false);
+            ctx.dedent();
+            ctx.line("}");
+        }
+    }
+
     ctx.dedent();
     ctx.line("}");
     return ctx.str();
@@ -1517,7 +2093,12 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
             name_map[sd->name] = resolved;
             j_analyze_outer_scope(sd->name, sd->children, children, index, current_bmdl_name, scope_map);
             collect_inline_types(sd->children, index, pkg, tid_map, scope_map, sd->name, out_files, name_map, resolved);
-            std::string code = generate_j_class(sd->name, sd->children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
+            std::string code;
+            if (sd->is_bitmap) {
+                code = generate_j_bitmap_class(*sd, index, pkg, tid_map, scope_map, name_map, resolved);
+            } else {
+                code = generate_j_class(sd->name, sd->children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
+            }
             out_files.push_back({resolved + ".java", code});
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
@@ -2669,7 +3250,12 @@ bool JavaBackend::generate(
             ok &= write_file(output_dir / fname, fcode);
             file_count++;
         }
-        std::string code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map);
+        std::string code;
+        if (sd.is_bitmap) {
+            code = generate_j_bitmap_class(sd, index, java_pkg, empty, scope_map, name_map);
+        } else {
+            code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map);
+        }
         ok &= write_file(output_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
     }
