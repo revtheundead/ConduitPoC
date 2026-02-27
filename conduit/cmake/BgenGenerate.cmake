@@ -77,6 +77,7 @@ function(bgen_generate)
             "${_output_abs}/messages.hpp"
             "${_output_abs}/sessions.hpp"
             "${_output_abs}/protocol.hpp"
+            "${_output_abs}/json.hpp"
         )
         if(BGEN_PROTOCOL_NAME)
             list(APPEND _outputs "${_output_abs}/${BGEN_PROTOCOL_NAME}.hpp")

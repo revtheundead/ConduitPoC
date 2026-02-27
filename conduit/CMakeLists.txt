@@ -95,6 +95,20 @@ if(CONDUIT_BUILD_BGEN AND NOT TARGET pugixml::pugixml)
     )
 endif()
 
+# --- nlohmann/json (header-only, used by generated C++ JSON code) ---
+# Vendored in third_party/nlohmann; no network needed.
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    if(NOT EXISTS "${CONDUIT_THIRD_PARTY_DIR}/nlohmann/CMakeLists.txt")
+        message(FATAL_ERROR
+            "third_party/nlohmann not found. "
+            "Please place nlohmann/json in ${CONDUIT_THIRD_PARTY_DIR}/nlohmann/")
+    endif()
+    add_subdirectory(
+        "${CONDUIT_THIRD_PARTY_DIR}/nlohmann"
+        "${CMAKE_BINARY_DIR}/_deps/nlohmann"
+    )
+endif()
+
 # --- Catch2 (compiled as part of the test build) ---
 # Vendored in third_party/Catch2; no network needed.
 if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catch2WithMain)

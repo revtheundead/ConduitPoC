@@ -5,6 +5,7 @@
 #include "cpp_constants.hpp"
 #include "cpp_types.hpp"
 #include "cpp_structs.hpp"
+#include "cpp_json.hpp"
 #include "cpp_session.hpp"
 #include "cpp_protocol.hpp"
 #include "cpp_umbrella.hpp"
@@ -62,12 +63,15 @@ bool CppBackend::generate(
     auto protocol_code = generate_protocol(protocol, sessions, ns);
     ok &= write_file(output_dir / "protocol.hpp", protocol_code);
 
+    auto json_code = generate_json(protocol, index, sizes, sessions, ns);
+    ok &= write_file(output_dir / "json.hpp", json_code);
+
     auto umbrella_name = to_lower_snake_case(protocol.name);
     auto umbrella_code = generate_umbrella(umbrella_name);
     ok &= write_file(output_dir / (umbrella_name + ".hpp"), umbrella_code);
 
     if (ok) {
-        Logger::info("generated 7 files in " + output_dir.string());
+        Logger::info("generated 8 files in " + output_dir.string());
     }
 
     return ok;
