@@ -1088,7 +1088,31 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                              const JOuterContext& outer_ctx = {},
                              const JInlineNameMap& name_map = {},
                              const std::string& parent_class_name = {}) {
-    for (const auto& child : children) {
+    // Pre-scan: find struct-level auto-length field (auto="length" with no field_ref).
+    // When present, we create a bounded subReader after reading the length field
+    // so that subsequent children cannot over-read past the struct boundary.
+    int auto_length_idx = -1;
+    model::ArithModifier auto_length_mod;
+    std::string auto_length_field_name;
+    for (size_t i = 0; i < children.size(); ++i) {
+        if (auto* f = std::get_if<model::Field>(&children[i])) {
+            if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
+                && f->auto_expr->field_ref.empty()) {
+                auto_length_idx = static_cast<int>(i);
+                auto_length_mod = f->auto_expr->modifier;
+                auto_length_field_name = f->name;
+                break;
+            }
+        }
+    }
+
+    // Emit start position marker if auto-length is present
+    if (auto_length_idx >= 0 && auto_length_idx + 1 < static_cast<int>(children.size())) {
+        ctx.line("int _autoLenStart = r.remainingBytes();");
+    }
+
+    for (size_t idx = 0; idx < children.size(); ++idx) {
+        const auto& child = children[idx];
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
@@ -1171,6 +1195,31 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             emit_j_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
             ctx.dedent();
             ctx.line("}");
+        }
+
+        // After auto-length field, create bounded subReader for remaining children
+        if (auto_length_idx >= 0 && static_cast<int>(idx) == auto_length_idx
+            && idx + 1 < children.size()) {
+            std::string len_member = pfx + "." + j_field(auto_length_field_name);
+            // Compute remaining: total struct length minus bytes already consumed
+            // auto="length" measures from struct start, so track consumed bytes at runtime
+            std::string raw_len = len_member;
+            if (auto_length_mod.has_modifier()) {
+                std::string inv_op;
+                switch (auto_length_mod.op) {
+                    case model::ArithOp::Mul: inv_op = " / "; break;
+                    case model::ArithOp::Div: inv_op = " * "; break;
+                    case model::ArithOp::Add: inv_op = " - "; break;
+                    case model::ArithOp::Sub: inv_op = " + "; break;
+                    default: break;
+                }
+                if (!inv_op.empty()) {
+                    raw_len = "(" + len_member + inv_op
+                              + std::to_string(auto_length_mod.literal) + ")";
+                }
+            }
+            std::string remaining = "(int)(" + raw_len + " - (_autoLenStart - r.remainingBytes()))";
+            ctx.line("r = r.subReader(" + remaining + ");");
         }
     }
 }

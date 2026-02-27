@@ -4010,29 +4010,35 @@ public:
 
     static conduit::Result<Cat253Record_items_i100> decode(conduit::io::BitReader& r, const Cat253I080& i080) {
         Cat253Record_items_i100 result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto switch_val = i080.start_index();
-            if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
-                auto val = Cat253Multipath::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else if (switch_val == static_cast<decltype(switch_val)>(0x06)) {
-                auto val = Cat253Squitter::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else if (switch_val == static_cast<decltype(switch_val)>(0x23)) {
-                auto val = Cat253BitReport::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else {
-                auto val = Cat253Record_items_i100_payloadOtherwise::decode(r, result.len_);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto switch_val = i080.start_index();
+                if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
+                    auto val = Cat253Multipath::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else if (switch_val == static_cast<decltype(switch_val)>(0x06)) {
+                    auto val = Cat253Squitter::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else if (switch_val == static_cast<decltype(switch_val)>(0x23)) {
+                    auto val = Cat253BitReport::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else {
+                    auto val = Cat253Record_items_i100_payloadOtherwise::decode(r, result.len_);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                }
             }
         }
         return result;

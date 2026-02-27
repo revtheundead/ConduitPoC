@@ -56,16 +56,22 @@ public:
 
     static conduit::Result<Cat007DownlinkRecord_items_spf> decode(conduit::io::BitReader& r) {
         Cat007DownlinkRecord_items_spf result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -112,16 +118,22 @@ public:
 
     static conduit::Result<Cat007DownlinkRecord_items_ref> decode(conduit::io::BitReader& r) {
         Cat007DownlinkRecord_items_ref result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -1086,16 +1098,22 @@ public:
 
     static conduit::Result<Cat007UplinkRecord_items_ref> decode(conduit::io::BitReader& r) {
         Cat007UplinkRecord_items_ref result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -1808,15 +1826,21 @@ public:
 
     static conduit::Result<Cat021Record_items_re> decode(conduit::io::BitReader& r) {
         Cat021Record_items_re result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto val = Cat021Record_items_re_items::decode(r);
-            if (!val) return std::unexpected(val.error());
-            result.items_ = std::move(*val);
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto val = Cat021Record_items_re_items::decode(r);
+                if (!val) return std::unexpected(val.error());
+                result.items_ = std::move(*val);
+            }
         }
         return result;
     }
@@ -1863,16 +1887,22 @@ public:
 
     static conduit::Result<Cat021Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat021Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -3012,16 +3042,22 @@ public:
 
     static conduit::Result<Cat048Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat048Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -3212,15 +3248,21 @@ public:
 
     static conduit::Result<Cat048Record_items_re> decode(conduit::io::BitReader& r) {
         Cat048Record_items_re result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto val = Cat048Record_items_re_items::decode(r);
-            if (!val) return std::unexpected(val.error());
-            result.items_ = std::move(*val);
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto val = Cat048Record_items_re_items::decode(r);
+                if (!val) return std::unexpected(val.error());
+                result.items_ = std::move(*val);
+            }
         }
         return result;
     }
@@ -4051,29 +4093,35 @@ public:
 
     static conduit::Result<Cat253Record_items_i100> decode(conduit::io::BitReader& r, const Cat253I080& i080) {
         Cat253Record_items_i100 result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto switch_val = i080.startIndex();
-            if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
-                auto val = Cat253Multipath::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else if (switch_val == static_cast<decltype(switch_val)>(0x06)) {
-                auto val = Cat253Squitter::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else if (switch_val == static_cast<decltype(switch_val)>(0x23)) {
-                auto val = Cat253BitReport::decode(r);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
-            } else {
-                auto val = Cat253Record_items_i100_payloadOtherwise::decode(r, result.len_);
-                if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
-                result.payload_ = std::move(*val);
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto switch_val = i080.startIndex();
+                if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
+                    auto val = Cat253Multipath::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else if (switch_val == static_cast<decltype(switch_val)>(0x06)) {
+                    auto val = Cat253Squitter::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else if (switch_val == static_cast<decltype(switch_val)>(0x23)) {
+                    auto val = Cat253BitReport::decode(r);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                } else {
+                    auto val = Cat253Record_items_i100_payloadOtherwise::decode(r, result.len_);
+                    if (!val) return std::unexpected(val.error().with_context("choice 'payload'"));
+                    result.payload_ = std::move(*val);
+                }
             }
         }
         return result;
@@ -4121,16 +4169,22 @@ public:
 
     static conduit::Result<Cat253Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat253Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -4177,16 +4231,22 @@ public:
 
     static conduit::Result<Cat253Record_items_rfs> decode(conduit::io::BitReader& r) {
         Cat253Record_items_rfs result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
