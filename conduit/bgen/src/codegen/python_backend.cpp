@@ -2704,14 +2704,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         // __init__
         ctx.line("def __init__(self" + std::string(has_config ? ", config: dict | None = None" : "") + ") -> None:");
         ctx.indent();
-        if (has_auto_fields) {
-            ctx.line("self._seq = 0");
-        }
+        ctx.line("self._seq = 0");
         if (has_config) {
             ctx.line("self._config = config or {}");
-        }
-        if (!has_auto_fields && !has_config) {
-            ctx.line("pass");
         }
         ctx.dedent();
         ctx.line();
@@ -3013,11 +3008,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         // reset
         ctx.line("def reset(self) -> None:");
         ctx.indent();
-        if (has_auto_fields) {
-            ctx.line("self._seq = 0");
-        } else {
-            ctx.line("pass");
-        }
+        ctx.line("self._seq = 0");
         ctx.dedent();
 
         ctx.dedent();
