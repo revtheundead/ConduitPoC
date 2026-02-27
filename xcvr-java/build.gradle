@@ -8,25 +8,26 @@ version = '0.1.0'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
-repositories {
-    mavenCentral()
+sourceSets {
+    main {
+        java {
+            srcDirs = [
+                'src/main/java',
+                'asterix/generated',
+                'asterix-alt/generated'
+            ]
+        }
+    }
 }
 
-dependencies {
-    // Conduit Java bindings (built from ../conduit)
-    implementation files('../conduit/build/libs/conduit.jar')
-}
-
-// Two runnable applications matching the C++ executables
 application {
     mainClass = 'com.conduit.xcvr.PocApp'
 }
 
-// Register both apps as named tasks
 tasks.register('runPocApp', JavaExec) {
     mainClass = 'com.conduit.xcvr.PocApp'
     classpath = sourceSets.main.runtimeClasspath
