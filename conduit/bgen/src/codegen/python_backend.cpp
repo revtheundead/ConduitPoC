@@ -1095,7 +1095,9 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                 ctx.line(m + " = r.read_crlf_terminated_string(" + std::to_string(max_len) + ")");
             } else {
                 std::string term = "0";
-                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                if (*f.terminated == "newline") {
+                    term = "0x0A";
+                } else if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
                     term = *f.terminated;
                 }
                 ctx.line(m + " = r.read_terminated_string(" + term + ", " + std::to_string(max_len) + ")");
@@ -1106,6 +1108,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             emit_py_field_trim(ctx, m, f);
         } else if (f.length_from) {
             ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + ")" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             std::string be = (pti.endian == model::Endian::Big) ? "True" : "False";
@@ -1115,10 +1118,13 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)));
             ctx.line(m + " = r.read_string(_pl" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else if (f.length_star) {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
@@ -1357,6 +1363,16 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("if r.read_bits(1) != 0:");
             ctx.indent();
             emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            // Read terminal FX=0 bit if this FX extent has no nested FxBlock
+            {
+                bool has_nested_fx = false;
+                for (const auto& fc : fx->children) {
+                    if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+                }
+                if (!has_nested_fx) {
+                    ctx.line("r.skip_bits(1)  # Terminal FX=0");
+                }
+            }
             ctx.dedent();
         }
 
@@ -1445,6 +1461,16 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("if _fx_continue:");
             ctx.indent();
             emit_py_encode_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
+            // Write terminal FX=0 bit if this FX extent has no nested FxBlock
+            {
+                bool has_nested_fx = false;
+                for (const auto& fc : fx->children) {
+                    if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+                }
+                if (!has_nested_fx) {
+                    ctx.line("w.write_bits(0, 1)  # Terminal FX=0");
+                }
+            }
             ctx.dedent();
         }
     }
@@ -1746,10 +1772,13 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             ctx.line(m + " = " + read + " * " + std::to_string(bf.scale) +
                      (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : ""));
         } else if (bf.is_string) {
+            std::string enc_arg;
+            if (bf.source_field) enc_arg = py_encoding_const(*bf.source_field);
+            std::string enc_suffix = enc_arg.empty() ? "" : ", " + enc_arg;
             if (bf.length)
-                ctx.line(m + " = r.read_string(" + std::to_string(*bf.length) + ")");
+                ctx.line(m + " = r.read_string(" + std::to_string(*bf.length) + enc_suffix + ")");
             else
-                ctx.line(m + " = r.read_string(r.remaining_bytes())");
+                ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_suffix + ")");
         } else if (bf.is_bytes) {
             if (bf.length)
                 ctx.line(m + " = r.read_bytes(" + std::to_string(*bf.length) + ")");
@@ -1850,10 +1879,16 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 }
             }
         } else if (bf.is_string) {
+            int pad = 0;
+            if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space)
+                pad = 0x20;
+            std::string enc_arg;
+            if (bf.source_field) enc_arg = py_encoding_const(*bf.source_field);
+            std::string enc_suffix = enc_arg.empty() ? "" : ", encoding=" + enc_arg;
             if (bf.length)
-                ctx.line("w.write_string(" + m + ", " + std::to_string(*bf.length) + ")");
+                ctx.line("w.write_string(" + m + ", " + std::to_string(*bf.length) + ", " + std::to_string(pad) + enc_suffix + ")");
             else
-                ctx.line("w.write_string(" + m + ", len(" + m + "))");
+                ctx.line("w.write_string(" + m + ", len(" + m + "), " + std::to_string(pad) + enc_suffix + ")");
         } else if (bf.is_bytes) {
             ctx.line("w.write_bytes(" + m + ")");
         } else if (bf.is_bool) {
@@ -2092,13 +2127,23 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         std::string fmt = "return f'" + cn + "(";
         for (size_t i = 0; i < fields.size(); i++) {
             if (i > 0) fmt += ", ";
-            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
-                fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
-                fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
-                fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
-            else
+            bool nullable = (fields[i].default_val == "None");
+            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex) {
+                if (nullable)
+                    fmt += fields[i].name + "={hex(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
+            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal) {
+                if (nullable)
+                    fmt += fields[i].name + "={oct(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
+            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary) {
+                if (nullable)
+                    fmt += fields[i].name + "={bin(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
+            } else
                 fmt += fields[i].name + "={self." + fields[i].name + "}";
         }
         ctx.line(fmt + ")'");
@@ -3050,6 +3095,11 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                                 }
                             }
                         }
+                    }
+
+                    // Set id field from message's ID_VALUE
+                    if (!si.id_field_name.empty()) {
+                        ctx.line("frame." + py_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE");
                     }
 
                     // Set message-level config fields on each payload

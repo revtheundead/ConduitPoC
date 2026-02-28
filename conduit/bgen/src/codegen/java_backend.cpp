@@ -815,10 +815,23 @@ bool j_field_needs_encoding(const model::Field& f) {
 }
 
 // Helper: emit Java string trim code based on field trim mode
-void emit_j_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f) {
-    // Determine effective trim — default to Right if not specified
-    auto eff_trim = f.trim.value_or(model::StringTrim::Right);
-    std::string ch = (f.padding && *f.padding == model::StringPadding::Space) ? "\" \"" : "\"\\0\"";
+static model::StringPadding j_resolve_effective_padding(const model::Field& f,
+                                                        const analyzer::TypeIndex& index) {
+    if (f.padding) return *f.padding;
+    if (!f.type_ref.empty()) {
+        auto it = index.types.find(f.type_ref);
+        if (it != index.types.end()) return it->second->padding;
+    }
+    return model::StringPadding::Null;
+}
+
+void emit_j_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f,
+                       const analyzer::TypeIndex& index) {
+    // Only trim when explicitly set (matching C++ behavior)
+    if (!f.trim) return;
+    auto eff_trim = *f.trim;
+    auto padding = j_resolve_effective_padding(f, index);
+    std::string ch = (padding == model::StringPadding::Space) ? "\" \"" : "\"\\0\"";
     switch (eff_trim) {
         case model::StringTrim::Right:
             ctx.line("while (" + m + ".endsWith(" + ch + ")) " + m + " = " + m + ".substring(0, " + m + ".length()-1);");
@@ -919,7 +932,7 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.char_bits && f.length) {
             // Packed character decode (e.g., ICAO 6-bit chars)
             ctx.line(m + " = r.readPackedChars(" + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ");");
-            emit_j_field_trim(ctx, m, f);
+            emit_j_field_trim(ctx, m, f, index);
         } else if (f.terminated) {
             // Terminated string decode
             int max_len = f.max_length ? *f.max_length : 65535;
@@ -933,10 +946,10 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
                 }
                 ctx.line(m + " = r.readTerminatedString(" + term + ", " + std::to_string(max_len) + ");");
             }
-            emit_j_field_trim(ctx, m, f);
+            emit_j_field_trim(ctx, m, f, index);
         } else if (f.length) {
             ctx.line(m + " = r." + read_fn + "(" + std::to_string(*f.length) + enc_arg + ");");
-            emit_j_field_trim(ctx, m, f);
+            emit_j_field_trim(ctx, m, f, index);
         } else if (f.length_from) {
             ctx.line(m + " = r." + read_fn + "((int)(" + j_expr(*f.length_from, pfx) + ")" + enc_arg + ");");
         } else if (f.length_prefix) {
@@ -1193,6 +1206,14 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             ctx.line("if (r.readBits(1) != 0) {");
             ctx.indent();
             emit_j_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            // Write terminal FX=0 bit if this FX extent has no nested FxBlock
+            bool has_nested_fx = false;
+            for (const auto& fc : fx->children) {
+                if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+            }
+            if (!has_nested_fx) {
+                ctx.line("r.skipBits(1); // Terminal FX=0");
+            }
             ctx.dedent();
             ctx.line("}");
         }
@@ -1298,6 +1319,16 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                     ctx.dedent();
                     first = false;
                 }
+                if (cd->otherwise) {
+                    std::string ow_type = cd->otherwise->type_ref.empty()
+                        ? j_inline_class(cd->otherwise->name, name_map)
+                        : j_class(cd->otherwise->type_ref);
+                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + " _cv) {");
+                    ctx.indent();
+                    ctx.line("_cv.encode(w);");
+                    ctx.dedent();
+                    first = false;
+                }
                 if (!first) ctx.line("}");
             };
             if (cd->present_when) {
@@ -1320,6 +1351,16 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             ctx.line("if (_fxContinue) {");
             ctx.indent();
             emit_j_encode_children(ctx, fx->children, index, pfx, len_ref_target, name_map, parent_class_name);
+            // Write terminal FX=0 bit if this FX extent has no nested FxBlock
+            {
+                bool has_nested_fx = false;
+                for (const auto& fc : fx->children) {
+                    if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+                }
+                if (!has_nested_fx) {
+                    ctx.line("w.writeBits(0, 1); // Terminal FX=0");
+                }
+            }
             ctx.dedent();
             ctx.line("}");
             ctx.dedent();
@@ -1677,10 +1718,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 else ctx.line("w.writeU64(" + reverse_scale + ", " + be + ");");
             }
         } else if (bf.is_string) {
+            int pad = 0;
+            if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space)
+                pad = 0x20;
             if (bf.length)
-                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ", 0);");
+                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ", " + std::to_string(pad) + ");");
             else
-                ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
+                ctx.line("w.writeString(" + m + ", " + m + ".length(), " + std::to_string(pad) + ");");
         } else if (bf.is_bytes) {
             ctx.line("w.writeBytes(" + m + ");");
         } else if (bf.is_bool) {
@@ -2900,7 +2944,9 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     // decodeFrame
     ctx.line("public List<Map<String, Object>> decodeFrame(byte[] data) {");
     ctx.indent();
-    ctx.line(frame_class + " frame = " + frame_class + ".decodeBytes(data);");
+    ctx.line(frame_class + " frame;");
+    ctx.line("try { frame = " + frame_class + ".decodeBytes(data); }");
+    ctx.line("catch (Exception e) { return new ArrayList<>(); }");
     ctx.line("List<Map<String, Object>> messages = new ArrayList<>();");
     if (si.payload_is_array) {
         ctx.line("for (Object item : frame.payload) {");
@@ -2997,7 +3043,12 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             if (has_config) {
                 for (const auto& cf : si.config_fields) {
                     std::string cfg_key = cf.key;
-                    std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                    std::string cast;
+                    if (cf.bits > 32) {
+                        cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).longValue()";
+                    } else {
+                        cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                    }
                     ctx.line("frame." + j_field(cf.field_name) + " = " + cast + ";");
                 }
             }
@@ -3080,7 +3131,12 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                     ctx.line(leaf_class + " m = (" + leaf_class + ") p;");
                     for (const auto& cf : lt.config_fields) {
                         std::string cfg_key = cf.key;
-                        std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        std::string cast;
+                        if (cf.bits > 32) {
+                            cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).longValue()";
+                        } else {
+                            cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        }
                         ctx.line("m." + j_field(cf.field_name) + " = " + cast + ";");
                     }
                     ctx.line("frame.payload.add(m);");
@@ -3094,7 +3150,12 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 if (has_config) {
                     for (const auto& cf : si.config_fields) {
                         std::string cfg_key = cf.key;
-                        std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        std::string cast;
+                        if (cf.bits > 32) {
+                            cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).longValue()";
+                        } else {
+                            cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
+                        }
                         ctx.line("frame." + j_field(cf.field_name) + " = " + cast + ";");
                     }
                 }
@@ -3142,6 +3203,19 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     // formatMessage
     ctx.line("public String formatMessage(long typeId, Object payload) {");
     ctx.indent();
+    {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            std::string prefix = first ? "if" : "} else if";
+            first = false;
+            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("return _m.toString();");
+            ctx.dedent();
+        }
+        if (!first) ctx.line("}");
+    }
     ctx.line("return payload != null ? payload.toString() : \"\";");
     ctx.dedent();
     ctx.line("}");
@@ -3272,13 +3346,29 @@ bool JavaBackend::generate(
                     tctx.line();
                     tctx.line("public static " + name + " decode(BitReader r) {");
                     tctx.indent();
-                    tctx.line("int raw = (int) r.readBits(" + std::to_string(t.bits) + ");");
+                    {
+                        bool enum_signed = (t.base == model::PrimitiveBase::Int);
+                        std::string enum_rd;
+                        if (t.wire_encoding == model::WireEncoding::BCD) enum_rd = "readBcd";
+                        else if (t.wire_encoding == model::WireEncoding::BCD_S) enum_rd = "readBcdSigned";
+                        else if (t.wire_encoding == model::WireEncoding::BNR_S) enum_rd = "readSignMagnitude";
+                        else enum_rd = enum_signed ? "readSignedBits" : "readBits";
+                        tctx.line("int raw = (int) r." + enum_rd + "(" + std::to_string(t.bits) + ");");
+                    }
                     tctx.line("for (" + name + " v : values()) if (v.value == raw) return v;");
                     tctx.line("throw new ConduitCodecException(\"unknown " + name + " value: \" + raw);");
                     tctx.dedent();
                     tctx.line("}");
                     tctx.line();
-                    tctx.line("public void encode(BitWriter w) { w.writeBits(value, " + std::to_string(t.bits) + "); }");
+                    {
+                        bool enum_signed = (t.base == model::PrimitiveBase::Int);
+                        std::string enum_wr;
+                        if (t.wire_encoding == model::WireEncoding::BCD) enum_wr = "writeBcd";
+                        else if (t.wire_encoding == model::WireEncoding::BCD_S) enum_wr = "writeBcdSigned";
+                        else if (t.wire_encoding == model::WireEncoding::BNR_S) enum_wr = "writeSignMagnitude";
+                        else enum_wr = enum_signed ? "writeSignedBits" : "writeBits";
+                        tctx.line("public void encode(BitWriter w) { w." + enum_wr + "(value, " + std::to_string(t.bits) + "); }");
+                    }
                     tctx.dedent();
                     tctx.line("}");
                 } else {
@@ -3305,8 +3395,18 @@ bool JavaBackend::generate(
                     } else {
                         tctx.line("public long value() { return raw; }");
                     }
-                    std::string rd = is_signed ? "readSignedBits" : "readBits";
-                    std::string wr = is_signed ? "writeSignedBits" : "writeBits";
+                    // Determine read/write method based on wire encoding
+                    std::string rd, wr;
+                    if (t.wire_encoding == model::WireEncoding::BCD) {
+                        rd = "readBcd"; wr = "writeBcd";
+                    } else if (t.wire_encoding == model::WireEncoding::BCD_S) {
+                        rd = "readBcdSigned"; wr = "writeBcdSigned";
+                    } else if (t.wire_encoding == model::WireEncoding::BNR_S) {
+                        rd = "readSignMagnitude"; wr = "writeSignMagnitude";
+                    } else {
+                        rd = is_signed ? "readSignedBits" : "readBits";
+                        wr = is_signed ? "writeSignedBits" : "writeBits";
+                    }
                     // Generate decode with constraint validation (matching C++ emit_constraint_check)
                     if (t.constraint && (t.constraint->max || (t.constraint->min && (*t.constraint->min != "0" || is_signed)) || t.constraint->equals)) {
                         tctx.line("public static " + name + " decode(BitReader r) {");
