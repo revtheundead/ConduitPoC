@@ -2,274 +2,197 @@
 
 ## Summary
 
-Deep inspection of the Conduit library codebase (726 source files) covering C++
-core, Java/Python code generation backends, session codegen, and test coverage.
-Findings are prioritized by severity and validated to eliminate false positives.
+Deep inspection of the Conduit library codebase covering C++ core, Java/Python
+code generation backends, session codegen, and test coverage. Findings are
+prioritized by severity and validated against the C++ reference implementation.
 
 ---
 
-## CRITICAL BUGS (Will cause compilation errors in generated code)
+## FIXED BUGS
 
-### 1. Java bitmap codegen references non-existent `readS16`/`readS32`/`writeS16`/`writeS32` methods
+### 1. [CRITICAL] Java bitmap codegen referenced non-existent `readS16`/`readS32`/`writeS16`/`writeS32` methods
 
-**Files:** `bgen/src/codegen/java_backend.cpp` lines 1533-1534, 1572-1573, 1648-1649, 1679-1680
+**File:** `bgen/src/codegen/java_backend.cpp`
 
-The bitmap struct decode/encode code generates calls to `r.readS16()`,
+The bitmap struct decode/encode code generated calls to `r.readS16()`,
 `r.readS32()`, `w.writeS16()`, and `w.writeS32()`, but the generated
-`BitReader.java` and `BitWriter.java` classes never define these methods. The
-generated BitReader only provides: `readU8`, `readU16`, `readU32`, `readU64`,
-`readBits`, `readSignedBits`. The generated BitWriter only provides: `writeU8`,
-`writeU16`, `writeU32`, `writeU64`, `writeBits`, `writeSignedBits`.
+`BitReader.java` and `BitWriter.java` classes never define these methods.
+Any protocol with a bitmap/FSPEC struct containing signed 16+ bit fields
+would produce Java code that **fails to compile**.
 
-Any protocol with a bitmap/FSPEC struct containing signed 16-bit or 32-bit
-integer fields will produce Java code that **fails to compile**.
+**Fix:** All `readS16`/`readS32`/`writeS16`/`writeS32` calls in bitmap codegen
+replaced with `readSignedBits(N)`/`writeSignedBits(value, N)`.
 
-**Fix:** Replace `readS16`/`readS32` calls with appropriate `readSignedBits(N)`
-calls, and `writeS16`/`writeS32` with `writeSignedBits(value, N)` calls.
+### 2. [CRITICAL] Java bitmap string encode called `writeString` with wrong argument count
 
-### 2. Java bitmap string encode calls `writeString` with wrong argument count
+**File:** `bgen/src/codegen/java_backend.cpp`
 
-**File:** `bgen/src/codegen/java_backend.cpp` lines 1658, 1660
+BitWriter's `writeString` signature is `writeString(String s, int len, int pad)`
+(3 params), but bitmap encode generated calls with only 2 arguments, causing
+a compile error.
 
-The generated `BitWriter.writeString` method signature is
-`writeString(String s, int len, int pad)` (3 parameters), but the bitmap encode
-code generates calls with only 2 arguments:
-- Line 1658: `w.writeString(m, len)` -- missing `pad` argument
-- Line 1660: `w.writeString(m, m.length())` -- missing `pad` argument
+**Fix:** Added `0` as the third argument for pad.
 
-The non-bitmap encode path (line 1057) correctly passes all 3 arguments.
+### 3. [CRITICAL] Java missing type-level string wrapper class generation
 
-**Fix:** Add the `pad` parameter (typically `0` for null padding or `0x20` for
-space padding based on field attributes).
+**File:** `bgen/src/codegen/java_backend.cpp`
 
-### 3. Java missing type-level string wrapper class generation
+The type generation condition omitted string types (`is_string`). Fields
+referencing a type-level string definition (e.g., `type="callsign-str"`)
+would produce Java code that calls `CallsignStr.decode(r)` on a class
+that was never generated, causing a compilation failure.
 
-**File:** `bgen/src/codegen/java_backend.cpp` line 3197
+**Fix:** Added `is_string` to the type generation condition and implemented
+string wrapper class generation with `WIRE_SIZE` constant, `decode`/`encode`
+methods, and proper trim handling.
 
-The type generation condition is:
-```cpp
-if (is_enum || is_flags || has_scale || t.constraint)
-```
+### 4. [CRITICAL] IA5 string encoding performed wrong transformation (Java + Python)
 
-This omits `is_string` (present as `is_string_type` in the C++ backend at
-`cpp_structs_helpers.cpp:133`). If a field references a type-level string
-definition (e.g., `type="callsign-str"`), the generated Java code will call
-`CallsignStr.decode(r)` on a class that was never generated, causing a
-**compilation failure**.
+**Files:** `java_backend.cpp`, `python_backend.cpp`
 
-The Python backend handles this correctly at line 897
-(`else if (is_string && t.length)`).
+Both backends applied a 6-bit packed character transformation for IA5 strings:
+decode masked to `& 0x3F` then added `0x40` for values < 32; encode subtracted
+`0x40` for values >= `0x40`. The C++ reference (`encoding.hpp:64-72`) correctly
+defines IA5 as 7-bit ASCII — simply masking the high bit with `& 0x7F`. The
+incorrect transformation garbles any character outside the 0x00-0x3F range.
 
-**Fix:** Add `|| is_string` to the type generation condition, and implement
-string wrapper class generation for Java (matching C++ `emit_string_type`).
+**Fix:** Changed both Java and Python to use `& 0x7F` for IA5, matching C++.
 
----
+### 5. [CRITICAL] CB2 wire encoding wrongly treated as sign-magnitude (Java + Python)
 
-## HIGH SEVERITY BUGS (Wrong runtime behavior or silent data corruption)
+**Files:** `java_backend.cpp`, `python_backend.cpp` (bitmap codegen path)
 
-### 4. Java and Python bitmap codegen: CB2 wire encoding wrongly treated as sign-magnitude
+Both backends grouped `WireEncoding::CB2` with `WireEncoding::BNR_S` and
+dispatched to sign-magnitude encoding. The C++ reference (`cpp_types.cpp:62-63`)
+treats CB2 as standard two's complement. For negative values, sign-magnitude
+and two's complement produce different bit patterns (e.g., -1 in 8-bit:
+SM=`0x81`, TC=`0xFF`).
 
-**Files:**
-- `java_backend.cpp` lines 1568-1569, 1675-1676
-- `python_backend.cpp` lines 1724, 1823
+**Fix:** Separated CB2 from BNR_S. CB2 now falls into the
+`readSignedBits`/`writeSignedBits` path (two's complement).
 
-Both Java and Python bitmap codegen group `WireEncoding::CB2` with
-`WireEncoding::BNR_S` and treat it as sign-magnitude encoding. However, the C++
-codegen (`cpp_structs_helpers.cpp:296`) treats CB2 as **standard two's
-complement** (same read path as Default). This means bitmap fields with CB2 wire
-encoding will decode/encode incorrectly in Java and Python.
+### 6. [HIGH] Java bitmap choice decode was a TODO stub
 
-**Fix:** Remove CB2 from the sign-magnitude branch and handle it as standard
-two's complement.
+**File:** `bgen/src/codegen/java_backend.cpp`
 
-### 5. Java bitmap choice decode is stubbed out (TODO)
+Bitmap choice fields were assigned `null` with a `// TODO` comment. Any
+protocol with choice fields inside bitmap structs would silently produce
+null values in Java.
 
-**File:** `bgen/src/codegen/java_backend.cpp` line 1515
+**Fix:** Implemented full choice decode with switch expression evaluation
+and case dispatch, matching the non-bitmap choice decode pattern.
 
-```cpp
-ctx.line(m + " = null; // TODO: choice decode in bitmap");
-```
-
-When a bitmap/FSPEC struct contains a choice field controlled by a bit, the Java
-decode code simply assigns `null`. This means any protocol with choice fields
-inside bitmap structs will silently produce `null` values in Java.
-
-### 6. Python bitmap codegen silently ignores choice fields
-
-**File:** `bgen/src/codegen/python_backend.cpp` lines 1673+
-
-Unlike Java which at least has a TODO stub, Python's bitmap decode code doesn't
-check for `bf.is_choice` at all. If `bf.is_choice` is true and `bf.is_struct`
-is false, the code falls through to primitive handling, potentially producing
-wrong data or runtime errors.
-
-### 7. Python `encode_batch` missing `id_field` and `timestamp_fields` assignment
-
-**File:** `bgen/src/codegen/python_backend.cpp` lines 2994-3027
-
-Python's `encode_batch` creates a raw frame (`frame = FrameClass()`) but does
-NOT set:
-- The `id_field_name` (present in C++ at `cpp_session.cpp:269-271` and Java at
-  `java_backend.cpp:3051-3053`)
-- The `timestamp_fields` (present in C++ at `cpp_session.cpp:315-328` and Java
-  at `java_backend.cpp:3095-3104`)
-
-This means batch-encoded frames will have missing message type identifiers and
-timestamps, causing decode failures or wrong message routing.
-
-### 8. Python `decode_frame` return type annotation is wrong
-
-**File:** `bgen/src/codegen/python_backend.cpp` lines 2899, 2907
-
-The return type annotation says `list[dict]` but the method returns `None` on
-decode failure (line 2907: `return None`). Should be
-`list[dict] | None` or `Optional[list[dict]]`.
-
-### 9. Java `ShiftRight` expression uses arithmetic shift `>>` instead of logical `>>>`
-
-**File:** `bgen/src/codegen/java_backend.cpp` line 122
-
-Java's `>>` is arithmetic right shift (sign-extending), while `>>>` is logical
-right shift (zero-extending). For unsigned integer expressions, `>>` will
-propagate sign bits. C++ `>>` performs logical shift on unsigned types, so the
-Java code produces different results when shift-right expressions operate on
-unsigned data.
-
----
-
-## MEDIUM SEVERITY ISSUES
-
-### 10. Python `decode_frame` swallows all exceptions silently
-
-**File:** `bgen/src/codegen/python_backend.cpp` lines 2901-2908
-
-```python
-try:
-    frame = FrameClass.decode_bytes(data)
-except Exception:
-    return None
-```
-
-All exceptions (including programming bugs like `AttributeError`,
-`TypeError`, etc.) are caught and silently converted to `None`. The C++ version
-properly propagates specific error codes. The Java version does not wrap in
-try/catch. This makes Python protocol debugging very difficult.
-
-### 11. Python session missing send-only message warnings
+### 7. [HIGH] Python bitmap choice decode generated `object.decode(r)` — runtime crash
 
 **File:** `bgen/src/codegen/python_backend.cpp`
 
-C++ and Java `decode_frame` methods both emit warnings when receiving send-only
-message types. Python's `decode_frame` has no equivalent logging/warning.
+When a `ChoiceDef` was registered as a bitmap field, it set
+`py_type = "object"` and `is_struct = true`. The decode then generated
+`object.decode(r)`, calling Python's builtin `object` class which has no
+`decode` method, causing `AttributeError` at runtime.
 
-### 12. Java/Python sessions missing `auto_fields` metadata in encode results
+**Fix:** Added explicit `is_choice` handling in both decode and encode paths
+with proper if/elif dispatch based on the choice's `switch_expr`.
 
-**Files:** `java_backend.cpp` lines 2949-3023, `python_backend.cpp` lines 2924-2981
+### 8. [MEDIUM] Java `ShiftRight` expression used `>>` instead of `>>>`
 
-C++ session's `encode_wrap` and `encode_batch` record auto-managed fields
-(sequence counter values, timestamps, config fields) into
-`result.auto_fields`. Neither Java nor Python return this metadata --
-they only return `{'bytes': data, 'type_id': type_id}`.
+**File:** `bgen/src/codegen/java_backend.cpp`
 
-### 13. Java enum value type is always `int` regardless of bit width
+Java's `>>` is arithmetic right shift (sign-extending), while protocol
+semantics require logical shift (zero-extending), which is `>>>` in Java.
 
-**File:** `bgen/src/codegen/java_backend.cpp` lines 3213-3214, 3218
+**Fix:** Changed `>>` to `>>>`.
 
-All Java enums use `int` for their value. The `readBits` call casts to `int`,
-which would **truncate values** for enums wider than 32 bits. C++ uses the
-appropriate sized type.
+### 9. [MEDIUM] Python EBCDIC conversion table incomplete
 
-### 14. Java constants are all generated as `long` without `L` suffix validation
+**File:** `bgen/src/codegen/python_backend.cpp`
 
-**File:** `bgen/src/codegen/java_backend.cpp` line 782
+The EBCDIC tables were built from a sparse pair list covering only ~93
+printable characters. The C++ reference provides full 256-entry Code Page 037
+tables. Any EBCDIC byte not in the Python pair set silently mapped to `0x00`.
 
-All constants are typed as `long`, and the value string is used as-is from BMDL.
-If `c.value` is a hex literal like `"0xFFFFFFFF"` without `L` suffix, Java may
-interpret it as a negative `int` before widening.
+**Fix:** Replaced with full 256-entry lookup tables matching C++ exactly.
 
-### 15. Python string type wrappers only generated for fixed-length strings
+### 10. [MEDIUM] Python `encode_batch` missing message-level config and timestamps
 
-**File:** `bgen/src/codegen/python_backend.cpp` line 897
+**File:** `bgen/src/codegen/python_backend.cpp`
 
-The condition `is_string && t.length` means only fixed-length string types get
-wrapper classes. String types with `char_bits` (packed), `terminated`, or other
-attributes are silently skipped. C++ handles all variants.
+`encode_batch` set frame-level config and auto-increment fields, but did NOT
+set message-level config fields on individual payload items or auto-timestamp
+fields (both present in `encode_wrap`).
 
----
+**Fix:** Added message-level config field application to each payload item
+and auto-timestamp field generation, matching `encode_wrap`.
 
-## PERFORMANCE ISSUES
+### 11. [MEDIUM] Python `decode_frame` returned `None` instead of `[]` on error
 
-### 16. Generated Java/Python BitReader reads multi-byte values bit-by-bit
+**File:** `bgen/src/codegen/python_backend.cpp`
 
-**Files:**
-- `java_backend.cpp` lines 502-503 (readU16), 508-509 (readU32), etc.
-- `python_backend.cpp` lines 483-485 (read_u16), 488-489 (read_u32), etc.
+The method declares return type `list[dict]` but returned `None` on decode
+failure, breaking the type contract.
 
-Multi-byte reads like `readU16` call `readBits(8)` twice through the bit-level
-loop, then wrap in a ByteBuffer/struct.unpack. The C++ `BitReader` uses
-`align_to_byte()` and direct memory access for byte-aligned multi-byte reads,
-which is significantly faster. For high-throughput protocol parsing, this bit-by-
-bit approach creates unnecessary overhead.
+**Fix:** Changed `return None` to `return []`.
 
 ---
 
-## TEST COVERAGE GAPS
+## REMAINING KNOWN ISSUES (Not Fixed — Documented for Future Work)
 
-### 17. No tests for bitmap choice decode (Java or Python)
+### Missing Features (C++ has, Java/Python don't)
 
-Given that bitmap choice decode is incomplete (TODO stub in Java, missing in
-Python), there are no tests that would catch these failures. Any protocol using
-choice fields inside FSPEC/bitmap structs is untested.
+| # | Severity | Feature | Description |
+|---|----------|---------|-------------|
+| 1 | HIGH | Inline structs (`is_inline`) | C++ flattens inline struct fields into parent; Java/Python nest as sub-objects |
+| 2 | HIGH | Deferred constraint validation | C++ generates `validate()` for deferred constraints; Python skips entirely |
+| 3 | HIGH | Auto-length with `field_ref` | C++ measures specific child field byte length; Python writes 0 placeholder, never patches for non-empty `field_ref` |
+| 4 | MEDIUM | Array `length_from` bounded decode | C++ creates bounded sub-reader; Python reads until reader exhausted |
+| 5 | MEDIUM | JSON serialization | C++ generates `to_json`/`from_json`; no equivalent in Java/Python |
+| 6 | MEDIUM | `format_outbound` session method | C++ has outbound formatting with auto-field overlays |
+| 7 | LOW | `WIRE_SIZE` for struct classes | Only generated for string type classes in Python |
+| 8 | LOW | `__eq__`/`__hash__` for structs | Python only generates `__eq__` for type classes, no `__hash__` anywhere |
 
-### 18. No tests for type-level string wrappers in Java
+### Remaining Bugs (Lower Priority)
 
-Since Java doesn't generate string type wrappers (Bug #3), there are no
-corresponding tests. Python does have some string type handling but it's limited
-to fixed-length strings.
+| # | Severity | Description |
+|---|----------|-------------|
+| 1 | MEDIUM | Python `__repr__` crashes with `hex(None)` for nullable numeric fields with hex format |
+| 2 | MEDIUM | Python missing string trim for `length_from`, `length_prefix`, `length_star` strings |
+| 3 | MEDIUM | Java enum value type is always `int` regardless of bit width — truncates values for enums > 32 bits |
+| 4 | LOW | Python `length_from` expressions use `py_expr` instead of `py_expr_ctx` (cannot reference outer-scope fields) |
+| 5 | LOW | Python `decode_frame` swallows all exceptions silently (including programming bugs) |
 
-### 19. CB2 wire encoding not tested in bitmap contexts
+### Performance Issues
 
-The CB2 mishandling as sign-magnitude (Bug #4) is untested. Tests exist for BCD
-and BNR_S but not for CB2 specifically in bitmap codegen paths.
-
-### 20. Missing edge case tests for signed types in Java bitmap codegen
-
-The `readS16`/`readS32`/`writeS16`/`writeS32` bug (#1) would be caught by any
-test using signed 16-bit or 32-bit fields inside bitmap structs, but no such
-tests exist.
-
-### 21. Python encode_batch with id_field is untested
-
-Tests cover `encode_wrap` (which uses `Frame.wrap()`) but don't test
-`encode_batch` with protocols that have `id_field_name` set, which would reveal
-Bug #7.
+| # | Description |
+|---|-------------|
+| 1 | Generated Java/Python BitReader reads multi-byte values bit-by-bit instead of direct memory access |
+| 2 | Large reserved fields in Python use `write_bits(0, N)` which loops bit-by-bit |
 
 ---
 
-## ARCHITECTURAL DISCREPANCIES (Java/Python vs C++)
+## Architectural Discrepancies (Java/Python vs C++)
 
 | Feature | C++ | Java | Python |
 |---------|-----|------|--------|
-| Type-level string wrappers | Full | Missing | Partial (fixed-length only) |
-| Bitmap choice decode | Full | TODO stub | Missing |
-| CB2 wire encoding | Two's complement | Sign-magnitude (wrong) | Sign-magnitude (wrong) |
+| Type-level string wrappers | Full | **Fixed** | Partial (fixed-length only) |
+| Bitmap choice decode | Full | **Fixed** | **Fixed** |
+| CB2 wire encoding | Two's complement | **Fixed** | **Fixed** |
+| IA5 string encoding | 7-bit mask (`& 0x7F`) | **Fixed** | **Fixed** |
+| EBCDIC tables | Full 256-entry | Full 256-entry | **Fixed** |
 | `auto_fields` metadata | Full | Missing | Missing |
 | Send-only warnings | Full | Full | Missing |
-| `encode_batch` id_field | Full | Full | Missing |
-| `encode_batch` timestamps | Full | Full | Missing |
+| `encode_batch` config/timestamps | Full | Full | **Fixed** |
 | `equals`/`hashCode` | `operator==` default | Missing | `__eq__` partial |
 | JSON serialization | Full | Missing | Missing |
 | Deferred constraint validation | `validate()` method | No separate method | Missing |
-| Sequence counter accessor | `sequence_counter()` | `sequenceCounter()` | Missing |
-| `readS16`/`readS32` methods | N/A (uses typed reads) | Missing (compile error) | N/A |
+| Inline struct flattening | Full | Missing | Missing |
+| `readS16`/`readS32` methods | N/A (typed reads) | **Fixed** (was compile error) | N/A |
+| ShiftRight operator | `>>` (logical on unsigned) | **Fixed** (`>>>`) | `>>` (correct in Python) |
 
 ---
 
-## Files Affected
+## Files Modified
 
-| File | Bug IDs |
-|------|---------|
-| `bgen/src/codegen/java_backend.cpp` | #1, #2, #3, #4, #5, #9, #12, #13, #14 |
-| `bgen/src/codegen/python_backend.cpp` | #4, #6, #7, #8, #10, #11, #12, #15 |
-| `bgen/src/codegen/cpp_session.cpp` | (reference baseline) |
-| `bgen/src/codegen/cpp_structs_helpers.cpp` | (reference baseline) |
+| File | Fixes Applied |
+|------|---------------|
+| `bgen/src/codegen/java_backend.cpp` | #1, #2, #3, #4, #5, #6, #8 |
+| `bgen/src/codegen/python_backend.cpp` | #4, #5, #7, #9, #10, #11 |

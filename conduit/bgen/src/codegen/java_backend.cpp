@@ -119,7 +119,7 @@ std::string j_expr(const model::Expr& e, const std::string& obj = "this") {
         case model::ExprOp::BitOr:  return "(" + j_expr(*e.left, obj) + " | " + j_expr(*e.right, obj) + ")";
         case model::ExprOp::BitXor: return "(" + j_expr(*e.left, obj) + " ^ " + j_expr(*e.right, obj) + ")";
         case model::ExprOp::ShiftLeft:  return "(" + j_expr(*e.left, obj) + " << " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::ShiftRight: return "(" + j_expr(*e.left, obj) + " >> " + j_expr(*e.right, obj) + ")";
+        case model::ExprOp::ShiftRight: return "(" + j_expr(*e.left, obj) + " >>> " + j_expr(*e.right, obj) + ")";
         case model::ExprOp::Negate: return "(-" + j_expr(*e.left, obj) + ")";
         case model::ExprOp::BitNot: return "(~" + j_expr(*e.left, obj) + ")";
         case model::ExprOp::LogNot: return "(!" + j_expr(*e.left, obj) + ")";
@@ -538,7 +538,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.indent();
     ctx.line("byte[] b = new byte[len]; for (int i=0;i<len;i++) b[i]=(byte)readBits(8);");
     ctx.line("if (enc == 2) { for (int i=0;i<b.length;i++) b[i]=EBCDIC_TO_ASCII[b[i]&0xFF]; }");
-    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) { int c=b[i]&0x3F; b[i]=(byte)(c<32?c+0x40:c); } }");
+    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) b[i]=(byte)(b[i]&0x7F); }");
     ctx.line("return new String(b, StandardCharsets.ISO_8859_1);");
     ctx.dedent();
     ctx.line("}");
@@ -700,7 +700,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.indent();
     ctx.line("byte[] b = s.getBytes(StandardCharsets.ISO_8859_1);");
     ctx.line("if (enc == 2) { for (int i=0;i<b.length;i++) b[i]=ASCII_TO_EBCDIC[b[i]&0xFF]; }");
-    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) { int c=b[i]&0xFF; b[i]=(byte)(c>=0x40?c-0x40:c); } }");
+    ctx.line("else if (enc == 1) { for (int i=0;i<b.length;i++) b[i]=(byte)(b[i]&0x7F); }");
     ctx.line("for (int i=0;i<len;i++) writeU8(i<b.length ? b[i]&0xFF : pad);");
     ctx.dedent();
     ctx.line("}");
@@ -1508,11 +1508,39 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                  " && (fspec[" + std::to_string(byte_idx) +
                  "] & (1 << " + std::to_string(bit_in_byte) + ")) != 0) {");
         ctx.indent();
-        if (bf.is_choice && bf.choice_def) {
-            // Use switch expression for choice decode
-            std::string switch_field = j_field(bf.choice_def->switch_expr->name);
-            ctx.line("// Choice decode based on " + switch_field);
-            ctx.line(m + " = null; // TODO: choice decode in bitmap");
+        if (bf.is_choice && bf.choice_def && bf.choice_def->switch_expr) {
+            // Choice decode based on switch expression
+            std::string sv = "result." + j_field(bf.choice_def->switch_expr->name);
+            bool first_case = true;
+            for (const auto& cs : bf.choice_def->cases) {
+                std::string val = cs.value ? *cs.value : "0";
+                if (cs.value && index.constants.count(*cs.value)) {
+                    val = "Constants." + j_const(*cs.value);
+                }
+                std::string cond = sv + " == " + val;
+                ctx.line(std::string(first_case ? "if (" : "} else if (") + cond + ") {");
+                ctx.indent();
+                std::string et = cs.type_ref.empty() ? j_class(cs.name) : j_class(cs.type_ref);
+                std::string case_args;
+                auto child_osp = scope_map.find(cs.type_ref.empty() ? cs.name : cs.type_ref);
+                if (child_osp != scope_map.end()) {
+                    for (const auto& p : child_osp->second)
+                        case_args += ", result." + j_field(p.bmdl_name);
+                }
+                ctx.line(m + " = " + et + ".decode(r" + case_args + ");");
+                ctx.dedent();
+                first_case = false;
+            }
+            if (bf.choice_def->otherwise) {
+                ctx.line("} else {");
+                ctx.indent();
+                std::string et = bf.choice_def->otherwise->type_ref.empty()
+                    ? j_class(bf.choice_def->otherwise->name)
+                    : j_class(bf.choice_def->otherwise->type_ref);
+                ctx.line(m + " = " + et + ".decode(r);");
+                ctx.dedent();
+            }
+            if (!first_case) ctx.line("}");
         } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
             std::string args;
             auto child_osp = scope_map.find(bf.name);
@@ -1530,8 +1558,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             std::string read;
             if (bf.raw_signed) {
                 if (bf.raw_bits <= 8) read = "r.readSignedBits(" + std::to_string(bf.raw_bits) + ")";
-                else if (bf.raw_bits <= 16) read = "r.readS16(" + be + ")";
-                else read = "r.readS32(" + be + ")";
+                else read = "r.readSignedBits(" + std::to_string(bf.raw_bits) + ")";
             } else {
                 if (bf.raw_bits <= 8) read = "r.readBits(" + std::to_string(bf.raw_bits) + ")";
                 else if (bf.raw_bits <= 16) read = "r.readU16(" + be + ")";
@@ -1564,14 +1591,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 read = "r.readBcd(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
                 read = "r.readBcdSigned(" + std::to_string(bf.bits) + ")";
-            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
-                       bf.wire_enc == model::WireEncoding::CB2) {
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 read = "r.readSignMagnitude(" + std::to_string(bf.bits) + ")";
-            } else if (bf.is_signed) {
+            } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 if (bf.bits <= 8) read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
-                else if (bf.bits <= 16) read = "(int) r.readS16(" + be + ")";
-                else if (bf.bits <= 32) read = "(int) r.readS32(" + be + ")";
-                else read = "r.readSignedBits(" + std::to_string(bf.bits) + ")";
+                else read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
             } else {
                 if (bf.bits <= 8) read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
                 else if (bf.bits <= 16) read = "(int) r.readU16(" + be + ")";
@@ -1645,8 +1669,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             std::string reverse_scale = "(long) ((" + m + " - " + std::to_string(bf.offset) + ") / " + std::to_string(bf.scale) + ")";
             if (bf.raw_signed) {
                 if (bf.raw_bits <= 8) ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
-                else if (bf.raw_bits <= 16) ctx.line("w.writeS16((int) " + reverse_scale + ", " + be + ");");
-                else ctx.line("w.writeS32((int) " + reverse_scale + ", " + be + ");");
+                else ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
             } else {
                 if (bf.raw_bits <= 8) ctx.line("w.writeBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
                 else if (bf.raw_bits <= 16) ctx.line("w.writeU16((int) " + reverse_scale + ", " + be + ");");
@@ -1655,9 +1678,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             }
         } else if (bf.is_string) {
             if (bf.length)
-                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ");");
+                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ", 0);");
             else
-                ctx.line("w.writeString(" + m + ", " + m + ".length());");
+                ctx.line("w.writeString(" + m + ", " + m + ".length(), 0);");
         } else if (bf.is_bytes) {
             ctx.line("w.writeBytes(" + m + ");");
         } else if (bf.is_bool) {
@@ -1671,13 +1694,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 ctx.line("w.writeBcd(" + m + ", " + std::to_string(bf.bits) + ");");
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
                 ctx.line("w.writeBcdSigned(" + m + ", " + std::to_string(bf.bits) + ");");
-            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
-                       bf.wire_enc == model::WireEncoding::CB2) {
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 ctx.line("w.writeSignMagnitude(" + m + ", " + std::to_string(bf.bits) + ");");
-            } else if (bf.is_signed) {
+            } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 if (bf.bits <= 8) ctx.line("w.writeSignedBits(" + m + ", " + std::to_string(bf.bits) + ");");
-                else if (bf.bits <= 16) ctx.line("w.writeS16(" + m + ", " + be + ");");
-                else ctx.line("w.writeS32(" + m + ", " + be + ");");
+                else ctx.line("w.writeSignedBits(" + m + ", " + std::to_string(bf.bits) + ");");
             } else {
                 if (bf.bits <= 8) ctx.line("w.writeBits(" + m + ", " + std::to_string(bf.bits) + ");");
                 else if (bf.bits <= 16) ctx.line("w.writeU16(" + m + ", " + be + ");");
@@ -3194,7 +3215,8 @@ bool JavaBackend::generate(
             bool is_enum = !t.enum_values.empty();
             bool is_flags = !t.flags.empty();
             bool has_scale = t.scale.has_value() || t.offset.has_value();
-            if (is_enum || is_flags || has_scale || t.constraint) {
+            bool is_string = (t.base == model::PrimitiveBase::String);
+            if (is_enum || is_flags || has_scale || is_string || t.constraint) {
                 std::string name = j_class(t.name);
                 // Generate individual file for this type
                 EmitContext tctx;
@@ -3202,7 +3224,42 @@ bool JavaBackend::generate(
                 tctx.line("package " + java_pkg + ";");
                 tctx.line();
 
-                if (is_enum) {
+                if (is_string && t.length) {
+                    // String type wrapper class
+                    int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
+                    tctx.line("import java.nio.charset.StandardCharsets;");
+                    tctx.line();
+                    tctx.line("public final class " + name + " {");
+                    tctx.indent();
+                    tctx.line("public static final int WIRE_SIZE = " + std::to_string(*t.length) + ";");
+                    tctx.line("private String value;");
+                    tctx.line("public " + name + "() { this.value = \"\"; }");
+                    tctx.line("public " + name + "(String value) { this.value = value; }");
+                    tctx.line("public String value() { return value; }");
+                    tctx.line("public void setValue(String v) { value = v; }");
+                    tctx.line();
+                    tctx.line("public static " + name + " decode(BitReader r) {");
+                    tctx.indent();
+                    tctx.line("String s = r.readString(" + std::to_string(*t.length) + ");");
+                    // Apply trim settings
+                    if (t.trim == model::StringTrim::Right || t.trim == model::StringTrim::Both) {
+                        std::string ch = (t.padding == model::StringPadding::Space) ? " " : "\\0";
+                        tctx.line("int end = s.length(); while (end > 0 && s.charAt(end - 1) == '" + ch + "') end--;");
+                        tctx.line("s = s.substring(0, end);");
+                    }
+                    if (t.trim == model::StringTrim::Left || t.trim == model::StringTrim::Both) {
+                        std::string ch = (t.padding == model::StringPadding::Space) ? " " : "\\0";
+                        tctx.line("int start = 0; while (start < s.length() && s.charAt(start) == '" + ch + "') start++;");
+                        tctx.line("s = s.substring(start);");
+                    }
+                    tctx.line("return new " + name + "(s);");
+                    tctx.dedent();
+                    tctx.line("}");
+                    tctx.line();
+                    tctx.line("public void encode(BitWriter w) { w.writeString(value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + "); }");
+                    tctx.dedent();
+                    tctx.line("}");
+                } else if (is_enum) {
                     tctx.line("public enum " + name + " {");
                     tctx.indent();
                     for (size_t i = 0; i < t.enum_values.size(); i++) {
