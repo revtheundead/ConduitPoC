@@ -380,3 +380,197 @@ constant derived from the source field's encoding attribute.
 All fixes have been verified against the existing test suite:
 - **37,069 assertions** across **1,057 test cases** — all passing
 - No regressions introduced by any of the fixes
+
+---
+
+# BMDL Parser & AST Model Audit
+
+Deep inspection of the BMDL parser, expression parser, AST model, type resolver,
+wire sizer, session analyzer, and validator. This audit covers the core parsing
+and analysis infrastructure rather than the codegen backends.
+
+## Bugs and Correctness Issues
+
+### B1. [MEDIUM] `auto_expr_parser` false prefix matching
+
+**File:** `bgen/src/analyzer/auto_expr_parser.cpp`, lines 109, 128, 147
+
+Uses `sv.starts_with("config")`, `sv.starts_with("count")`,
+`sv.starts_with("length")` without checking that the next character is not
+alphanumeric. This means:
+- `"configuration"` matches the `config` branch, then fails with a confusing
+  error about needing parentheses
+- `"counting"` matches the `count` branch
+- `"lengthy"` matches the `length` branch
+
+The check should verify that after the keyword there is either EOF, a space,
+or `(`.
+
+### B2. [MEDIUM] Wire sizer treats `Align` elements as always-dynamic
+
+**File:** `bgen/src/analyzer/wire_sizer.cpp`, lines 120-122
+
+`Align` nodes unconditionally set `all_fixed = false` and return `nullopt`.
+However, if all preceding fields have a known fixed size, the alignment
+padding is deterministic and computable as
+`((total + align_bits - 1) / align_bits) * align_bits`. The session analyzer
+(`session_analyzer.cpp`, lines 117-119) correctly computes alignment, but
+the wire sizer does not, making it overly conservative.
+
+### B3. [MEDIUM] `std::stoull`/`std::stoll` leniency in default value validation
+
+**File:** `bgen/src/analyzer/validator.cpp`, lines 1113-1141
+
+The validator uses `std::stoull` and `std::stoll` for parsing default values.
+These functions accept leading whitespace, leading `+`, and partial parses
+(e.g., `"123abc"` parses as 123 without error). This is less strict than
+`from_chars` used elsewhere. Malformed defaults like `default="123abc"` would
+silently pass validation.
+
+### B4. [LOW] SourceLoc offset truncation to `int`
+
+**File:** `bgen/src/parser/xml_parser.cpp`, line 31; `bgen/src/model/ast.hpp`, line 22
+
+`sl.offset` is declared as `int` but is assigned from `node.offset_debug()`
+which returns `ptrdiff_t`. For files larger than ~2GB, this silently truncates
+to a negative number.
+
+### B5. [LOW] `parse_literal` potential overflow for extreme negative hex values
+
+**File:** `bgen/src/analyzer/parse_utils.hpp`, lines 20-29
+
+Parsing `-0xFFFFFFFFFFFFFFFF` (unsigned max) would overflow `int64_t` before
+negation, producing undefined behavior.
+
+### B6. [LOW] `Bool` type sizing inconsistency
+
+**File:** `bgen/src/analyzer/wire_sizer.cpp`, lines 70-75 vs line 220
+
+A `Bool` type with no bits defaults to 1 byte at the type level (line 74),
+but the field-level sizing returns 1 bit (line 220). Since the type-level
+`sizes` map is in bytes but the internal accumulator is in bits, this creates
+a discrepancy when looking up the type by name in the `sizes` map.
+
+### B7. [LOW] Array `count` attribute parsed as decimal only
+
+**File:** `bgen/src/parser/xml_parser.cpp`, lines 678-685
+
+Array `count` attribute parsing uses `from_chars(..., 10)` (decimal only).
+If a user writes `count="0xFF"`, it fails with "invalid integer value". This
+is inconsistent with `bits`, `bytes`, and other integer attributes which
+support hex via `parse_int_attr`.
+
+### B8. [LOW] Double error for `initial` attribute on fields
+
+**File:** `bgen/src/parser/xml_parser.cpp`, lines 567-596
+
+The parser explicitly rejects the `initial` attribute (line 568) AND it is
+not listed in the known attributes set, so `check_unknown_attrs` also fires.
+This produces two error messages for the same issue.
+
+## Missing Features / Incomplete Code
+
+### M1. [HIGH] Namespace-qualified type resolution is unimplemented
+
+**File:** `bgen/src/parser/import_resolver.hpp`, line 22; `bgen/src/model/ast.hpp`, line 422
+
+`ImportDef` has an `ns` field for namespace qualification, but the type
+resolver (`type_resolver.cpp`) never uses it. All type references are resolved
+by bare name only. If two imported libraries define a type with the same name,
+the second is rejected as a duplicate, with no way to disambiguate via
+namespace prefix. The `ns` attribute is parsed but entirely unused.
+
+### M2. [MEDIUM] `ast_dump.cpp` does not dump frame definitions
+
+**File:** `bgen/src/model/ast_dump.cpp`
+
+The `dump_protocol` function dumps imports, constants, types, structs, and
+messages, but never dumps `protocol.frames`. Frame definitions are completely
+omitted from the AST dump output.
+
+### M3. [MEDIUM] `ast_dump.cpp` does not dump message `id` and `direction`
+
+**File:** `bgen/src/model/ast_dump.cpp`, lines 457-463
+
+The message dump omits `m.id` and `m.direction`, which are critical attributes
+for frame-based protocols.
+
+### M4. [MEDIUM] `auto_expr_parser` does not support dotted field references
+
+**File:** `bgen/src/parser/auto_expr_parser.cpp`
+
+The `try_parse_modifier` function validates field operands allowing only
+`alnum`, `-`, `_`. Dotted paths like `header.length` (which the expression
+parser supports for `present-when`/`length-from`) are not supported. An auto
+expression like `auto="length - header.offset"` would be rejected.
+
+### M5. [LOW] No session state/transition analysis
+
+**File:** `bgen/src/analyzer/session_analyzer.cpp`
+
+Despite the name "Session Analyzer", there is no actual session state machine
+analysis. The code collects `LeafTypeInfo`, identifies auto fields, and
+computes sync patterns/header sizes, but has no concept of session states,
+transitions, or lifecycle management. It is a "frame metadata extractor."
+
+### M6. [LOW] `FrameDef` not included in `TypeIndex::find()`
+
+**File:** `bgen/src/analyzer/type_resolver.hpp`, lines 40-48
+
+`TypeIndex::find()` returns `variant<TypeDef*, StructDef*, MessageDef*>`.
+Frames are indexed in `TypeIndex::frames` but never returned from `find()`.
+If a field references a frame by name, it would silently fail resolution.
+
+## Edge Cases and Potential Crashes
+
+### E1. [MEDIUM] Missing depth guard in `parse_unary` — stack overflow risk
+
+**File:** `bgen/src/parser/expression_parser.cpp`, line 314
+
+The `DepthGuard` is only checked in `parse_or()`. A malicious input like
+`not not not ... not true` with thousands of levels would recurse through
+`parse_unary` without any depth limit, overflowing the C++ stack.
+
+### E2. [LOW] Hyphenated identifier ambiguity
+
+**File:** `bgen/src/parser/expression_parser.cpp`, lines 159-183
+
+The lexer treats `total-length` as a single identifier (maximal munch for
+hyphens), but `x - 3` is subtraction. However, `x-3` (no spaces) is lexed
+as identifier `x-3`, not as subtraction. Users must use spaces around `-`
+for subtraction. This is by design but undocumented.
+
+### E3. [LOW] Constant reference detection is convention-based
+
+**File:** `bgen/src/parser/expression_parser.cpp`, lines 268-289
+
+Constants are identified by `UPPER_SNAKE_CASE` naming convention. A field
+named `MAX_SIZE` would be parsed as a `ConstantRef`, not a `FieldRef`.
+Conversely, a constant named `myConst` would be parsed as a `FieldRef`.
+There is no semantic resolution at parse time.
+
+## Validator Coverage Gaps
+
+| # | Severity | Gap |
+|---|----------|-----|
+| V1 | MEDIUM | No validation that `scale` is non-zero or `offset` is finite |
+| V2 | MEDIUM | No validation of `max-length` < `length` contradiction |
+| V3 | MEDIUM | No validation that `count="*"` array does not also have `length`/`length-from` |
+| V4 | LOW | No validation of `terminated` value format or range |
+| V5 | LOW | No validation of duplicate `<annotation>` names on the same element |
+| V6 | LOW | No validation that `FxBlock` children are restricted to fields/reserved/align |
+| V7 | LOW | Type-level string with `type_ref` may bypass length mechanism validation |
+
+## Expression Evaluation Concerns
+
+| # | Severity | Issue |
+|---|----------|-------|
+| X1 | MEDIUM | No type checking on expressions — `true + 3` parses without error |
+| X2 | LOW | Flat namespace for type resolution — no import scoping or `ns:` qualification |
+| X3 | LOW | Bitmap structs always return `nullopt` from wire sizer even when minimum size is computable |
+
+## No TODO/FIXME Comments Found
+
+No explicit `TODO` or `FIXME` comments were found in any of the audited files.
+However, implicit incompletions exist (namespace support, session states, frame
+dump omission) as documented above.
