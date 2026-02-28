@@ -413,25 +413,43 @@ class ConstraintError(ConduitError):
     pass
 
 
-# EBCDIC <-> ASCII conversion tables (Code Page 037)
-_EBCDIC_TO_ASCII = bytearray(256)
-_ASCII_TO_EBCDIC = bytearray(256)
-_ebcdic_pairs = [
-    (0x40, 0x20), (0x4B, 0x2E), (0x4C, 0x3C), (0x4D, 0x28), (0x4E, 0x2B), (0x4F, 0x7C),
-    (0x50, 0x26), (0x5A, 0x21), (0x5B, 0x24), (0x5C, 0x2A), (0x5D, 0x29), (0x5E, 0x3B),
-    (0x60, 0x2D), (0x61, 0x2F), (0x6B, 0x2C), (0x6C, 0x25), (0x6D, 0x5F), (0x6E, 0x3E),
-    (0x6F, 0x3F), (0x7A, 0x3A), (0x7B, 0x23), (0x7C, 0x40), (0x7D, 0x27), (0x7E, 0x3D), (0x7F, 0x22),
-]
-for _i in range(9): _ebcdic_pairs.append((0xC1 + _i, 0x41 + _i))
-for _i in range(9): _ebcdic_pairs.append((0xD1 + _i, 0x4A + _i))
-for _i in range(8): _ebcdic_pairs.append((0xE2 + _i, 0x53 + _i))
-for _i in range(9): _ebcdic_pairs.append((0x81 + _i, 0x61 + _i))
-for _i in range(9): _ebcdic_pairs.append((0x91 + _i, 0x6A + _i))
-for _i in range(8): _ebcdic_pairs.append((0xA2 + _i, 0x73 + _i))
-for _i in range(10): _ebcdic_pairs.append((0xF0 + _i, 0x30 + _i))
-for _e, _a in _ebcdic_pairs:
-    _EBCDIC_TO_ASCII[_e] = _a
-    _ASCII_TO_EBCDIC[_a] = _e
+# EBCDIC Code Page 037 <-> ASCII full 256-entry conversion tables
+_EBCDIC_TO_ASCII = bytearray([
+    0x00,0x01,0x02,0x03,0x1A,0x09,0x1A,0x7F, 0x1A,0x1A,0x1A,0x0B,0x0C,0x0D,0x0E,0x0F,
+    0x10,0x11,0x12,0x13,0x1A,0x0A,0x08,0x1A, 0x18,0x19,0x1A,0x1A,0x1C,0x1D,0x1E,0x1F,
+    0x1A,0x1A,0x1A,0x1A,0x1A,0x0A,0x17,0x1B, 0x1A,0x1A,0x1A,0x1A,0x1A,0x05,0x06,0x07,
+    0x1A,0x1A,0x16,0x1A,0x1A,0x1A,0x1A,0x04, 0x1A,0x1A,0x1A,0x1A,0x14,0x15,0x1A,0x1A,
+    0x20,0xA0,0xE2,0xE4,0xE0,0xE1,0xE3,0xE5, 0xE7,0xF1,0xA2,0x2E,0x3C,0x28,0x2B,0x7C,
+    0x26,0xE9,0xEA,0xEB,0xE8,0xED,0xEE,0xEF, 0xEC,0xDF,0x21,0x24,0x2A,0x29,0x3B,0xAC,
+    0x2D,0x2F,0xC2,0xC4,0xC0,0xC1,0xC3,0xC5, 0xC7,0xD1,0xA6,0x2C,0x25,0x5F,0x3E,0x3F,
+    0xF8,0xC9,0xCA,0xCB,0xC8,0xCD,0xCE,0xCF, 0xCC,0x60,0x3A,0x23,0x40,0x27,0x3D,0x22,
+    0xD8,0x61,0x62,0x63,0x64,0x65,0x66,0x67, 0x68,0x69,0xAB,0xBB,0xF0,0xFD,0xFE,0xB1,
+    0xB0,0x6A,0x6B,0x6C,0x6D,0x6E,0x6F,0x70, 0x71,0x72,0xAA,0xBA,0xE6,0xB8,0xC6,0xA4,
+    0xB5,0x7E,0x73,0x74,0x75,0x76,0x77,0x78, 0x79,0x7A,0xA1,0xBF,0xD0,0x5B,0xDE,0xAE,
+    0x5E,0xA3,0xA5,0xB7,0xA9,0xA7,0xB6,0xBC, 0xBD,0xBE,0xDD,0xA8,0xAF,0x5D,0xB4,0xD7,
+    0x7B,0x41,0x42,0x43,0x44,0x45,0x46,0x47, 0x48,0x49,0xAD,0xF4,0xF6,0xF2,0xF3,0xF5,
+    0x7D,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,0x50, 0x51,0x52,0xB9,0xFB,0xFC,0xF9,0xFA,0xFF,
+    0x5C,0xF7,0x53,0x54,0x55,0x56,0x57,0x58, 0x59,0x5A,0xB2,0xD4,0xD6,0xD2,0xD3,0xD5,
+    0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37, 0x38,0x39,0xB3,0xDB,0xDC,0xD9,0xDA,0x9F,
+])
+_ASCII_TO_EBCDIC = bytearray([
+    0x00,0x01,0x02,0x03,0x37,0x2D,0x2E,0x2F, 0x16,0x05,0x25,0x0B,0x0C,0x0D,0x0E,0x0F,
+    0x10,0x11,0x12,0x13,0x3C,0x3D,0x32,0x26, 0x18,0x19,0x3F,0x27,0x1C,0x1D,0x1E,0x1F,
+    0x40,0x5A,0x7F,0x7B,0x5B,0x6C,0x50,0x7D, 0x4D,0x5D,0x5C,0x4E,0x6B,0x60,0x4B,0x61,
+    0xF0,0xF1,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7, 0xF8,0xF9,0x7A,0x5E,0x4C,0x7E,0x6E,0x6F,
+    0x7C,0xC1,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7, 0xC8,0xC9,0xD1,0xD2,0xD3,0xD4,0xD5,0xD6,
+    0xD7,0xD8,0xD9,0xE2,0xE3,0xE4,0xE5,0xE6, 0xE7,0xE8,0xE9,0xAD,0xE0,0xBD,0xB0,0x6D,
+    0x79,0x81,0x82,0x83,0x84,0x85,0x86,0x87, 0x88,0x89,0x91,0x92,0x93,0x94,0x95,0x96,
+    0x97,0x98,0x99,0xA2,0xA3,0xA4,0xA5,0xA6, 0xA7,0xA8,0xA9,0xC0,0x4F,0xD0,0xA1,0x07,
+    0x20,0x21,0x22,0x23,0x24,0x15,0x06,0x17, 0x28,0x29,0x2A,0x2B,0x2C,0x09,0x0A,0x1B,
+    0x30,0x31,0x1A,0x33,0x34,0x35,0x36,0x08, 0x38,0x39,0x3A,0x3B,0x04,0x14,0x3E,0xFF,
+    0x41,0xAA,0x4A,0xB1,0x9F,0xB2,0x6A,0xB5, 0xBB,0xB4,0x9A,0x8A,0xB0,0xCA,0xAF,0xBC,
+    0x90,0x8F,0xEA,0xFA,0xBE,0xA0,0xB6,0xB3, 0x9D,0xDA,0x9B,0x8B,0xB7,0xB8,0xB9,0xAB,
+    0x64,0x65,0x62,0x66,0x63,0x67,0x9E,0x68, 0x74,0x71,0x72,0x73,0x78,0x75,0x76,0x77,
+    0xAC,0x69,0xED,0xEE,0xEB,0xEF,0xEC,0xBF, 0x80,0xFD,0xFE,0xFB,0xFC,0xBA,0xAE,0x59,
+    0x44,0x45,0x42,0x46,0x43,0x47,0x9C,0x48, 0x54,0x51,0x52,0x53,0x58,0x55,0x56,0x57,
+    0x8C,0x49,0xCD,0xCE,0xCB,0xCF,0xCC,0xE1, 0x70,0xDD,0xDE,0xDB,0xDC,0x8D,0x8E,0xDF,
+])
 
 
 class BitReader:
@@ -505,7 +523,7 @@ class BitReader:
         if encoding == 2:
             b = bytearray(_EBCDIC_TO_ASCII[c] for c in b)
         elif encoding == 1:
-            b = bytearray((c + 0x40 if 0 < c < 32 else c) for c in (v & 0x3F for v in b))
+            b = bytearray(c & 0x7F for c in b)
         return bytes(b).decode('latin-1')
 
     def read_packed_chars(self, count: int, char_bits: int) -> str:
@@ -644,7 +662,7 @@ class BitWriter:
         if encoding == 2:
             b = bytearray(_ASCII_TO_EBCDIC[c] for c in b)
         elif encoding == 1:
-            b = bytearray((c - 0x40 if c >= 0x40 else c) for c in b)
+            b = bytearray(c & 0x7F for c in b)
         for i in range(length):
             self.write_u8(b[i] if i < len(b) else pad)
 
@@ -1077,7 +1095,9 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                 ctx.line(m + " = r.read_crlf_terminated_string(" + std::to_string(max_len) + ")");
             } else {
                 std::string term = "0";
-                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                if (*f.terminated == "newline") {
+                    term = "0x0A";
+                } else if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
                     term = *f.terminated;
                 }
                 ctx.line(m + " = r.read_terminated_string(" + term + ", " + std::to_string(max_len) + ")");
@@ -1088,6 +1108,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             emit_py_field_trim(ctx, m, f);
         } else if (f.length_from) {
             ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + ")" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             std::string be = (pti.endian == model::Endian::Big) ? "True" : "False";
@@ -1097,10 +1118,13 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)));
             ctx.line(m + " = r.read_string(_pl" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else if (f.length_star) {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         } else {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
+            emit_py_field_trim(ctx, m, f);
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
@@ -1339,6 +1363,16 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("if r.read_bits(1) != 0:");
             ctx.indent();
             emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            // Read terminal FX=0 bit if this FX extent has no nested FxBlock
+            {
+                bool has_nested_fx = false;
+                for (const auto& fc : fx->children) {
+                    if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+                }
+                if (!has_nested_fx) {
+                    ctx.line("r.skip_bits(1)  # Terminal FX=0");
+                }
+            }
             ctx.dedent();
         }
 
@@ -1427,6 +1461,16 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("if _fx_continue:");
             ctx.indent();
             emit_py_encode_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
+            // Write terminal FX=0 bit if this FX extent has no nested FxBlock
+            {
+                bool has_nested_fx = false;
+                for (const auto& fc : fx->children) {
+                    if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+                }
+                if (!has_nested_fx) {
+                    ctx.line("w.write_bits(0, 1)  # Terminal FX=0");
+                }
+            }
             ctx.dedent();
         }
     }
@@ -1670,7 +1714,36 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                  " and (fspec[" + std::to_string(byte_idx) +
                  "] & (1 << " + std::to_string(bit_in_byte) + ")):");
         ctx.indent();
-        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+        if (bf.is_choice && bf.choice_def && bf.choice_def->switch_expr) {
+            // Choice decode based on switch expression
+            std::string sv = "result." + py_field(bf.choice_def->switch_expr->name);
+            bool first_case = true;
+            for (const auto& cs : bf.choice_def->cases) {
+                std::string val = cs.value ? *cs.value : "0";
+                std::string prefix = first_case ? "if" : "elif";
+                first_case = false;
+                ctx.line(prefix + " " + sv + " == " + val + ":");
+                ctx.indent();
+                std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
+                std::string case_args;
+                auto child_osp = scope_map.find(cs.type_ref.empty() ? cs.name : cs.type_ref);
+                if (child_osp != scope_map.end()) {
+                    for (const auto& p : child_osp->second)
+                        case_args += ", result." + py_field(p.bmdl_name);
+                }
+                ctx.line(m + " = " + et + ".decode(r" + case_args + ")");
+                ctx.dedent();
+            }
+            if (bf.choice_def->otherwise) {
+                ctx.line("else:");
+                ctx.indent();
+                std::string et = bf.choice_def->otherwise->type_ref.empty()
+                    ? py_class(bf.choice_def->otherwise->name)
+                    : py_class(bf.choice_def->otherwise->type_ref);
+                ctx.line(m + " = " + et + ".decode(r)");
+                ctx.dedent();
+            }
+        } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
             std::string args;
             auto child_osp = scope_map.find(bf.name);
             if (child_osp != scope_map.end()) {
@@ -1699,10 +1772,13 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             ctx.line(m + " = " + read + " * " + std::to_string(bf.scale) +
                      (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : ""));
         } else if (bf.is_string) {
+            std::string enc_arg;
+            if (bf.source_field) enc_arg = py_encoding_const(*bf.source_field);
+            std::string enc_suffix = enc_arg.empty() ? "" : ", " + enc_arg;
             if (bf.length)
-                ctx.line(m + " = r.read_string(" + std::to_string(*bf.length) + ")");
+                ctx.line(m + " = r.read_string(" + std::to_string(*bf.length) + enc_suffix + ")");
             else
-                ctx.line(m + " = r.read_string(r.remaining_bytes())");
+                ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_suffix + ")");
         } else if (bf.is_bytes) {
             if (bf.length)
                 ctx.line(m + " = r.read_bytes(" + std::to_string(*bf.length) + ")");
@@ -1720,10 +1796,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 read = "r.read_bcd(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
                 read = "r.read_bcd_signed(" + std::to_string(bf.bits) + ")";
-            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
-                       bf.wire_enc == model::WireEncoding::CB2) {
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 read = "r.read_sign_magnitude(" + std::to_string(bf.bits) + ")";
-            } else if (bf.is_signed) {
+            } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 read = "r.read_signed_bits(" + std::to_string(bf.bits) + ")";
             } else {
                 if (bf.bits <= 8) read = "r.read_bits(" + std::to_string(bf.bits) + ")";
@@ -1785,7 +1860,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         std::string m = "self." + py_field(bf.name);
         ctx.line("if " + m + " is not None:");
         ctx.indent();
-        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+        if (bf.is_choice) {
+            ctx.line(m + ".encode(w)");
+        } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
             ctx.line(m + ".encode(w)");
         } else if (bf.is_enum) {
             ctx.line(m + ".encode(w)");
@@ -1802,10 +1879,16 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 }
             }
         } else if (bf.is_string) {
+            int pad = 0;
+            if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space)
+                pad = 0x20;
+            std::string enc_arg;
+            if (bf.source_field) enc_arg = py_encoding_const(*bf.source_field);
+            std::string enc_suffix = enc_arg.empty() ? "" : ", encoding=" + enc_arg;
             if (bf.length)
-                ctx.line("w.write_string(" + m + ", " + std::to_string(*bf.length) + ")");
+                ctx.line("w.write_string(" + m + ", " + std::to_string(*bf.length) + ", " + std::to_string(pad) + enc_suffix + ")");
             else
-                ctx.line("w.write_string(" + m + ", len(" + m + "))");
+                ctx.line("w.write_string(" + m + ", len(" + m + "), " + std::to_string(pad) + enc_suffix + ")");
         } else if (bf.is_bytes) {
             ctx.line("w.write_bytes(" + m + ")");
         } else if (bf.is_bool) {
@@ -1819,10 +1902,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 ctx.line("w.write_bcd(" + m + ", " + std::to_string(bf.bits) + ")");
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
                 ctx.line("w.write_bcd_signed(" + m + ", " + std::to_string(bf.bits) + ")");
-            } else if (bf.wire_enc == model::WireEncoding::BNR_S ||
-                       bf.wire_enc == model::WireEncoding::CB2) {
+            } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 ctx.line("w.write_sign_magnitude(" + m + ", " + std::to_string(bf.bits) + ")");
-            } else if (bf.is_signed) {
+            } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 ctx.line("w.write_signed_bits(" + m + ", " + std::to_string(bf.bits) + ")");
             } else {
                 if (bf.bits <= 8) ctx.line("w.write_bits(" + m + ", " + std::to_string(bf.bits) + ")");
@@ -2045,13 +2127,23 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         std::string fmt = "return f'" + cn + "(";
         for (size_t i = 0; i < fields.size(); i++) {
             if (i > 0) fmt += ", ";
-            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
-                fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
-                fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
-                fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
-            else
+            bool nullable = (fields[i].default_val == "None");
+            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex) {
+                if (nullable)
+                    fmt += fields[i].name + "={hex(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
+            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal) {
+                if (nullable)
+                    fmt += fields[i].name + "={oct(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
+            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary) {
+                if (nullable)
+                    fmt += fields[i].name + "={bin(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
+                else
+                    fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
+            } else
                 fmt += fields[i].name + "={self." + fields[i].name + "}";
         }
         ctx.line(fmt + ")'");
@@ -2904,7 +2996,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         ctx.dedent();
         ctx.line("except Exception:");
         ctx.indent();
-        ctx.line("return None");
+        ctx.line("return []");
         ctx.dedent();
         if (si.payload_is_array) {
             ctx.line("messages = []");
@@ -3005,6 +3097,23 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         }
                     }
 
+                    // Set id field from message's ID_VALUE
+                    if (!si.id_field_name.empty()) {
+                        ctx.line("frame." + py_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE");
+                    }
+
+                    // Set message-level config fields on each payload
+                    if (!lt.config_fields.empty()) {
+                        ctx.line("for _item in payloads:");
+                        ctx.indent();
+                        for (const auto& cf : lt.config_fields) {
+                            std::string cfg_key = py_snake(cf.key);
+                            std::string field = py_field(cf.field_name);
+                            ctx.line("_item." + field + " = self._config.get('" + cfg_key + "', 0)");
+                        }
+                        ctx.dedent();
+                    }
+
                     // Set auto-increment fields
                     for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
                         int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
@@ -3012,6 +3121,14 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         std::string field = py_field(lt.auto_fields[ai]);
                         ctx.line("frame." + field + " = self._seq & " + std::to_string(mask_val));
                         ctx.line("self._seq += 1");
+                    }
+
+                    // Set auto-timestamp fields
+                    for (size_t ti = 0; ti < lt.timestamp_fields.size(); ++ti) {
+                        int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
+                        uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
+                        std::string field = py_field(lt.timestamp_fields[ti]);
+                        ctx.line("frame." + field + " = int(time.time() * 1000) & " + std::to_string(mask_val));
                     }
 
                     // Set frame-level config fields
