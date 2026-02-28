@@ -939,9 +939,11 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
             if (*f.terminated == "crlf") {
                 ctx.line(m + " = r.readCrlfTerminatedString(" + std::to_string(max_len) + ");");
             } else {
-                // Parse hex terminator like "0x00" or use null
+                // Parse hex terminator like "0x00", or named terminators
                 std::string term = "0";
-                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                if (*f.terminated == "newline") {
+                    term = "0x0A";
+                } else if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
                     term = *f.terminated;
                 }
                 ctx.line(m + " = r.readTerminatedString(" + term + ", " + std::to_string(max_len) + ");");
@@ -1060,7 +1062,9 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
                 ctx.line("w.writeCrlfTerminatedString(" + m + ");");
             } else {
                 std::string term = "0";
-                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                if (*f.terminated == "newline") {
+                    term = "0x0A";
+                } else if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
                     term = *f.terminated;
                 }
                 ctx.line("w.writeTerminatedString(" + m + ", " + term + ");");
@@ -1163,20 +1167,70 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             if (!cd->switch_expr) continue;
             std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
             std::string m = pfx + "." + j_field(cd->name);
+
+            // Create bounded sub-reader if choice has length/length_from
+            bool bounded = cd->length_from != nullptr || cd->length.has_value();
+            std::string reader_var = "r";
+            if (bounded) {
+                ctx.line("{");
+                ctx.indent();
+                if (cd->length_from) {
+                    ctx.line("BitReader cr = r.subReader((int)(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx) + "));");
+                } else {
+                    ctx.line("BitReader cr = r.subReader(" + std::to_string(*cd->length) + ");");
+                }
+                reader_var = "cr";
+            }
+
             auto emit_choice_decode = [&]() {
+                // Collect receive/both values and ranges for send-only dedup
+                std::set<std::string> recv_values;
+                std::set<std::string> recv_ranges;
+                for (const auto& cs : cd->cases) {
+                    if (cs.direction == model::Direction::Send) continue;
+                    if (cs.value) recv_values.insert(*cs.value);
+                    if (cs.range) recv_ranges.insert(*cs.range);
+                }
+
                 bool first = true;
                 for (const auto& cs : cd->cases) {
-                    std::string val = cs.value ? *cs.value : "0";
-                    if (cs.value && index.constants.count(*cs.value)) {
-                        val = "Constants." + j_const(*cs.value);
+                    // Skip send-only cases when a receive/both case exists for same value/range
+                    if (cs.direction == model::Direction::Send && cs.value) {
+                        if (recv_values.count(*cs.value)) continue;
                     }
-                    std::string cond = sv + " == " + val;
+                    if (cs.direction == model::Direction::Send && cs.range) {
+                        if (recv_ranges.count(*cs.range)) continue;
+                    }
+
+                    std::string cond;
+                    if (cs.value) {
+                        std::string val = *cs.value;
+                        if (index.constants.count(*cs.value)) {
+                            val = "Constants." + j_const(*cs.value);
+                        }
+                        cond = sv + " == " + val;
+                    } else if (cs.range) {
+                        auto dot_pos = cs.range->find("..");
+                        if (dot_pos != std::string::npos) {
+                            std::string min_s = cs.range->substr(0, dot_pos);
+                            std::string max_s = cs.range->substr(dot_pos + 2);
+                            if (min_s == "0") {
+                                cond = sv + " <= " + max_s;
+                            } else {
+                                cond = sv + " >= " + min_s + " && " + sv + " <= " + max_s;
+                            }
+                        } else {
+                            cond = sv + " == " + *cs.range;
+                        }
+                    } else {
+                        continue;
+                    }
                     ctx.line(std::string(first ? "if (" : "} else if (") + cond + ") {");
                     ctx.indent();
                     std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
                     std::string case_name = cs.type_ref.empty() ? cs.name : cs.type_ref;
                     std::string args = j_build_outer_args(case_name, scope_map, pfx, outer_ctx);
-                    ctx.line(m + " = " + et + ".decode(r" + args + ");");
+                    ctx.line(m + " = " + et + ".decode(" + reader_var + args + ");");
                     ctx.dedent();
                     first = false;
                 }
@@ -1186,7 +1240,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                     std::string et = cd->otherwise->type_ref.empty() ? j_inline_class(cd->otherwise->name, name_map) : j_class(cd->otherwise->type_ref);
                     std::string ow_name = cd->otherwise->type_ref.empty() ? cd->otherwise->name : cd->otherwise->type_ref;
                     std::string args = j_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
-                    ctx.line(m + " = " + et + ".decode(r" + args + ");");
+                    ctx.line(m + " = " + et + ".decode(" + reader_var + args + ");");
                     ctx.dedent();
                 }
                 if (!first) ctx.line("}");
@@ -1196,6 +1250,11 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.indent(); emit_choice_decode(); ctx.dedent(); ctx.line("}");
             } else {
                 emit_choice_decode();
+            }
+
+            if (bounded) {
+                ctx.dedent();
+                ctx.line("}");
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
@@ -1609,10 +1668,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             ctx.line(m + " = (double) " + read + " * " + std::to_string(bf.scale) +
                      (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : "") + ";");
         } else if (bf.is_string) {
+            bool has_enc = bf.source_field && j_field_needs_encoding(*bf.source_field);
+            std::string enc_arg = has_enc ? ", " + j_encoding_const(*bf.source_field) : "";
+            std::string read_fn = has_enc ? "readStringEncoded" : "readString";
             if (bf.length) {
-                ctx.line(m + " = r.readString(" + std::to_string(*bf.length) + ");");
+                ctx.line(m + " = r." + read_fn + "(" + std::to_string(*bf.length) + enc_arg + ");");
             } else {
-                ctx.line(m + " = r.readString(r.remainingBytes());");
+                ctx.line(m + " = r." + read_fn + "(r.remainingBytes()" + enc_arg + ");");
             }
         } else if (bf.is_bytes) {
             if (bf.length) {
@@ -1721,10 +1783,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             int pad = 0;
             if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space)
                 pad = 0x20;
+            bool has_enc = bf.source_field && j_field_needs_encoding(*bf.source_field);
+            std::string enc_arg = has_enc ? ", " + j_encoding_const(*bf.source_field) : "";
+            std::string write_fn = has_enc ? "writeStringEncoded" : "writeString";
             if (bf.length)
-                ctx.line("w.writeString(" + m + ", " + std::to_string(*bf.length) + ", " + std::to_string(pad) + ");");
+                ctx.line("w." + write_fn + "(" + m + ", " + std::to_string(*bf.length) + ", " + std::to_string(pad) + enc_arg + ");");
             else
-                ctx.line("w.writeString(" + m + ", " + m + ".length(), " + std::to_string(pad) + ");");
+                ctx.line("w." + write_fn + "(" + m + ", " + m + ".length(), " + std::to_string(pad) + enc_arg + ");");
         } else if (bf.is_bytes) {
             ctx.line("w.writeBytes(" + m + ");");
         } else if (bf.is_bool) {

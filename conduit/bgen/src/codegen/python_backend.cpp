@@ -1046,9 +1046,22 @@ bool py_field_needs_encoding(const model::Field& f) {
 }
 
 // Helper: emit Python string trim code based on field trim mode
-void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f) {
-    auto eff_trim = f.trim.value_or(model::StringTrim::Right);
-    std::string ch = (f.padding && *f.padding == model::StringPadding::Space) ? "' '" : "'\\x00'";
+model::StringPadding py_resolve_effective_padding(const model::Field& f,
+                                                   const analyzer::TypeIndex& index) {
+    if (f.padding) return *f.padding;
+    if (!f.type_ref.empty()) {
+        auto it = index.types.find(f.type_ref);
+        if (it != index.types.end()) return it->second->padding;
+    }
+    return model::StringPadding::Null;
+}
+
+void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Field& f,
+                        const analyzer::TypeIndex& index) {
+    if (!f.trim) return;
+    auto eff_trim = *f.trim;
+    auto padding = py_resolve_effective_padding(f, index);
+    std::string ch = (padding == model::StringPadding::Space) ? "' '" : "'\\x00'";
     switch (eff_trim) {
         case model::StringTrim::Right:
             ctx.line(m + " = " + m + ".rstrip(" + ch + ")");
@@ -1087,7 +1100,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.char_bits && f.length) {
             // Packed character decode (e.g., ICAO 6-bit chars)
             ctx.line(m + " = r.read_packed_chars(" + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else if (f.terminated) {
             // Terminated string decode
             int max_len = f.max_length ? *f.max_length : 65535;
@@ -1102,13 +1115,13 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                 }
                 ctx.line(m + " = r.read_terminated_string(" + term + ", " + std::to_string(max_len) + ")");
             }
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else if (f.length) {
             ctx.line(m + " = r.read_string(" + std::to_string(*f.length) + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else if (f.length_from) {
             ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + ")" + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             std::string be = (pti.endian == model::Endian::Big) ? "True" : "False";
@@ -1118,13 +1131,13 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)));
             ctx.line(m + " = r.read_string(_pl" + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else if (f.length_star) {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         } else {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f);
+            emit_py_field_trim(ctx, m, f, index);
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
@@ -1321,20 +1334,68 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             if (!cd->switch_expr) continue;
             std::string sv = py_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
             std::string m = pfx + "." + py_field(cd->name);
+
+            // Create bounded sub-reader if choice has length/length_from
+            bool bounded = cd->length_from != nullptr || cd->length.has_value();
+            std::string reader_var = "r";
+            if (bounded) {
+                if (cd->length_from) {
+                    ctx.line("_cr = r.sub_reader(int(" + py_expr_ctx(*cd->length_from, pfx, outer_ctx) + "))");
+                } else {
+                    ctx.line("_cr = r.sub_reader(" + std::to_string(*cd->length) + ")");
+                }
+                reader_var = "_cr";
+            }
+
             auto emit_choice_decode = [&]() {
+                // Collect receive/both values and ranges for send-only dedup
+                std::set<std::string> recv_values;
+                std::set<std::string> recv_ranges;
+                for (const auto& cs : cd->cases) {
+                    if (cs.direction == model::Direction::Send) continue;
+                    if (cs.value) recv_values.insert(*cs.value);
+                    if (cs.range) recv_ranges.insert(*cs.range);
+                }
+
                 bool first = true;
                 for (const auto& cs : cd->cases) {
-                    std::string val = cs.value ? *cs.value : "0";
-                    if (cs.value && index.constants.count(*cs.value)) {
-                        val = "Constants." + py_snake(*cs.value);
+                    // Skip send-only cases when a receive/both case exists for same value/range
+                    if (cs.direction == model::Direction::Send && cs.value) {
+                        if (recv_values.count(*cs.value)) continue;
                     }
-                    std::string cond = sv + " == " + val;
+                    if (cs.direction == model::Direction::Send && cs.range) {
+                        if (recv_ranges.count(*cs.range)) continue;
+                    }
+
+                    std::string cond;
+                    if (cs.value) {
+                        std::string val = *cs.value;
+                        if (index.constants.count(*cs.value)) {
+                            val = "Constants." + py_snake(*cs.value);
+                        }
+                        cond = sv + " == " + val;
+                    } else if (cs.range) {
+                        auto dot_pos = cs.range->find("..");
+                        if (dot_pos != std::string::npos) {
+                            std::string min_s = cs.range->substr(0, dot_pos);
+                            std::string max_s = cs.range->substr(dot_pos + 2);
+                            if (min_s == "0") {
+                                cond = sv + " <= " + max_s;
+                            } else {
+                                cond = min_s + " <= " + sv + " <= " + max_s;
+                            }
+                        } else {
+                            cond = sv + " == " + *cs.range;
+                        }
+                    } else {
+                        continue;
+                    }
                     ctx.line(std::string(first ? "if " : "elif ") + cond + ":");
                     ctx.indent();
                     std::string et = cs.type_ref.empty() ? py_inline_class(cs.name, name_map) : py_class(cs.type_ref);
                     std::string case_name = cs.type_ref.empty() ? cs.name : cs.type_ref;
                     std::string args = py_build_outer_args(case_name, scope_map, pfx, outer_ctx);
-                    ctx.line(m + " = " + et + ".decode(r" + args + ")");
+                    ctx.line(m + " = " + et + ".decode(" + reader_var + args + ")");
                     ctx.dedent();
                     first = false;
                 }
@@ -1344,7 +1405,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     std::string et = cd->otherwise->type_ref.empty() ? py_inline_class(cd->otherwise->name, name_map) : py_class(cd->otherwise->type_ref);
                     std::string ow_name = cd->otherwise->type_ref.empty() ? cd->otherwise->name : cd->otherwise->type_ref;
                     std::string args = py_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
-                    ctx.line(m + " = " + et + ".decode(r" + args + ")");
+                    ctx.line(m + " = " + et + ".decode(" + reader_var + args + ")");
                     ctx.dedent();
                 }
             };
@@ -1654,6 +1715,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             if (i > 0) slots += ", ";
             slots += "'" + py_field(bfields[i].name) + "'";
         }
+        if (bfields.size() == 1) slots += ",";
         ctx.line(slots + ")");
     }
     ctx.line();
@@ -2031,6 +2093,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             if (i > 0) slots += ", ";
             slots += "'" + fields[i].name + "'";
         }
+        if (fields.size() == 1) slots += ",";
         ctx.line(slots + ")");
     }
     ctx.line();
@@ -2367,17 +2430,16 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
 
     // __slots__
     {
+        std::vector<std::string> slot_names;
+        for (const auto& hf : header_fields) slot_names.push_back("'" + hf.py_name + "'");
+        slot_names.push_back("'payload'");
+        for (const auto& ff : footer_fields) slot_names.push_back("'" + ff.py_name + "'");
         std::string slots;
-        for (const auto& hf : header_fields) {
-            if (!slots.empty()) slots += ", ";
-            slots += "'" + hf.py_name + "'";
+        for (size_t i = 0; i < slot_names.size(); i++) {
+            if (i > 0) slots += ", ";
+            slots += slot_names[i];
         }
-        if (!slots.empty()) slots += ", ";
-        slots += "'payload'";
-        for (const auto& ff : footer_fields) {
-            if (!slots.empty()) slots += ", ";
-            slots += "'" + ff.py_name + "'";
-        }
+        if (slot_names.size() == 1) slots += ",";
         ctx.line("__slots__ = (" + slots + ")");
     }
     ctx.line();
