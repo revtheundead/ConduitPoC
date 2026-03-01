@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Category 007 - Shared Data Items
+  Edition 1.8, 14/08/2017 (EUROCONTROL-SPEC-0149-21)
+
+  Data items used by both the Downlink UAP (message types 0-4) and
+  the Uplink UAP (message types 5-8).
+-->
+<bmdl version="2.0">
+  <import href="types.bmdl.xml"/>
+
+  <types>
+
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I007/410 Directed Interrogation Message Type (8 bits) -->
+    <type name="cat007-di-msg-type" base="uint" bits="8">
+      <doc>
+        Directed Interrogation Message Type:
+        0 = Acknowledge, 1 = Reject, 2 = Interrogation Finished,
+        3 = Interrogation Completed, 4 = Target Report,
+        5 = Interrogation Request Type A, 6 = Interrogation Request Type B,
+        7 = Interrogation Request Type C, 8 = Selective BDS-Register Request
+      </doc>
+      <enum>
+        <value id="0" name="acknowledge"/>
+        <value id="1" name="reject"/>
+        <value id="2" name="interrogation-finished"/>
+        <value id="3" name="interrogation-completed"/>
+        <value id="4" name="target-report"/>
+        <value id="5" name="interrogation-request-type-a"/>
+        <value id="6" name="interrogation-request-type-b"/>
+        <value id="7" name="interrogation-request-type-c"/>
+        <value id="8" name="selective-bds-register-request"/>
+      </enum>
+    </type>
+
+    <!-- =======================================================================
+         I007/040 - Measured Position in Slant Polar Co-ordinates
+         Fixed 4 octets: RHO (16-bit unsigned) + THETA (16-bit unsigned)
+         ======================================================================= -->
+    <struct name="Cat007I040">
+      <doc>I007/040 - Measured Position in Slant Polar Co-ordinates</doc>
+      <field name="rho" type="uint16">
+        <doc>Slant range, LSB = 1/256 NM (max ~256 NM)</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="theta" type="uint16">
+        <doc>Azimuth, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/042 - Calculated Position in Cartesian Co-ordinates
+         Fixed 4 octets: X (16-bit signed) + Y (16-bit signed)
+         ======================================================================= -->
+    <struct name="Cat007I042">
+      <doc>I007/042 - Calculated Position in Cartesian Co-ordinates</doc>
+      <field name="x" type="int16">
+        <doc>X component, LSB = 1/128 NM (~0.0078 NM)</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="y" type="int16">
+        <doc>Y component, LSB = 1/128 NM (~0.0078 NM)</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/161 - Track Number
+         Fixed 2 octets: spare(4) + TrackNumber(12)
+         ======================================================================= -->
+    <struct name="Cat007I161">
+      <doc>I007/161 - Track Number</doc>
+      <reserved bits="4"/>
+      <field name="track-number" bits="12">
+        <doc>Track number (0..4095)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/200 - Calculated Track Velocity in Polar Co-ordinates
+         Fixed 4 octets: Groundspeed(16 unsigned) + Heading(16 unsigned)
+         ======================================================================= -->
+    <struct name="Cat007I200">
+      <doc>I007/200 - Calculated Track Velocity in Polar Co-ordinates</doc>
+      <field name="ground-speed" type="uint16">
+        <doc>Calculated groundspeed, LSB = 2^-14 NM/s (~0.22 kt), max 2 NM/s</doc>
+        <scale>6.103515625e-5</scale>
+        <unit>NM/s</unit>
+      </field>
+      <field name="heading" type="uint16">
+        <doc>Calculated heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/400 - Directed Interrogation Request Number
+         Fixed 2 octets: PRI(1) + RequestNumber(15)
+         ======================================================================= -->
+    <struct name="Cat007I400">
+      <doc>I007/400 - Directed Interrogation Request Number</doc>
+      <field name="pri" bits="1">
+        <doc>0 = Normal priority, 1 = High priority (DI has priority over surveillance)</doc>
+      </field>
+      <field name="request-number" bits="15">
+        <doc>Request Number (shall be >= 1; value 0 causes reject)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/410 - Directed Interrogation Message Type
+         Fixed 1 octet: MessageType(8)
+         ======================================================================= -->
+    <struct name="Cat007I410">
+      <doc>
+        I007/410 - Directed Interrogation Message Type
+        0 = Acknowledge
+        1 = Reject
+        2 = Interrogation Finished
+        3 = Interrogation Completed
+        4 = Target Report
+        5 = Interrogation Request Type A
+        6 = Interrogation Request Type B
+        7 = Interrogation Request Type C
+        8 = Selective BDS-Register Request
+      </doc>
+      <field name="msg-type" type="cat007-di-msg-type">
+        <doc>Directed Interrogation message type</doc>
+      </field>
+    </struct>
+
+  </types>
+
+</bmdl>

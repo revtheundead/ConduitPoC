@@ -21,6 +21,7 @@ option(CONDUIT_BUILD_CODEC_CABI      "Build codec-only C ABI shared library"    
 option(CONDUIT_BUILD_CABI            "Build full Transceiver C ABI shared lib"  OFF)
 option(CONDUIT_BUILD_PYTHON_BINDINGS "Build Python bindings (requires CABI)"    OFF)
 option(CONDUIT_BUILD_JAVA_BINDINGS   "Build Java bindings (requires CABI)"      OFF)
+option(CONDUIT_BUILD_JNI             "Build JNI shared libraries for Java 11+"  OFF)
 
 # ============================================================================
 # Compiler warnings
@@ -235,6 +236,44 @@ if(CONDUIT_BUILD_CABI)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
     )
+endif()
+
+# ============================================================================
+# JNI shared libraries (Java 11+, optional)
+# ============================================================================
+
+if(CONDUIT_BUILD_JNI)
+    find_package(JNI REQUIRED)
+
+    if(CONDUIT_BUILD_CODEC_CABI)
+        add_library(conduit_codec_jni SHARED src/jni/conduit_codec_jni.cpp)
+        target_link_libraries(conduit_codec_jni PRIVATE
+            conduit_codec_cabi conduit_warnings ${JNI_LIBRARIES})
+        target_include_directories(conduit_codec_jni PRIVATE
+            ${JNI_INCLUDE_DIRS}
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        )
+        set_target_properties(conduit_codec_jni PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            CXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN ON
+        )
+    endif()
+
+    if(CONDUIT_BUILD_CABI)
+        add_library(conduit_jni SHARED src/jni/conduit_jni.cpp)
+        target_link_libraries(conduit_jni PRIVATE
+            conduit_cabi conduit_warnings ${JNI_LIBRARIES})
+        target_include_directories(conduit_jni PRIVATE
+            ${JNI_INCLUDE_DIRS}
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        )
+        set_target_properties(conduit_jni PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            CXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN ON
+        )
+    endif()
 endif()
 
 # ============================================================================

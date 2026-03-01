@@ -1,0 +1,921 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Category 007 - Directed Interrogation Messages (Downlink UAP)
+  Edition 1.8, 14/08/2017 (EUROCONTROL-SPEC-0149-21)
+
+  Downlink UAP applies to message types 0-4:
+    0 - DI Acknowledge
+    1 - DI Reject
+    2 - DI Finished
+    3 - DI Completed
+    4 - Target Report
+-->
+<bmdl version="2.0">
+  <import href="cat007-shared.bmdl.xml"/>
+
+  <types>
+
+    <!-- ===================================================================
+         Enum Types
+         =================================================================== -->
+
+    <!-- I007/450 Mode S All-Call Lockout (2 bits) -->
+    <type name="cat007-lockout" base="uint" bits="2">
+      <doc>
+        Mode S All-Call Lockout:
+        0 = No Lockout used,
+        1 = Lockout used by Interrogation Scheduler,
+        2 = Lockout-Override applied
+      </doc>
+      <enum>
+        <value id="0" name="no-lockout"/>
+        <value id="1" name="lockout-used"/>
+        <value id="2" name="lockout-override"/>
+      </enum>
+    </type>
+
+    <!-- =======================================================================
+         I007/020 - Target Report Descriptor
+         Variable length (1+ octets, FX extension chain)
+         ======================================================================= -->
+    <struct name="Cat007I020">
+      <doc>I007/020 - Target Report Descriptor</doc>
+      <field name="typ" type="detection-type">
+        <doc>Type of detection</doc>
+      </field>
+      <field name="sim" type="sim-indicator">
+        <doc>Simulation indicator</doc>
+      </field>
+      <field name="rdp" type="rdp-chain">
+        <doc>RDP Chain selection</doc>
+      </field>
+      <field name="spi" type="spi-presence">
+        <doc>Special Position Identification</doc>
+      </field>
+      <field name="rab" type="report-source">
+        <doc>Report source</doc>
+      </field>
+      <fx>
+        <field name="tst" type="test-target">
+          <doc>Test target indicator</doc>
+        </field>
+        <field name="err" type="extended-range">
+          <doc>Extended range indicator</doc>
+        </field>
+        <field name="xpp" type="x-pulse-presence">
+          <doc>X-Pulse presence</doc>
+        </field>
+        <field name="me" type="military-emergency">
+          <doc>Military emergency</doc>
+        </field>
+        <field name="mi" type="military-id">
+          <doc>Military identification</doc>
+        </field>
+        <field name="foe-fri" type="foe-fri-id">
+          <doc>Foe/Friend Identification</doc>
+        </field>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I007/030 - Warning/Error Conditions
+         Variable length (1+ octets, FX extension chain)
+         Each octet: 7-bit W/E value + FX bit
+         ======================================================================= -->
+    <struct name="Cat007I030">
+      <doc>I007/030 - Warning/Error Conditions and Target Classification</doc>
+      <field name="we" bits="7">
+        <doc>Warning/Error condition value (0-127)</doc>
+      </field>
+      <fx>
+        <field name="we1" bits="7">
+          <doc>Additional Warning/Error condition value</doc>
+        </field>
+        <fx>
+          <field name="we2" bits="7">
+            <doc>Additional Warning/Error condition value</doc>
+          </field>
+        </fx>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I007/050 - Mode-2 Code in Octal Representation
+         Fixed 2 octets: V(1) G(1) L(1) spare(1) Code(12)
+         ======================================================================= -->
+    <struct name="Cat007I050">
+      <doc>I007/050 - Mode-2 Code in Octal Representation</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="code-source-smoothed">
+        <doc>Mode-2 code source</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="code" bits="12">
+        <doc>Mode-2 code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/055 - Mode-1 Code in Octal Representation
+         Fixed 1 octet: V(1) G(1) L(1) Code(5)
+         ======================================================================= -->
+    <struct name="Cat007I055">
+      <doc>I007/055 - Mode-1 Code in Octal Representation</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="code-source-smoothed">
+        <doc>Mode-1 code source</doc>
+      </field>
+      <field name="code" bits="5">
+        <doc>Mode-1 code (5 bits, octal representation)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/060 - Mode-2 Code Confidence Indicator
+         Fixed 2 octets: spare(4) + QXi(12)
+         ======================================================================= -->
+    <struct name="Cat007I060">
+      <doc>I007/060 - Mode-2 Code Confidence Indicator</doc>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-2 code (QA4..QD1, 0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/065 - Mode-1 Code Confidence Indicator
+         Fixed 1 octet: spare(3) + QXi(5)
+         ======================================================================= -->
+    <struct name="Cat007I065">
+      <doc>I007/065 - Mode-1 Code Confidence Indicator</doc>
+      <reserved bits="3"/>
+      <field name="qxi" bits="5">
+        <doc>Quality bits for Mode-1 code (0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/070 - Mode-3/A Code in Octal Representation
+         Fixed 2 octets: V(1) G(1) L(1) spare(1) Code(12)
+         ======================================================================= -->
+    <struct name="Cat007I070">
+      <doc>I007/070 - Mode-3/A Code in Octal Representation</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="code-source-extracted">
+        <doc>Mode-3/A code source</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="code" bits="12">
+        <doc>Mode-3/A code in octal representation (A4 A2 A1 B4 B2 B1 C4 C2 C1 D4 D2 D1)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/080 - Mode-3/A Code Confidence Indicator
+         Fixed 2 octets: spare(4) + QXi(12)
+         ======================================================================= -->
+    <struct name="Cat007I080">
+      <doc>I007/080 - Mode-3/A Code Confidence Indicator</doc>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-3/A code (QA4..QD1, 0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/085 - Mode 5, Extended Mode 1 and X-Pulse
+         Compound data item: primary subfield (1 octet, FX-extensible)
+         followed by up to 7 subfields.
+         ======================================================================= -->
+
+    <!-- Subfield #1: Mode 5 Summary (1 octet) -->
+    <struct name="Cat007I085Sum">
+      <doc>Mode 5 Summary</doc>
+      <field name="m5" bits="1">
+        <doc>0 = No Mode 5 interrogation, 1 = Mode 5 interrogation</doc>
+      </field>
+      <field name="id" bits="1">
+        <doc>0 = No authenticated Mode 5 ID reply, 1 = Authenticated Mode 5 ID reply</doc>
+      </field>
+      <field name="da" bits="1">
+        <doc>0 = No authenticated Mode 5 Data reply, 1 = Authenticated Mode 5 Data reply</doc>
+      </field>
+      <field name="m1" bits="1">
+        <doc>0 = Mode 1 code not from Mode 5 reply, 1 = Mode 1 code from Mode 5 reply</doc>
+      </field>
+      <field name="m2" bits="1">
+        <doc>0 = Mode 2 code not from Mode 5 reply, 1 = Mode 2 code from Mode 5 reply</doc>
+      </field>
+      <field name="m3" bits="1">
+        <doc>0 = Mode 3 code not from Mode 5 reply, 1 = Mode 3 code from Mode 5 reply</doc>
+      </field>
+      <field name="mc" bits="1">
+        <doc>0 = Mode C altitude not from Mode 5 reply, 1 = Mode C altitude from Mode 5 reply</doc>
+      </field>
+      <reserved bits="1"/>
+    </struct>
+
+    <!-- Subfield #2: Mode 5 PIN / National Origin / Mission Code (4 octets) -->
+    <struct name="Cat007I085Pmn">
+      <doc>Mode 5 PIN / National Origin / Mission Code</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="3"/>
+      <field name="nat" bits="5">
+        <doc>National Origin</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="mis" bits="6">
+        <doc>Mission Code</doc>
+      </field>
+    </struct>
+
+    <!-- Subfield #3: Mode 5 Reported Position (6 octets) -->
+    <struct name="Cat007I085Pos">
+      <doc>Mode 5 Reported Position</doc>
+      <field name="latitude" type="int24">
+        <doc>Latitude in WGS-84, LSB = 180/2^23 degrees</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="longitude" type="int24">
+        <doc>Longitude in WGS-84, LSB = 180/2^23 degrees</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #4: Mode 5 GNSS-derived Altitude (2 octets) -->
+    <struct name="Cat007I085Ga">
+      <doc>Mode 5 GNSS-derived Altitude</doc>
+      <reserved bits="1"/>
+      <field name="res" type="alt-resolution">
+        <doc>GNSS-derived Altitude resolution</doc>
+      </field>
+      <field name="ga" bits="14" signed="true">
+        <doc>GNSS-derived Altitude above WGS-84 ellipsoid, LSB = 25 ft</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #5: Extended Mode 1 Code in Octal Representation (2 octets) -->
+    <struct name="Cat007I085Em1">
+      <doc>Extended Mode 1 Code in Octal Representation</doc>
+      <field name="v" bits="1">
+        <doc>0 = Code not validated (inverted logic!), 1 = Code validated</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="code-source-extracted">
+        <doc>Extended Mode 1 code source</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="em1" bits="12">
+        <doc>Extended Mode 1 code in octal (A4 A2 A1 B4 B2 B1 C4 C2 C1 D4 D2 D1)</doc>
+      </field>
+    </struct>
+
+    <!-- Subfield #6: Time Offset for POS and GA (1 octet) -->
+    <!-- int8: two's complement, LSB = 1/128 s -->
+
+    <!-- Subfield #7: X Pulse Presence (1 octet) -->
+    <struct name="Cat007I085Xp">
+      <doc>X Pulse Presence</doc>
+      <reserved bits="3"/>
+      <field name="x5" bits="1">
+        <doc>X-pulse from Mode 5 Data reply</doc>
+      </field>
+      <field name="xc" bits="1">
+        <doc>X-pulse from Mode C reply</doc>
+      </field>
+      <field name="x3" bits="1">
+        <doc>X-pulse from Mode 3/A reply</doc>
+      </field>
+      <field name="x2" bits="1">
+        <doc>X-pulse from Mode 2 reply</doc>
+      </field>
+      <field name="x1" bits="1">
+        <doc>X-pulse from Mode 1 reply</doc>
+      </field>
+    </struct>
+
+    <!-- I007/085 Compound Item -->
+    <struct name="Cat007I085">
+      <doc>
+        I007/085 - Mode 5, Extended Mode 1 and X-Pulse
+        Compound data item with primary subfield (FX-extensible)
+        controlling up to 7 subfields.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sum" bit="7" type="Cat007I085Sum">
+          <doc>Subfield #1: Mode 5 Summary</doc>
+        </field>
+        <field name="pmn" bit="6" type="Cat007I085Pmn">
+          <doc>Subfield #2: Mode 5 PIN/National Origin/Mission Code</doc>
+        </field>
+        <field name="pos" bit="5" type="Cat007I085Pos">
+          <doc>Subfield #3: Mode 5 Reported Position</doc>
+        </field>
+        <field name="ga" bit="4" type="Cat007I085Ga">
+          <doc>Subfield #4: Mode 5 GNSS-derived Altitude</doc>
+        </field>
+        <field name="em1" bit="3" type="Cat007I085Em1">
+          <doc>Subfield #5: Extended Mode 1 Code in Octal Representation</doc>
+        </field>
+        <field name="tos" bit="2" type="int8">
+          <doc>Subfield #6: Time Offset for POS and GA (LSB = 1/128 s, range +/-1 s)</doc>
+          <scale>0.0078125</scale>
+          <unit>seconds</unit>
+        </field>
+        <field name="xp" bit="1" type="Cat007I085Xp">
+          <doc>Subfield #7: X Pulse Presence</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I007/090 - Flight Level in Binary Representation
+         Fixed 2 octets: V(1) G(1) FL(14 signed)
+         ======================================================================= -->
+    <struct name="Cat007I090">
+      <doc>I007/090 - Flight Level in Binary Representation</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="fl" bits="14" signed="true">
+        <doc>Flight Level, LSB = 1/4 FL (range -12 to 1500 FL)</doc>
+        <scale>0.25</scale>
+        <unit>FL</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/100 - Mode-C Code and Code Confidence Indicator
+         Fixed 4 octets:
+           Octets 1-2: V(1) G(1) spare(2) Mode-C-code(12) in Gray notation
+           Octets 3-4: spare(4) QXi(12)
+         ======================================================================= -->
+    <struct name="Cat007I100">
+      <doc>I007/100 - Mode-C Code and Code Confidence Indicator</doc>
+      <field name="v" type="code-validated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="code-garbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="code" bits="12">
+        <doc>Mode-C code in Gray notation</doc>
+      </field>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-C code (0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/110 - Height Measured by a 3D Radar
+         Fixed 2 octets: spare(2) Height(14 signed)
+         ======================================================================= -->
+    <struct name="Cat007I110">
+      <doc>I007/110 - Height Measured by a 3D Radar</doc>
+      <reserved bits="2"/>
+      <field name="height-3d" bits="14" signed="true">
+        <doc>3D height above reference plane, LSB = 25 ft</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/120 - Radial Doppler Speed
+         Compound data item: primary subfield (1 octet, NOT FX - fixed bitmap)
+         Subfield #1: Calculated Doppler Speed (2 octets)
+         Subfield #2: Raw Doppler Speed (repetitive: REP + N*(DOP+AMB+FRQ))
+         ======================================================================= -->
+
+    <!-- Subfield #1: Calculated Doppler Speed (2 octets) -->
+    <struct name="Cat007I120Cal">
+      <doc>Calculated Doppler Speed</doc>
+      <field name="d" type="doppler-validity">
+        <doc>Doppler speed validity</doc>
+      </field>
+      <reserved bits="5"/>
+      <field name="cal" bits="10" signed="true">
+        <doc>Calculated Doppler Speed, LSB = 1 m/s</doc>
+        <unit>m/s</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #2: Raw Doppler Speed (repetitive) -->
+    <struct name="Cat007I120Rds">
+      <doc>Raw Doppler Speed</doc>
+      <field name="rep" type="uint8">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="doppler" count-from="rep">
+        <field name="dop" type="int16">
+          <doc>Doppler Speed, LSB = 1 m/s</doc>
+          <unit>m/s</unit>
+        </field>
+        <field name="amb" type="uint16">
+          <doc>Ambiguity Range, LSB = 1 m/s</doc>
+          <unit>m/s</unit>
+        </field>
+        <field name="frq" type="uint16">
+          <doc>Transmitter Frequency, LSB = 1 MHz</doc>
+          <unit>MHz</unit>
+        </field>
+      </array>
+    </struct>
+
+    <!-- I007/120 Compound Item -->
+    <struct name="Cat007I120">
+      <doc>
+        I007/120 - Radial Doppler Speed
+        Compound data item with FX-extensible primary subfield (per Ed. 1.8).
+        Bits 7 (CAL) and 6 (RDS) control presence of subfields.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="cal" bit="7" type="Cat007I120Cal">
+          <doc>Subfield #1: Calculated Doppler Speed</doc>
+        </field>
+        <field name="rds" bit="6" type="Cat007I120Rds">
+          <doc>Subfield #2: Raw Doppler Speed</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I007/130 - Radar Plot Characteristics
+         Compound data item: primary subfield (1 octet, FX-extensible)
+         Up to 7 subfields, each 1 octet.
+         ======================================================================= -->
+    <struct name="Cat007I130">
+      <doc>
+        I007/130 - Radar Plot Characteristics
+        Compound data item (FX-extensible primary subfield)
+        with up to 7 one-octet subfields.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="srl" bit="7" type="uint8">
+          <doc>SSR Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
+        </field>
+        <field name="srr" bit="6" type="uint8">
+          <doc>Number of Received Replies for (M)SSR</doc>
+        </field>
+        <field name="sam" bit="5" type="int8">
+          <doc>Amplitude of (M)SSR Reply, LSB = 1 dBm</doc>
+        </field>
+        <field name="prl" bit="4" type="uint8">
+          <doc>Primary Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
+        </field>
+        <field name="pam" bit="3" type="int8">
+          <doc>Amplitude of Primary Plot, LSB = 1 dBm</doc>
+        </field>
+        <field name="rpd" bit="2" type="int8">
+          <doc>Difference in Range (PSR-SSR), LSB = 1/256 NM</doc>
+        </field>
+        <field name="apd" bit="1" type="int8">
+          <doc>Difference in Azimuth (PSR-SSR), LSB = 360/2^14 degrees</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I007/170 - Track Status
+         Variable length (1+ octets, FX extension chain)
+         ======================================================================= -->
+    <struct name="Cat007I170">
+      <doc>I007/170 - Track Status</doc>
+      <field name="cnf" type="track-confidence">
+        <doc>Track confidence</doc>
+      </field>
+      <field name="rad" type="sensor-type">
+        <doc>Type of sensor maintaining track</doc>
+      </field>
+      <field name="dou" type="assoc-confidence">
+        <doc>Association confidence</doc>
+      </field>
+      <field name="mah" type="horiz-maneuver">
+        <doc>Horizontal maneuver indicator</doc>
+      </field>
+      <field name="cdm" type="climb-descend-mode">
+        <doc>Climbing/Descending Mode</doc>
+      </field>
+      <fx>
+        <field name="tre" type="track-lifetime">
+          <doc>Track lifetime</doc>
+        </field>
+        <field name="gho" type="ghost-target">
+          <doc>Ghost target indicator</doc>
+        </field>
+        <field name="sup" type="neighbor-support">
+          <doc>Neighbor support</doc>
+        </field>
+        <field name="tcc" type="track-coord-type">
+          <doc>Track coordinate type</doc>
+        </field>
+        <reserved bits="3"/>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I007/210 - Track Quality
+         Fixed 4 octets: SigmaX(8) + SigmaY(8) + SigmaV(8) + SigmaH(8)
+         ======================================================================= -->
+    <struct name="Cat007I210">
+      <doc>I007/210 - Track Quality (standard deviations)</doc>
+      <field name="sigma-x" type="uint8">
+        <doc>Std dev on horizontal axis of local grid, LSB = 1/128 NM</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="sigma-y" type="uint8">
+        <doc>Std dev on vertical axis of local grid, LSB = 1/128 NM</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="sigma-v" type="uint8">
+        <doc>Std dev on groundspeed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
+        <scale>6.103515625e-5</scale>
+        <unit>NM/s</unit>
+      </field>
+      <field name="sigma-h" type="uint8">
+        <doc>Std dev on heading, LSB = 360/2^12 degrees (~0.088 deg)</doc>
+        <scale>0.087890625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/230 - Communications/ACAS Capability and Flight Status
+         Fixed 2 octets: COM(3) STAT(3) SI(1) spare(1) MSSC(1) ARC(1) AIC(1) B1A(1) B1B(4)
+         ======================================================================= -->
+    <struct name="Cat007I230">
+      <doc>I007/230 - Communications/ACAS Capability and Flight Status</doc>
+      <field name="com" type="comm-capability">
+        <doc>Communications capability of the transponder</doc>
+      </field>
+      <field name="stat" type="flight-status">
+        <doc>Flight Status</doc>
+      </field>
+      <field name="si" type="si-ii-capability">
+        <doc>SI/II-Code Capability</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="mssc" type="mode-s-service-cap">
+        <doc>Mode-S Specific Service Capability</doc>
+      </field>
+      <field name="arc" type="alt-resolution">
+        <doc>Altitude Reporting Capability</doc>
+      </field>
+      <field name="aic" type="aircraft-id-cap">
+        <doc>Aircraft Identification Capability</doc>
+      </field>
+      <field name="b1a" bits="1">
+        <doc>BDS 1,0 bit 16</doc>
+      </field>
+      <field name="b1b" bits="4">
+        <doc>BDS 1,0 bits 37/40</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/250 - Mode S MB Data
+         Repetitive data item: REP(8) + N * (MB-Data(56) + BDS1(4) + BDS2(4))
+         ======================================================================= -->
+    <struct name="Cat007I250">
+      <doc>I007/250 - Mode S MB Data</doc>
+      <field name="rep" type="uint8">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="bds" count-from="rep">
+        <field name="mb-data" bytes="7">
+          <doc>56-bit Mode S Comm B message data</doc>
+        </field>
+        <field name="bds1" bits="4">
+          <doc>Comm B Data Buffer Store 1 Address</doc>
+        </field>
+        <field name="bds2" bits="4">
+          <doc>Comm B Data Buffer Store 2 Address</doc>
+        </field>
+      </array>
+    </struct>
+
+    <!-- =======================================================================
+         I007/260 - ACAS Resolution Advisory Report
+         Fixed 7 octets: 56-bit MB Data (BDS Register 3,0)
+         ======================================================================= -->
+    <struct name="Cat007I260">
+      <doc>I007/260 - ACAS Resolution Advisory Report (BDS 3,0)</doc>
+      <field name="mb-data" bytes="7">
+        <doc>56-bit Mode S Comm B message data of BDS Register 3,0</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I007/450 - Directed Interrogation Result
+         Compound data item: primary subfield (1 octet, FX-extensible)
+         followed by up to 6 subfields.
+         ======================================================================= -->
+
+    <!-- Subfield #1: Truncation (1 octet) -->
+    <struct name="Cat007I450Tr">
+      <doc>Truncation information</doc>
+      <reserved bits="4"/>
+      <field name="n" bits="1">
+        <doc>Interrogation was not executed</doc>
+      </field>
+      <field name="t" bits="1">
+        <doc>Interrogation scheduler has truncated the All Call request</doc>
+      </field>
+      <field name="a" bits="1">
+        <doc>Interrogation scheduler has activated the request at least once</doc>
+      </field>
+      <field name="c" bits="1">
+        <doc>Interrogation scheduler has activated the request during all its validity</doc>
+      </field>
+    </struct>
+
+    <!-- Subfield #4: Mode S All Call Interrogations (2 octets) -->
+    <struct name="Cat007I450Ms">
+      <doc>Mode S All Call Interrogations</doc>
+      <reserved bits="6"/>
+      <field name="lo" type="cat007-lockout">
+        <doc>Mode S All-Call Lockout</doc>
+      </field>
+      <field name="ms-nb" type="uint8">
+        <doc>Number of Mode S All Calls performed for the request</doc>
+      </field>
+    </struct>
+
+    <!-- I007/450 Compound Item -->
+    <struct name="Cat007I450">
+      <doc>
+        I007/450 - Directed Interrogation Result
+        Compound data item with FX-extensible primary subfield.
+        Subfield #1: Truncation (1 octet)
+        Subfield #2: Mode 4 Interrogations (1 octet)
+        Subfield #3: Mode 5 Interrogations (1 octet)
+        Subfield #4: Mode S All Call Interrogations (2 octets)
+        Subfield #5: Mark X Interrogations (1 octet)
+        Subfield #6: Selective Mode S Interrogations (1 octet)
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="tr" bit="7" type="Cat007I450Tr">
+          <doc>Subfield #1: Truncation</doc>
+        </field>
+        <field name="m4-nb" bit="6" type="uint8">
+          <doc>Subfield #2: Number of Mode 4 Interrogations</doc>
+        </field>
+        <field name="m5-nb" bit="5" type="uint8">
+          <doc>Subfield #3: Number of Mode 5 Interrogations</doc>
+        </field>
+        <field name="ms" bit="4" type="Cat007I450Ms">
+          <doc>Subfield #4: Mode S All Call Interrogations</doc>
+        </field>
+        <field name="mx-nb" bit="3" type="uint8">
+          <doc>Subfield #5: Number of Mark X Interrogations</doc>
+        </field>
+        <field name="sms-nb" bit="2" type="uint8">
+          <doc>Subfield #6: Number of Selective Mode S Interrogations</doc>
+        </field>
+      </struct>
+    </struct>
+
+  </types>
+
+  <messages>
+    <!-- =======================================================================
+         CAT007 Downlink Record (For the server configuration, this is send-only)
+         FSPEC bitmap with 5 FSPEC octets (35 FRN positions)
+         ======================================================================= -->
+    <message id="7" name="Cat007DownlinkRecord" direction="send">
+      <doc>
+        CAT007 Downlink Record (Downlink UAP, Table 2)
+        Applies to message types 0-4 as defined in I007/410:
+        0 = DI Acknowledge, 1 = DI Reject, 2 = DI Finished,
+        3 = DI Completed, 4 = Target Report
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FSPEC Octet 1 (FRN 1-7) -->
+
+        <!-- FRN 1: I007/010 - Data Source Identifier (2 octets) -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I007/010 - Data Source Identifier</doc>
+        </field>
+
+        <!-- FRN 2: I007/025 - Data Destination Identifier (2 octets) -->
+        <field name="i025" bit="6" type="DataSourceId">
+          <doc>I007/025 - Data Destination Identifier</doc>
+        </field>
+
+        <!-- FRN 3: I007/410 - Directed Interrogation Message Type (1 octet) -->
+        <field name="i410" bit="5" type="Cat007I410">
+          <doc>I007/410 - Directed Interrogation Message Type</doc>
+        </field>
+
+        <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
+        <field name="i140" bit="4" type="time-of-day">
+          <doc>I007/140 - Time of Day</doc>
+        </field>
+
+        <!-- FRN 5: I007/400 - Directed Interrogation Request Number (2 octets) -->
+        <field name="i400" bit="3" type="Cat007I400">
+          <doc>I007/400 - Directed Interrogation Request Number</doc>
+        </field>
+
+        <!-- FRN 6: I007/020 - Target Report Descriptor (1+ octets) -->
+        <field name="i020" bit="2" type="Cat007I020">
+          <doc>I007/020 - Target Report Descriptor</doc>
+        </field>
+
+        <!-- FRN 7: I007/040 - Measured Position in Slant Polar (4 octets) -->
+        <field name="i040" bit="1" type="Cat007I040">
+          <doc>I007/040 - Measured Position in Slant Polar Coordinates</doc>
+        </field>
+
+        <!-- FSPEC Octet 2 (FRN 8-14) -->
+
+        <!-- FRN 8: I007/070 - Mode-3/A Code in Octal (2 octets) -->
+        <field name="i070" bit="15" type="Cat007I070">
+          <doc>I007/070 - Mode-3/A Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 9: I007/090 - Flight Level in Binary (2 octets) -->
+        <field name="i090" bit="14" type="Cat007I090">
+          <doc>I007/090 - Flight Level in Binary Representation</doc>
+        </field>
+
+        <!-- FRN 10: I007/130 - Radar Plot Characteristics (1+1+ octets, compound) -->
+        <field name="i130" bit="13" type="Cat007I130">
+          <doc>I007/130 - Radar Plot Characteristics</doc>
+        </field>
+
+        <!-- FRN 11: I007/220 - Aircraft Address (3 octets) -->
+        <field name="i220" bit="12" type="aircraft-address">
+          <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
+        </field>
+
+        <!-- FRN 12: I007/240 - Aircraft Identification (6 octets) -->
+        <field name="i240" bit="11" type="aircraft-ident">
+          <doc>I007/240 - Aircraft Identification (8 chars x 6 bits)</doc>
+        </field>
+
+        <!-- FRN 13: I007/250 - Mode S MB Data (1+8*n octets) -->
+        <field name="i250" bit="10" type="Cat007I250">
+          <doc>I007/250 - Mode S MB Data</doc>
+        </field>
+
+        <!-- FRN 14: I007/161 - Track Number (2 octets) -->
+        <field name="i161" bit="9" type="Cat007I161">
+          <doc>I007/161 - Track Number</doc>
+        </field>
+
+        <!-- FSPEC Octet 3 (FRN 15-21) -->
+
+        <!-- FRN 15: I007/042 - Calculated Position in Cartesian (4 octets) -->
+        <field name="i042" bit="23" type="Cat007I042">
+          <doc>I007/042 - Calculated Position in Cartesian Coordinates</doc>
+        </field>
+
+        <!-- FRN 16: I007/200 - Calculated Track Velocity in Polar (4 octets) -->
+        <field name="i200" bit="22" type="Cat007I200">
+          <doc>I007/200 - Calculated Track Velocity in Polar Representation</doc>
+        </field>
+
+        <!-- FRN 17: I007/170 - Track Status (1+ octets) -->
+        <field name="i170" bit="21" type="Cat007I170">
+          <doc>I007/170 - Track Status</doc>
+        </field>
+
+        <!-- FRN 18: I007/210 - Track Quality (4 octets) -->
+        <field name="i210" bit="20" type="Cat007I210">
+          <doc>I007/210 - Track Quality</doc>
+        </field>
+
+        <!-- FRN 19: I007/030 - Warning/Error Conditions (1+ octets) -->
+        <field name="i030" bit="19" type="Cat007I030">
+          <doc>I007/030 - Warning/Error Conditions</doc>
+        </field>
+
+        <!-- FRN 20: I007/080 - Mode-3/A Code Confidence (2 octets) -->
+        <field name="i080" bit="18" type="Cat007I080">
+          <doc>I007/080 - Mode-3/A Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 21: I007/100 - Mode-C Code and Confidence (4 octets) -->
+        <field name="i100" bit="17" type="Cat007I100">
+          <doc>I007/100 - Mode-C Code and Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FSPEC Octet 4 (FRN 22-28) -->
+
+        <!-- FRN 22: I007/110 - Height Measured by 3D Radar (2 octets) -->
+        <field name="i110" bit="31" type="Cat007I110">
+          <doc>I007/110 - Height Measured by 3D Radar</doc>
+        </field>
+
+        <!-- FRN 23: I007/120 - Radial Doppler Speed (1+ octets, compound) -->
+        <field name="i120" bit="30" type="Cat007I120">
+          <doc>I007/120 - Radial Doppler Speed</doc>
+        </field>
+
+        <!-- FRN 24: I007/230 - Communications/ACAS Capability (2 octets) -->
+        <field name="i230" bit="29" type="Cat007I230">
+          <doc>I007/230 - Communications/ACAS Capability and Flight Status</doc>
+        </field>
+
+        <!-- FRN 25: I007/260 - ACAS Resolution Advisory Report (7 octets) -->
+        <field name="i260" bit="28" type="Cat007I260">
+          <doc>I007/260 - ACAS Resolution Advisory Report</doc>
+        </field>
+
+        <!-- FRN 26: I007/055 - Mode-1 Code in Octal (1 octet) -->
+        <field name="i055" bit="27" type="Cat007I055">
+          <doc>I007/055 - Mode-1 Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 27: I007/050 - Mode-2 Code in Octal (2 octets) -->
+        <field name="i050" bit="26" type="Cat007I050">
+          <doc>I007/050 - Mode-2 Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 28: I007/065 - Mode-1 Code Confidence (1 octet) -->
+        <field name="i065" bit="25" type="Cat007I065">
+          <doc>I007/065 - Mode-1 Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FSPEC Octet 5 (FRN 29-35) -->
+
+        <!-- FRN 29: I007/060 - Mode-2 Code Confidence (2 octets) -->
+        <field name="i060" bit="39" type="Cat007I060">
+          <doc>I007/060 - Mode-2 Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 30: I007/450 - Directed Interrogation Result (1+ octets, compound) -->
+        <field name="i450" bit="38" type="Cat007I450">
+          <doc>I007/450 - Directed Interrogation Result</doc>
+        </field>
+
+        <!-- FRN 31: I007/085 - Mode 5, Extended Mode 1, X-Pulse (1+ octets, compound) -->
+        <field name="i085" bit="37" type="Cat007I085">
+          <doc>I007/085 - Mode 5, Extended Mode 1 and X-Pulse</doc>
+        </field>
+
+        <!-- FRN 32: Unused -->
+        <!-- FRN 33: Unused -->
+
+        <!-- FRN 34: SPF - Special Purpose Field -->
+        <struct name="spf" bit="34">
+          <doc>Special Purpose Field</doc>
+          <field name="len" type="uint8">
+            <doc>Length of SPF including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+        <!-- FRN 35: REF - Reserved Expansion Field -->
+        <struct name="ref" bit="33">
+          <doc>Reserved Expansion Field</doc>
+          <field name="len" type="uint8">
+            <doc>Length of REF including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+      </struct>
+    </message>
+  </messages>
+
+</bmdl>

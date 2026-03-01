@@ -1,0 +1,58 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.conduit'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.conduit:conduit-java:0.1.0'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = [
+                'src/main/java',
+                'asterix/generated',
+                'asterix-alt/generated',
+            ]
+        }
+    }
+}
+
+def buildDir = "${rootProject.projectDir}/../conduit/build"
+def commonJvmArgs = [
+    "-Djava.library.path=${buildDir}",
+]
+
+application {
+    mainClass = 'com.conduit.xcvr.PocApp'
+    applicationDefaultJvmArgs = commonJvmArgs
+}
+
+tasks.register('runPocApp', JavaExec) {
+    mainClass = 'com.conduit.xcvr.PocApp'
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = commonJvmArgs
+    args = System.getProperty('appArgs', '').split(' ').findAll { it }
+}
+
+tasks.register('runDummyPeer', JavaExec) {
+    mainClass = 'com.conduit.xcvr.DummyPeer'
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = commonJvmArgs
+    args = System.getProperty('appArgs', '').split(' ').findAll { it }
+}

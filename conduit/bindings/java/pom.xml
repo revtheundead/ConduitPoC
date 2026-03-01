@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>Conduit Java Bindings</name>
-    <description>Java bindings for the Conduit binary protocol library (JDK 21+ Panama FFI)</description>
+    <description>Java bindings for the Conduit binary protocol library (JDK 11+ JNI / JDK 21+ Panama FFI)</description>
     <url>https://github.com/revtheundead/ConduitPoC</url>
 
     <licenses>
@@ -21,21 +21,29 @@
     </licenses>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <build>
         <plugins>
+            <!--
+              Default compilation: Java 11 target.
+              Panama-specific files are EXCLUDED — they use java.lang.foreign
+              which does not exist in Java 11. When building with JDK 21+, the
+              "panama" profile adds a second compilation pass for those files.
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>21</release>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
+                    <release>11</release>
+                    <excludes>
+                        <exclude>io/conduit/CabiBindings.java</exclude>
+                        <exclude>io/conduit/CodecBindings.java</exclude>
+                        <exclude>io/conduit/PanamaNativeBinding.java</exclude>
+                        <exclude>io/conduit/PanamaCodecBinding.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -45,4 +53,46 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          Panama FFI profile: compile the Panama-specific classes (CabiBindings,
+          CodecBindings, PanamaNativeBinding, PanamaCodecBinding) with Java 21.
+          Automatically active when building with JDK 21+.
+        -->
+        <profile>
+            <id>panama</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.13.0</version>
+                        <executions>
+                            <execution>
+                                <id>compile-panama</id>
+                                <phase>compile</phase>
+                                <goals><goal>compile</goal></goals>
+                                <configuration>
+                                    <release>21</release>
+                                    <compilerArgs>
+                                        <arg>--enable-preview</arg>
+                                    </compilerArgs>
+                                    <includes>
+                                        <include>io/conduit/CabiBindings.java</include>
+                                        <include>io/conduit/CodecBindings.java</include>
+                                        <include>io/conduit/PanamaNativeBinding.java</include>
+                                        <include>io/conduit/PanamaCodecBinding.java</include>
+                                    </includes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
