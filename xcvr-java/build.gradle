@@ -12,6 +12,15 @@ java {
     }
 }
 
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.conduit:conduit-java:0.1.0'
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['--enable-preview']
 }
@@ -27,7 +36,6 @@ sourceSets {
                 'src/main/java',
                 'asterix/generated',
                 'asterix-alt/generated',
-                '../conduit/bindings/java/src/main/java'
             ]
         }
     }
