@@ -22,15 +22,6 @@ public class PocApp {
     private static volatile boolean running = true;
 
     public static void main(String[] args) {
-        // Register asterix session factories with the CABI registry
-        try {
-            if (io.conduit.CabiBindings.conduit_register_asterix_sessions != null) {
-                io.conduit.CabiBindings.conduit_register_asterix_sessions.invokeExact();
-            }
-        } catch (Throwable t) {
-            System.err.println("[WARN] Could not register asterix sessions: " + t.getMessage());
-        }
-
         String host = "127.0.0.1";
         int port = 5000;
         int intervalMs = 1000;

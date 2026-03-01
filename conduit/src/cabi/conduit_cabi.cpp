@@ -196,7 +196,6 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     namespace trans_ns = conduit::transceiver::transport;
     std::shared_ptr<trans_ns::ITransport> trans;
     std::string addr(transport->address ? transport->address : "");
-    bool is_multi_peer = false;
 
     // Parse "host:port" from address string
     auto parse_host_port = [](const std::string& a)
@@ -232,16 +231,17 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             cfg.bind_address = host.empty() ? "0.0.0.0" : host;
             cfg.port = port;
             trans = std::make_shared<trans_ns::TcpServerTransport>(cfg);
-            is_multi_peer = true;
             break;
         }
         case CONDUIT_TRANSPORT_SERIAL:
             return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     }
 
-    // TCP server needs a session factory (creates session per connection);
-    // other transports use a single session.
-    if (is_multi_peer) {
+    // Query the transport to decide which add_peer overload to use.
+    // Multi-peer transports (TCP server, UDP receiver) need a session factory
+    // that creates a new session per connection. Single-peer transports
+    // (TCP client, UDP sender, serial) use the already-created session.
+    if (trans->is_multi_peer()) {
         auto session_factory = [factory]() -> std::unique_ptr<conduit::traits::ISession> {
             auto* s = factory();
             if (!s) return nullptr;

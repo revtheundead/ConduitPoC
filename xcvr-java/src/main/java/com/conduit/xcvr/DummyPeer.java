@@ -144,15 +144,6 @@ public class DummyPeer {
     }
 
     public static void main(String[] args) {
-        // Register asterix session factories with the CABI registry
-        try {
-            if (io.conduit.CabiBindings.conduit_register_asterix_sessions != null) {
-                io.conduit.CabiBindings.conduit_register_asterix_sessions.invokeExact();
-            }
-        } catch (Throwable t) {
-            System.err.println("[WARN] Could not register asterix sessions: " + t.getMessage());
-        }
-
         if (args.length < 1) {
             printUsage();
             System.exit(1);

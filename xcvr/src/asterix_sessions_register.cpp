@@ -16,7 +16,10 @@ static void* create_asterix_alt_session() {
         asterix_alt::create_asterix_data_block_session().release());
 }
 
-// Auto-register on library load
+// Auto-register on library load via static initialization.
+// When this translation unit is linked into a shared library,
+// the constructor runs at dlopen() time and populates the CABI
+// session registry before any conduit_add_peer() call.
 namespace {
 struct AsterixSessionRegistrar {
     AsterixSessionRegistrar() {
@@ -26,11 +29,3 @@ struct AsterixSessionRegistrar {
 };
 static AsterixSessionRegistrar registrar_;
 } // namespace
-
-// Explicit registration function callable from FFI (Java/Python)
-extern "C" {
-CONDUIT_CABI_API void conduit_register_asterix_sessions(void) {
-    conduit_xcvr_register_session("asterix", create_asterix_session);
-    conduit_xcvr_register_session("asterix_alt", create_asterix_alt_session);
-}
-}
