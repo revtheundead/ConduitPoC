@@ -5,8 +5,7 @@ description = "ASTERIX Transceiver PoC — Python"
 requires-python = ">=3.10"
 
 dependencies = [
-    # Conduit Python bindings (built from ../conduit)
-    # Install via: pip install -e ../conduit/python
+    "conduit>=0.1.0",
 ]
 
 [project.scripts]

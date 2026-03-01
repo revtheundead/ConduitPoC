@@ -9,11 +9,38 @@ Uses the bgen-generated pure Python API with direct attribute access.
 import sys
 import os
 import random
+import importlib
+import importlib.util
 
-# Add the parent of 'generated' to sys.path so we can import the package
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix-alt'))
+# ---------------------------------------------------------------------------
+# Load the asterix-alt generated package under the 'generated_alt' namespace.
+# This avoids collisions with the 'generated' package already loaded from the
+# asterix (client) path which uses camelCase field names.
+# ---------------------------------------------------------------------------
+_ALT_DIR = os.path.join(os.path.dirname(__file__), '..', 'asterix-alt')
+_GEN_DIR = os.path.join(_ALT_DIR, 'generated')
+_PKG = 'generated_alt'
 
-from generated.messages import (
+if _PKG not in sys.modules:
+    _init_spec = importlib.util.spec_from_file_location(
+        _PKG, os.path.join(_GEN_DIR, '__init__.py'),
+        submodule_search_locations=[_GEN_DIR])
+    _pkg_mod = importlib.util.module_from_spec(_init_spec)
+    sys.modules[_PKG] = _pkg_mod
+    _init_spec.loader.exec_module(_pkg_mod)
+
+    for _sub in ('bit_io', 'constants', 'types', 'structs', 'protocol',
+                 'sessions', 'messages'):
+        _fpath = os.path.join(_GEN_DIR, _sub + '.py')
+        if not os.path.exists(_fpath):
+            continue
+        _sub_spec = importlib.util.spec_from_file_location(
+            f'{_PKG}.{_sub}', _fpath)
+        _sub_mod = importlib.util.module_from_spec(_sub_spec)
+        sys.modules[f'{_PKG}.{_sub}'] = _sub_mod
+        _sub_spec.loader.exec_module(_sub_mod)
+
+from generated_alt.messages import (
     Cat007DownlinkRecord, Cat007DownlinkRecordItems,
     Cat021Record, Cat021RecordItems,
     Cat021RecordItemsRe, Cat021RecordItemsReItems,
@@ -21,7 +48,7 @@ from generated.messages import (
     Cat048RecordItemsRe, Cat048RecordItemsReItems,
     Cat253Record, Cat253RecordItems,
 )
-from generated.structs import (
+from generated_alt.structs import (
     DataSourceId,
     Cat007I020, Cat007I040, Cat007I042, Cat007I070, Cat007I090,
     Cat007I161, Cat007I200, Cat007I210, Cat007I250, Cat007I250Bds,
@@ -47,7 +74,7 @@ from generated.structs import (
     Cat253I050, Cat253I050Sequences,
     Cat253I080,
 )
-from generated.types import (
+from generated_alt.types import (
     TimeOfDay, AircraftIdent,
     DetectionType, SimIndicator, RdpChain, SpiPresence, ReportSource,
     NatOriginValidity, AltResolution,

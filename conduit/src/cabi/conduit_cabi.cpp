@@ -46,8 +46,12 @@ conduit_xcvr_error_t map_xcvr_error(const conduit::Error& err) {
             return CONDUIT_XCVR_ERR_PEER_NOT_FOUND;
         case EC::BatchNotSupported:
             return CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED;
+        case EC::DirectionViolation:
+            return CONDUIT_XCVR_ERR_SEND_FAILED;
         default:
+            if (err.is_decode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
             if (err.is_encode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
+            if (err.is_connection_error()) return CONDUIT_XCVR_ERR_SEND_FAILED;
             return CONDUIT_XCVR_ERR_UNKNOWN;
     }
 }
@@ -60,6 +64,9 @@ struct TransceiverWrapper {
     // Track the raw catch-all that dispatches to C callbacks
     bool raw_catch_all_installed = false;
 
+    // Cached type_id -> type_name mapping (populated during add_peer)
+    std::unordered_map<uint64_t, std::string> type_names;
+
     // Message callback entries
     struct MsgCbEntry {
         conduit_callback_id id;
@@ -69,6 +76,12 @@ struct TransceiverWrapper {
     };
     std::mutex msg_cb_mutex;
     std::vector<MsgCbEntry> msg_callbacks;
+
+    // Look up cached type name for a type_id (empty string if not found)
+    const char* lookup_type_name(uint64_t type_id) const {
+        auto it = type_names.find(type_id);
+        return (it != type_names.end()) ? it->second.c_str() : "";
+    }
 
     // Install a raw catch-all that dispatches to registered C callbacks.
     // Uses the raw-bytes-aware path so callbacks receive actual message data.
@@ -81,13 +94,12 @@ struct TransceiverWrapper {
                    uint64_t type_id,
                    const std::any& /*payload*/,
                    std::span<const uint8_t> raw) {
-                // Look up type name from session (best-effort; may be empty)
-                // The type_name will be set by callbacks that need it.
+                const char* type_name = lookup_type_name(type_id);
                 std::lock_guard lock(msg_cb_mutex);
                 for (auto& entry : msg_callbacks) {
                     if (entry.type_id == 0 || entry.type_id == type_id) {
                         entry.callback(
-                            peer.value(), type_id, "",
+                            peer.value(), type_id, type_name,
                             raw.data(), raw.size(),
                             entry.user_data);
                     }
@@ -166,11 +178,19 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
         factory = it->second;
     }
 
-    // Create session
+    // Create a test session to cache type names
     auto* raw_session = factory();
     if (!raw_session) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     std::unique_ptr<conduit::traits::ISession> session(
         static_cast<conduit::traits::ISession*>(raw_session));
+
+    // Cache type_id -> type_name from the session before it's moved
+    for (auto id : session->leaf_type_ids()) {
+        auto tname = session->type_name(id);
+        if (!tname.empty()) {
+            wrapper->type_names[id] = std::string(tname);
+        }
+    }
 
     // Create transport
     namespace trans_ns = conduit::transceiver::transport;
@@ -217,10 +237,25 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     }
 
-    auto result = wrapper->xcvr.add_peer(name, std::move(session), trans);
-    if (!result) return map_xcvr_error(result.error());
-
-    *out_peer_id = result->value();
+    // Query the transport to decide which add_peer overload to use.
+    // Multi-peer transports (TCP server, UDP receiver) need a session factory
+    // that creates a new session per connection. Single-peer transports
+    // (TCP client, UDP sender, serial) use the already-created session.
+    if (trans->is_multi_peer()) {
+        auto session_factory = [factory]() -> std::unique_ptr<conduit::traits::ISession> {
+            auto* s = factory();
+            if (!s) return nullptr;
+            return std::unique_ptr<conduit::traits::ISession>(
+                static_cast<conduit::traits::ISession*>(s));
+        };
+        auto result = wrapper->xcvr.add_peer(name, std::move(session_factory), trans);
+        if (!result) return map_xcvr_error(result.error());
+        *out_peer_id = result->value();
+    } else {
+        auto result = wrapper->xcvr.add_peer(name, std::move(session), trans);
+        if (!result) return map_xcvr_error(result.error());
+        *out_peer_id = result->value();
+    }
     return CONDUIT_XCVR_OK;
 }
 
@@ -441,7 +476,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
-    const_cast<conduit::transceiver::TransceiverStats&>(wrapper->xcvr.stats()).reset();
+    wrapper->xcvr.stats_reset();
 
     return CONDUIT_XCVR_OK;
 }

@@ -88,10 +88,18 @@ def _load_cabi_lib() -> ctypes.CDLL:
     if env_path and os.path.isfile(env_path):
         return ctypes.CDLL(env_path)
 
+    # Search relative to the conduit package location.
+    # In a development (editable) install the layout is:
+    #   conduit/bindings/python/conduit/transceiver.py  ->  ../../../../build/
+    # In a flat build layout:
+    #   conduit/build/  (standard build output)
+    pkg_dir = os.path.dirname(__file__)
     search_paths = [
         env_path,
-        os.path.join(os.path.dirname(__file__), "..", "..", "lib"),
-        os.path.join(os.path.dirname(__file__), ".."),
+        os.path.join(pkg_dir, "..", "..", "..", "build"),    # editable: conduit/build/
+        os.path.join(pkg_dir, "..", "..", "build"),           # alternate layout
+        os.path.join(pkg_dir, "..", "..", "lib"),             # installed lib/ dir
+        os.path.join(pkg_dir, ".."),                          # adjacent to package
     ]
 
     names = ["libconduit_cabi.so", "libconduit_cabi.dylib", "conduit_cabi.dll"]

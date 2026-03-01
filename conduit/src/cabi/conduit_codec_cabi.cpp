@@ -400,6 +400,8 @@ CONDUIT_CODEC_API conduit_error_t conduit_framer_feed(
 
     if (!framer || !out_frames || !out_count)
         return CONDUIT_ERR_UNKNOWN;
+    if (!data && len > 0)
+        return CONDUIT_ERR_UNKNOWN;
 
     *out_frames = nullptr;
     *out_count = 0;
