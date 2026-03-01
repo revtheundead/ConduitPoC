@@ -49,6 +49,7 @@ conduit_xcvr_error_t map_xcvr_error(const conduit::Error& err) {
         case EC::DirectionViolation:
             return CONDUIT_XCVR_ERR_SEND_FAILED;
         default:
+            if (err.is_decode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
             if (err.is_encode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
             if (err.is_connection_error()) return CONDUIT_XCVR_ERR_SEND_FAILED;
             return CONDUIT_XCVR_ERR_UNKNOWN;
@@ -177,7 +178,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
         factory = it->second;
     }
 
-    // Create session
+    // Create a test session to cache type names
     auto* raw_session = factory();
     if (!raw_session) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     std::unique_ptr<conduit::traits::ISession> session(
@@ -195,6 +196,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     namespace trans_ns = conduit::transceiver::transport;
     std::shared_ptr<trans_ns::ITransport> trans;
     std::string addr(transport->address ? transport->address : "");
+    bool is_multi_peer = false;
 
     // Parse "host:port" from address string
     auto parse_host_port = [](const std::string& a)
@@ -230,16 +232,30 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             cfg.bind_address = host.empty() ? "0.0.0.0" : host;
             cfg.port = port;
             trans = std::make_shared<trans_ns::TcpServerTransport>(cfg);
+            is_multi_peer = true;
             break;
         }
         case CONDUIT_TRANSPORT_SERIAL:
             return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     }
 
-    auto result = wrapper->xcvr.add_peer(name, std::move(session), trans);
-    if (!result) return map_xcvr_error(result.error());
-
-    *out_peer_id = result->value();
+    // TCP server needs a session factory (creates session per connection);
+    // other transports use a single session.
+    if (is_multi_peer) {
+        auto session_factory = [factory]() -> std::unique_ptr<conduit::traits::ISession> {
+            auto* s = factory();
+            if (!s) return nullptr;
+            return std::unique_ptr<conduit::traits::ISession>(
+                static_cast<conduit::traits::ISession*>(s));
+        };
+        auto result = wrapper->xcvr.add_peer(name, std::move(session_factory), trans);
+        if (!result) return map_xcvr_error(result.error());
+        *out_peer_id = result->value();
+    } else {
+        auto result = wrapper->xcvr.add_peer(name, std::move(session), trans);
+        if (!result) return map_xcvr_error(result.error());
+        *out_peer_id = result->value();
+    }
     return CONDUIT_XCVR_OK;
 }
 

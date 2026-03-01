@@ -59,30 +59,30 @@ public class DummyPeer {
 
     // ── Server sends: Cat007Downlink, Cat021, Cat048, Cat253 (asterix_alt) ──
 
-    private static void sendServerMessage(Transceiver tx, int peerId, Random rng) {
+    private static void sendServerMessage(Transceiver tx, Random rng) {
         try {
             switch (rng.nextInt(4)) {
                 case 0 -> {
                     var msg = RandomAsterixAlt.randomCat007Downlink(rng);
                     System.out.println("[SEND] " + asterix_alt.Cat007DownlinkRecord.TYPE_NAME);
-                    tx.send(peerId, msg);
+                    tx.send(msg);
                 }
                 case 1 -> {
                     var rec = new asterix_alt.Cat021Record();
                     rec.items = RandomAsterixAlt.randomCat021Items(rng);
                     System.out.println("[SEND] " + asterix_alt.Cat021Record.TYPE_NAME);
-                    tx.send(peerId, rec);
+                    tx.send(rec);
                 }
                 case 2 -> {
                     var rec = new asterix_alt.Cat048Record();
                     rec.items = RandomAsterixAlt.randomCat048Items(rng);
                     System.out.println("[SEND] " + asterix_alt.Cat048Record.TYPE_NAME);
-                    tx.send(peerId, rec);
+                    tx.send(rec);
                 }
                 case 3 -> {
                     var msg = RandomAsterixAlt.randomCat253(rng);
                     System.out.println("[SEND] " + asterix_alt.Cat253Record.TYPE_NAME);
-                    tx.send(peerId, msg);
+                    tx.send(msg);
                 }
             }
         } catch (Exception e) {
@@ -144,6 +144,15 @@ public class DummyPeer {
     }
 
     public static void main(String[] args) {
+        // Register asterix session factories with the CABI registry
+        try {
+            if (io.conduit.CabiBindings.conduit_register_asterix_sessions != null) {
+                io.conduit.CabiBindings.conduit_register_asterix_sessions.invokeExact();
+            }
+        } catch (Throwable t) {
+            System.err.println("[WARN] Could not register asterix sessions: " + t.getMessage());
+        }
+
         if (args.length < 1) {
             printUsage();
             System.exit(1);
@@ -195,7 +204,7 @@ public class DummyPeer {
 
         try (var tx = new Transceiver()) {
             // TCP server peer (mirrors C++ TcpServerConfig{.bind_address="0.0.0.0", .port=port})
-            int peerId = tx.addPeer("clients", sessionName,
+            tx.addPeer("clients", sessionName,
                     TransportConfig.tcpServer("0.0.0.0:" + port));
 
             registerServerHandlers(tx);
@@ -214,7 +223,7 @@ public class DummyPeer {
             while (running) {
                 Thread.sleep(intervalMs);
                 if (!running) break;
-                sendServerMessage(tx, peerId, rng);
+                sendServerMessage(tx, rng);
             }
 
             System.out.println("[dummy_peer] Stopping...");

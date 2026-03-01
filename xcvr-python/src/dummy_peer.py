@@ -30,14 +30,9 @@ from . import random_asterix
 from . import random_asterix_alt
 
 # Import generated message classes from both perspectives
-# Client perspective (asterix)
+# Client perspective (asterix) -- loaded from asterix/generated/
 import generated.messages as asterix_msgs
-
-# We need to import the alt messages separately since they come from a
-# different generated package.  The asterix-alt package uses the same module
-# names, so we reload after swapping the path.  A cleaner approach is to
-# import directly from the alternate path.
-import importlib
+# Server perspective (asterix_alt) -- loaded by random_asterix_alt under generated_alt/
 
 running = True
 
@@ -50,27 +45,12 @@ def signal_handler(sig, frame):
 # ── Helpers to load alt message classes ──────────────────────────────────
 
 def _load_alt_messages():
-    """Load message classes from the asterix-alt generated package."""
-    alt_dir = os.path.join(os.path.dirname(__file__), '..', 'asterix-alt')
-    saved = sys.path[:]
-    sys.path.insert(0, alt_dir)
-    try:
-        # Force reload from the alt path
-        if 'generated.messages' in sys.modules:
-            mod = importlib.import_module('generated.messages')
-            # The module is already loaded from the asterix path;
-            # we need to load it from asterix-alt instead.
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                'generated_alt.messages',
-                os.path.join(alt_dir, 'generated', 'messages.py'))
-            alt_mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(alt_mod)
-            return alt_mod
-        else:
-            return importlib.import_module('generated.messages')
-    finally:
-        sys.path[:] = saved
+    """Return the asterix-alt message classes.
+
+    The ``generated_alt`` namespace is bootstrapped by ``random_asterix_alt``
+    (which is imported above), so the module is already available.
+    """
+    return sys.modules['generated_alt.messages']
 
 
 # ── Handler registration ─────────────────────────────────────────────────
@@ -115,26 +95,26 @@ def register_client_handlers(tx):
 
 # ── Send helpers ─────────────────────────────────────────────────────────
 
-def send_server_message(tx, peer_id, rng):
+def send_server_message(tx, rng):
     """Server sends: Cat007Downlink, Cat021, Cat048, Cat253 (asterix_alt)."""
     try:
         choice = rng.randint(0, 3)
         if choice == 0:
             msg = random_asterix_alt.random_cat007_downlink(rng)
             print(f"[SEND] Cat007DownlinkRecord")
-            tx.send(peer_id, msg)
+            tx.send(msg)
         elif choice == 1:
             msg = random_asterix_alt.random_cat021(rng)
             print(f"[SEND] Cat021Record")
-            tx.send(peer_id, msg)
+            tx.send(msg)
         elif choice == 2:
             msg = random_asterix_alt.random_cat048(rng)
             print(f"[SEND] Cat048Record")
-            tx.send(peer_id, msg)
+            tx.send(msg)
         elif choice == 3:
             msg = random_asterix_alt.random_cat253(rng)
             print(f"[SEND] Cat253Record")
-            tx.send(peer_id, msg)
+            tx.send(msg)
     except Exception as e:
         print(f"[SEND ERROR] {e}", file=sys.stderr)
 
@@ -220,8 +200,8 @@ def run_server(args, interval_s):
 
     with Transceiver() as tx:
         # TCP server peer (mirrors C++ TcpServerConfig{.bind_address="0.0.0.0", .port=port})
-        peer_id = tx.add_peer("clients", session_name,
-                              TcpServerConfig(f"0.0.0.0:{port}"))
+        tx.add_peer("clients", session_name,
+                     TcpServerConfig(f"0.0.0.0:{port}"))
 
         register_server_handlers(tx, alt_msgs)
 
@@ -240,7 +220,7 @@ def run_server(args, interval_s):
             time.sleep(interval_s)
             if not running:
                 break
-            send_server_message(tx, peer_id, rng)
+            send_server_message(tx, rng)
 
         print("[dummy_peer] Stopping...")
         tx.stop()

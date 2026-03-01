@@ -69,6 +69,9 @@ public final class CabiBindings {
     // Version
     public static final MethodHandle conduit_version;
 
+    // Session registration (optional – present when asterix sessions are linked in)
+    public static final MethodHandle conduit_register_asterix_sessions;
+
     static {
         conduit_create = lookup("conduit_create",
             FunctionDescriptor.of(ValueLayout.ADDRESS));
@@ -145,12 +148,23 @@ public final class CabiBindings {
 
         conduit_version = lookup("conduit_version",
             FunctionDescriptor.of(ValueLayout.ADDRESS));
+
+        // Optional: register asterix sessions if the symbol is present
+        conduit_register_asterix_sessions = optionalLookup(
+            "conduit_register_asterix_sessions",
+            FunctionDescriptor.ofVoid());
     }
 
     private static MethodHandle lookup(String name, FunctionDescriptor desc) {
         var sym = LIB.find(name)
             .orElseThrow(() -> new RuntimeException("Symbol not found: " + name));
         return LINKER.downcallHandle(sym, desc);
+    }
+
+    private static MethodHandle optionalLookup(String name, FunctionDescriptor desc) {
+        return LIB.find(name)
+            .map(sym -> LINKER.downcallHandle(sym, desc))
+            .orElse(null);
     }
 
     private CabiBindings() {}
