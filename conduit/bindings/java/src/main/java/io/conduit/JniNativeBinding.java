@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 package io.conduit;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,13 +45,18 @@ public final class JniNativeBinding implements NativeBinding {
     }
 
     // ================================================================
-    // Callback registries
+    // Callback registries (global, keyed by callback ID)
     // ================================================================
 
     private static final AtomicInteger callbackIdGen = new AtomicInteger(1);
     private static final ConcurrentHashMap<Integer, Transceiver.MessageCallback> msgCallbacks = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, Transceiver.StateCallback> stateCallbacks = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, Transceiver.ErrorCallback> errorCallbacks = new ConcurrentHashMap<>();
+
+    // Per-instance tracking of registered callback keys for cleanup
+    private final List<Integer> ownedMsgKeys = new ArrayList<>();
+    private final List<Integer> ownedStateKeys = new ArrayList<>();
+    private final List<Integer> ownedErrorKeys = new ArrayList<>();
 
     // ================================================================
     // Native method declarations
@@ -196,6 +202,7 @@ public final class JniNativeBinding implements NativeBinding {
     public int onMessage(long handle, long typeId, Transceiver.MessageCallback callback) {
         int key = callbackIdGen.getAndIncrement();
         msgCallbacks.put(key, callback);
+        ownedMsgKeys.add(key);
         return nOnMessage(handle, typeId, key);
     }
 
@@ -203,6 +210,7 @@ public final class JniNativeBinding implements NativeBinding {
     public int onAnyMessage(long handle, Transceiver.MessageCallback callback) {
         int key = callbackIdGen.getAndIncrement();
         msgCallbacks.put(key, callback);
+        ownedMsgKeys.add(key);
         return nOnAnyMessage(handle, key);
     }
 
@@ -215,6 +223,7 @@ public final class JniNativeBinding implements NativeBinding {
     public int onStateChange(long handle, Transceiver.StateCallback callback) {
         int key = callbackIdGen.getAndIncrement();
         stateCallbacks.put(key, callback);
+        ownedStateKeys.add(key);
         return nOnStateChange(handle, key);
     }
 
@@ -227,6 +236,7 @@ public final class JniNativeBinding implements NativeBinding {
     public int onError(long handle, Transceiver.ErrorCallback callback) {
         int key = callbackIdGen.getAndIncrement();
         errorCallbacks.put(key, callback);
+        ownedErrorKeys.add(key);
         return nOnError(handle, key);
     }
 
@@ -252,13 +262,18 @@ public final class JniNativeBinding implements NativeBinding {
 
     @Override
     public void close() {
-        // No persistent resources to release — callbacks are per-transceiver
-    }
-
-    /** Remove all callbacks associated with this binding (for cleanup). */
-    void clearCallbacks() {
-        msgCallbacks.clear();
-        stateCallbacks.clear();
-        errorCallbacks.clear();
+        // Remove only this instance's callbacks from the global registries
+        for (Integer key : ownedMsgKeys) {
+            msgCallbacks.remove(key);
+        }
+        for (Integer key : ownedStateKeys) {
+            stateCallbacks.remove(key);
+        }
+        for (Integer key : ownedErrorKeys) {
+            errorCallbacks.remove(key);
+        }
+        ownedMsgKeys.clear();
+        ownedStateKeys.clear();
+        ownedErrorKeys.clear();
     }
 }

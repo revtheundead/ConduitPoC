@@ -18,12 +18,22 @@ static jmethodID g_dispatch_msg = nullptr;
 static jmethodID g_dispatch_state = nullptr;
 static jmethodID g_dispatch_error = nullptr;
 
+/**
+ * Get the JNIEnv* for the current thread, attaching as a daemon thread
+ * if necessary. Daemon-attached threads are automatically cleaned up by
+ * the JVM when it shuts down, avoiding the need for explicit detach.
+ *
+ * @param[out] was_attached  Set to true if the thread was already attached
+ * @return JNIEnv* or nullptr on failure
+ */
 static JNIEnv* get_env() {
     JNIEnv* env = nullptr;
     if (g_jvm) {
         int status = g_jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
         if (status == JNI_EDETACHED) {
-            g_jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr);
+            // Attach as daemon thread so the JVM doesn't wait for it on exit
+            // and it gets automatically cleaned up
+            g_jvm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr);
         }
     }
     return env;
@@ -45,7 +55,7 @@ struct JniErrorCallbackData {
     int callback_key;
 };
 
-// Global callback data storage (prevent GC of data passed to C)
+// Global callback data storage (prevent premature free of data passed to C)
 static std::mutex g_cb_mutex;
 static std::unordered_map<int, JniMsgCallbackData*> g_msg_cbs;
 static std::unordered_map<int, JniStateCallbackData*> g_state_cbs;
@@ -286,14 +296,14 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
     // Build C arrays of pointers and lengths
     auto** payloads = new const uint8_t*[count];
     auto* lens = new size_t[count];
-    jbyte** jbuffers = new jbyte*[count];
+    auto** jbuffers = new jbyte*[count];
+    auto* jarrs = new jbyteArray[count]; // save refs for proper release
 
     for (int i = 0; i < count; i++) {
-        jbyteArray arr = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
-        jbuffers[i] = env->GetByteArrayElements(arr, nullptr);
+        jarrs[i] = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
+        jbuffers[i] = env->GetByteArrayElements(jarrs[i], nullptr);
         payloads[i] = reinterpret_cast<const uint8_t*>(jbuffers[i]);
-        lens[i] = static_cast<size_t>(env->GetArrayLength(arr));
-        env->DeleteLocalRef(arr);
+        lens[i] = static_cast<size_t>(env->GetArrayLength(jarrs[i]));
     }
 
     int err = conduit_send_batch(
@@ -302,15 +312,15 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
         static_cast<uint64_t>(typeId),
         payloads, lens, static_cast<size_t>(count));
 
-    // Release all byte arrays
+    // Release all byte arrays using saved references
     for (int i = 0; i < count; i++) {
-        jbyteArray arr = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
-        env->ReleaseByteArrayElements(arr, jbuffers[i], JNI_ABORT);
-        env->DeleteLocalRef(arr);
+        env->ReleaseByteArrayElements(jarrs[i], jbuffers[i], JNI_ABORT);
+        env->DeleteLocalRef(jarrs[i]);
     }
     delete[] payloads;
     delete[] lens;
     delete[] jbuffers;
+    delete[] jarrs;
 
     return err;
 }

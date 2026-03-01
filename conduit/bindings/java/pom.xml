@@ -26,12 +26,24 @@
 
     <build>
         <plugins>
+            <!--
+              Default compilation: Java 11 target.
+              Panama-specific files are EXCLUDED — they use java.lang.foreign
+              which does not exist in Java 11. When building with JDK 21+, the
+              "panama" profile adds a second compilation pass for those files.
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
                     <release>11</release>
+                    <excludes>
+                        <exclude>io/conduit/CabiBindings.java</exclude>
+                        <exclude>io/conduit/CodecBindings.java</exclude>
+                        <exclude>io/conduit/PanamaNativeBinding.java</exclude>
+                        <exclude>io/conduit/PanamaCodecBinding.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -46,7 +58,7 @@
         <!--
           Panama FFI profile: compile the Panama-specific classes (CabiBindings,
           CodecBindings, PanamaNativeBinding, PanamaCodecBinding) with Java 21.
-          Active by default when building with JDK 21+.
+          Automatically active when building with JDK 21+.
         -->
         <profile>
             <id>panama</id>

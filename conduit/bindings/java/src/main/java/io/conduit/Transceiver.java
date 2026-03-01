@@ -438,9 +438,17 @@ public class Transceiver implements AutoCloseable {
 
     /** Get the library version string. */
     public static String version() {
+        // Use the instance binding if available, otherwise create a temporary one
         try (NativeBinding b = ConduitNative.createBinding()) {
             return b.version();
+        } catch (Exception e) {
+            return "";
         }
+    }
+
+    /** Get the library version string using this transceiver's binding. */
+    public String versionInstance() {
+        return binding.version();
     }
 
     /** Get the native backend in use by this transceiver. */

@@ -5,19 +5,22 @@
 #include <jni.h>
 #include <conduit/cabi/conduit_codec_cabi.h>
 #include <cstring>
+#include <mutex>
 
-// Cache the DecodedMessage class and constructor
+// Cache the DecodedMessage class and constructor (thread-safe init)
 static jclass g_decoded_msg_class = nullptr;
 static jmethodID g_decoded_msg_ctor = nullptr;
+static std::once_flag g_decoded_msg_init;
 
 static void ensure_decoded_msg_class(JNIEnv* env) {
-    if (g_decoded_msg_class) return;
-    jclass cls = env->FindClass("io/conduit/NativeCodecBinding$DecodedMessage");
-    if (!cls) return;
-    g_decoded_msg_class = static_cast<jclass>(env->NewGlobalRef(cls));
-    env->DeleteLocalRef(cls);
-    g_decoded_msg_ctor = env->GetMethodID(g_decoded_msg_class, "<init>",
-        "(JLjava/lang/String;[B)V");
+    std::call_once(g_decoded_msg_init, [env]() {
+        jclass cls = env->FindClass("io/conduit/NativeCodecBinding$DecodedMessage");
+        if (!cls) return;
+        g_decoded_msg_class = static_cast<jclass>(env->NewGlobalRef(cls));
+        env->DeleteLocalRef(cls);
+        g_decoded_msg_ctor = env->GetMethodID(g_decoded_msg_class, "<init>",
+            "(JLjava/lang/String;[B)V");
+    });
 }
 
 extern "C" {
@@ -139,14 +142,14 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
 
     auto** payloads = new const uint8_t*[count];
     auto* lens = new size_t[count];
-    jbyte** jbuffers = new jbyte*[count];
+    auto** jbuffers = new jbyte*[count];
+    auto* jarrs = new jbyteArray[count]; // save refs for proper release
 
     for (int i = 0; i < count; i++) {
-        jbyteArray arr = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
-        jbuffers[i] = env->GetByteArrayElements(arr, nullptr);
+        jarrs[i] = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
+        jbuffers[i] = env->GetByteArrayElements(jarrs[i], nullptr);
         payloads[i] = reinterpret_cast<const uint8_t*>(jbuffers[i]);
-        lens[i] = static_cast<size_t>(env->GetArrayLength(arr));
-        env->DeleteLocalRef(arr);
+        lens[i] = static_cast<size_t>(env->GetArrayLength(jarrs[i]));
     }
 
     conduit_encode_result_t result;
@@ -157,15 +160,15 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
         payloads, lens, static_cast<size_t>(count),
         &result);
 
-    // Release
+    // Release using saved references
     for (int i = 0; i < count; i++) {
-        jbyteArray arr = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
-        env->ReleaseByteArrayElements(arr, jbuffers[i], JNI_ABORT);
-        env->DeleteLocalRef(arr);
+        env->ReleaseByteArrayElements(jarrs[i], jbuffers[i], JNI_ABORT);
+        env->DeleteLocalRef(jarrs[i]);
     }
     delete[] payloads;
     delete[] lens;
     delete[] jbuffers;
+    delete[] jarrs;
 
     if (err != 0) return nullptr;
 
