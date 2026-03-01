@@ -1,73 +1,153 @@
 #!/usr/bin/env python3
-"""PoC ASTERIX Transceiver -- Encode/Decode Roundtrip Test (client perspective)
+"""PoC ASTERIX Transceiver Application -- TCP Client (Python)
 
-Tests all record types from the client-perspective generated package (asterix).
-For each record type, generates random instances, encodes to bytes, decodes back,
-re-encodes, and verifies the byte sequences match.
+Connects to a dummy_peer server, sends random Cat007Uplink/Cat021/Cat048/
+Cat253 messages, and logs all received messages.  Uses the Conduit
+Transceiver to exercise the full stack: transport, codec, handlers, callbacks.
+No raw data handling -- Conduit completely abstracts the codec layer.
 
-Usage: python -m src.poc_app [--num-tests N] [--seed S]
+This is the Python equivalent of xcvr/src/poc_app.cpp.
+
+Usage: python -m src.poc_app [host] [port] [--interval-ms N] [--session NAME]
 """
 
 import sys
 import os
+import signal
+import time
 import random
 import argparse
 
 # Ensure the asterix generated package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 
+from conduit import Transceiver, TcpClientConfig
 from . import random_asterix
 
+# Import generated message classes for handler registration
+from generated.messages import (
+    Cat007DownlinkRecord,
+    Cat007UplinkRecord,
+    Cat021Record,
+    Cat048Record,
+    Cat253Record,
+)
 
-def test_roundtrip(name, record):
-    """Encode, decode, re-encode and verify bytes match."""
-    encoded = record.encode_bytes()
-    decoded = type(record).decode_bytes(encoded)
-    re_encoded = decoded.encode_bytes()
-    if encoded == re_encoded:
-        return True
-    print(f"FAIL: {name} roundtrip mismatch (orig={len(encoded)} re={len(re_encoded)})")
-    return False
+running = True
+
+
+def signal_handler(sig, frame):
+    global running
+    running = False
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PoC ASTERIX Encode/Decode Roundtrip Test (client perspective)")
-    parser.add_argument("--num-tests", type=int, default=100,
-                        help="Number of test iterations (default: 100)")
-    parser.add_argument("--seed", type=int, default=42,
-                        help="Random seed (default: 42)")
+        description="PoC ASTERIX Transceiver -- TCP Client")
+    parser.add_argument("host", nargs="?", default="127.0.0.1",
+                        help="Server host (default: 127.0.0.1)")
+    parser.add_argument("port", nargs="?", type=int, default=5000,
+                        help="Server port (default: 5000)")
+    parser.add_argument("--interval-ms", type=int, default=1000,
+                        help="Send interval in milliseconds (default: 1000)")
+    parser.add_argument("--session", default="asterix",
+                        help="Session name (default: asterix)")
     args = parser.parse_args()
 
-    rng = random.Random(args.seed)
-    num_tests = args.num_tests
-    passed = 0
-    failed = 0
+    # Install signal handlers (mirrors C++ signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
-    print(f"[poc_app] Running {num_tests} roundtrip iterations "
-          f"(seed={args.seed}, client perspective)")
+    print(f"[poc_app] Connecting to {args.host}:{args.port} "
+          f"(interval={args.interval_ms}ms, session={args.session})")
 
-    for i in range(num_tests):
-        for name, gen_fn in [
-            ("Cat007Uplink", random_asterix.random_cat007_uplink),
-            ("Cat007Downlink", random_asterix.random_cat007_downlink),
-            ("Cat021", random_asterix.random_cat021),
-            ("Cat048", random_asterix.random_cat048),
-            ("Cat253", random_asterix.random_cat253),
-        ]:
-            rec = gen_fn(rng)
-            if test_roundtrip(name, rec):
-                passed += 1
-            else:
-                failed += 1
+    with Transceiver() as tx:
+        # Add TCP client peer (mirrors C++ cfg.add_peer("server", ..., TcpClientConfig))
+        peer_id = tx.add_peer("server", args.session,
+                              TcpClientConfig(f"{args.host}:{args.port}"))
 
-    total = passed + failed
-    print(f"[poc_app] Results: {passed} passed, {failed} failed out of {total}")
-    if failed > 0:
-        print("[poc_app] SOME TESTS FAILED", file=sys.stderr)
-        sys.exit(1)
-    else:
-        print("[poc_app] All tests passed.")
+        # ── Typed message handlers (mirrors C++ tx.on<T>()) ──────────
+
+        @tx.on(Cat007DownlinkRecord)
+        def on_cat007_downlink(peer, msg):
+            print("[RECV] Cat007DownlinkRecord")
+
+        @tx.on(Cat021Record)
+        def on_cat021(peer, msg):
+            print(f"[RECV] {Cat021Record.TYPE_NAME}")
+
+        @tx.on(Cat048Record)
+        def on_cat048(peer, msg):
+            print(f"[RECV] {Cat048Record.TYPE_NAME}")
+
+        @tx.on(Cat253Record)
+        def on_cat253(peer, msg):
+            print(f"[RECV] {Cat253Record.TYPE_NAME}")
+
+        # ── State change callback (mirrors C++ tx.on_state_change()) ─
+
+        tx.on_state_change(lambda peer, state:
+            print(f"[STATE] peer={peer} -> {state}"))
+
+        # ── Error callback (mirrors C++ tx.on_error()) ───────────────
+
+        tx.on_error(lambda peer, peer_name, code, msg:
+            print(f"[ERROR] peer={peer_name} code={code} {msg}",
+                  file=sys.stderr))
+
+        # ── Start ────────────────────────────────────────────────────
+
+        tx.start()
+        print("[poc_app] Started. Press Ctrl+C to stop.")
+
+        # ── Send loop (mirrors C++ main loop) ────────────────────────
+
+        rng = random.Random()
+        interval_s = args.interval_ms / 1000.0
+
+        while running:
+            time.sleep(interval_s)
+            if not running:
+                break
+
+            try:
+                choice = rng.randint(0, 3)
+                if choice == 0:
+                    msg = random_asterix.random_cat007_uplink(rng)
+                    print(f"[SEND] {Cat007UplinkRecord.TYPE_NAME}")
+                    tx.send(peer_id, msg)
+                elif choice == 1:
+                    msg = random_asterix.random_cat021(rng)
+                    print(f"[SEND] {Cat021Record.TYPE_NAME}")
+                    tx.send(peer_id, msg)
+                elif choice == 2:
+                    msg = random_asterix.random_cat048(rng)
+                    print(f"[SEND] {Cat048Record.TYPE_NAME}")
+                    tx.send(peer_id, msg)
+                elif choice == 3:
+                    msg = random_asterix.random_cat253(rng)
+                    print(f"[SEND] {Cat253Record.TYPE_NAME}")
+                    tx.send(peer_id, msg)
+            except Exception as e:
+                print(f"[SEND ERROR] {e}", file=sys.stderr)
+
+        # ── Stop & stats (mirrors C++ tx.stop() + tx.stats().snapshot()) ──
+
+        print("[poc_app] Stopping...")
+        tx.stop()
+
+        s = tx.stats()
+        print(f"[STATS] received={s.messages_received}")
+        print(f" dispatched={s.messages_dispatched}")
+        print(f" dropped={s.messages_dropped}")
+        print(f" decode_errors={s.decode_errors}")
+        print(f" handler_errors={s.handler_errors}")
+        print(f" handler_timeouts={s.handler_timeouts}")
+        print(f" bytes_rx={s.bytes_received}")
+        print(f" bytes_tx={s.bytes_sent}")
+        print()
+
+    print("[poc_app] Done.")
 
 
 if __name__ == "__main__":

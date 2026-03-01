@@ -1,133 +1,293 @@
 package com.conduit.xcvr;
 
-// Dummy ASTERIX Peer -- Standalone encode/decode roundtrip test (Java)
+// Dummy ASTERIX Peer -- TCP Server or Client mode (Java)
 //
-// Creates random ASTERIX messages using the asterix_alt (server) perspective,
-// encodes them to bytes, decodes them back, and verifies the roundtrip.
+// Server mode: listens for connections, sends Cat007Downlink/Cat021/Cat048/Cat253
+//              Uses asterix_alt session (server perspective: Downlink=send, Uplink=receive)
+// Client mode: identical to PocApp (sends uplink types)
+//              Uses asterix session (client perspective: Downlink=receive, Uplink=send)
 //
-// Usage: java DummyPeer [--count N] [--seed N]
+// No raw data handling -- Conduit completely abstracts the codec layer.
+// This is the Java equivalent of xcvr/src/dummy_peer.cpp.
+//
+// Usage:
+//   java DummyPeer server [--port N] [--interval-ms N] [--session NAME]
+//   java DummyPeer client [host] [port] [--interval-ms N] [--session NAME]
 
+import asterix.*;
 import asterix_alt.*;
+import io.conduit.Transceiver;
+import io.conduit.TransportConfig;
 
-import java.util.Arrays;
 import java.util.Random;
 
 public class DummyPeer {
 
-    public static void main(String[] args) {
-        int count = 100;
-        long seed = System.currentTimeMillis();
+    private static volatile boolean running = true;
 
-        for (int i = 0; i < args.length; i++) {
-            switch (args[i]) {
-                case "--count" -> { if (i + 1 < args.length) count = Integer.parseInt(args[++i]); }
-                case "--seed"  -> { if (i + 1 < args.length) seed = Long.parseLong(args[++i]); }
+    // ── Server-mode handlers (receives uplinks, asterix_alt perspective) ──
+
+    private static void registerServerHandlers(Transceiver tx) {
+        tx.onMessage(asterix_alt.Cat007UplinkRecord.class, (peer, msg) ->
+                System.out.println("[RECV] Cat007UplinkRecord"));
+
+        tx.onMessage(asterix_alt.Cat021Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix_alt.Cat021Record.TYPE_NAME));
+
+        tx.onMessage(asterix_alt.Cat048Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix_alt.Cat048Record.TYPE_NAME));
+
+        tx.onMessage(asterix_alt.Cat253Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix_alt.Cat253Record.TYPE_NAME));
+    }
+
+    // ── Client-mode handlers (receives downlinks, asterix perspective) ───
+
+    private static void registerClientHandlers(Transceiver tx) {
+        tx.onMessage(asterix.Cat007DownlinkRecord.class, (peer, msg) ->
+                System.out.println("[RECV] Cat007DownlinkRecord"));
+
+        tx.onMessage(asterix.Cat021Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix.Cat021Record.TYPE_NAME));
+
+        tx.onMessage(asterix.Cat048Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix.Cat048Record.TYPE_NAME));
+
+        tx.onMessage(asterix.Cat253Record.class, (peer, msg) ->
+                System.out.println("[RECV] " + asterix.Cat253Record.TYPE_NAME));
+    }
+
+    // ── Server sends: Cat007Downlink, Cat021, Cat048, Cat253 (asterix_alt) ──
+
+    private static void sendServerMessage(Transceiver tx, int peerId, Random rng) {
+        try {
+            switch (rng.nextInt(4)) {
+                case 0 -> {
+                    var msg = RandomAsterixAlt.randomCat007Downlink(rng);
+                    System.out.println("[SEND] " + asterix_alt.Cat007DownlinkRecord.TYPE_NAME);
+                    tx.send(peerId, msg);
+                }
+                case 1 -> {
+                    var rec = new asterix_alt.Cat021Record();
+                    rec.items = RandomAsterixAlt.randomCat021Items(rng);
+                    System.out.println("[SEND] " + asterix_alt.Cat021Record.TYPE_NAME);
+                    tx.send(peerId, rec);
+                }
+                case 2 -> {
+                    var rec = new asterix_alt.Cat048Record();
+                    rec.items = RandomAsterixAlt.randomCat048Items(rng);
+                    System.out.println("[SEND] " + asterix_alt.Cat048Record.TYPE_NAME);
+                    tx.send(peerId, rec);
+                }
+                case 3 -> {
+                    var msg = RandomAsterixAlt.randomCat253(rng);
+                    System.out.println("[SEND] " + asterix_alt.Cat253Record.TYPE_NAME);
+                    tx.send(peerId, msg);
+                }
+            }
+        } catch (Exception e) {
+            System.err.printf("[SEND ERROR] %s%n", e.getMessage());
+        }
+    }
+
+    // ── Client sends: Cat007Uplink, Cat021, Cat048, Cat253 (asterix) ────
+
+    private static void sendClientMessage(Transceiver tx, int peerId, Random rng) {
+        try {
+            switch (rng.nextInt(4)) {
+                case 0 -> {
+                    var msg = RandomAsterix.randomCat007Uplink(rng);
+                    System.out.println("[SEND] " + asterix.Cat007UplinkRecord.TYPE_NAME);
+                    tx.send(peerId, msg);
+                }
+                case 1 -> {
+                    var rec = new asterix.Cat021Record();
+                    rec.items = RandomAsterix.randomCat021Items(rng);
+                    System.out.println("[SEND] " + asterix.Cat021Record.TYPE_NAME);
+                    tx.send(peerId, rec);
+                }
+                case 2 -> {
+                    var rec = new asterix.Cat048Record();
+                    rec.items = RandomAsterix.randomCat048Items(rng);
+                    System.out.println("[SEND] " + asterix.Cat048Record.TYPE_NAME);
+                    tx.send(peerId, rec);
+                }
+                case 3 -> {
+                    var msg = RandomAsterix.randomCat253(rng);
+                    System.out.println("[SEND] " + asterix.Cat253Record.TYPE_NAME);
+                    tx.send(peerId, msg);
+                }
+            }
+        } catch (Exception e) {
+            System.err.printf("[SEND ERROR] %s%n", e.getMessage());
+        }
+    }
+
+    // ── Stats ────────────────────────────────────────────────────────────
+
+    private static void printStats(Transceiver tx) {
+        var s = tx.stats();
+        System.out.printf("[STATS] received=%d%n dispatched=%d%n dropped=%d%n"
+                        + " decode_errors=%d%n handler_errors=%d%n handler_timeouts=%d%n"
+                        + " bytes_rx=%d%n bytes_tx=%d%n%n",
+                s.messagesReceived(), s.messagesDispatched(), s.messagesDropped(),
+                s.decodeErrors(), s.handlerErrors(), s.handlerTimeouts(),
+                s.bytesReceived(), s.bytesSent());
+    }
+
+    // ── Main ─────────────────────────────────────────────────────────────
+
+    private static void printUsage() {
+        System.err.println("Usage:");
+        System.err.println("  java DummyPeer server [--port N] [--interval-ms N] [--session NAME]");
+        System.err.println("  java DummyPeer client [host] [port] [--interval-ms N] [--session NAME]");
+    }
+
+    public static void main(String[] args) {
+        if (args.length < 1) {
+            printUsage();
+            System.exit(1);
+        }
+
+        String mode = args[0];
+        boolean isServer = mode.equals("server");
+        boolean isClient = mode.equals("client");
+
+        if (!isServer && !isClient) {
+            System.err.println("Unknown mode: " + mode);
+            printUsage();
+            System.exit(1);
+        }
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> running = false));
+
+        int intervalMs = 1000;
+
+        // Parse common options
+        for (int i = 1; i < args.length; i++) {
+            if (args[i].equals("--interval-ms") && i + 1 < args.length) {
+                intervalMs = Integer.parseInt(args[++i]);
             }
         }
 
-        System.out.printf("[dummy_peer] Starting encode/decode roundtrip test (count=%d, seed=%d)%n", count, seed);
+        if (isServer) {
+            runServer(args, intervalMs);
+        } else {
+            runClient(args, intervalMs);
+        }
 
-        var rng = new Random(seed);
+        System.out.println("[dummy_peer] Done.");
+    }
 
-        int cat007DownlinkCount = 0;
-        int cat021Count = 0;
-        int cat048Count = 0;
-        int cat253Count = 0;
-        int successCount = 0;
-        int failCount = 0;
-        long totalBytes = 0;
+    private static void runServer(String[] args, int intervalMs) {
+        int port = 5000;
+        String sessionName = "asterix_alt";
 
-        for (int i = 0; i < count; i++) {
-            try {
-                switch (rng.nextInt(4)) {
-                    case 0 -> {
-                        // Cat007 Downlink -- full record roundtrip
-                        Cat007DownlinkRecord msg = RandomAsterixAlt.randomCat007Downlink(rng);
-                        byte[] encoded = msg.encodeBytes();
-                        Cat007DownlinkRecord decoded = Cat007DownlinkRecord.decodeBytes(encoded);
-                        byte[] reencoded = decoded.encodeBytes();
-                        if (Arrays.equals(encoded, reencoded)) {
-                            successCount++;
+        for (int i = 1; i < args.length; i++) {
+            switch (args[i]) {
+                case "--port"    -> { if (i + 1 < args.length) port = Integer.parseInt(args[++i]); }
+                case "--session" -> { if (i + 1 < args.length) sessionName = args[++i]; }
+            }
+        }
+
+        System.out.printf("[dummy_peer] Server mode on port %d (interval=%dms, session=%s)%n",
+                port, intervalMs, sessionName);
+
+        try (var tx = new Transceiver()) {
+            // TCP server peer (mirrors C++ TcpServerConfig{.bind_address="0.0.0.0", .port=port})
+            int peerId = tx.addPeer("clients", sessionName,
+                    TransportConfig.tcpServer("0.0.0.0:" + port));
+
+            registerServerHandlers(tx);
+
+            tx.onStateChange((peer, newState) ->
+                    System.out.printf("[STATE] peer=%d -> %d%n", peer, newState));
+
+            tx.onError((peer, peerName, errorCode, errorMsg) ->
+                    System.err.printf("[ERROR] peer=%s code=%d %s%n",
+                            peerName, errorCode, errorMsg));
+
+            tx.start();
+            System.out.println("[dummy_peer] Listening. Press Ctrl+C to stop.");
+
+            var rng = new Random();
+            while (running) {
+                Thread.sleep(intervalMs);
+                if (!running) break;
+                sendServerMessage(tx, peerId, rng);
+            }
+
+            System.out.println("[dummy_peer] Stopping...");
+            tx.stop();
+            printStats(tx);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            System.err.printf("[ERROR] Failed to start: %s%n", e.getMessage());
+            System.exit(1);
+        }
+    }
+
+    private static void runClient(String[] args, int intervalMs) {
+        String host = "127.0.0.1";
+        int port = 5000;
+        String sessionName = "asterix";
+
+        for (int i = 1; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--session" -> { if (i + 1 < args.length) sessionName = args[++i]; }
+                default -> {
+                    if (!arg.startsWith("--")) {
+                        if (host.equals("127.0.0.1")) {
+                            host = arg;
                         } else {
-                            failCount++;
-                            System.err.printf("[FAIL] Cat007Downlink #%d: roundtrip mismatch (encoded=%d bytes, reencoded=%d bytes)%n",
-                                    i, encoded.length, reencoded.length);
+                            try { port = Integer.parseInt(arg); } catch (NumberFormatException ignored) {}
                         }
-                        totalBytes += encoded.length;
-                        cat007DownlinkCount++;
-                    }
-                    case 1 -> {
-                        // Cat021 -- items-level roundtrip
-                        Cat021RecordItems items = RandomAsterixAlt.randomCat021Items(rng);
-                        byte[] encoded = items.encodeBytes();
-                        Cat021RecordItems decoded = Cat021RecordItems.decodeBytes(encoded);
-                        byte[] reencoded = decoded.encodeBytes();
-                        if (Arrays.equals(encoded, reencoded)) {
-                            successCount++;
-                        } else {
-                            failCount++;
-                            System.err.printf("[FAIL] Cat021 #%d: roundtrip mismatch (encoded=%d bytes, reencoded=%d bytes)%n",
-                                    i, encoded.length, reencoded.length);
-                        }
-                        totalBytes += encoded.length;
-                        cat021Count++;
-                    }
-                    case 2 -> {
-                        // Cat048 -- items-level roundtrip
-                        Cat048RecordItems items = RandomAsterixAlt.randomCat048Items(rng);
-                        byte[] encoded = items.encodeBytes();
-                        Cat048RecordItems decoded = Cat048RecordItems.decodeBytes(encoded);
-                        byte[] reencoded = decoded.encodeBytes();
-                        if (Arrays.equals(encoded, reencoded)) {
-                            successCount++;
-                        } else {
-                            failCount++;
-                            System.err.printf("[FAIL] Cat048 #%d: roundtrip mismatch (encoded=%d bytes, reencoded=%d bytes)%n",
-                                    i, encoded.length, reencoded.length);
-                        }
-                        totalBytes += encoded.length;
-                        cat048Count++;
-                    }
-                    case 3 -> {
-                        // Cat253 -- full record roundtrip
-                        Cat253Record msg = RandomAsterixAlt.randomCat253(rng);
-                        byte[] encoded = msg.encodeBytes();
-                        Cat253Record decoded = Cat253Record.decodeBytes(encoded);
-                        byte[] reencoded = decoded.encodeBytes();
-                        if (Arrays.equals(encoded, reencoded)) {
-                            successCount++;
-                        } else {
-                            failCount++;
-                            System.err.printf("[FAIL] Cat253 #%d: roundtrip mismatch (encoded=%d bytes, reencoded=%d bytes)%n",
-                                    i, encoded.length, reencoded.length);
-                        }
-                        totalBytes += encoded.length;
-                        cat253Count++;
+                    } else if (i + 1 < args.length) {
+                        ++i;  // skip flag value
                     }
                 }
-            } catch (Exception e) {
-                failCount++;
-                System.err.printf("[ERROR] Message #%d threw exception: %s%n", i, e.getMessage());
             }
         }
 
-        System.out.println();
-        System.out.println("[dummy_peer] ========== RESULTS ==========");
-        System.out.printf("[dummy_peer] Total messages:      %d%n", count);
-        System.out.printf("[dummy_peer]   Cat007 Downlink:   %d%n", cat007DownlinkCount);
-        System.out.printf("[dummy_peer]   Cat021 Items:      %d%n", cat021Count);
-        System.out.printf("[dummy_peer]   Cat048 Items:      %d%n", cat048Count);
-        System.out.printf("[dummy_peer]   Cat253:            %d%n", cat253Count);
-        System.out.printf("[dummy_peer] Roundtrip success:   %d%n", successCount);
-        System.out.printf("[dummy_peer] Roundtrip failures:  %d%n", failCount);
-        System.out.printf("[dummy_peer] Total bytes encoded: %d%n", totalBytes);
-        System.out.println("[dummy_peer] ==============================");
+        System.out.printf("[dummy_peer] Client mode connecting to %s:%d (interval=%dms, session=%s)%n",
+                host, port, intervalMs, sessionName);
 
-        if (failCount > 0) {
-            System.out.println("[dummy_peer] SOME TESTS FAILED!");
+        try (var tx = new Transceiver()) {
+            // TCP client peer (mirrors C++ TcpClientConfig{.host=host, .port=port})
+            int peerId = tx.addPeer("server", sessionName,
+                    TransportConfig.tcpClient(host + ":" + port));
+
+            registerClientHandlers(tx);
+
+            tx.onStateChange((peer, newState) ->
+                    System.out.printf("[STATE] peer=%d -> %d%n", peer, newState));
+
+            tx.onError((peer, peerName, errorCode, errorMsg) ->
+                    System.err.printf("[ERROR] peer=%s code=%d %s%n",
+                            peerName, errorCode, errorMsg));
+
+            tx.start();
+            System.out.println("[dummy_peer] Started. Press Ctrl+C to stop.");
+
+            var rng = new Random();
+            while (running) {
+                Thread.sleep(intervalMs);
+                if (!running) break;
+                sendClientMessage(tx, peerId, rng);
+            }
+
+            System.out.println("[dummy_peer] Stopping...");
+            tx.stop();
+            printStats(tx);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            System.err.printf("[ERROR] Failed to start: %s%n", e.getMessage());
             System.exit(1);
-        } else {
-            System.out.println("[dummy_peer] All roundtrip tests passed.");
         }
     }
 }

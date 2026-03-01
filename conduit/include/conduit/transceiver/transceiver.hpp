@@ -182,6 +182,9 @@ public:
     [[nodiscard]] std::vector<PeerId> peer_ids() const;
     [[nodiscard]] const TransceiverStats& stats() const noexcept { return stats_; }
 
+    // Reset all statistics counters to zero.
+    void stats_reset() noexcept { stats_.reset(); }
+
     // Access the handler registry (for C ABI raw catch-all installation).
     HandlerRegistry& handlers() noexcept { return handlers_; }
 
