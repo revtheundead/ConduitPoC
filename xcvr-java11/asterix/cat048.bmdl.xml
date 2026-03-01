@@ -1,0 +1,1007 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ASTERIX Category 048 - Monoradar Target Reports
+  Edition 1.23, 31/07/2017 (EUROCONTROL-SPEC-0149-4)
+
+  Standard UAP: 4 FSPEC octets, 28 FRN positions
+-->
+<bmdl version="2.0">
+  <import href="types.bmdl.xml"/>
+
+  <types>
+
+    <!-- =======================================================================
+         I048/020 - Target Report Descriptor
+         Variable length (1+ octets, FX extension chain)
+         ======================================================================= -->
+    <struct name="Cat048I020">
+      <doc>I048/020 - Target Report Descriptor</doc>
+      <field name="typ" type="DetectionType">
+        <doc>Type of detection</doc>
+      </field>
+      <field name="sim" type="SimIndicator">
+        <doc>Simulated target indicator</doc>
+      </field>
+      <field name="rdp" type="RdpChain">
+        <doc>RDP chain selection</doc>
+      </field>
+      <field name="spi" type="SpiPresence">
+        <doc>SPI presence indicator</doc>
+      </field>
+      <field name="rab" type="ReportSource">
+        <doc>Report source type</doc>
+      </field>
+      <fx>
+        <field name="tst" type="TestTarget">
+          <doc>Test target indicator</doc>
+        </field>
+        <field name="err" type="ExtendedRange">
+          <doc>Extended range indicator</doc>
+        </field>
+        <field name="xpp" type="XPulsePresence">
+          <doc>X-Pulse presence</doc>
+        </field>
+        <field name="me" type="MilitaryEmergency">
+          <doc>Military emergency indicator</doc>
+        </field>
+        <field name="mi" type="MilitaryId">
+          <doc>Military identification indicator</doc>
+        </field>
+        <field name="foeFri" type="FoeFriId">
+          <doc>Foe/Friend Identification</doc>
+        </field>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I048/030 - Warning/Error Conditions and Target Classification
+         Variable length (1+ octets, FX extension chain)
+         Each octet: 7-bit W/E value + FX bit
+         ======================================================================= -->
+    <struct name="Cat048I030">
+      <doc>I048/030 - Warning/Error Conditions and Target Classification</doc>
+      <field name="we" bits="7">
+        <doc>Warning/Error condition value (0-127)</doc>
+      </field>
+      <fx>
+        <field name="we1" bits="7">
+          <doc>Additional Warning/Error condition value</doc>
+        </field>
+        <fx>
+          <field name="we2" bits="7">
+            <doc>Additional Warning/Error condition value</doc>
+          </field>
+        </fx>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I048/040 - Measured Position in Slant Polar Co-ordinates
+         Fixed 4 octets: RHO (16-bit unsigned) + THETA (16-bit unsigned)
+         ======================================================================= -->
+    <struct name="Cat048I040">
+      <doc>I048/040 - Measured Position in Slant Polar Co-ordinates</doc>
+      <field name="rho" type="uint16">
+        <doc>Slant range, LSB = 1/256 NM (max ~256 NM)</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="theta" type="uint16">
+        <doc>Azimuth, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/042 - Calculated Position in Cartesian Co-ordinates
+         Fixed 4 octets: X (16-bit signed) + Y (16-bit signed)
+         ======================================================================= -->
+    <struct name="Cat048I042">
+      <doc>I048/042 - Calculated Position in Cartesian Co-ordinates</doc>
+      <field name="x" type="int16">
+        <doc>X component, LSB = 1/128 NM (~0.0078 NM)</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="y" type="int16">
+        <doc>Y component, LSB = 1/128 NM (~0.0078 NM)</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/050 - Mode-2 Code in Octal Representation
+         Fixed 2 octets: V(1) G(1) L(1) spare(1) Code(12)
+         ======================================================================= -->
+    <struct name="Cat048I050">
+      <doc>I048/050 - Mode-2 Code in Octal Representation</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="CodeSourceSmoothed">
+        <doc>Code source indicator</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="code" bits="12">
+        <doc>Mode-2 code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/055 - Mode-1 Code in Octal Representation
+         Fixed 1 octet: V(1) G(1) L(1) Code(5)
+         ======================================================================= -->
+    <struct name="Cat048I055">
+      <doc>I048/055 - Mode-1 Code in Octal Representation</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="CodeSourceSmoothed">
+        <doc>Code source indicator</doc>
+      </field>
+      <field name="code" bits="5">
+        <doc>Mode-1 code (5 bits, octal representation)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/060 - Mode-2 Code Confidence Indicator
+         Fixed 2 octets: spare(4) + QXi(12)
+         ======================================================================= -->
+    <struct name="Cat048I060">
+      <doc>I048/060 - Mode-2 Code Confidence Indicator</doc>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-2 code (QA4..QD1, 0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/065 - Mode-1 Code Confidence Indicator
+         Fixed 1 octet: spare(3) + QXi(5)
+         ======================================================================= -->
+    <struct name="Cat048I065">
+      <doc>I048/065 - Mode-1 Code Confidence Indicator</doc>
+      <reserved bits="3"/>
+      <field name="qxi" bits="5">
+        <doc>Quality bits for Mode-1 code (0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/070 - Mode-3/A Code in Octal Representation
+         Fixed 2 octets: V(1) G(1) L(1) spare(1) Code(12)
+         ======================================================================= -->
+    <struct name="Cat048I070">
+      <doc>I048/070 - Mode-3/A Code in Octal Representation</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="CodeSourceExtracted">
+        <doc>Code extraction indicator</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="code" bits="12">
+        <doc>Mode-3/A code in octal representation (A4 A2 A1 B4 B2 B1 C4 C2 C1 D4 D2 D1)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/080 - Mode-3/A Code Confidence Indicator
+         Fixed 2 octets: spare(4) + QXi(12)
+         ======================================================================= -->
+    <struct name="Cat048I080">
+      <doc>I048/080 - Mode-3/A Code Confidence Indicator</doc>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-3/A code (QA4..QD1, 0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/090 - Flight Level in Binary Representation
+         Fixed 2 octets: V(1) G(1) FL(14 signed)
+         ======================================================================= -->
+    <struct name="Cat048I090">
+      <doc>I048/090 - Flight Level in Binary Representation</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="fl" bits="14" signed="true">
+        <doc>Flight Level, LSB = 1/4 FL (range -12 to 1500 FL)</doc>
+        <scale>0.25</scale>
+        <unit>FL</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/100 - Mode-C Code and Code Confidence Indicator
+         Fixed 4 octets:
+           Octets 1-2: V(1) G(1) spare(2) Mode-C-code(12) in Gray notation
+           Octets 3-4: spare(4) QXi(12)
+         ======================================================================= -->
+    <struct name="Cat048I100">
+      <doc>I048/100 - Mode-C Code and Code Confidence Indicator</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="code" bits="12">
+        <doc>Mode-C code in Gray notation</doc>
+      </field>
+      <reserved bits="4"/>
+      <field name="qxi" bits="12">
+        <doc>Quality bits for Mode-C code (0=high quality, 1=low quality)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/110 - Height Measured by a 3D Radar
+         Fixed 2 octets: spare(2) Height(14 signed)
+         ======================================================================= -->
+    <struct name="Cat048I110">
+      <doc>I048/110 - Height Measured by a 3D Radar</doc>
+      <reserved bits="2"/>
+      <field name="height3d" bits="14" signed="true">
+        <doc>3D height above reference plane, LSB = 25 ft</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/120 - Radial Doppler Speed
+         Compound data item: primary subfield (1 octet, FX-extensible)
+         Subfield #1: Calculated Doppler Speed (2 octets)
+         Subfield #2: Raw Doppler Speed (repetitive: REP + N*(DOP+AMB+FRQ))
+         ======================================================================= -->
+
+    <!-- Subfield #1: Calculated Doppler Speed (2 octets) -->
+    <struct name="Cat048I120Cal">
+      <doc>Calculated Doppler Speed</doc>
+      <field name="d" type="DopplerValidity">
+        <doc>Doppler speed validity</doc>
+      </field>
+      <reserved bits="5"/>
+      <field name="cal" bits="10" signed="true">
+        <doc>Calculated Doppler Speed, LSB = 1 m/s</doc>
+        <unit>m/s</unit>
+      </field>
+    </struct>
+
+    <!-- Subfield #2: Raw Doppler Speed (repetitive) -->
+    <!-- NOTE: DOP is uint16 (unsigned) in Cat048, unlike Cat007 which uses int16 (signed) -->
+    <struct name="Cat048I120Rds">
+      <doc>Raw Doppler Speed</doc>
+      <field name="rep" type="uint8" auto="count(doppler)">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="doppler" count-from="rep">
+        <field name="dop" type="uint16">
+          <doc>Doppler Speed (unsigned), LSB = 1 m/s</doc>
+          <unit>m/s</unit>
+        </field>
+        <field name="amb" type="uint16">
+          <doc>Ambiguity Range, LSB = 1 m/s</doc>
+          <unit>m/s</unit>
+        </field>
+        <field name="frq" type="uint16">
+          <doc>Transmitter Frequency, LSB = 1 MHz</doc>
+          <unit>MHz</unit>
+        </field>
+      </array>
+    </struct>
+
+    <!-- I048/120 Compound Item -->
+    <struct name="Cat048I120">
+      <doc>
+        I048/120 - Radial Doppler Speed
+        Compound data item with FX-extensible primary subfield.
+        Bits 7 (CAL) and 6 (RDS) control presence of subfields.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="cal" bit="7" type="Cat048I120Cal">
+          <doc>Subfield #1: Calculated Doppler Speed</doc>
+        </field>
+        <field name="rds" bit="6" type="Cat048I120Rds">
+          <doc>Subfield #2: Raw Doppler Speed</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I048/130 - Radar Plot Characteristics
+         Compound data item: primary subfield (1 octet, FX-extensible)
+         Up to 7 subfields, each 1 octet.
+         ======================================================================= -->
+    <struct name="Cat048I130">
+      <doc>
+        I048/130 - Radar Plot Characteristics
+        Compound data item (FX-extensible primary subfield)
+        with up to 7 one-octet subfields.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="srl" bit="7" type="uint8">
+          <doc>SSR Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
+        </field>
+        <field name="srr" bit="6" type="uint8">
+          <doc>Number of Received Replies for (M)SSR</doc>
+        </field>
+        <field name="sam" bit="5" type="int8">
+          <doc>Amplitude of (M)SSR Reply, LSB = 1 dBm</doc>
+        </field>
+        <field name="prl" bit="4" type="uint8">
+          <doc>Primary Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
+        </field>
+        <field name="pam" bit="3" type="int8">
+          <doc>Amplitude of Primary Plot, LSB = 1 dBm</doc>
+        </field>
+        <field name="rpd" bit="2" type="int8">
+          <doc>Difference in Range (PSR-SSR), LSB = 1/256 NM</doc>
+        </field>
+        <field name="apd" bit="1" type="int8">
+          <doc>Difference in Azimuth (PSR-SSR), LSB = 360/2^14 degrees</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- =======================================================================
+         I048/161 - Track Number
+         Fixed 2 octets: spare(4) + TrackNumber(12)
+         ======================================================================= -->
+    <struct name="Cat048I161">
+      <doc>I048/161 - Track Number</doc>
+      <reserved bits="4"/>
+      <field name="trackNumber" bits="12">
+        <doc>Track number (0..4095)</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/170 - Track Status
+         Variable length (1+ octets, FX extension chain)
+         ======================================================================= -->
+    <struct name="Cat048I170">
+      <doc>I048/170 - Track Status</doc>
+      <field name="cnf" type="TrackConfidence">
+        <doc>Track confidence level</doc>
+      </field>
+      <field name="rad" type="SensorType">
+        <doc>Type of sensor maintaining track</doc>
+      </field>
+      <field name="dou" type="AssocConfidence">
+        <doc>Association confidence level</doc>
+      </field>
+      <field name="mah" type="HorizManeuver">
+        <doc>Horizontal maneuver indicator</doc>
+      </field>
+      <field name="cdm" type="ClimbDescendMode">
+        <doc>Climbing/Descending Mode</doc>
+      </field>
+      <fx>
+        <field name="tre" type="TrackLifetime">
+          <doc>Track lifetime status</doc>
+        </field>
+        <field name="gho" type="GhostTarget">
+          <doc>Ghost target indicator</doc>
+        </field>
+        <field name="sup" type="NeighborSupport">
+          <doc>Neighbor node support</doc>
+        </field>
+        <field name="tcc" type="TrackCoordType">
+          <doc>Track coordinate type</doc>
+        </field>
+        <reserved bits="3"/>
+      </fx>
+    </struct>
+
+    <!-- =======================================================================
+         I048/200 - Calculated Track Velocity in Polar Co-ordinates
+         Fixed 4 octets: Groundspeed(16 unsigned) + Heading(16 unsigned)
+         ======================================================================= -->
+    <struct name="Cat048I200">
+      <doc>I048/200 - Calculated Track Velocity in Polar Co-ordinates</doc>
+      <field name="groundSpeed" type="uint16">
+        <doc>Calculated groundspeed, LSB = 2^-14 NM/s (~0.22 kt), max 2 NM/s</doc>
+        <scale>6.103515625e-5</scale>
+        <unit>NM/s</unit>
+      </field>
+      <field name="heading" type="uint16">
+        <doc>Calculated heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
+        <scale>0.0054931640625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/210 - Track Quality
+         Fixed 4 octets: SigmaX(8) + SigmaY(8) + SigmaV(8) + SigmaH(8)
+         ======================================================================= -->
+    <struct name="Cat048I210">
+      <doc>I048/210 - Track Quality (standard deviations)</doc>
+      <field name="sigmaX" type="uint8">
+        <doc>Std dev on horizontal axis of local grid, LSB = 1/128 NM</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="sigmaY" type="uint8">
+        <doc>Std dev on vertical axis of local grid, LSB = 1/128 NM</doc>
+        <scale>0.0078125</scale>
+        <unit>NM</unit>
+      </field>
+      <field name="sigmaV" type="uint8">
+        <doc>Std dev on groundspeed, LSB = 2^-14 NM/s (~0.22 kt)</doc>
+        <scale>6.103515625e-5</scale>
+        <unit>NM/s</unit>
+      </field>
+      <field name="sigmaH" type="uint8">
+        <doc>Std dev on heading, LSB = 360/2^12 degrees (~0.088 deg)</doc>
+        <scale>0.087890625</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/230 - Communications/ACAS Capability and Flight Status
+         Fixed 2 octets: COM(3) STAT(3) SI(1) spare(1) MSSC(1) ARC(1) AIC(1) B1A(1) B1B(4)
+         ======================================================================= -->
+    <struct name="Cat048I230">
+      <doc>I048/230 - Communications/ACAS Capability and Flight Status</doc>
+      <field name="com" type="CommCapability">
+        <doc>Communications capability of the transponder</doc>
+      </field>
+      <field name="stat" type="FlightStatus">
+        <doc>Flight Status</doc>
+      </field>
+      <field name="si" type="SiIiCapability">
+        <doc>SI/II code capability</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="mssc" type="ModeSServiceCap">
+        <doc>Mode-S service capability</doc>
+      </field>
+      <field name="arc" type="AltResolution">
+        <doc>Altitude reporting resolution</doc>
+      </field>
+      <field name="aic" type="AircraftIdCap">
+        <doc>Aircraft identification capability</doc>
+      </field>
+      <field name="b1a" bits="1">
+        <doc>BDS 1,0 bit 16</doc>
+      </field>
+      <field name="b1b" bits="4">
+        <doc>BDS 1,0 bits 37/40</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         I048/250 - Mode S MB Data
+         Repetitive data item: REP(8) + N * (MB-Data(56) + BDS1(4) + BDS2(4))
+         ======================================================================= -->
+    <struct name="Cat048I250">
+      <doc>I048/250 - Mode S MB Data</doc>
+      <field name="rep" type="uint8" auto="count(bds)">
+        <doc>Repetition factor</doc>
+      </field>
+      <array name="bds" count-from="rep">
+        <field name="mbData" bytes="7">
+          <doc>56-bit Mode S Comm B message data</doc>
+        </field>
+        <field name="bds1" bits="4">
+          <doc>Comm B Data Buffer Store 1 Address</doc>
+        </field>
+        <field name="bds2" bits="4">
+          <doc>Comm B Data Buffer Store 2 Address</doc>
+        </field>
+      </array>
+    </struct>
+
+    <!-- =======================================================================
+         I048/260 - ACAS Resolution Advisory Report
+         Fixed 7 octets: 56-bit MB Data (BDS Register 3,0)
+         ======================================================================= -->
+    <struct name="Cat048I260">
+      <doc>I048/260 - ACAS Resolution Advisory Report (BDS 3,0)</doc>
+      <field name="mbData" bytes="7">
+        <doc>56-bit Mode S Comm B message data of BDS Register 3,0</doc>
+      </field>
+    </struct>
+
+    <!-- =======================================================================
+         CAT048 REF - Reserved Expansion Field (Ed 1.9, 31/07/2017)
+         EUROCONTROL-SPEC-0149-4 Appendix A
+         ======================================================================= -->
+
+    <!-- Shared sub-subfield: Mode 5 Summary (SUM) - 1 octet
+         Used by both MD5 and M5N compound subfields -->
+    <struct name="Cat048ReSum">
+      <doc>Mode 5 Summary</doc>
+      <field name="m5" bits="1">
+        <doc>0 = No Mode 5 interrogation, 1 = Mode 5 interrogation</doc>
+      </field>
+      <field name="id" bits="1">
+        <doc>0 = No authenticated Mode 5 ID reply, 1 = Authenticated Mode 5 ID reply</doc>
+      </field>
+      <field name="da" bits="1">
+        <doc>0 = No authenticated Mode 5 Data reply,
+             1 = Authenticated Mode 5 Data reply</doc>
+      </field>
+      <field name="m1" bits="1">
+        <doc>0 = Mode 1 code not present or not from Mode 5 reply,
+             1 = Mode 1 code from Mode 5 reply</doc>
+      </field>
+      <field name="m2" bits="1">
+        <doc>0 = Mode 2 code not present or not from Mode 5 reply,
+             1 = Mode 2 code from Mode 5 reply</doc>
+      </field>
+      <field name="m3" bits="1">
+        <doc>0 = Mode 3/A code not present or not from Mode 5 reply,
+             1 = Mode 3/A code from Mode 5 reply</doc>
+      </field>
+      <field name="mc" bits="1">
+        <doc>0 = Mode C altitude not present or not from Mode 5 reply,
+             1 = Mode C altitude from Mode 5 reply</doc>
+      </field>
+      <reserved bits="1"/>
+    </struct>
+
+    <!-- Shared sub-subfield: Mode 5 GNSS-derived Position (POS) - 6 octets -->
+    <struct name="Cat048RePos">
+      <doc>Mode 5 GNSS-derived Position</doc>
+      <field name="lat" type="int24">
+        <doc>WGS-84 Latitude, LSB = 180/2^23 degrees (~0.0000215 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+      <field name="lon" type="int24">
+        <doc>WGS-84 Longitude, LSB = 180/2^23 degrees (~0.0000215 deg)</doc>
+        <scale>2.1457672119140625e-5</scale>
+        <unit>degrees</unit>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: Mode 5 GNSS-derived Altitude (GA) - 2 octets -->
+    <struct name="Cat048ReGa">
+      <doc>Mode 5 GNSS-derived Altitude</doc>
+      <reserved bits="1"/>
+      <field name="res" type="AltResolution">
+        <doc>Altitude reporting resolution</doc>
+      </field>
+      <field name="ga" bits="14" signed="true">
+        <doc>GNSS-derived Altitude of target, LSB = 25 ft, 14-bit signed</doc>
+        <scale>25</scale>
+        <unit>ft</unit>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: Extended Mode 1 Code (EM1) - 2 octets -->
+    <struct name="Cat048ReEm1">
+      <doc>Extended Mode 1 Code in Octal Representation</doc>
+      <field name="v" type="CodeValidated">
+        <doc>Code validation status</doc>
+      </field>
+      <field name="g" type="CodeGarbled">
+        <doc>Code garbled indicator</doc>
+      </field>
+      <field name="l" type="CodeSourceExtracted">
+        <doc>Code extraction indicator</doc>
+      </field>
+      <reserved bits="1"/>
+      <field name="em1" bits="12">
+        <doc>Mode 1 Code in octal representation</doc>
+      </field>
+    </struct>
+
+    <!-- Shared sub-subfield: X Pulse Presence (XP) - 1 octet -->
+    <struct name="Cat048ReXp">
+      <doc>X Pulse Presence</doc>
+      <reserved bits="2"/>
+      <field name="xp" bits="1">
+        <doc>0 = X-pulse not present, 1 = X-pulse present</doc>
+      </field>
+      <field name="x5" bits="1">
+        <doc>0 = X-pulse set to zero or no authenticated Data reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="xc" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode C reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x3" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 3/A reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x2" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 2 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+      <field name="x1" bits="1">
+        <doc>0 = X-pulse set to zero or no Mode 1 reply,
+             1 = X-pulse set to one (present)</doc>
+      </field>
+    </struct>
+
+    <!-- MD5 sub-subfield: PIN/NAV/NAT/MIS (PMN) - 4 octets -->
+    <struct name="Cat048ReMd5Pmn">
+      <doc>Mode 5 PIN/National Origin/Mission Code (MD5 format)</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="nav" type="NatOriginValidity">
+        <doc>National origin validity</doc>
+      </field>
+      <field name="nat" bits="5">
+        <doc>National Origin</doc>
+      </field>
+      <reserved bits="2"/>
+      <field name="mis" bits="6">
+        <doc>Mission Code</doc>
+      </field>
+    </struct>
+
+    <!-- MD5: Mode 5 Data reports & Extended Mode 2 Code (compound) -->
+    <struct name="Cat048ReMd5">
+      <doc>
+        MD5 - Mode 5 Data reports &amp; Extended Mode 2 Code.
+        Compound data item with FX-extensible primary subfield,
+        up to 7 subfields: SUM, PMN, POS, GA, EM1, TOS, XP.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sum" bit="7" type="Cat048ReSum">
+          <doc>Mode 5 Summary</doc>
+        </field>
+        <field name="pmn" bit="6" type="Cat048ReMd5Pmn">
+          <doc>Mode 5 PIN/National Origin/Mission Code</doc>
+        </field>
+        <field name="pos" bit="5" type="Cat048RePos">
+          <doc>Mode 5 GNSS-derived Position</doc>
+        </field>
+        <field name="ga" bit="4" type="Cat048ReGa">
+          <doc>Mode 5 GNSS-derived Altitude</doc>
+        </field>
+        <field name="em1" bit="3" type="Cat048ReEm1">
+          <doc>Extended Mode 1 Code in Octal Representation</doc>
+        </field>
+        <field name="tos" bit="2" type="int8">
+          <doc>Time Offset for Mode 5 Data, LSB = 1/128 s, range +/- 1 s</doc>
+          <scale>0.0078125</scale>
+          <unit>seconds</unit>
+        </field>
+        <field name="xp" bit="1" type="Cat048ReXp">
+          <doc>X Pulse Presence</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- M5N sub-subfield: PIN/NOV/NO (PMN) - 4 octets (new format) -->
+    <struct name="Cat048ReM5nPmn">
+      <doc>Mode 5 PIN/National Origin (M5N new format)</doc>
+      <reserved bits="2"/>
+      <field name="pin" bits="14">
+        <doc>PIN Code</doc>
+      </field>
+      <reserved bits="4"/>
+      <field name="nov" type="NatOriginValidity">
+        <doc>National origin validity</doc>
+      </field>
+      <field name="no" bits="11">
+        <doc>National Origin</doc>
+      </field>
+    </struct>
+
+    <!-- M5N sub-subfield: Figure of Merit (FOM) - 1 octet -->
+    <struct name="Cat048ReM5nFom">
+      <doc>Figure of Merit</doc>
+      <reserved bits="3"/>
+      <field name="fom" bits="5">
+        <doc>Figure of Merit, range 0-31</doc>
+      </field>
+    </struct>
+
+    <!-- M5N: Mode 5 Data reports, New Format (compound, 2-octet primary) -->
+    <struct name="Cat048ReM5n">
+      <doc>
+        M5N - Mode 5 Data reports, New Format.
+        Compound data item with FX-extensible primary subfield (up to 2 octets),
+        up to 8 subfields: SUM, PMN, POS, GA, EM1, TOS, XP, FOM.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap bits="16" ext="0"/>
+        <field name="sum" bit="7" type="Cat048ReSum">
+          <doc>Mode 5 Summary</doc>
+        </field>
+        <field name="pmn" bit="6" type="Cat048ReM5nPmn">
+          <doc>Mode 5 PIN/National Origin (new format)</doc>
+        </field>
+        <field name="pos" bit="5" type="Cat048RePos">
+          <doc>Mode 5 GNSS-derived Position</doc>
+        </field>
+        <field name="ga" bit="4" type="Cat048ReGa">
+          <doc>Mode 5 GNSS-derived Altitude</doc>
+        </field>
+        <field name="em1" bit="3" type="Cat048ReEm1">
+          <doc>Extended Mode 1 Code in Octal Representation</doc>
+        </field>
+        <field name="tos" bit="2" type="int8">
+          <doc>Time Offset for Mode 5 Data, LSB = 1/128 s, range +/- 1 s</doc>
+          <scale>0.0078125</scale>
+          <unit>seconds</unit>
+        </field>
+        <field name="xp" bit="1" type="Cat048ReXp">
+          <doc>X Pulse Presence</doc>
+        </field>
+        <field name="fom" bit="15" type="Cat048ReM5nFom">
+          <doc>Figure of Merit</doc>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- M4E: Extended Mode 4 Report (variable, FX chain) -->
+    <struct name="Cat048ReM4e">
+      <doc>Extended Mode 4 Report</doc>
+      <reserved bits="5"/>
+      <field name="foeFri" type="FoeFriId">
+        <doc>Foe/Friend Identification</doc>
+      </field>
+      <fx>
+        <!-- No extensions defined in Ed 1.9; FX structure preserved -->
+        <reserved bits="7"/>
+      </fx>
+    </struct>
+
+    <!-- RPC: Radar Plot Characteristics (compound) -->
+    <struct name="Cat048ReRpc">
+      <doc>
+        RPC - Radar Plot Characteristics.
+        Compound data item with FX-extensible primary subfield,
+        up to 4 subfields: SCO, SCR, RW, AR.
+      </doc>
+      <struct name="sub" presence="bitmap">
+        <bitmap ext="0"/>
+        <field name="sco" bit="7" type="uint8">
+          <doc>Score (confidence indicator), range 0-255</doc>
+        </field>
+        <field name="scr" bit="6" type="uint16">
+          <doc>Signal/Clutter Ratio, LSB = 0.1 dB</doc>
+          <scale>0.1</scale>
+          <unit>dB</unit>
+        </field>
+        <field name="rw" bit="5" type="uint16">
+          <doc>Range Width, LSB = 1/256 NM</doc>
+          <scale>0.00390625</scale>
+          <unit>NM</unit>
+        </field>
+        <field name="ar" bit="4" type="uint16">
+          <doc>Ambiguity Range, LSB = 1/256 NM</doc>
+          <scale>0.00390625</scale>
+          <unit>NM</unit>
+        </field>
+      </struct>
+    </struct>
+
+    <!-- ERR: Extended Range Report (fixed, 3 octets) -->
+    <struct name="Cat048ReErr">
+      <doc>Extended Range Report</doc>
+      <field name="rho" type="uint24">
+        <doc>Measured Distance (rho), LSB = 1/256 NM</doc>
+        <scale>0.00390625</scale>
+        <unit>NM</unit>
+      </field>
+    </struct>
+
+  </types>
+
+  <messages>
+    <!-- =======================================================================
+         CAT048 Record
+         FSPEC bitmap with 4 FSPEC octets (28 FRN positions)
+         ======================================================================= -->
+    <message id="48" name="Cat048Record">
+      <doc>
+        CAT048 Record (Monoradar Target Reports, Edition 1.23)
+        Standard User Application Profile with 4 FSPEC octets, 26 data items + SP + RE.
+      </doc>
+
+      <struct name="items" presence="bitmap">
+        <bitmap ext="0"/>
+
+        <!-- FSPEC Octet 1 (FRN 1-7) -->
+
+        <!-- FRN 1: I048/010 - Data Source Identifier (2 octets) -->
+        <field name="i010" bit="7" type="DataSourceId">
+          <doc>I048/010 - Data Source Identifier (SAC/SIC)</doc>
+        </field>
+
+        <!-- FRN 2: I048/140 - Time of Day (3 octets) -->
+        <field name="i140" bit="6" type="TimeOfDay">
+          <doc>I048/140 - Time of Day</doc>
+        </field>
+
+        <!-- FRN 3: I048/020 - Target Report Descriptor (1+ octets) -->
+        <field name="i020" bit="5" type="Cat048I020">
+          <doc>I048/020 - Target Report Descriptor</doc>
+        </field>
+
+        <!-- FRN 4: I048/040 - Measured Position in Slant Polar (4 octets) -->
+        <field name="i040" bit="4" type="Cat048I040">
+          <doc>I048/040 - Measured Position in Slant Polar Coordinates</doc>
+        </field>
+
+        <!-- FRN 5: I048/070 - Mode-3/A Code in Octal (2 octets) -->
+        <field name="i070" bit="3" type="Cat048I070">
+          <doc>I048/070 - Mode-3/A Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 6: I048/090 - Flight Level in Binary (2 octets) -->
+        <field name="i090" bit="2" type="Cat048I090">
+          <doc>I048/090 - Flight Level in Binary Representation</doc>
+        </field>
+
+        <!-- FRN 7: I048/130 - Radar Plot Characteristics (1+ octets, compound) -->
+        <field name="i130" bit="1" type="Cat048I130">
+          <doc>I048/130 - Radar Plot Characteristics</doc>
+        </field>
+
+        <!-- FSPEC Octet 2 (FRN 8-14) -->
+
+        <!-- FRN 8: I048/220 - Aircraft Address (3 octets) -->
+        <field name="i220" bit="15" type="AircraftAddress">
+          <doc>I048/220 - Aircraft Address (24-bit ICAO)</doc>
+        </field>
+
+        <!-- FRN 9: I048/240 - Aircraft Identification (6 octets) -->
+        <field name="i240" bit="14" type="AircraftIdent">
+          <doc>I048/240 - Aircraft Identification (8 chars x 6 bits)</doc>
+        </field>
+
+        <!-- FRN 10: I048/250 - Mode S MB Data (1+8*n octets) -->
+        <field name="i250" bit="13" type="Cat048I250">
+          <doc>I048/250 - Mode S MB Data</doc>
+        </field>
+
+        <!-- FRN 11: I048/161 - Track Number (2 octets) -->
+        <field name="i161" bit="12" type="Cat048I161">
+          <doc>I048/161 - Track Number</doc>
+        </field>
+
+        <!-- FRN 12: I048/042 - Calculated Position in Cartesian (4 octets) -->
+        <field name="i042" bit="11" type="Cat048I042">
+          <doc>I048/042 - Calculated Position in Cartesian Coordinates</doc>
+        </field>
+
+        <!-- FRN 13: I048/200 - Calculated Track Velocity in Polar (4 octets) -->
+        <field name="i200" bit="10" type="Cat048I200">
+          <doc>I048/200 - Calculated Track Velocity in Polar Representation</doc>
+        </field>
+
+        <!-- FRN 14: I048/170 - Track Status (1+ octets) -->
+        <field name="i170" bit="9" type="Cat048I170">
+          <doc>I048/170 - Track Status</doc>
+        </field>
+
+        <!-- FSPEC Octet 3 (FRN 15-21) -->
+
+        <!-- FRN 15: I048/210 - Track Quality (4 octets) -->
+        <field name="i210" bit="23" type="Cat048I210">
+          <doc>I048/210 - Track Quality</doc>
+        </field>
+
+        <!-- FRN 16: I048/030 - Warning/Error Conditions (1+ octets) -->
+        <field name="i030" bit="22" type="Cat048I030">
+          <doc>I048/030 - Warning/Error Conditions</doc>
+        </field>
+
+        <!-- FRN 17: I048/080 - Mode-3/A Code Confidence (2 octets) -->
+        <field name="i080" bit="21" type="Cat048I080">
+          <doc>I048/080 - Mode-3/A Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 18: I048/100 - Mode-C Code and Confidence (4 octets) -->
+        <field name="i100" bit="20" type="Cat048I100">
+          <doc>I048/100 - Mode-C Code and Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 19: I048/110 - Height Measured by 3D Radar (2 octets) -->
+        <field name="i110" bit="19" type="Cat048I110">
+          <doc>I048/110 - Height Measured by 3D Radar</doc>
+        </field>
+
+        <!-- FRN 20: I048/120 - Radial Doppler Speed (1+ octets, compound) -->
+        <field name="i120" bit="18" type="Cat048I120">
+          <doc>I048/120 - Radial Doppler Speed</doc>
+        </field>
+
+        <!-- FRN 21: I048/230 - Communications/ACAS Capability (2 octets) -->
+        <field name="i230" bit="17" type="Cat048I230">
+          <doc>I048/230 - Communications/ACAS Capability and Flight Status</doc>
+        </field>
+
+        <!-- FSPEC Octet 4 (FRN 22-28) -->
+
+        <!-- FRN 22: I048/260 - ACAS Resolution Advisory Report (7 octets) -->
+        <field name="i260" bit="31" type="Cat048I260">
+          <doc>I048/260 - ACAS Resolution Advisory Report</doc>
+        </field>
+
+        <!-- FRN 23: I048/055 - Mode-1 Code in Octal (1 octet) -->
+        <field name="i055" bit="30" type="Cat048I055">
+          <doc>I048/055 - Mode-1 Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 24: I048/050 - Mode-2 Code in Octal (2 octets) -->
+        <field name="i050" bit="29" type="Cat048I050">
+          <doc>I048/050 - Mode-2 Code in Octal Representation</doc>
+        </field>
+
+        <!-- FRN 25: I048/065 - Mode-1 Code Confidence (1 octet) -->
+        <field name="i065" bit="28" type="Cat048I065">
+          <doc>I048/065 - Mode-1 Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 26: I048/060 - Mode-2 Code Confidence (2 octets) -->
+        <field name="i060" bit="27" type="Cat048I060">
+          <doc>I048/060 - Mode-2 Code Confidence Indicator</doc>
+        </field>
+
+        <!-- FRN 27: SP - Special Purpose Field -->
+        <struct name="sp" bit="26">
+          <doc>Special Purpose Field</doc>
+          <field name="len" type="uint8" auto="length">
+            <doc>Length of SP including this length byte</doc>
+          </field>
+          <field name="data" type="bytes" length-from="len - 1"/>
+        </struct>
+
+        <!-- FRN 28: RE - Reserved Expansion Field (Ed 1.9) -->
+        <struct name="re" bit="25">
+          <doc>Reserved Expansion Field (ASTERIX Cat048 REF Ed 1.9)</doc>
+          <field name="len" type="uint8" auto="length">
+            <doc>Length of RE including this length byte</doc>
+          </field>
+          <struct name="items" presence="bitmap">
+            <bitmap bits="8"/>
+            <field name="md5" bit="7" type="Cat048ReMd5">
+              <doc>MD5 - Mode 5 Data reports &amp; Extended Mode 2 Code</doc>
+            </field>
+            <field name="m5n" bit="6" type="Cat048ReM5n">
+              <doc>M5N - Mode 5 Data reports, New Format</doc>
+            </field>
+            <field name="m4e" bit="5" type="Cat048ReM4e">
+              <doc>M4E - Extended Mode 4 Report</doc>
+            </field>
+            <field name="rpc" bit="4" type="Cat048ReRpc">
+              <doc>RPC - Radar Plot Characteristics</doc>
+            </field>
+            <field name="err" bit="3" type="Cat048ReErr">
+              <doc>ERR - Extended Range Report</doc>
+            </field>
+          </struct>
+        </struct>
+
+      </struct>
+    </message>
+  </messages>
+
+</bmdl>
