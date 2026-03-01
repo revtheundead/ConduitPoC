@@ -79,6 +79,17 @@ std::string j_hex64(uint64_t v) {
     return buf;
 }
 
+// Full-precision double literal for Java
+std::string j_double(double v) {
+    char buf[32];
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), v);
+    std::string s(buf, ptr);
+    if (s.find('.') == std::string::npos && s.find('e') == std::string::npos
+        && s.find('E') == std::string::npos)
+        s += ".0";
+    return s;
+}
+
 // ============================================================================
 // Java expression codegen
 // ============================================================================
@@ -340,12 +351,51 @@ void j_analyze_outer_scope(const std::string& child_name,
 // Evaluate an expression with outer-scope context awareness
 std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
                         const JOuterContext& outer_ctx) {
-    if (e.op == model::ExprOp::FieldRef && !outer_ctx.empty()) {
+    if (outer_ctx.empty()) return j_expr(e, obj);
+    if (e.op == model::ExprOp::FieldRef) {
         auto dot = e.name.find('.');
         std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
         auto it = outer_ctx.find(root);
         if (it != outer_ctx.end()) {
+            if (dot != std::string::npos) {
+                // Resolve remaining path segments: e.g. "i080.startIndex" → "i080.startIndex"
+                std::string rest = e.name.substr(dot);
+                std::string result = it->second;
+                // Convert remaining segments to Java field names
+                size_t pos = 1; // skip the leading dot
+                while (pos < rest.size()) {
+                    size_t next_dot = rest.find('.', pos);
+                    std::string seg;
+                    if (next_dot == std::string::npos) { seg = rest.substr(pos); pos = rest.size(); }
+                    else { seg = rest.substr(pos, next_dot - pos); pos = next_dot + 1; }
+                    result += "." + j_field(seg);
+                }
+                return result;
+            }
             return it->second;
+        }
+    }
+    // For compound expressions, recurse so inner FieldRefs are resolved
+    if (e.left && e.right) {
+        std::string l = j_expr_ctx(*e.left, obj, outer_ctx);
+        std::string r = j_expr_ctx(*e.right, obj, outer_ctx);
+        switch (e.op) {
+            case model::ExprOp::Add:    return "(" + l + " + " + r + ")";
+            case model::ExprOp::Sub:    return "(" + l + " - " + r + ")";
+            case model::ExprOp::Mul:    return "(" + l + " * " + r + ")";
+            case model::ExprOp::Div:    return "(" + l + " / " + r + ")";
+            case model::ExprOp::Mod:    return "(" + l + " % " + r + ")";
+            case model::ExprOp::Eq:     return "(" + l + " == " + r + ")";
+            case model::ExprOp::Neq:    return "(" + l + " != " + r + ")";
+            case model::ExprOp::Lt:     return "(" + l + " < " + r + ")";
+            case model::ExprOp::Lte:    return "(" + l + " <= " + r + ")";
+            case model::ExprOp::Gt:     return "(" + l + " > " + r + ")";
+            case model::ExprOp::Gte:    return "(" + l + " >= " + r + ")";
+            case model::ExprOp::LogAnd: return "(" + l + " && " + r + ")";
+            case model::ExprOp::LogOr:  return "(" + l + " || " + r + ")";
+            case model::ExprOp::BitAnd: return "(" + l + " & " + r + ")";
+            case model::ExprOp::BitOr:  return "(" + l + " | " + r + ")";
+            default: break;
         }
     }
     return j_expr(e, obj);
@@ -375,6 +425,18 @@ std::string j_build_outer_args(const std::string& type_name,
 // Java read/write helpers
 // ============================================================================
 
+// Returns true when j_read_expr returns long but the field is int-typed,
+// meaning an explicit (int) narrowing cast is needed.
+bool j_needs_int_cast(const JFieldInfo& fi) {
+    if (fi.j_type != "int") return false;
+    if (fi.is_float) return false;
+    // readU8, readU16, readU32 already return int — no cast needed
+    if (!fi.is_signed && fi.wire_enc == model::WireEncoding::Default) {
+        if (fi.bits == 8 || fi.bits == 16 || fi.bits == 32) return false;
+    }
+    return true;
+}
+
 std::string j_read_expr(const JFieldInfo& fi) {
     if (fi.wire_enc == model::WireEncoding::BCD) return "r.readBcd(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "r.readBcdSigned(" + std::to_string(fi.bits) + ")";
@@ -403,8 +465,8 @@ std::string j_write_stmt(const std::string& val, const JFieldInfo& fi) {
     }
     // bool must be checked before bit-width checks since (int)boolean is illegal in Java
     if (fi.is_bool) return "w.writeBits(" + val + " ? 1 : 0, " + std::to_string(fi.bits) + ")";
-    if (fi.bits == 8 && !fi.is_signed) return "w.writeU8((int)" + val + ")";
-    if (fi.bits == 16 && !fi.is_signed) return std::string("w.writeU16((int)") + val + ", " + (be ? "true" : "false") + ")";
+    if (fi.bits == 8 && !fi.is_signed) return "w.writeU8(" + val + ")";
+    if (fi.bits == 16 && !fi.is_signed) return std::string("w.writeU16(") + val + ", " + (be ? "true" : "false") + ")";
     if (fi.bits == 32 && !fi.is_signed) return std::string("w.writeU32(") + val + ", " + (be ? "true" : "false") + ")";
     if (fi.bits == 64 && !fi.is_signed) return std::string("w.writeU64(") + val + ", " + (be ? "true" : "false") + ")";
     if (fi.is_signed) return "w.writeSignedBits(" + val + ", " + std::to_string(fi.bits) + ")";
@@ -760,6 +822,7 @@ std::string generate_j_exception(const std::string& pkg) {
     ctx.line();
     ctx.line("public class ConduitCodecException extends RuntimeException {");
     ctx.indent();
+    ctx.line("private static final long serialVersionUID = 1L;");
     ctx.line("public ConduitCodecException(String msg) { super(msg); }");
     ctx.dedent();
     ctx.line("}");
@@ -911,9 +974,23 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
     }
 }
 
+// Forward declarations for mutual recursion with inline struct handling
+void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const JOuterScopeMap& scope_map = {},
+                             const JOuterContext& outer_ctx = {},
+                             const JInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {});
+void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const std::string& len_ref_target = "",
+                             const JInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {});
+
 // Emit Java decode for field
 void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          const JOuterContext& outer_ctx = {},
                           const std::string& parent_class_name = {}) {
     // Inline enum field: enum_values populated, type_ref empty
     if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
@@ -924,6 +1001,19 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     }
     auto fi = j_resolve_field(f, index);
     std::string m = pfx + "." + j_field(f.name);
+    // Inline struct: decode children directly into parent (flattened)
+    if (f.is_inline && !f.type_ref.empty()) {
+        auto sit = index.structs.find(f.type_ref);
+        if (sit != index.structs.end()) {
+            emit_j_decode_children(ctx, sit->second->children, index, pfx);
+            return;
+        }
+        auto mit = index.messages.find(f.type_ref);
+        if (mit != index.messages.end()) {
+            emit_j_decode_children(ctx, mit->second->children, index, pfx);
+            return;
+        }
+    }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.j_type + ".decode(r);"); return; }
     if (fi.is_string) {
         bool has_enc = j_field_needs_encoding(f);
@@ -953,22 +1043,26 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
             ctx.line(m + " = r." + read_fn + "(" + std::to_string(*f.length) + enc_arg + ");");
             emit_j_field_trim(ctx, m, f, index);
         } else if (f.length_from) {
-            ctx.line(m + " = r." + read_fn + "((int)(" + j_expr(*f.length_from, pfx) + ")" + enc_arg + ");");
+            ctx.line(m + " = r." + read_fn + "(" + j_expr_ctx(*f.length_from, pfx, outer_ctx) + enc_arg + ");");
+            emit_j_field_trim(ctx, m, f, index);
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
             bool pbe = (pti.endian == model::Endian::Big);
             std::string rd;
-            if (pti.bits <= 8) rd = "(int) r.readU8()";
-            else if (pti.bits <= 16) rd = std::string("(int) r.readU16(") + (pbe ? "true" : "false") + ")";
-            else rd = std::string("(int) r.readU32(") + (pbe ? "true" : "false") + ")";
+            if (pti.bits <= 8) rd = "r.readU8()";
+            else if (pti.bits <= 16) rd = std::string("r.readU16(") + (pbe ? "true" : "false") + ")";
+            else rd = std::string("r.readU32(") + (pbe ? "true" : "false") + ")";
             ctx.line("int _pl = " + rd + ";");
             if (f.length_includes_prefix)
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)) + ";");
             ctx.line(m + " = r." + read_fn + "(_pl" + enc_arg + ");");
+            emit_j_field_trim(ctx, m, f, index);
         } else if (f.length_star) {
             ctx.line(m + " = r." + read_fn + "(r.remainingBytes()" + enc_arg + ");");
+            emit_j_field_trim(ctx, m, f, index);
         } else {
             ctx.line(m + " = r." + read_fn + "(r.remainingBytes()" + enc_arg + ");");
+            emit_j_field_trim(ctx, m, f, index);
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
@@ -979,7 +1073,7 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     if (fi.is_bytes) {
         int len = f.length ? *f.length : (f.bytes_attr ? *f.bytes_attr : 0);
         if (len > 0) ctx.line(m + " = r.readBytes(" + std::to_string(len) + ");");
-        else if (f.length_from) ctx.line(m + " = r.readBytes((int)(" + j_expr(*f.length_from, pfx) + "));");
+        else if (f.length_from) ctx.line(m + " = r.readBytes(" + j_expr_ctx(*f.length_from, pfx, outer_ctx) + ");");
         else ctx.line(m + " = r.readBytes(r.remainingBytes());");
         if (f.max_length) {
             ctx.line("if (" + m + ".length > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
@@ -991,13 +1085,13 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         raw_fi.is_float = false; raw_fi.has_scale = false;
         std::string ve = j_read_expr(raw_fi);
         std::string expr = ve;
-        if (fi.scale != 1.0) expr += " * " + std::to_string(fi.scale);
-        if (fi.offset != 0.0) expr += " + " + std::to_string(fi.offset);
+        if (fi.scale != 1.0) expr += " * " + j_double(fi.scale);
+        if (fi.offset != 0.0) expr += " + " + j_double(fi.offset);
         ctx.line(m + " = " + expr + ";");
         return;
     }
     if (fi.is_bool) { ctx.line(m + " = (" + j_read_expr(fi) + " != 0);"); return; }
-    ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+    ctx.line(m + " = " + (j_needs_int_cast(fi) ? "(int) " : "") + j_read_expr(fi) + ";");
     // Field-level constraint checks (matching C++ emit_constraint_check)
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
@@ -1026,6 +1120,21 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     }
     auto fi = j_resolve_field(f, index);
     std::string m = pfx + "." + j_field(f.name);
+    // Inline struct: encode children directly from parent (flattened)
+    if (f.is_inline && !f.type_ref.empty()) {
+        auto sit = index.structs.find(f.type_ref);
+        if (sit != index.structs.end()) {
+            std::string len_ref; // no auto-length ref target for inline children
+            emit_j_encode_children(ctx, sit->second->children, index, pfx, len_ref);
+            return;
+        }
+        auto mit = index.messages.find(f.type_ref);
+        if (mit != index.messages.end()) {
+            std::string len_ref;
+            emit_j_encode_children(ctx, mit->second->children, index, pfx, len_ref);
+            return;
+        }
+    }
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
         if (f.auto_expr->field_ref.empty()) {
             // auto="length" (whole struct): record start pos, write placeholder
@@ -1040,7 +1149,7 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count) {
         // auto="count(field)": write the size of the referenced array
         std::string array_member = pfx + "." + j_field(f.auto_expr->field_ref);
-        ctx.line(j_write_stmt("(int)" + array_member + ".size()", fi) + ";");
+        ctx.line(j_write_stmt(array_member + ".size()", fi) + ";");
         return;
     }
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Id) {
@@ -1070,7 +1179,24 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
                 ctx.line("w.writeTerminatedString(" + m + ", " + term + ");");
             }
         } else if (f.length) {
-            int pad = (f.padding && *f.padding == model::StringPadding::Space) ? 0x20 : 0;
+            // Determine padding: field-level first, then fallback to type-level
+            int pad = 0;
+            if (f.padding && *f.padding == model::StringPadding::Space) {
+                // Check for EBCDIC encoding (EBCDIC space is 0x40)
+                bool is_ebcdic = (f.encoding && *f.encoding == model::StringEncoding::Ebcdic);
+                if (!is_ebcdic && !f.type_ref.empty()) {
+                    auto it = index.types.find(f.type_ref);
+                    if (it != index.types.end() && it->second->encoding == model::StringEncoding::Ebcdic)
+                        is_ebcdic = true;
+                }
+                pad = is_ebcdic ? 0x40 : 0x20;
+            } else if (!f.padding && !f.type_ref.empty()) {
+                auto it = index.types.find(f.type_ref);
+                if (it != index.types.end() && it->second->padding == model::StringPadding::Space) {
+                    bool is_ebcdic = (it->second->encoding == model::StringEncoding::Ebcdic);
+                    pad = is_ebcdic ? 0x40 : 0x20;
+                }
+            }
             ctx.line("w." + write_fn + "(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + enc_arg + ");");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
@@ -1089,11 +1215,15 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     if (fi.is_bytes) { ctx.line("w.writeBytes(" + m + ");"); return; }
     if (fi.has_scale) {
         std::string inv = m;
-        if (fi.offset != 0.0) inv = "(" + inv + " - " + std::to_string(fi.offset) + ")";
-        if (fi.scale != 1.0) inv = "(" + inv + " / " + std::to_string(fi.scale) + ")";
+        if (fi.offset != 0.0) inv = "(" + inv + " - " + j_double(fi.offset) + ")";
+        if (fi.scale != 1.0) inv = "(" + inv + " / " + j_double(fi.scale) + ")";
         JFieldInfo raw_fi = fi; raw_fi.bits = fi.raw_bits; raw_fi.is_signed = fi.raw_signed;
         raw_fi.is_float = false; raw_fi.has_scale = false;
-        ctx.line(j_write_stmt("(long)(" + inv + ")", raw_fi) + ";");
+        // writeU8/writeU16/writeU32 take int, writeBits/writeSignedBits take long
+        bool use_int = !raw_fi.is_signed &&
+            (raw_fi.bits == 8 || raw_fi.bits == 16 || raw_fi.bits == 32);
+        std::string cast = use_int ? "(int)" : "(long)";
+        ctx.line(j_write_stmt(cast + "(" + inv + ")", raw_fi) + ";");
         return;
     }
     ctx.line(j_write_stmt(m, fi) + ";");
@@ -1101,10 +1231,10 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
 
 void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
-                             const JOuterScopeMap& scope_map = {},
-                             const JOuterContext& outer_ctx = {},
-                             const JInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {}) {
+                             const JOuterScopeMap& scope_map,
+                             const JOuterContext& outer_ctx,
+                             const JInlineNameMap& name_map,
+                             const std::string& parent_class_name) {
     // Pre-scan: find struct-level auto-length field (auto="length" with no field_ref).
     // When present, we create a bounded subReader after reading the length field
     // so that subsequent children cannot over-read past the struct boundary.
@@ -1133,8 +1263,8 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
-                ctx.indent(); emit_j_field_decode(ctx, *f, index, pfx, parent_class_name); ctx.dedent(); ctx.line("}");
-            } else emit_j_field_decode(ctx, *f, index, pfx, parent_class_name);
+                ctx.indent(); emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name); ctx.dedent(); ctx.line("}");
+            } else emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string resolved = j_inline_class(sd->name, name_map);
             std::string args = j_build_outer_args(sd->name, scope_map, pfx, outer_ctx);
@@ -1152,7 +1282,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->count_from) {
-                    ctx.line("for (int _i=0; _i<(int)(" + j_expr_ctx(*ad->count_from, pfx, outer_ctx) + "); _i++) " + m + ".add(" + elem + ".decode(r));");
+                    ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else {
                     ctx.line("while (r.remainingBytes() > 0) " + m + ".add(" + elem + ".decode(r));");
                 }
@@ -1175,7 +1305,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.line("{");
                 ctx.indent();
                 if (cd->length_from) {
-                    ctx.line("BitReader cr = r.subReader((int)(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx) + "));");
+                    ctx.line("BitReader cr = r.subReader(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx) + ");");
                 } else {
                     ctx.line("BitReader cr = r.subReader(" + std::to_string(*cd->length) + ");");
                 }
@@ -1298,7 +1428,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                               + std::to_string(auto_length_mod.literal) + ")";
                 }
             }
-            std::string remaining = "(int)(" + raw_len + " - (_autoLenStart - r.remainingBytes()))";
+            std::string remaining = raw_len + " - (_autoLenStart - r.remainingBytes())";
             ctx.line("r = r.subReader(" + remaining + ");");
         }
     }
@@ -1324,11 +1454,103 @@ void j_fx_has_fields_check(EmitContext& ctx, const std::vector<model::StructChil
     }
 }
 
+// Encode children within an FX block: optional fields must write zero-fill when absent (null-safe)
+void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                               const analyzer::TypeIndex& index, const std::string& pfx,
+                               const JInlineNameMap& name_map,
+                               const std::string& parent_class_name,
+                               int fx_depth = 0) {
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = j_resolve_field(*f, index);
+            std::string m = pfx + "." + j_field(f->name);
+            if (fi.is_enum || (!f->enum_values.empty() && f->type_ref.empty())) {
+                // Enum: encode if present, else write zero bits
+                ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
+                ctx.line("else { " + j_write_stmt("0", fi) + "; }");
+            } else if (fi.is_struct && !fi.is_string && !fi.is_bytes) {
+                // Struct: encode if present, else default-construct and encode
+                std::string stype = f->type_ref.empty() ? j_inline_class(f->name, name_map) : j_class(f->type_ref);
+                ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
+                ctx.line("else { new " + stype + "().encode(w); }");
+            } else if (fi.is_string) {
+                if (f->length) {
+                    int pad = 0;
+                    if (f->padding && *f->padding == model::StringPadding::Space) {
+                        bool is_ebcdic = (f->encoding && *f->encoding == model::StringEncoding::Ebcdic);
+                        pad = is_ebcdic ? 0x40 : 0x20;
+                    }
+                    ctx.line("w.writeString(" + m + " != null ? " + m + " : \"\", " +
+                             std::to_string(*f->length) + ", " + std::to_string(pad) + ");");
+                } else {
+                    ctx.line("if (" + m + " != null) { w.writeString(" + m + ", " + m + ".length(), 0); }");
+                }
+            } else if (fi.is_bytes) {
+                if (f->length) {
+                    ctx.line("if (" + m + " != null) { w.writeBytes(" + m + "); }");
+                    ctx.line("else { w.writeBits(0, " + std::to_string(*f->length * 8) + "); }");
+                } else {
+                    ctx.line("if (" + m + " != null) { w.writeBytes(" + m + "); }");
+                }
+            } else if (fi.has_scale) {
+                // Scaled: use 0.0 when absent
+                std::string val = "(" + m + " != null ? " + m + " : 0.0)";
+                std::string inv = val;
+                if (fi.offset != 0.0) inv = "(" + inv + " - " + j_double(fi.offset) + ")";
+                if (fi.scale != 1.0) inv = "(" + inv + " / " + j_double(fi.scale) + ")";
+                JFieldInfo raw_fi = fi; raw_fi.bits = fi.raw_bits; raw_fi.is_signed = fi.raw_signed;
+                raw_fi.is_float = false; raw_fi.has_scale = false;
+                ctx.line(j_write_stmt("(long)(" + inv + ")", raw_fi) + ";");
+            } else {
+                // Primitive: use (field != null ? field : 0)
+                ctx.line(j_write_stmt("(" + m + " != null ? " + m + " : 0)", fi) + ";");
+            }
+        } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            std::string m = pfx + "." + j_field(sd->name);
+            std::string stype = j_inline_class(sd->name, name_map);
+            ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
+            ctx.line("else { new " + stype + "().encode(w); }");
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            std::string m = pfx + "." + j_field(ad->name);
+            ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            std::string m = pfx + "." + j_field(cd->name);
+            ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("w.alignTo(" + std::to_string(al->to) + ");");
+        } else if (auto* nested_fx = std::get_if<model::FxBlock>(&child)) {
+            int nd = fx_depth + 1;
+            std::string fxvar = "_fxContinue" + std::to_string(nd);
+            ctx.line("{");
+            ctx.indent();
+            ctx.line("boolean " + fxvar + " = false;");
+            j_fx_has_fields_check(ctx, nested_fx->children, pfx, fxvar);
+            ctx.line("w.writeBits(" + fxvar + " ? 1 : 0, 1);");
+            ctx.line("if (" + fxvar + ") {");
+            ctx.indent();
+            emit_j_encode_fx_children(ctx, nested_fx->children, index, pfx, name_map, parent_class_name, nd);
+            bool has_nested_fx = false;
+            for (const auto& fc : nested_fx->children) {
+                if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+            }
+            if (!has_nested_fx) {
+                ctx.line("w.writeBits(0, 1); // Terminal FX=0");
+            }
+            ctx.dedent();
+            ctx.line("}");
+            ctx.dedent();
+            ctx.line("}");
+        }
+    }
+}
+
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
-                             const std::string& len_ref_target = "",
-                             const JInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {}) {
+                             const std::string& len_ref_target,
+                             const JInlineNameMap& name_map,
+                             const std::string& parent_class_name) {
     // Get the BMDL name from a StructChild
     auto get_child_name = [](const model::StructChild& child) -> std::string {
         return std::visit([](const auto& c) -> std::string {
@@ -1409,7 +1631,8 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             ctx.line("w.writeBits(_fxContinue ? 1 : 0, 1);");
             ctx.line("if (_fxContinue) {");
             ctx.indent();
-            emit_j_encode_children(ctx, fx->children, index, pfx, len_ref_target, name_map, parent_class_name);
+            // Use FX-aware encoder that writes zero-fill for absent optional fields
+            emit_j_encode_fx_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
             // Write terminal FX=0 bit if this FX extent has no nested FxBlock
             {
                 bool has_nested_fx = false;
@@ -1583,7 +1806,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     if (has_ext) {
         ctx.line("while (true) {");
         ctx.indent();
-        ctx.line("int b = (int) r.readU8();");
+        ctx.line("int b = r.readU8();");
         ctx.line("if (fspecLen < " + std::to_string(num_octets) + ") fspec[fspecLen] = (byte) b;");
         ctx.line("fspecLen++;");
         ctx.line("if ((b & (1 << " + std::to_string(*sd.bitmap_ext) + ")) == 0) break;");
@@ -1613,11 +1836,29 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             std::string sv = "result." + j_field(bf.choice_def->switch_expr->name);
             bool first_case = true;
             for (const auto& cs : bf.choice_def->cases) {
-                std::string val = cs.value ? *cs.value : "0";
-                if (cs.value && index.constants.count(*cs.value)) {
-                    val = "Constants." + j_const(*cs.value);
+                std::string cond;
+                if (cs.value) {
+                    std::string val = *cs.value;
+                    if (index.constants.count(*cs.value)) {
+                        val = "Constants." + j_const(*cs.value);
+                    }
+                    cond = sv + " == " + val;
+                } else if (cs.range) {
+                    auto dot_pos = cs.range->find("..");
+                    if (dot_pos != std::string::npos) {
+                        std::string min_s = cs.range->substr(0, dot_pos);
+                        std::string max_s = cs.range->substr(dot_pos + 2);
+                        if (min_s == "0") {
+                            cond = sv + " <= " + max_s;
+                        } else {
+                            cond = sv + " >= " + min_s + " && " + sv + " <= " + max_s;
+                        }
+                    } else {
+                        cond = sv + " == " + *cs.range;
+                    }
+                } else {
+                    continue;
                 }
-                std::string cond = sv + " == " + val;
                 ctx.line(std::string(first_case ? "if (" : "} else if (") + cond + ") {");
                 ctx.indent();
                 std::string et = cs.type_ref.empty() ? j_class(cs.name) : j_class(cs.type_ref);
@@ -1665,8 +1906,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 else if (bf.raw_bits <= 32) read = "r.readU32(" + be + ")";
                 else read = "r.readU64(" + be + ")";
             }
-            ctx.line(m + " = (double) " + read + " * " + std::to_string(bf.scale) +
-                     (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : "") + ";");
+            ctx.line(m + " = (double) " + read + " * " + j_double(bf.scale) +
+                     (bf.offset != 0.0 ? " + " + j_double(bf.offset) : "") + ";");
         } else if (bf.is_string) {
             bool has_enc = bf.source_field && j_field_needs_encoding(*bf.source_field);
             std::string enc_arg = has_enc ? ", " + j_encoding_const(*bf.source_field) : "";
@@ -1701,8 +1942,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 else read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
             } else {
                 if (bf.bits <= 8) read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
-                else if (bf.bits <= 16) read = "(int) r.readU16(" + be + ")";
-                else if (bf.bits <= 32) read = "(int) r.readU32(" + be + ")";
+                else if (bf.bits <= 16) read = "r.readU16(" + be + ")";
+                else if (bf.bits <= 32) read = "r.readU32(" + be + ")";
                 else read = "r.readU64(" + be + ")";
             }
             if (bf.is_float) {
@@ -1740,20 +1981,22 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
             int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
             ctx.line("if (" + j_field(bf.name) + " != null) { fspec[" +
-                     std::to_string(byte_idx) + "] |= (1 << " +
-                     std::to_string(bit_in_byte) + "); lastOctet = Math.max(lastOctet, " +
+                     std::to_string(byte_idx) + "] = (byte)(fspec[" +
+                     std::to_string(byte_idx) + "] | (1 << " +
+                     std::to_string(bit_in_byte) + ")); lastOctet = Math.max(lastOctet, " +
                      std::to_string(byte_idx) + "); }");
         }
-        ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] |= (1 << " +
-                 std::to_string(*sd.bitmap_ext) + ");");
+        ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] = (byte)(fspec[i] | (1 << " +
+                 std::to_string(*sd.bitmap_ext) + "));" );
         ctx.line("for (int i = 0; i <= lastOctet; i++) w.writeU8(fspec[i] & 0xFF);");
     } else {
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
             int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
             ctx.line("if (" + j_field(bf.name) + " != null) fspec[" +
-                     std::to_string(byte_idx) + "] |= (1 << " +
-                     std::to_string(bit_in_byte) + ");");
+                     std::to_string(byte_idx) + "] = (byte)(fspec[" +
+                     std::to_string(byte_idx) + "] | (1 << " +
+                     std::to_string(bit_in_byte) + "));");
         }
         ctx.line("for (int i = 0; i < " + std::to_string(num_octets) + "; i++) w.writeU8(fspec[i] & 0xFF);");
     }
@@ -1769,14 +2012,14 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             ctx.line(m + ".encode(w);");
         } else if (bf.has_scale) {
             std::string be = (bf.raw_endian == model::Endian::Big) ? "true" : "false";
-            std::string reverse_scale = "(long) ((" + m + " - " + std::to_string(bf.offset) + ") / " + std::to_string(bf.scale) + ")";
+            std::string reverse_scale = "(long) ((" + m + " - " + j_double(bf.offset) + ") / " + j_double(bf.scale) + ")";
             if (bf.raw_signed) {
                 if (bf.raw_bits <= 8) ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
                 else ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
             } else {
                 if (bf.raw_bits <= 8) ctx.line("w.writeBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
                 else if (bf.raw_bits <= 16) ctx.line("w.writeU16((int) " + reverse_scale + ", " + be + ");");
-                else if (bf.raw_bits <= 32) ctx.line("w.writeU32(" + reverse_scale + ", " + be + ");");
+                else if (bf.raw_bits <= 32) ctx.line("w.writeU32((int) " + reverse_scale + ", " + be + ");");
                 else ctx.line("w.writeU64(" + reverse_scale + ", " + be + ");");
             }
         } else if (bf.is_string) {
@@ -1917,9 +2160,12 @@ std::string generate_j_class(const std::string& name,
                               const std::string& msg_id = "",
                               const JOuterScopeMap& scope_map = {},
                               const JInlineNameMap& name_map = {},
-                              const std::string& class_name_override = {}) {
+                              const std::string& class_name_override = {},
+                              const std::vector<JFieldDef>& extra_fields = {}) {
     std::string cn = class_name_override.empty() ? j_class(name) : class_name_override;
     std::vector<JFieldDef> fields;
+    // Add frame header/footer fields if this is a message used in a frame
+    for (const auto& ef : extra_fields) fields.push_back(ef);
     collect_j_fields(children, index, fields, name_map, cn);
 
     EmitContext ctx;
@@ -2017,11 +2263,11 @@ std::string generate_j_class(const std::string& name,
                 }
             }
             if (al_fi.bits <= 8) {
-                ctx.line("w.patchU8(_lenPos, (int)(" + size_expr + "));");
+                ctx.line("w.patchU8(_lenPos, " + size_expr + ");");
             } else if (al_fi.bits <= 16) {
-                ctx.line("w.patchU16(_lenPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+                ctx.line("w.patchU16(_lenPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
             } else {
-                ctx.line("w.patchU32(_lenPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+                ctx.line("w.patchU32(_lenPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
             }
         }
 
@@ -2046,11 +2292,11 @@ std::string generate_j_class(const std::string& name,
                 }
             }
             if (al_fi.bits <= 8) {
-                ctx.line("w.patchU8(_lenRefPos, (int)(" + size_expr + "));");
+                ctx.line("w.patchU8(_lenRefPos, " + size_expr + ");");
             } else if (al_fi.bits <= 16) {
-                ctx.line("w.patchU16(_lenRefPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+                ctx.line("w.patchU16(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
             } else {
-                ctx.line("w.patchU32(_lenRefPos, (int)(" + size_expr + "), " + (be ? "true" : "false") + ");");
+                ctx.line("w.patchU32(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
             }
         }
 
@@ -2437,7 +2683,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                 }
             } else if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Count) {
                 if (f->auto_expr->field_ref == "payload" && si.payload_is_array) {
-                    ctx.line(j_write_stmt("(int)payload.size()", fi) + ";");
+                    ctx.line(j_write_stmt("payload.size()", fi) + ";");
                 } else {
                     ctx.line(j_write_stmt("this." + j_field(f->name), fi) + ";");
                 }
@@ -2522,11 +2768,11 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             }
         }
         if (al_fi.bits <= 8) {
-            ctx.line("w.patchU8(_lenPos, (int)(" + raw_length + "));");
+            ctx.line("w.patchU8(_lenPos, " + raw_length + ");");
         } else if (al_fi.bits <= 16) {
-            ctx.line("w.patchU16(_lenPos, (int)(" + raw_length + "), " + (be ? "true" : "false") + ");");
+            ctx.line("w.patchU16(_lenPos, " + raw_length + ", " + (be ? "true" : "false") + ");");
         } else {
-            ctx.line("w.patchU32(_lenPos, (int)(" + raw_length + "), " + (be ? "true" : "false") + ");");
+            ctx.line("w.patchU32(_lenPos, " + raw_length + ", " + (be ? "true" : "false") + ");");
         }
     }
 
@@ -2553,7 +2799,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             } else if (fi.is_bool) {
                 ctx.line(m + " = (" + j_read_expr(fi) + " != 0);");
             } else {
-                ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+                ctx.line(m + " = " + (j_needs_int_cast(fi) ? "(int) " : "") + j_read_expr(fi) + ";");
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
@@ -2586,7 +2832,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
     bool use_sub_reader = false;
     if (!si.length_field_name.empty() && si.count_field_name.empty()) {
         std::string len_member = "result." + j_field(si.length_field_name);
-        std::string raw_val = "(int)(" + len_member + ")";
+        std::string raw_val = len_member;
         // Reverse arithmetic modifier
         std::string total_expr = raw_val;
         if (si.frame_length_modifier.has_modifier()) {
@@ -2634,7 +2880,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
     if (si.payload_is_array) {
         // Array payload: decode records
         if (!si.count_field_name.empty()) {
-            ctx.line("for (int _i = 0; _i < (int)(result." + j_field(si.count_field_name) + "); _i++) {");
+            ctx.line("for (int _i = 0; _i < result." + j_field(si.count_field_name) + "; _i++) {");
         } else {
             ctx.line("while (" + reader_name + ".remainingBytes() > 0) {");
         }
@@ -2701,7 +2947,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             } else if (fi.is_bool) {
                 ctx.line(m + " = (" + j_read_expr(fi) + " != 0);");
             } else {
-                ctx.line(m + " = " + (fi.j_type == "int" ? "(int) " : "") + j_read_expr(fi) + ";");
+                ctx.line(m + " = " + (j_needs_int_cast(fi) ? "(int) " : "") + j_read_expr(fi) + ";");
             }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
@@ -3089,16 +3335,18 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + ") {");
             ctx.indent();
             ctx.line(leaf_class + " msg = (" + leaf_class + ") payload;");
+            ctx.line("List<String[]> autoFields = new ArrayList<>();");
 
             // Set message-level config fields
             if (!lt.config_fields.empty() && has_config) {
                 for (const auto& cf : lt.config_fields) {
                     std::string cfg_key = cf.key;
                     std::string cfg_type = (cf.bits > 32) ? "long" : "int";
-                    std::string cast = "((" + std::string(cf.bits > 32 ? "Long" : "Number") + ") config.getOrDefault(\"" + cfg_key + "\", 0))";
+                    std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0))";
                     if (cf.bits <= 32) cast += ".intValue()";
                     else cast += ".longValue()";
                     ctx.line("msg." + j_field(cf.field_name) + " = " + cast + ";");
+                    ctx.line("autoFields.add(new String[]{\"" + cf.field_name + "\", String.valueOf(msg." + j_field(cf.field_name) + ")});");
                 }
             }
 
@@ -3115,6 +3363,7 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                         cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0)).intValue()";
                     }
                     ctx.line("frame." + j_field(cf.field_name) + " = " + cast + ";");
+                    ctx.line("autoFields.add(new String[]{\"" + cf.field_name + "\", String.valueOf(frame." + j_field(cf.field_name) + ")});");
                 }
             }
 
@@ -3124,11 +3373,14 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                 std::string field = j_field(lt.auto_fields[ai]);
                 if (bits > 32) {
-                    ctx.line("frame." + field + " = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                    ctx.line("{ long seqVal = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                    ctx.line("  frame." + field + " = seqVal;");
                 } else {
-                    ctx.line("frame." + field + " = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                    ctx.line("{ int seqVal = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                    ctx.line("  frame." + field + " = seqVal;");
                 }
-                ctx.line("sequenceCounter++;");
+                ctx.line("  sequenceCounter++;");
+                ctx.line("  autoFields.add(new String[]{\"" + lt.auto_fields[ai] + "\", String.valueOf(seqVal)}); }");
             }
 
             // Set auto-timestamp fields
@@ -3137,16 +3389,25 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                 std::string field = j_field(lt.timestamp_fields[ti]);
                 if (bits > 32) {
-                    ctx.line("frame." + field + " = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                    ctx.line("{ long tsVal = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                    ctx.line("  frame." + field + " = tsVal;");
                 } else {
-                    ctx.line("frame." + field + " = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                    ctx.line("{ int tsVal = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                    ctx.line("  frame." + field + " = tsVal;");
                 }
+                ctx.line("  autoFields.add(new String[]{\"" + lt.timestamp_fields[ti] + "\", String.valueOf(tsVal)}); }");
+            }
+
+            // Record auto-id field
+            if (!si.id_field_name.empty()) {
+                ctx.line("autoFields.add(new String[]{\"" + si.id_field_name + "\", String.valueOf(" + leaf_class + ".ID_VALUE)});");
             }
 
             ctx.line("byte[] encoded = frame.encodeBytes();");
             ctx.line("Map<String, Object> result = new HashMap<>();");
             ctx.line("result.put(\"bytes\", encoded);");
             ctx.line("result.put(\"type_id\", typeId);");
+            ctx.line("result.put(\"auto_fields\", autoFields);");
             ctx.line("return result;");
             ctx.dedent();
         }
@@ -3225,17 +3486,22 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                     }
                 }
 
+                ctx.line("List<String[]> autoFields = new ArrayList<>();");
+
                 // Set auto-increment fields
                 for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
                     int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = j_field(lt.auto_fields[ai]);
                     if (bits > 32) {
-                        ctx.line("frame." + field + " = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                        ctx.line("{ long seqVal = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                        ctx.line("  frame." + field + " = seqVal;");
                     } else {
-                        ctx.line("frame." + field + " = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                        ctx.line("{ int seqVal = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                        ctx.line("  frame." + field + " = seqVal;");
                     }
-                    ctx.line("sequenceCounter++;");
+                    ctx.line("  sequenceCounter++;");
+                    ctx.line("  autoFields.add(new String[]{\"" + lt.auto_fields[ai] + "\", String.valueOf(seqVal)}); }");
                 }
 
                 // Set auto-timestamp fields
@@ -3244,16 +3510,25 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = j_field(lt.timestamp_fields[ti]);
                     if (bits > 32) {
-                        ctx.line("frame." + field + " = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                        ctx.line("{ long tsVal = System.currentTimeMillis() & " + std::to_string(mask_val) + "L;");
+                        ctx.line("  frame." + field + " = tsVal;");
                     } else {
-                        ctx.line("frame." + field + " = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                        ctx.line("{ int tsVal = (int)(System.currentTimeMillis() & " + std::to_string(mask_val) + "L);");
+                        ctx.line("  frame." + field + " = tsVal;");
                     }
+                    ctx.line("  autoFields.add(new String[]{\"" + lt.timestamp_fields[ti] + "\", String.valueOf(tsVal)}); }");
+                }
+
+                // Record auto-id field
+                if (!si.id_field_name.empty()) {
+                    ctx.line("autoFields.add(new String[]{\"" + si.id_field_name + "\", String.valueOf(" + leaf_class + ".ID_VALUE)});");
                 }
 
                 ctx.line("byte[] encoded = frame.encodeBytes();");
                 ctx.line("Map<String, Object> result = new HashMap<>();");
                 ctx.line("result.put(\"bytes\", encoded);");
                 ctx.line("result.put(\"type_id\", typeId);");
+                ctx.line("result.put(\"auto_fields\", autoFields);");
                 ctx.line("return result;");
                 ctx.dedent();
             }
@@ -3267,6 +3542,27 @@ std::string generate_j_session_class(const model::Protocol& protocol,
 
     // formatMessage
     ctx.line("public String formatMessage(long typeId, Object payload) {");
+    ctx.indent();
+    {
+        bool first = true;
+        for (const auto& lt : si.leaf_types) {
+            std::string leaf_class = j_class(lt.name);
+            std::string prefix = first ? "if" : "} else if";
+            first = false;
+            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + " _m) {");
+            ctx.indent();
+            ctx.line("return _m.toString();");
+            ctx.dedent();
+        }
+        if (!first) ctx.line("}");
+    }
+    ctx.line("return payload != null ? payload.toString() : \"\";");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // formatOutbound
+    ctx.line("public String formatOutbound(long typeId, Object payload, List<String[]> autoFields) {");
     ctx.indent();
     {
         bool first = true;
@@ -3401,24 +3697,31 @@ bool JavaBackend::generate(
                 } else if (is_enum) {
                     tctx.line("public enum " + name + " {");
                     tctx.indent();
-                    for (size_t i = 0; i < t.enum_values.size(); i++) {
-                        std::string comma = (i + 1 < t.enum_values.size()) ? "," : ";";
-                        tctx.line(j_const(t.enum_values[i].name) + "(" + std::to_string(t.enum_values[i].id) + ")" + comma);
+                    {
+                        bool use_long_val = (t.bits > 32);
+                        std::string lit_suffix = use_long_val ? "L" : "";
+                        for (size_t i = 0; i < t.enum_values.size(); i++) {
+                            std::string comma = (i + 1 < t.enum_values.size()) ? "," : ";";
+                            tctx.line(j_const(t.enum_values[i].name) + "(" + std::to_string(t.enum_values[i].id) + lit_suffix + ")" + comma);
+                        }
                     }
                     tctx.line();
-                    tctx.line("public final int value;");
-                    tctx.line(name + "(int v) { this.value = v; }");
-                    tctx.line();
-                    tctx.line("public static " + name + " decode(BitReader r) {");
-                    tctx.indent();
                     {
+                        bool use_long = (t.bits > 32);
+                        std::string val_type = use_long ? "long" : "int";
+                        tctx.line("public final " + val_type + " value;");
+                        tctx.line(name + "(" + val_type + " v) { this.value = v; }");
+                        tctx.line();
+                        tctx.line("public static " + name + " decode(BitReader r) {");
+                        tctx.indent();
                         bool enum_signed = (t.base == model::PrimitiveBase::Int);
                         std::string enum_rd;
                         if (t.wire_encoding == model::WireEncoding::BCD) enum_rd = "readBcd";
                         else if (t.wire_encoding == model::WireEncoding::BCD_S) enum_rd = "readBcdSigned";
                         else if (t.wire_encoding == model::WireEncoding::BNR_S) enum_rd = "readSignMagnitude";
                         else enum_rd = enum_signed ? "readSignedBits" : "readBits";
-                        tctx.line("int raw = (int) r." + enum_rd + "(" + std::to_string(t.bits) + ");");
+                        std::string cast = use_long ? "" : "(int) ";
+                        tctx.line(val_type + " raw = " + cast + "r." + enum_rd + "(" + std::to_string(t.bits) + ");");
                     }
                     tctx.line("for (" + name + " v : values()) if (v.value == raw) return v;");
                     tctx.line("throw new ConduitCodecException(\"unknown " + name + " value: \" + raw);");
@@ -3454,8 +3757,8 @@ bool JavaBackend::generate(
                     }
                     if (has_scale) {
                         std::string ve = "(double) raw";
-                        if (t.scale) ve += " * " + std::to_string(*t.scale);
-                        if (t.offset) ve += " + " + std::to_string(*t.offset);
+                        if (t.scale) ve += " * " + j_double(*t.scale);
+                        if (t.offset) ve += " + " + j_double(*t.offset);
                         tctx.line("public double value() { return " + ve + "; }");
                     } else {
                         tctx.line("public long value() { return raw; }");
@@ -3531,6 +3834,46 @@ bool JavaBackend::generate(
         file_count++;
     }
 
+    // Collect frame header/footer fields that need to be injected into message classes
+    std::unordered_map<std::string, std::vector<JFieldDef>> msg_frame_fields;
+    for (const auto& si : sessions) {
+        if (!si.is_frame_based || !si.frame) continue;
+        std::vector<JFieldDef> frame_fields;
+        for (const auto& child : si.frame->header_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                auto fi = j_resolve_field(*f, index);
+                JFieldDef fd;
+                fd.name = j_field(f->name);
+                fd.j_type = fi.j_type;
+                if (fi.is_string) fd.init = "\"\"";
+                else if (fi.is_bytes) fd.init = "new byte[0]";
+                else if (fi.is_bool) fd.init = "false";
+                else if (fi.j_type == "long") fd.init = "0L";
+                else fd.init = "0";
+                frame_fields.push_back(fd);
+            }
+        }
+        for (const auto& child : si.frame->footer_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                auto fi = j_resolve_field(*f, index);
+                JFieldDef fd;
+                fd.name = j_field(f->name);
+                fd.j_type = fi.j_type;
+                if (fi.is_string) fd.init = "\"\"";
+                else if (fi.is_bytes) fd.init = "new byte[0]";
+                else if (fi.is_bool) fd.init = "false";
+                else if (fi.j_type == "long") fd.init = "0L";
+                else fd.init = "0";
+                frame_fields.push_back(fd);
+            }
+        }
+        if (!frame_fields.empty()) {
+            for (const auto& lt : si.leaf_types) {
+                msg_frame_fields[lt.name] = frame_fields;
+            }
+        }
+    }
+
     // Message classes (including inline children)
     for (const auto& md : protocol.messages) {
         std::vector<std::pair<std::string, std::string>> inline_files;
@@ -3541,7 +3884,9 @@ bool JavaBackend::generate(
             ok &= write_file(output_dir / fname, fcode);
             file_count++;
         }
-        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map);
+        auto mff_it = msg_frame_fields.find(md.name);
+        std::vector<JFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<JFieldDef>{};
+        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields);
         ok &= write_file(output_dir / (j_class(md.name) + ".java"), code);
         file_count++;
     }
