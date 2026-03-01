@@ -4017,9 +4017,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto switch_val = i080.start_index();
                 if (switch_val == static_cast<decltype(switch_val)>(0x05)) {

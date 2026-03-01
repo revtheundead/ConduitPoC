@@ -63,9 +63,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -125,9 +128,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -1105,9 +1111,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -1833,9 +1842,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto val = Cat021Record_items_re_items::decode(r);
                 if (!val) return std::unexpected(val.error());
@@ -1894,9 +1906,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -3049,9 +3064,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -3255,9 +3273,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto val = Cat048Record_items_re_items::decode(r);
                 if (!val) return std::unexpected(val.error());
@@ -4100,9 +4121,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto switch_val = i080.startIndex();
                 if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
@@ -4176,9 +4200,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -4238,9 +4265,12 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #pragma GCC diagnostic pop
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);

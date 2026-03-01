@@ -379,12 +379,49 @@ void py_analyze_outer_scope(const std::string& child_name,
 
 std::string py_expr_ctx(const model::Expr& e, const std::string& obj,
                          const PyOuterContext& outer_ctx) {
-    if (e.op == model::ExprOp::FieldRef && !outer_ctx.empty()) {
+    if (outer_ctx.empty()) return py_expr(e, obj);
+    if (e.op == model::ExprOp::FieldRef) {
         auto dot = e.name.find('.');
         std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
         auto it = outer_ctx.find(root);
         if (it != outer_ctx.end()) {
+            if (dot != std::string::npos) {
+                std::string rest = e.name.substr(dot);
+                std::string result = it->second;
+                size_t pos = 1;
+                while (pos < rest.size()) {
+                    size_t next_dot = rest.find('.', pos);
+                    std::string seg;
+                    if (next_dot == std::string::npos) { seg = rest.substr(pos); pos = rest.size(); }
+                    else { seg = rest.substr(pos, next_dot - pos); pos = next_dot + 1; }
+                    result += "." + py_field(seg);
+                }
+                return result;
+            }
             return it->second;
+        }
+    }
+    // For compound expressions, recurse so inner FieldRefs are resolved
+    if (e.left && e.right) {
+        std::string l = py_expr_ctx(*e.left, obj, outer_ctx);
+        std::string r = py_expr_ctx(*e.right, obj, outer_ctx);
+        switch (e.op) {
+            case model::ExprOp::Add:    return "(" + l + " + " + r + ")";
+            case model::ExprOp::Sub:    return "(" + l + " - " + r + ")";
+            case model::ExprOp::Mul:    return "(" + l + " * " + r + ")";
+            case model::ExprOp::Div:    return "(" + l + " // " + r + ")";
+            case model::ExprOp::Mod:    return "(" + l + " % " + r + ")";
+            case model::ExprOp::Eq:     return "(" + l + " == " + r + ")";
+            case model::ExprOp::Neq:    return "(" + l + " != " + r + ")";
+            case model::ExprOp::Lt:     return "(" + l + " < " + r + ")";
+            case model::ExprOp::Lte:    return "(" + l + " <= " + r + ")";
+            case model::ExprOp::Gt:     return "(" + l + " > " + r + ")";
+            case model::ExprOp::Gte:    return "(" + l + " >= " + r + ")";
+            case model::ExprOp::LogAnd: return "(" + l + " and " + r + ")";
+            case model::ExprOp::LogOr:  return "(" + l + " or " + r + ")";
+            case model::ExprOp::BitAnd: return "(" + l + " & " + r + ")";
+            case model::ExprOp::BitOr:  return "(" + l + " | " + r + ")";
+            default: break;
         }
     }
     return py_expr(e, obj);
@@ -1121,6 +1158,7 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
 
 void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          const PyOuterContext& outer_ctx = {},
                           const std::string& parent_class_name = {}) {
     // Inline enum field: enum_values populated, type_ref empty
     if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
@@ -1171,7 +1209,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
             ctx.line(m + " = r.read_string(" + std::to_string(*f.length) + enc_arg + ")");
             emit_py_field_trim(ctx, m, f, index);
         } else if (f.length_from) {
-            ctx.line(m + " = r.read_string(int(" + py_expr(*f.length_from, pfx) + ")" + enc_arg + ")");
+            ctx.line(m + " = r.read_string(int(" + py_expr_ctx(*f.length_from, pfx, outer_ctx) + ")" + enc_arg + ")");
             emit_py_field_trim(ctx, m, f, index);
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
@@ -1199,7 +1237,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     if (fi.is_bytes) {
         int len = f.length ? *f.length : (f.bytes_attr ? *f.bytes_attr : 0);
         if (len > 0) ctx.line(m + " = r.read_bytes(" + std::to_string(len) + ")");
-        else if (f.length_from) ctx.line(m + " = r.read_bytes(int(" + py_expr(*f.length_from, pfx) + "))");
+        else if (f.length_from) ctx.line(m + " = r.read_bytes(int(" + py_expr_ctx(*f.length_from, pfx, outer_ctx) + "))");
         else ctx.line(m + " = r.read_bytes(r.remaining_bytes())");
         if (f.max_length) {
             ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
@@ -1365,9 +1403,9 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             if (f->present_when) {
                 ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
                 ctx.indent();
-                emit_py_field_decode(ctx, *f, index, pfx, parent_class_name);
+                emit_py_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
                 ctx.dedent();
-            } else emit_py_field_decode(ctx, *f, index, pfx, parent_class_name);
+            } else emit_py_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             std::string resolved = py_inline_class(sd->name, name_map);
@@ -2232,9 +2270,12 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                    const std::string& msg_id = "",
                    const PyOuterScopeMap& scope_map = {},
                    const PyInlineNameMap& name_map = {},
-                   const std::string& class_name_override = {}) {
+                   const std::string& class_name_override = {},
+                   const std::vector<PyFieldDef>& extra_fields = {}) {
     std::string cn = class_name_override.empty() ? py_class(name) : class_name_override;
     std::vector<PyFieldDef> fields;
+    // Add frame header/footer fields if this is a message used in a frame
+    for (const auto& ef : extra_fields) fields.push_back(ef);
     collect_py_fields(children, index, fields, name_map, cn);
 
     ctx.line();
@@ -2321,10 +2362,11 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             ctx.line("_struct_start = w.size_bytes()");
         }
         emit_py_encode_children(ctx, children, index, "self", name_map, cn);
-        // Auto-length backpatching: find any field with auto="length" and patch the written placeholder
+        // Auto-length backpatching (struct-level only: auto="length" with no field_ref)
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
+                    && f->auto_expr->field_ref.empty()) {
                     auto lfi = py_resolve_field(*f, index);
                     std::string length_expr = "w.size_bytes() - _struct_start";
                     if (f->auto_expr->modifier.has_modifier()) {
@@ -2917,6 +2959,12 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line(std::string(first ? "if " : "elif ") + id_member + " == " + id_val + ":");
             ctx.indent();
             ctx.line("_msg = " + leaf_class + ".decode(" + reader_name + ")");
+            // Copy header fields into decoded message (matching C++/Java)
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    ctx.line("_msg." + py_field(f->name) + " = result." + py_field(f->name));
+                }
+            }
             ctx.line("result.payload.append(_msg)");
             ctx.dedent();
             first = false;
@@ -2939,6 +2987,12 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line(std::string(first ? "if " : "elif ") + id_member + " == " + id_val + ":");
             ctx.indent();
             ctx.line("result.payload = " + leaf_class + ".decode(" + reader_name + ")");
+            // Copy header fields into decoded message (matching C++/Java)
+            for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    ctx.line("result.payload." + py_field(f->name) + " = result." + py_field(f->name));
+                }
+            }
             ctx.dedent();
             first = false;
         }
@@ -3004,11 +3058,53 @@ std::string generate_py_messages(const model::Protocol& protocol,
         for (const auto& lt : si.leaf_types)
             tid_map[lt.name] = lt.type_id;
 
+    // Collect frame header/footer fields that need to be injected into message classes
+    std::unordered_map<std::string, std::vector<PyFieldDef>> msg_frame_fields;
+    for (const auto& si : sessions) {
+        if (!si.is_frame_based || !si.frame) continue;
+        std::vector<PyFieldDef> frame_fields;
+        for (const auto& child : si.frame->header_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                auto fi = py_resolve_field(*f, index);
+                PyFieldDef fd;
+                fd.name = py_field(f->name);
+                fd.py_type = fi.py_type;
+                if (fi.is_string) fd.default_val = "''";
+                else if (fi.is_bytes) fd.default_val = "b''";
+                else if (fi.is_bool) fd.default_val = "False";
+                else if (fi.is_float) fd.default_val = "0.0";
+                else fd.default_val = "0";
+                frame_fields.push_back(fd);
+            }
+        }
+        for (const auto& child : si.frame->footer_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                auto fi = py_resolve_field(*f, index);
+                PyFieldDef fd;
+                fd.name = py_field(f->name);
+                fd.py_type = fi.py_type;
+                if (fi.is_string) fd.default_val = "''";
+                else if (fi.is_bytes) fd.default_val = "b''";
+                else if (fi.is_bool) fd.default_val = "False";
+                else if (fi.is_float) fd.default_val = "0.0";
+                else fd.default_val = "0";
+                frame_fields.push_back(fd);
+            }
+        }
+        if (!frame_fields.empty()) {
+            for (const auto& lt : si.leaf_types) {
+                msg_frame_fields[lt.name] = frame_fields;
+            }
+        }
+    }
+
     for (const auto& md : protocol.messages) {
         PyOuterScopeMap scope_map;
         PyInlineNameMap name_map;
         emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name, name_map);
-        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map);
+        auto mff_it = msg_frame_fields.find(md.name);
+        std::vector<PyFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<PyFieldDef>{};
+        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map, {}, extra_fields);
     }
 
     // Generate frame classes (Packet, Frame, etc.)
@@ -3338,7 +3434,6 @@ std::string generate_py_sessions(const model::Protocol& protocol,
 
                 // Record auto-id field
                 if (!si.id_field_name.empty()) {
-                    std::string leaf_class = py_class(lt.name);
                     ctx.line("_auto_fields.append(('" + si.id_field_name + "', str(" + leaf_class + ".ID_VALUE)))");
                 }
 
