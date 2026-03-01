@@ -109,6 +109,32 @@ std::string py_double(double v) {
     return s;
 }
 
+// Helper: Python read expression for a type based on wire encoding and signedness
+std::string py_type_read_expr(const model::TypeDef& t, bool is_signed) {
+    std::string bits_s = std::to_string(t.bits);
+    if (t.wire_encoding == model::WireEncoding::BCD)
+        return "r.read_bcd(" + bits_s + ")";
+    if (t.wire_encoding == model::WireEncoding::BCD_S)
+        return "r.read_bcd_signed(" + bits_s + ")";
+    if (t.wire_encoding == model::WireEncoding::BNR_S)
+        return "r.read_sign_magnitude(" + bits_s + ")";
+    return std::string("r.read_") + (is_signed ? "signed_bits" : "bits") +
+           "(" + bits_s + ")";
+}
+
+// Helper: Python write statement for a type based on wire encoding and signedness
+std::string py_type_write_stmt(const std::string& val, const model::TypeDef& t, bool is_signed) {
+    std::string bits_s = std::to_string(t.bits);
+    if (t.wire_encoding == model::WireEncoding::BCD)
+        return "w.write_bcd(" + val + ", " + bits_s + ")";
+    if (t.wire_encoding == model::WireEncoding::BCD_S)
+        return "w.write_bcd_signed(" + val + ", " + bits_s + ")";
+    if (t.wire_encoding == model::WireEncoding::BNR_S)
+        return "w.write_sign_magnitude(" + val + ", " + bits_s + ")";
+    return std::string("w.write_") + (is_signed ? "signed_bits" : "bits") +
+           "(" + val + ", " + bits_s + ")";
+}
+
 // ============================================================================
 // Expression codegen for Python
 // ============================================================================
@@ -788,7 +814,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            ctx.line("raw = r.read_bits(" + std::to_string(t.bits) + ")");
+            ctx.line("raw = " + py_type_read_expr(t, is_signed));
             ctx.line("try:");
             ctx.indent();
             ctx.line("return " + name + "(raw)");
@@ -801,7 +827,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
-            ctx.line("w.write_bits(self.value, " + std::to_string(t.bits) + ")");
+            ctx.line(py_type_write_stmt("self.value", t, is_signed));
             ctx.dedent();
             ctx.dedent();
             ctx.line();
@@ -841,12 +867,12 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            ctx.line("return " + name + "(r.read_bits(" + std::to_string(t.bits) + "))");
+            ctx.line("return " + name + "(" + py_type_read_expr(t, is_signed) + ")");
             ctx.dedent();
             ctx.line();
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
-            ctx.line("w.write_bits(self._raw, " + std::to_string(t.bits) + ")");
+            ctx.line(py_type_write_stmt("self._raw", t, is_signed));
             ctx.dedent();
             ctx.line();
             ctx.line("def __eq__(self, o: object) -> bool:");
@@ -891,8 +917,9 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            ctx.line("raw = r.read_" + std::string(is_signed ? "signed_bits" : "bits") +
-                     "(" + std::to_string(t.bits) + ")");
+            ctx.line("raw = " + py_type_read_expr(t, is_signed));
+            if (t.constraint && t.constraint->equals)
+                ctx.line("if raw != " + *t.constraint->equals + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
             if (t.constraint && t.constraint->max)
                 ctx.line("if raw > " + *t.constraint->max + ": raise ConstraintError('" + name + " exceeds max')");
             if (t.constraint && t.constraint->min && (*t.constraint->min != "0" || is_signed))
@@ -902,8 +929,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
-            ctx.line("w.write_" + std::string(is_signed ? "signed_bits" : "bits") +
-                     "(self._raw, " + std::to_string(t.bits) + ")");
+            ctx.line(py_type_write_stmt("self._raw", t, is_signed));
             ctx.dedent();
             ctx.line();
             ctx.line("def __eq__(self, o: object) -> bool:");
@@ -969,8 +995,9 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            ctx.line("raw = r.read_" + std::string(is_signed ? "signed_bits" : "bits") +
-                     "(" + std::to_string(t.bits) + ")");
+            ctx.line("raw = " + py_type_read_expr(t, is_signed));
+            if (t.constraint->equals)
+                ctx.line("if raw != " + *t.constraint->equals + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
             if (t.constraint->max)
                 ctx.line("if raw > " + *t.constraint->max + ": raise ConstraintError('" + name + " exceeds max')");
             if (t.constraint->min && (*t.constraint->min != "0" || is_signed))
@@ -980,8 +1007,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
-            ctx.line("w.write_" + std::string(is_signed ? "signed_bits" : "bits") +
-                     "(self._raw, " + std::to_string(t.bits) + ")");
+            ctx.line(py_type_write_stmt("self._raw", t, is_signed));
             ctx.dedent();
             ctx.line();
             ctx.line("def __eq__(self, o: object) -> bool:");
@@ -1081,6 +1107,18 @@ void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Fie
 // Decode/Encode children
 // ============================================================================
 
+// Forward declarations for mutual recursion with inline struct handling
+void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const PyOuterScopeMap& scope_map = {},
+                             const PyOuterContext& outer_ctx = {},
+                             const PyInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {});
+void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                             const analyzer::TypeIndex& index, const std::string& pfx,
+                             const PyInlineNameMap& name_map = {},
+                             const std::string& parent_class_name = {});
+
 void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
                           const std::string& parent_class_name = {}) {
@@ -1093,6 +1131,19 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     }
     auto fi = py_resolve_field(f, index);
     std::string m = pfx + "." + py_field(f.name);
+    // Inline struct: decode children directly into parent (flattened)
+    if (f.is_inline && !f.type_ref.empty()) {
+        auto sit = index.structs.find(f.type_ref);
+        if (sit != index.structs.end()) {
+            emit_py_decode_children(ctx, sit->second->children, index, pfx);
+            return;
+        }
+        auto mit = index.messages.find(f.type_ref);
+        if (mit != index.messages.end()) {
+            emit_py_decode_children(ctx, mit->second->children, index, pfx);
+            return;
+        }
+    }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.py_type + ".decode(r)"); return; }
     if (fi.is_string) {
         bool has_enc = py_field_needs_encoding(f);
@@ -1194,6 +1245,19 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     }
     auto fi = py_resolve_field(f, index);
     std::string m = pfx + "." + py_field(f.name);
+    // Inline struct: encode children directly from parent (flattened)
+    if (f.is_inline && !f.type_ref.empty()) {
+        auto sit = index.structs.find(f.type_ref);
+        if (sit != index.structs.end()) {
+            emit_py_encode_children(ctx, sit->second->children, index, pfx);
+            return;
+        }
+        auto mit = index.messages.find(f.type_ref);
+        if (mit != index.messages.end()) {
+            emit_py_encode_children(ctx, mit->second->children, index, pfx);
+            return;
+        }
+    }
     if (f.auto_expr) {
         if (f.auto_expr->kind == model::AutoKind::Length) {
             ctx.line("_len_pos = w.size_bytes()");
@@ -1229,7 +1293,9 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
                 ctx.line("w.write_crlf_terminated_string(" + m + ")");
             } else {
                 std::string term = "0";
-                if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
+                if (*f.terminated == "newline") {
+                    term = "0x0A";
+                } else if (f.terminated->size() > 2 && f.terminated->substr(0, 2) == "0x") {
                     term = *f.terminated;
                 }
                 ctx.line("w.write_terminated_string(" + m + ", " + term + ")");
@@ -1266,10 +1332,10 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
 
 void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
-                             const PyOuterScopeMap& scope_map = {},
-                             const PyOuterContext& outer_ctx = {},
-                             const PyInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {}) {
+                             const PyOuterScopeMap& scope_map,
+                             const PyOuterContext& outer_ctx,
+                             const PyInlineNameMap& name_map,
+                             const std::string& parent_class_name) {
     // Pre-scan: find struct-level auto-length field (auto="length" with no field_ref).
     // When present, we create a bounded sub_reader after reading the length field
     // so that subsequent children cannot over-read past the struct boundary.
@@ -1484,10 +1550,104 @@ void py_fx_has_fields_check(EmitContext& ctx, const std::vector<model::StructChi
     }
 }
 
+// Encode children within an FX block: optional fields must write zero-fill when absent
+void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
+                                const analyzer::TypeIndex& index, const std::string& pfx,
+                                const PyInlineNameMap& name_map,
+                                const std::string& parent_class_name) {
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto fi = py_resolve_field(*f, index);
+            std::string m = pfx + "." + py_field(f->name);
+            if (fi.is_enum || (!f->enum_values.empty() && f->type_ref.empty())) {
+                // Enum: encode if present, else write zero bits
+                ctx.line("if " + m + " is not None:");
+                ctx.indent(); ctx.line(m + ".encode(w)"); ctx.dedent();
+                ctx.line("else:");
+                ctx.indent(); ctx.line(py_write_stmt("0", fi)); ctx.dedent();
+            } else if (fi.is_struct && !fi.is_string && !fi.is_bytes) {
+                // Struct: encode if present, else default-construct and encode
+                std::string stype = f->type_ref.empty() ? py_inline_class(f->name, name_map) : py_class(f->type_ref);
+                ctx.line("if " + m + " is not None:");
+                ctx.indent(); ctx.line(m + ".encode(w)"); ctx.dedent();
+                ctx.line("else:");
+                ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
+            } else if (fi.is_string) {
+                // String: write empty string with proper padding when absent
+                if (f->length) {
+                    int pad = (f->padding && *f->padding == model::StringPadding::Space) ? 0x20 : 0;
+                    ctx.line("w.write_string(" + m + " if " + m + " is not None else '', " +
+                             std::to_string(*f->length) + ", " + std::to_string(pad) + ")");
+                } else {
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent(); ctx.line("w.write_string(" + m + ", len(" + m + "))"); ctx.dedent();
+                }
+            } else if (fi.is_bytes) {
+                if (f->length) {
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent(); ctx.line("w.write_bytes(" + m + ")"); ctx.dedent();
+                    ctx.line("else:");
+                    ctx.indent(); ctx.line("w.write_bits(0, " + std::to_string(*f->length * 8) + ")"); ctx.dedent();
+                } else {
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent(); ctx.line("w.write_bytes(" + m + ")"); ctx.dedent();
+                }
+            } else if (fi.has_scale) {
+                // Scaled: use 0.0 when absent
+                std::string val = m + " if " + m + " is not None else 0.0";
+                std::string inv = val;
+                if (fi.offset != 0.0) inv = "(" + inv + " - " + py_double(fi.offset) + ")";
+                if (fi.scale != 1.0) inv = "(" + inv + " / " + py_double(fi.scale) + ")";
+                PyFieldInfo raw_fi = fi; raw_fi.bits = fi.raw_bits; raw_fi.is_signed = fi.raw_signed;
+                raw_fi.is_float = false; raw_fi.has_scale = false;
+                ctx.line(py_write_stmt("int(" + inv + ")", raw_fi));
+            } else {
+                // Primitive: value_or(0)
+                ctx.line(py_write_stmt("(" + m + " if " + m + " is not None else 0)", fi));
+            }
+        } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
+            // Nested struct in FX: encode if present, else default-construct
+            std::string m = pfx + "." + py_field(sd->name);
+            std::string stype = py_inline_class(sd->name, name_map);
+            ctx.line("if " + m + " is not None:");
+            ctx.indent(); ctx.line(m + ".encode(w)"); ctx.dedent();
+            ctx.line("else:");
+            ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
+        } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
+            std::string m = pfx + "." + py_field(ad->name);
+            ctx.line("if " + m + " is not None:");
+            ctx.indent(); ctx.line("for _item in " + m + ": _item.encode(w)"); ctx.dedent();
+        } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
+            std::string m = pfx + "." + py_field(cd->name);
+            ctx.line("if " + m + " is not None: " + m + ".encode(w)");
+        } else if (auto* res = std::get_if<model::Reserved>(&child)) {
+            ctx.line("w.write_bits(0, " + std::to_string(res->bits) + ")");
+        } else if (auto* al = std::get_if<model::Align>(&child)) {
+            ctx.line("w.align_to(" + std::to_string(al->to) + ")");
+        } else if (auto* nested_fx = std::get_if<model::FxBlock>(&child)) {
+            // Nested FX block
+            ctx.line("_fx_continue = False");
+            py_fx_has_fields_check(ctx, nested_fx->children, pfx, "_fx_continue");
+            ctx.line("w.write_bits(1 if _fx_continue else 0, 1)");
+            ctx.line("if _fx_continue:");
+            ctx.indent();
+            emit_py_encode_fx_children(ctx, nested_fx->children, index, pfx, name_map, parent_class_name);
+            bool has_nested_fx = false;
+            for (const auto& fc : nested_fx->children) {
+                if (std::holds_alternative<model::FxBlock>(fc)) { has_nested_fx = true; break; }
+            }
+            if (!has_nested_fx) {
+                ctx.line("w.write_bits(0, 1)  # Terminal FX=0");
+            }
+            ctx.dedent();
+        }
+    }
+}
+
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
-                             const PyInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {}) {
+                             const PyInlineNameMap& name_map,
+                             const std::string& parent_class_name) {
     for (const auto& child : children) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
@@ -1521,7 +1681,8 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             ctx.line("w.write_bits(1 if _fx_continue else 0, 1)");
             ctx.line("if _fx_continue:");
             ctx.indent();
-            emit_py_encode_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
+            // Use FX-aware encoder that writes zero-fill for absent optional fields
+            emit_py_encode_fx_children(ctx, fx->children, index, pfx, name_map, parent_class_name);
             // Write terminal FX=0 bit if this FX extent has no nested FxBlock
             {
                 bool has_nested_fx = false;
@@ -2145,20 +2306,45 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (children.empty()) ctx.line("pass");
     else {
+        // Check for auto-length fields; if present, record struct start position
+        bool has_auto_length = false;
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
+                    && f->auto_expr->field_ref.empty()) {
+                    has_auto_length = true;
+                    break;
+                }
+            }
+        }
+        if (has_auto_length) {
+            ctx.line("_struct_start = w.size_bytes()");
+        }
         emit_py_encode_children(ctx, children, index, "self", name_map, cn);
         // Auto-length backpatching: find any field with auto="length" and patch the written placeholder
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
                 if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
                     auto lfi = py_resolve_field(*f, index);
-                    std::string length_expr = "w.size_bytes() - _len_pos";
+                    std::string length_expr = "w.size_bytes() - _struct_start";
                     if (f->auto_expr->modifier.has_modifier()) {
                         auto& mod = f->auto_expr->modifier;
-                        // Reverse the modifier: if wire = actual + offset, then patch = actual - offset
-                        if (mod.op == model::ArithOp::Add)
-                            length_expr += " - " + std::to_string(mod.literal);
-                        else if (mod.op == model::ArithOp::Sub)
-                            length_expr += " + " + std::to_string(mod.literal);
+                        // Apply forward modifier: auto="length + N" means wire_val = actual + N
+                        switch (mod.op) {
+                            case model::ArithOp::Add:
+                                length_expr = "(" + length_expr + " + " + std::to_string(mod.literal) + ")";
+                                break;
+                            case model::ArithOp::Sub:
+                                length_expr = "(" + length_expr + " - " + std::to_string(mod.literal) + ")";
+                                break;
+                            case model::ArithOp::Mul:
+                                length_expr = "(" + length_expr + " * " + std::to_string(mod.literal) + ")";
+                                break;
+                            case model::ArithOp::Div:
+                                length_expr = "(" + length_expr + " // " + std::to_string(mod.literal) + ")";
+                                break;
+                            default: break;
+                        }
                     }
                     if (lfi.bits <= 8) ctx.line("w.patch_u8(_len_pos, " + length_expr + ")");
                     else if (lfi.bits <= 16) ctx.line("w.patch_u16(_len_pos, " + length_expr + ", " +
@@ -3071,6 +3257,27 @@ std::string generate_py_sessions(const model::Protocol& protocol,
             ctx.line("msg = frame.payload");
             ctx.line("messages = [{'type_id': msg.TYPE_ID, 'type_name': msg.TYPE_NAME, 'payload': msg, 'raw': data}]");
         }
+        // Warn when receiving send-only message types
+        {
+            bool has_send_only = false;
+            for (const auto& lt : si.leaf_types)
+                if (lt.send_only) { has_send_only = true; break; }
+            if (has_send_only) {
+                ctx.line("import sys");
+                ctx.line("for dm in messages:");
+                ctx.indent();
+                ctx.line("tid = dm['type_id']");
+                for (const auto& lt : si.leaf_types) {
+                    if (lt.send_only) {
+                        ctx.line("if tid == " + py_hex64(lt.type_id) + ":");
+                        ctx.indent();
+                        ctx.line("print(f\"WARNING: Received send-only message type '" + lt.name + "'\", file=sys.stderr)");
+                        ctx.dedent();
+                    }
+                }
+                ctx.dedent();
+            }
+        }
         ctx.line("return messages");
         ctx.dedent();
         ctx.line();
@@ -3087,12 +3294,14 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                 ctx.line(prefix + " type_id == " + py_hex64(lt.type_id) + ":");
                 ctx.indent();
 
+                ctx.line("_auto_fields = []");
                 // Set message-level config fields on a copy before wrapping
                 if (!lt.config_fields.empty()) {
                     for (const auto& cf : lt.config_fields) {
                         std::string cfg_key = py_snake(cf.key);
                         std::string field = py_field(cf.field_name);
                         ctx.line("payload." + field + " = self._config.get('" + cfg_key + "', 0)");
+                        ctx.line("_auto_fields.append(('" + cf.field_name + "', str(payload." + field + ")))");
                     }
                 }
 
@@ -3103,6 +3312,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     std::string cfg_key = py_snake(cf.key);
                     std::string field = py_field(cf.field_name);
                     ctx.line("frame." + field + " = self._config.get('" + cfg_key + "', 0)");
+                    ctx.line("_auto_fields.append(('" + cf.field_name + "', str(frame." + field + ")))");
                 }
 
                 // Set auto-increment fields
@@ -3110,8 +3320,10 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = py_field(lt.auto_fields[ai]);
-                    ctx.line("frame." + field + " = self._seq & " + std::to_string(mask_val));
+                    ctx.line("_seq_val = self._seq & " + std::to_string(mask_val));
+                    ctx.line("frame." + field + " = _seq_val");
                     ctx.line("self._seq += 1");
+                    ctx.line("_auto_fields.append(('" + lt.auto_fields[ai] + "', str(_seq_val)))");
                 }
 
                 // Set auto-timestamp fields
@@ -3119,11 +3331,19 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = py_field(lt.timestamp_fields[ti]);
-                    ctx.line("frame." + field + " = int(time.time() * 1000) & " + std::to_string(mask_val));
+                    ctx.line("_ts_val = int(time.time() * 1000) & " + std::to_string(mask_val));
+                    ctx.line("frame." + field + " = _ts_val");
+                    ctx.line("_auto_fields.append(('" + lt.timestamp_fields[ti] + "', str(_ts_val)))");
+                }
+
+                // Record auto-id field
+                if (!si.id_field_name.empty()) {
+                    std::string leaf_class = py_class(lt.name);
+                    ctx.line("_auto_fields.append(('" + si.id_field_name + "', str(" + leaf_class + ".ID_VALUE)))");
                 }
 
                 ctx.line("data = frame.encode_bytes()");
-                ctx.line("return {'bytes': data, 'type_id': type_id}");
+                ctx.line("return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}");
                 ctx.dedent();
             }
         }
@@ -3176,13 +3396,17 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         ctx.dedent();
                     }
 
+                    ctx.line("_auto_fields = []");
+
                     // Set auto-increment fields
                     for (size_t ai = 0; ai < lt.auto_fields.size(); ++ai) {
                         int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                         uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                         std::string field = py_field(lt.auto_fields[ai]);
-                        ctx.line("frame." + field + " = self._seq & " + std::to_string(mask_val));
+                        ctx.line("_seq_val = self._seq & " + std::to_string(mask_val));
+                        ctx.line("frame." + field + " = _seq_val");
                         ctx.line("self._seq += 1");
+                        ctx.line("_auto_fields.append(('" + lt.auto_fields[ai] + "', str(_seq_val)))");
                     }
 
                     // Set auto-timestamp fields
@@ -3190,7 +3414,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         int bits = (ti < lt.timestamp_field_bits.size()) ? lt.timestamp_field_bits[ti] : 32;
                         uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                         std::string field = py_field(lt.timestamp_fields[ti]);
-                        ctx.line("frame." + field + " = int(time.time() * 1000) & " + std::to_string(mask_val));
+                        ctx.line("_ts_val = int(time.time() * 1000) & " + std::to_string(mask_val));
+                        ctx.line("frame." + field + " = _ts_val");
+                        ctx.line("_auto_fields.append(('" + lt.timestamp_fields[ti] + "', str(_ts_val)))");
                     }
 
                     // Set frame-level config fields
@@ -3198,11 +3424,17 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         std::string cfg_key = py_snake(cf.key);
                         std::string field = py_field(cf.field_name);
                         ctx.line("frame." + field + " = self._config.get('" + cfg_key + "', 0)");
+                        ctx.line("_auto_fields.append(('" + cf.field_name + "', str(frame." + field + ")))");
+                    }
+
+                    // Record auto-id field
+                    if (!si.id_field_name.empty()) {
+                        ctx.line("_auto_fields.append(('" + si.id_field_name + "', str(" + leaf_class + ".ID_VALUE)))");
                     }
 
                     ctx.line("frame.payload = payloads");
                     ctx.line("data = frame.encode_bytes()");
-                    ctx.line("return {'bytes': data, 'type_id': type_id}");
+                    ctx.line("return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}");
                     ctx.dedent();
                 }
             }
@@ -3216,6 +3448,24 @@ std::string generate_py_sessions(const model::Protocol& protocol,
 
         // format_message
         ctx.line("def format_message(self, type_id: int, payload) -> str:");
+        ctx.indent();
+        {
+            bool first = true;
+            for (const auto& lt : si.leaf_types) {
+                std::string prefix = first ? "if" : "elif";
+                first = false;
+                ctx.line(prefix + " type_id == " + py_hex64(lt.type_id) + ":");
+                ctx.indent();
+                ctx.line("return repr(payload)");
+                ctx.dedent();
+            }
+        }
+        ctx.line("return ''");
+        ctx.dedent();
+        ctx.line();
+
+        // format_outbound
+        ctx.line("def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:");
         ctx.indent();
         {
             bool first = true;
