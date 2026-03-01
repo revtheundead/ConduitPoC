@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: MIT
 package io.conduit;
 
-import java.lang.foreign.*;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,7 +8,13 @@ import java.util.List;
  * <p>
  * Provides a Java API over libconduit_cabi that mirrors the C++ experience.
  * Users work with typed message objects — never raw bytes or type IDs.
- * Uses the Java Foreign Function and Memory API (JDK 21+, Panama FFI).
+ * <p>
+ * Supports two native backends:
+ * <ul>
+ *   <li><b>Panama FFI</b> (JDK 21+) — the default when available</li>
+ *   <li><b>JNI</b> (JDK 11+) — fallback for older JDKs</li>
+ * </ul>
+ * Use {@link ConduitNative#setBackend} to override the auto-detected choice.
  *
  * <pre>{@code
  * try (var t = new Transceiver()) {
@@ -54,73 +55,106 @@ public class Transceiver implements AutoCloseable {
     }
 
     /** Statistics snapshot matching C++ TransceiverStats::Snapshot. */
-    public record StatsSnapshot(
-        long messagesReceived,
-        long messagesDispatched,
-        long messagesDropped,
-        long decodeErrors,
-        long handlerErrors,
-        long handlerTimeouts,
-        long bytesReceived,
-        long bytesSent
-    ) {}
+    public static final class StatsSnapshot {
+        private final long messagesReceived;
+        private final long messagesDispatched;
+        private final long messagesDropped;
+        private final long decodeErrors;
+        private final long handlerErrors;
+        private final long handlerTimeouts;
+        private final long bytesReceived;
+        private final long bytesSent;
 
-    // ================================================================
-    // Callback FunctionDescriptors matching C ABI callback signatures
-    // ================================================================
+        public StatsSnapshot(long messagesReceived, long messagesDispatched,
+                             long messagesDropped, long decodeErrors,
+                             long handlerErrors, long handlerTimeouts,
+                             long bytesReceived, long bytesSent) {
+            this.messagesReceived = messagesReceived;
+            this.messagesDispatched = messagesDispatched;
+            this.messagesDropped = messagesDropped;
+            this.decodeErrors = decodeErrors;
+            this.handlerErrors = handlerErrors;
+            this.handlerTimeouts = handlerTimeouts;
+            this.bytesReceived = bytesReceived;
+            this.bytesSent = bytesSent;
+        }
 
-    // void conduit_msg_callback_t(uint32_t peer, uint64_t type_id, const char* type_name,
-    //                             const uint8_t* data, size_t len, void* user_data)
-    private static final FunctionDescriptor MSG_CB_DESC = FunctionDescriptor.ofVoid(
-        ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
-        ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS);
+        public long messagesReceived() { return messagesReceived; }
+        public long messagesDispatched() { return messagesDispatched; }
+        public long messagesDropped() { return messagesDropped; }
+        public long decodeErrors() { return decodeErrors; }
+        public long handlerErrors() { return handlerErrors; }
+        public long handlerTimeouts() { return handlerTimeouts; }
+        public long bytesReceived() { return bytesReceived; }
+        public long bytesSent() { return bytesSent; }
 
-    // void conduit_state_callback_t(uint32_t peer, int32_t new_state, void* user_data)
-    private static final FunctionDescriptor STATE_CB_DESC = FunctionDescriptor.ofVoid(
-        ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.ADDRESS);
+        @Override
+        public String toString() {
+            return "StatsSnapshot{received=" + messagesReceived +
+                ", dispatched=" + messagesDispatched +
+                ", dropped=" + messagesDropped +
+                ", decodeErrors=" + decodeErrors +
+                ", handlerErrors=" + handlerErrors +
+                ", handlerTimeouts=" + handlerTimeouts +
+                ", bytesReceived=" + bytesReceived +
+                ", bytesSent=" + bytesSent + "}";
+        }
 
-    // void conduit_error_callback_t(uint32_t peer, const char* peer_name,
-    //                               int32_t error_code, const char* error_msg, void* user_data)
-    private static final FunctionDescriptor ERROR_CB_DESC = FunctionDescriptor.ofVoid(
-        ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
-        ValueLayout.ADDRESS, ValueLayout.ADDRESS);
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof StatsSnapshot)) return false;
+            StatsSnapshot s = (StatsSnapshot) o;
+            return messagesReceived == s.messagesReceived
+                && messagesDispatched == s.messagesDispatched
+                && messagesDropped == s.messagesDropped
+                && decodeErrors == s.decodeErrors
+                && handlerErrors == s.handlerErrors
+                && handlerTimeouts == s.handlerTimeouts
+                && bytesReceived == s.bytesReceived
+                && bytesSent == s.bytesSent;
+        }
 
-    private static final Linker LINKER = Linker.nativeLinker();
+        @Override
+        public int hashCode() {
+            long h = messagesReceived * 31 + messagesDispatched;
+            h = h * 31 + messagesDropped;
+            h = h * 31 + decodeErrors;
+            h = h * 31 + handlerErrors;
+            h = h * 31 + handlerTimeouts;
+            h = h * 31 + bytesReceived;
+            h = h * 31 + bytesSent;
+            return Long.hashCode(h);
+        }
+    }
 
     // ================================================================
     // Instance state
     // ================================================================
 
-    private volatile MemorySegment handle;
-    private final Arena arena;
-    // Keep upcall stubs alive to prevent GC while the transceiver is active
-    private final List<MemorySegment> callbackStubs = new ArrayList<>();
+    private final NativeBinding binding;
+    private volatile long handle;
 
     /**
-     * Layout for conduit_transport_config_t with correct padding for 64-bit.
-     * C struct: { int type; [4 bytes padding]; char* address; uint32_t baud_rate; [4 bytes padding] }
+     * Create a Transceiver using the auto-detected or user-selected backend.
+     *
+     * @see ConduitNative#setBackend
      */
-    private static final StructLayout TRANSPORT_CONFIG_LAYOUT = MemoryLayout.structLayout(
-        ValueLayout.JAVA_INT.withName("type"),
-        MemoryLayout.paddingLayout(4),
-        ValueLayout.ADDRESS.withName("address"),
-        ValueLayout.JAVA_INT.withName("baud_rate"),
-        MemoryLayout.paddingLayout(4)
-    );
-
     public Transceiver() {
-        this.arena = Arena.ofShared();
-        try {
-            this.handle = (MemorySegment) CabiBindings.conduit_create.invokeExact();
-            if (handle == MemorySegment.NULL) {
-                arena.close();
-                throw new ConduitError(-99, "Failed to create Transceiver");
-            }
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            arena.close();
-            throw new RuntimeException("Failed to create Transceiver", e);
+        this(ConduitNative.createBinding());
+    }
+
+    /**
+     * Create a Transceiver with a specific native binding.
+     *
+     * @param binding  The native binding to use
+     */
+    public Transceiver(NativeBinding binding) {
+        this.binding = binding;
+        this.handle = binding.create();
+        if (handle == 0) {
+            binding.close();
+            throw new ConduitError(-99, "Failed to create Transceiver");
         }
     }
 
@@ -133,96 +167,49 @@ public class Transceiver implements AutoCloseable {
      * @return Peer ID
      */
     public int addPeer(String name, String sessionName, TransportConfig transport) {
-        try {
-            var nameStr = arena.allocateUtf8String(name);
-            var sessionStr = arena.allocateUtf8String(sessionName);
-
-            // Allocate transport config struct with correct layout
-            var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-            cfg.set(ValueLayout.JAVA_INT, 0, transport.type().value());
-            var addrStr = arena.allocateUtf8String(transport.address());
-            cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-            cfg.set(ValueLayout.JAVA_INT, 16, transport.baudRate());
-
-            var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
-
-            int err = (int) CabiBindings.conduit_add_peer.invokeExact(
-                handle, nameStr, sessionStr, cfg, peerIdOut);
-            if (err != 0) {
-                throw new ConduitError(err, "Failed to add peer '" + name + "'");
-            }
-            return peerIdOut.get(ValueLayout.JAVA_INT, 0);
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("addPeer failed", e);
+        int result = binding.addPeer(handle, name, sessionName,
+            transport.type().value(), transport.address(), transport.baudRate());
+        if (result < 0) {
+            throw new ConduitError(result, "Failed to add peer '" + name + "'");
         }
+        return result;
     }
 
     /** Start the transceiver. */
     public void start() {
-        try {
-            int err = (int) CabiBindings.conduit_start.invokeExact(handle);
-            if (err != 0) {
-                throw new ConduitError(err, "Failed to start transceiver");
-            }
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("start failed", e);
+        int err = binding.start(handle);
+        if (err != 0) {
+            throw new ConduitError(err, "Failed to start transceiver");
         }
     }
 
     /** Stop the transceiver. */
     public void stop() {
-        try {
-            CabiBindings.conduit_stop.invokeExact(handle);
-        } catch (Throwable e) {
-            throw new RuntimeException("stop failed", e);
-        }
+        binding.stop(handle);
     }
 
     /** Check if the transceiver is running. */
     public boolean isRunning() {
-        try {
-            return (int) CabiBindings.conduit_is_running.invokeExact(handle) != 0;
-        } catch (Throwable e) {
-            throw new RuntimeException("isRunning failed", e);
-        }
+        return binding.isRunning(handle);
     }
 
     /** Get the number of peers. */
     public long peerCount() {
-        try {
-            return (long) CabiBindings.conduit_peer_count.invokeExact(handle);
-        } catch (Throwable e) {
-            throw new RuntimeException("peerCount failed", e);
-        }
+        return binding.peerCount(handle);
     }
 
     /** Get the connection state of a peer. */
     public int peerState(int peerId) {
-        try {
-            return (int) CabiBindings.conduit_peer_state.invokeExact(handle, peerId);
-        } catch (Throwable e) {
-            throw new RuntimeException("peerState failed", e);
-        }
+        return binding.peerState(handle, peerId);
     }
 
     /** Get the sole peer ID (when only one exists). */
     public int solePeer() {
-        try {
-            var pidOut = arena.allocate(ValueLayout.JAVA_INT);
-            int err = (int) CabiBindings.conduit_sole_peer.invokeExact(handle, pidOut);
-            if (err != 0) {
-                throw new ConduitError(err, "sole_peer failed");
-            }
-            return pidOut.get(ValueLayout.JAVA_INT, 0);
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("solePeer failed", e);
+        int result = binding.solePeer(handle);
+        if (result < 0) {
+            throw new ConduitError(result, "sole_peer failed");
         }
+        return result;
     }
 
     /**
@@ -232,19 +219,11 @@ public class Transceiver implements AutoCloseable {
      * @return Peer ID
      */
     public int peerByName(String name) {
-        try {
-            var nameStr = arena.allocateUtf8String(name);
-            var pidOut = arena.allocate(ValueLayout.JAVA_INT);
-            int err = (int) CabiBindings.conduit_peer_by_name.invokeExact(handle, nameStr, pidOut);
-            if (err != 0) {
-                throw new ConduitError(err, "Peer not found: '" + name + "'");
-            }
-            return pidOut.get(ValueLayout.JAVA_INT, 0);
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("peerByName failed", e);
+        int result = binding.peerByName(handle, name);
+        if (result < 0) {
+            throw new ConduitError(result, "Peer not found: '" + name + "'");
         }
+        return result;
     }
 
     // ================================================================
@@ -264,7 +243,7 @@ public class Transceiver implements AutoCloseable {
     public void send(int peerId, Object msg) {
         if (msg == null) throw new NullPointerException("msg must not be null");
         try {
-            var cls = msg.getClass();
+            Class<?> cls = msg.getClass();
             long typeId = cls.getField("TYPE_ID").getLong(null);
             byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
             sendRaw(peerId, typeId, data);
@@ -296,17 +275,9 @@ public class Transceiver implements AutoCloseable {
      * @param data    Raw message payload
      */
     public void sendRaw(int peerId, long typeId, byte[] data) {
-        try (var sendArena = Arena.ofConfined()) {
-            var buf = sendArena.allocateArray(ValueLayout.JAVA_BYTE, data);
-            int err = (int) CabiBindings.conduit_send.invokeExact(
-                handle, peerId, typeId, buf, (long) data.length);
-            if (err != 0) {
-                throw new ConduitError(err, "send failed");
-            }
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("send failed", e);
+        int err = binding.send(handle, peerId, typeId, data);
+        if (err != 0) {
+            throw new ConduitError(err, "send failed");
         }
     }
 
@@ -319,33 +290,9 @@ public class Transceiver implements AutoCloseable {
      */
     public void sendBatch(int peerId, long typeId, List<byte[]> payloads) {
         if (payloads.isEmpty()) return;
-        try (var batchArena = Arena.ofConfined()) {
-            int count = payloads.size();
-            // Allocate array of pointers (one per payload)
-            var ptrs = batchArena.allocate(
-                ValueLayout.ADDRESS.byteSize() * count,
-                ValueLayout.ADDRESS.byteAlignment());
-            // Allocate array of sizes (one per payload)
-            var lens = batchArena.allocate(
-                ValueLayout.JAVA_LONG.byteSize() * count,
-                ValueLayout.JAVA_LONG.byteAlignment());
-
-            for (int i = 0; i < count; i++) {
-                byte[] payload = payloads.get(i);
-                var buf = batchArena.allocateArray(ValueLayout.JAVA_BYTE, payload);
-                ptrs.setAtIndex(ValueLayout.ADDRESS, i, buf);
-                lens.setAtIndex(ValueLayout.JAVA_LONG, i, (long) payload.length);
-            }
-
-            int err = (int) CabiBindings.conduit_send_batch.invokeExact(
-                handle, peerId, typeId, ptrs, lens, (long) count);
-            if (err != 0) {
-                throw new ConduitError(err, "sendBatch failed");
-            }
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("sendBatch failed", e);
+        int err = binding.sendBatch(handle, peerId, typeId, payloads);
+        if (err != 0) {
+            throw new ConduitError(err, "sendBatch failed");
         }
     }
 
@@ -361,14 +308,7 @@ public class Transceiver implements AutoCloseable {
      * @return Callback ID (can be used for removal)
      */
     public int onMessage(long typeId, MessageCallback callback) {
-        try {
-            var stub = createMsgUpcallStub(callback);
-            callbackStubs.add(stub);
-            return (int) CabiBindings.conduit_on_message.invokeExact(
-                handle, typeId, stub, MemorySegment.NULL);
-        } catch (Throwable e) {
-            throw new RuntimeException("onMessage failed", e);
-        }
+        return binding.onMessage(handle, typeId, callback);
     }
 
     /**
@@ -385,7 +325,7 @@ public class Transceiver implements AutoCloseable {
     public <T> int onMessage(Class<T> msgClass, TypedMessageCallback<T> callback) {
         try {
             long typeId = msgClass.getField("TYPE_ID").getLong(null);
-            var decodeMethod = msgClass.getMethod("decodeBytes", byte[].class);
+            java.lang.reflect.Method decodeMethod = msgClass.getMethod("decodeBytes", byte[].class);
 
             return onMessage(typeId, (peerId, tid, typeName, data) -> {
                 try {
@@ -412,14 +352,7 @@ public class Transceiver implements AutoCloseable {
      * @return Callback ID
      */
     public int onAnyMessage(MessageCallback callback) {
-        try {
-            var stub = createMsgUpcallStub(callback);
-            callbackStubs.add(stub);
-            return (int) CabiBindings.conduit_on_any_message.invokeExact(
-                handle, stub, MemorySegment.NULL);
-        } catch (Throwable e) {
-            throw new RuntimeException("onAnyMessage failed", e);
-        }
+        return binding.onAnyMessage(handle, callback);
     }
 
     /**
@@ -430,12 +363,7 @@ public class Transceiver implements AutoCloseable {
      * @return true if a handler was removed
      */
     public boolean removeHandler(int peerId, long typeId) {
-        try {
-            return (int) CabiBindings.conduit_remove_handler.invokeExact(
-                handle, peerId, typeId) != 0;
-        } catch (Throwable e) {
-            throw new RuntimeException("removeHandler failed", e);
-        }
+        return binding.removeHandler(handle, peerId, typeId);
     }
 
     // ================================================================
@@ -449,14 +377,7 @@ public class Transceiver implements AutoCloseable {
      * @return Callback ID (can be used for removal)
      */
     public int onStateChange(StateCallback callback) {
-        try {
-            var stub = createStateUpcallStub(callback);
-            callbackStubs.add(stub);
-            return (int) CabiBindings.conduit_on_state_change.invokeExact(
-                handle, stub, MemorySegment.NULL);
-        } catch (Throwable e) {
-            throw new RuntimeException("onStateChange failed", e);
-        }
+        return binding.onStateChange(handle, callback);
     }
 
     /**
@@ -466,12 +387,7 @@ public class Transceiver implements AutoCloseable {
      * @return true if a callback was removed
      */
     public boolean removeStateChange(int callbackId) {
-        try {
-            return (int) CabiBindings.conduit_remove_state_change.invokeExact(
-                handle, callbackId) != 0;
-        } catch (Throwable e) {
-            throw new RuntimeException("removeStateChange failed", e);
-        }
+        return binding.removeStateChange(handle, callbackId);
     }
 
     /**
@@ -481,14 +397,7 @@ public class Transceiver implements AutoCloseable {
      * @return Callback ID (can be used for removal)
      */
     public int onError(ErrorCallback callback) {
-        try {
-            var stub = createErrorUpcallStub(callback);
-            callbackStubs.add(stub);
-            return (int) CabiBindings.conduit_on_error.invokeExact(
-                handle, stub, MemorySegment.NULL);
-        } catch (Throwable e) {
-            throw new RuntimeException("onError failed", e);
-        }
+        return binding.onError(handle, callback);
     }
 
     /**
@@ -498,29 +407,12 @@ public class Transceiver implements AutoCloseable {
      * @return true if a callback was removed
      */
     public boolean removeErrorCallback(int callbackId) {
-        try {
-            return (int) CabiBindings.conduit_remove_error_callback.invokeExact(
-                handle, callbackId) != 0;
-        } catch (Throwable e) {
-            throw new RuntimeException("removeErrorCallback failed", e);
-        }
+        return binding.removeErrorCallback(handle, callbackId);
     }
 
     // ================================================================
     // Statistics
     // ================================================================
-
-    /** Layout for conduit_stats_snapshot_t: 8 uint64_t fields */
-    private static final StructLayout STATS_LAYOUT = MemoryLayout.structLayout(
-        ValueLayout.JAVA_LONG.withName("messages_received"),
-        ValueLayout.JAVA_LONG.withName("messages_dispatched"),
-        ValueLayout.JAVA_LONG.withName("messages_dropped"),
-        ValueLayout.JAVA_LONG.withName("decode_errors"),
-        ValueLayout.JAVA_LONG.withName("handler_errors"),
-        ValueLayout.JAVA_LONG.withName("handler_timeouts"),
-        ValueLayout.JAVA_LONG.withName("bytes_received"),
-        ValueLayout.JAVA_LONG.withName("bytes_sent")
-    );
 
     /**
      * Get a snapshot of transceiver statistics.
@@ -528,40 +420,15 @@ public class Transceiver implements AutoCloseable {
      * @return Statistics snapshot
      */
     public StatsSnapshot stats() {
-        try (var statsArena = Arena.ofConfined()) {
-            var snap = statsArena.allocate(STATS_LAYOUT);
-            int err = (int) CabiBindings.conduit_stats.invokeExact(handle, snap);
-            if (err != 0) {
-                throw new ConduitError(err, "stats failed");
-            }
-            return new StatsSnapshot(
-                snap.get(ValueLayout.JAVA_LONG, 0),   // messages_received
-                snap.get(ValueLayout.JAVA_LONG, 8),   // messages_dispatched
-                snap.get(ValueLayout.JAVA_LONG, 16),  // messages_dropped
-                snap.get(ValueLayout.JAVA_LONG, 24),  // decode_errors
-                snap.get(ValueLayout.JAVA_LONG, 32),  // handler_errors
-                snap.get(ValueLayout.JAVA_LONG, 40),  // handler_timeouts
-                snap.get(ValueLayout.JAVA_LONG, 48),  // bytes_received
-                snap.get(ValueLayout.JAVA_LONG, 56)   // bytes_sent
-            );
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("stats failed", e);
-        }
+        long[] s = binding.stats(handle);
+        return new StatsSnapshot(s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]);
     }
 
     /** Reset all statistics counters to zero. */
     public void statsReset() {
-        try {
-            int err = (int) CabiBindings.conduit_stats_reset.invokeExact(handle);
-            if (err != 0) {
-                throw new ConduitError(err, "statsReset failed");
-            }
-        } catch (ConduitError e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new RuntimeException("statsReset failed", e);
+        int err = binding.statsReset(handle);
+        if (err != 0) {
+            throw new ConduitError(err, "statsReset failed");
         }
     }
 
@@ -571,149 +438,30 @@ public class Transceiver implements AutoCloseable {
 
     /** Get the library version string. */
     public static String version() {
-        try {
-            var ptr = (MemorySegment) CabiBindings.conduit_version.invokeExact();
-            if (ptr == MemorySegment.NULL) return "";
-            return ptr.reinterpret(256).getUtf8String(0);
-        } catch (Throwable e) {
-            throw new RuntimeException("version failed", e);
+        try (NativeBinding b = ConduitNative.createBinding()) {
+            return b.version();
         }
+    }
+
+    /** Get the native backend in use by this transceiver. */
+    public String backendName() {
+        return binding.getClass().getSimpleName();
     }
 
     @Override
     public void close() {
-        var h = handle;
-        if (h != null && h != MemorySegment.NULL) {
-            handle = MemorySegment.NULL;
+        long h = handle;
+        if (h != 0) {
+            handle = 0;
             try {
-                // Stop before destroying to avoid undefined behavior with running I/O threads
-                if ((int) CabiBindings.conduit_is_running.invokeExact(h) != 0) {
-                    CabiBindings.conduit_stop.invokeExact(h);
+                if (binding.isRunning(h)) {
+                    binding.stop(h);
                 }
             } catch (Throwable ignored) {
                 // Best-effort stop; proceed with destroy
             }
-            try {
-                CabiBindings.conduit_destroy.invokeExact(h);
-            } catch (Throwable e) {
-                throw new RuntimeException("destroy failed", e);
-            }
-        }
-        callbackStubs.clear();
-        if (arena.scope().isAlive()) {
-            arena.close();
-        }
-    }
-
-    // ================================================================
-    // Upcall stub creation (Panama FFI)
-    // ================================================================
-
-    /**
-     * Create a native upcall stub for a MessageCallback.
-     * The C ABI calls: void(uint32_t peer, uint64_t type_id, const char* name,
-     *                       const uint8_t* data, size_t len, void* user_data)
-     */
-    private MemorySegment createMsgUpcallStub(MessageCallback callback) {
-        try {
-            MethodHandle target = MethodHandles.lookup().bind(
-                new MsgCallbackDispatcher(callback), "dispatch",
-                MethodType.methodType(void.class,
-                    int.class, long.class, MemorySegment.class,
-                    MemorySegment.class, long.class, MemorySegment.class));
-            return LINKER.upcallStub(target, MSG_CB_DESC, arena);
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException("Failed to create message upcall stub", e);
-        }
-    }
-
-    /**
-     * Create a native upcall stub for a StateCallback.
-     * The C ABI calls: void(uint32_t peer, int32_t new_state, void* user_data)
-     */
-    private MemorySegment createStateUpcallStub(StateCallback callback) {
-        try {
-            MethodHandle target = MethodHandles.lookup().bind(
-                new StateCallbackDispatcher(callback), "dispatch",
-                MethodType.methodType(void.class,
-                    int.class, int.class, MemorySegment.class));
-            return LINKER.upcallStub(target, STATE_CB_DESC, arena);
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException("Failed to create state upcall stub", e);
-        }
-    }
-
-    /**
-     * Create a native upcall stub for an ErrorCallback.
-     * The C ABI calls: void(uint32_t peer, const char* peer_name,
-     *                       int32_t error_code, const char* error_msg, void* user_data)
-     */
-    private MemorySegment createErrorUpcallStub(ErrorCallback callback) {
-        try {
-            MethodHandle target = MethodHandles.lookup().bind(
-                new ErrorCallbackDispatcher(callback), "dispatch",
-                MethodType.methodType(void.class,
-                    int.class, MemorySegment.class, int.class,
-                    MemorySegment.class, MemorySegment.class));
-            return LINKER.upcallStub(target, ERROR_CB_DESC, arena);
-        } catch (NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException("Failed to create error upcall stub", e);
-        }
-    }
-
-    // ================================================================
-    // Callback dispatchers — bridge native C calls to Java lambdas
-    // ================================================================
-
-    private static final class MsgCallbackDispatcher {
-        private final MessageCallback callback;
-
-        MsgCallbackDispatcher(MessageCallback cb) { this.callback = cb; }
-
-        @SuppressWarnings("unused") // Called via MethodHandle from native code
-        public void dispatch(int peerId, long typeId, MemorySegment typeNamePtr,
-                             MemorySegment dataPtr, long dataLen, MemorySegment userData) {
-            String typeName = "";
-            if (typeNamePtr != MemorySegment.NULL) {
-                typeName = typeNamePtr.reinterpret(256).getUtf8String(0);
-            }
-            byte[] data = new byte[0];
-            if (dataPtr != MemorySegment.NULL && dataLen > 0) {
-                data = dataPtr.reinterpret(dataLen).toArray(ValueLayout.JAVA_BYTE);
-            }
-            callback.onMessage(peerId, typeId, typeName, data);
-        }
-    }
-
-    private static final class StateCallbackDispatcher {
-        private final StateCallback callback;
-
-        StateCallbackDispatcher(StateCallback cb) { this.callback = cb; }
-
-        @SuppressWarnings("unused") // Called via MethodHandle from native code
-        public void dispatch(int peerId, int newState, MemorySegment userData) {
-            callback.onStateChange(peerId, newState);
-        }
-    }
-
-    private static final class ErrorCallbackDispatcher {
-        private final ErrorCallback callback;
-
-        ErrorCallbackDispatcher(ErrorCallback cb) { this.callback = cb; }
-
-        @SuppressWarnings("unused") // Called via MethodHandle from native code
-        public void dispatch(int peerId, MemorySegment peerNamePtr,
-                             int errorCode, MemorySegment errorMsgPtr,
-                             MemorySegment userData) {
-            String peerName = "";
-            if (peerNamePtr != MemorySegment.NULL) {
-                peerName = peerNamePtr.reinterpret(256).getUtf8String(0);
-            }
-            String errorMsg = "";
-            if (errorMsgPtr != MemorySegment.NULL) {
-                errorMsg = errorMsgPtr.reinterpret(1024).getUtf8String(0);
-            }
-            callback.onError(peerId, peerName, errorCode, errorMsg);
+            binding.destroy(h);
+            binding.close();
         }
     }
 }
