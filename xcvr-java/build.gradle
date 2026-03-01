@@ -12,28 +12,49 @@ java {
     }
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['--enable-preview']
+}
+
+tasks.withType(JavaExec).configureEach {
+    jvmArgs += ['--enable-preview']
+}
+
 sourceSets {
     main {
         java {
             srcDirs = [
                 'src/main/java',
                 'asterix/generated',
-                'asterix-alt/generated'
+                'asterix-alt/generated',
+                '../conduit/bindings/java/src/main/java'
             ]
         }
     }
 }
 
+def cabiLibPath = "${rootProject.projectDir}/../conduit/build/libconduit_cabi.so"
+def commonJvmArgs = [
+    '--enable-native-access=ALL-UNNAMED',
+    "-Dconduit.cabi.path=${cabiLibPath}",
+    "-Djava.library.path=${rootProject.projectDir}/../conduit/build"
+]
+
 application {
     mainClass = 'com.conduit.xcvr.PocApp'
+    applicationDefaultJvmArgs = commonJvmArgs
 }
 
 tasks.register('runPocApp', JavaExec) {
     mainClass = 'com.conduit.xcvr.PocApp'
     classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = commonJvmArgs
+    args = System.getProperty('appArgs', '').split(' ').findAll { it }
 }
 
 tasks.register('runDummyPeer', JavaExec) {
     mainClass = 'com.conduit.xcvr.DummyPeer'
     classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = commonJvmArgs
+    args = System.getProperty('appArgs', '').split(' ').findAll { it }
 }

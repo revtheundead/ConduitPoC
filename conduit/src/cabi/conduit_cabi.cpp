@@ -185,9 +185,9 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
 
     // Cache type_id -> type_name from the session before it's moved
     for (auto id : session->leaf_type_ids()) {
-        auto name = session->type_name(id);
-        if (!name.empty()) {
-            wrapper->type_names[id] = std::string(name);
+        auto tname = session->type_name(id);
+        if (!tname.empty()) {
+            wrapper->type_names[id] = std::string(tname);
         }
     }
 

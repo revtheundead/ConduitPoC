@@ -2563,6 +2563,7 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
             name_map[sd->name] = resolved;
             py_analyze_outer_scope(sd->name, sd->children, children, current_bmdl_name, scope_map);
             emit_py_inline_types(ctx, sd->children, index, tid_map, scope_map, sd->name, name_map, resolved);
+            name_map[sd->name] = resolved;
             if (sd->is_bitmap) {
                 emit_py_bitmap_class(ctx, *sd, index, tid_map, scope_map, name_map, resolved);
             } else {
@@ -2573,6 +2574,7 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
                 std::string resolved = py_resolve_inline_name(ad->name, prefix, ad->type_name);
                 name_map[ad->name] = resolved;
                 emit_py_inline_types(ctx, ad->children, index, tid_map, scope_map, ad->name, name_map, resolved);
+                name_map[ad->name] = resolved;
                 emit_py_class(ctx, ad->name, ad->children, index, tid_map, {}, scope_map, name_map, resolved);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
@@ -2582,6 +2584,7 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
                     name_map[cs.name] = resolved;
                     py_analyze_outer_scope(cs.name, cs.children, children, current_bmdl_name, scope_map);
                     emit_py_inline_types(ctx, cs.children, index, tid_map, scope_map, cs.name, name_map, resolved);
+                    name_map[cs.name] = resolved;
                     emit_py_class(ctx, cs.name, cs.children, index, tid_map, {}, scope_map, name_map, resolved);
                 }
             }
@@ -2590,6 +2593,7 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
                 name_map[cd->otherwise->name] = resolved;
                 py_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, current_bmdl_name, scope_map);
                 emit_py_inline_types(ctx, cd->otherwise->children, index, tid_map, scope_map, cd->otherwise->name, name_map, resolved);
+                name_map[cd->otherwise->name] = resolved;
                 emit_py_class(ctx, cd->otherwise->name, cd->otherwise->children, index, tid_map, {}, scope_map, name_map, resolved);
             }
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {

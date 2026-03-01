@@ -2518,6 +2518,9 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
             name_map[sd->name] = resolved;
             j_analyze_outer_scope(sd->name, sd->children, children, index, current_bmdl_name, scope_map);
             collect_inline_types(sd->children, index, pkg, tid_map, scope_map, sd->name, out_files, name_map, resolved);
+            // Restore our mapping in case a recursive descendant with the same BMDL name
+            // (e.g., nested "items" inside "re") overwrote it in the shared name_map.
+            name_map[sd->name] = resolved;
             std::string code;
             if (sd->is_bitmap) {
                 code = generate_j_bitmap_class(*sd, index, pkg, tid_map, scope_map, name_map, resolved);
@@ -2530,6 +2533,7 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                 std::string resolved = j_resolve_inline_name(ad->name, prefix, ad->type_name);
                 name_map[ad->name] = resolved;
                 collect_inline_types(ad->children, index, pkg, tid_map, scope_map, ad->name, out_files, name_map, resolved);
+                name_map[ad->name] = resolved;
                 std::string code = generate_j_class(ad->name, ad->children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
                 out_files.push_back({resolved + ".java", code});
             }
@@ -2540,6 +2544,7 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                     name_map[cs.name] = resolved;
                     j_analyze_outer_scope(cs.name, cs.children, children, index, current_bmdl_name, scope_map);
                     collect_inline_types(cs.children, index, pkg, tid_map, scope_map, cs.name, out_files, name_map, resolved);
+                    name_map[cs.name] = resolved;
                     std::string code = generate_j_class(cs.name, cs.children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
                     out_files.push_back({resolved + ".java", code});
                 }
@@ -2549,6 +2554,7 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                 name_map[cd->otherwise->name] = resolved;
                 j_analyze_outer_scope(cd->otherwise->name, cd->otherwise->children, children, index, current_bmdl_name, scope_map);
                 collect_inline_types(cd->otherwise->children, index, pkg, tid_map, scope_map, cd->otherwise->name, out_files, name_map, resolved);
+                name_map[cd->otherwise->name] = resolved;
                 std::string code = generate_j_class(cd->otherwise->name, cd->otherwise->children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
                 out_files.push_back({resolved + ".java", code});
             }
