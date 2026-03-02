@@ -456,6 +456,78 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nStatsReset(
     return conduit_stats_reset(reinterpret_cast<conduit_transceiver_t*>(handle));
 }
 
+// Passthrough session registration
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSession(
+    JNIEnv* env, jclass,
+    jstring jname,
+    jbyteArray jsyncPattern,
+    jint minHeaderSize,
+    jint lengthSkipBits,
+    jint lengthFieldBits,
+    jint lengthBigEndian,
+    jlongArray jtypeIds,
+    jobjectArray jtypeNames,
+    jintArray jreceiveOnly) {
+
+    const char* name = env->GetStringUTFChars(jname, nullptr);
+
+    conduit_frame_config_t frame_config;
+    memset(&frame_config, 0, sizeof(frame_config));
+    frame_config.min_header_size = static_cast<size_t>(minHeaderSize);
+    frame_config.length_skip_bits = static_cast<size_t>(lengthSkipBits);
+    frame_config.length_field_bits = static_cast<size_t>(lengthFieldBits);
+    frame_config.length_big_endian = lengthBigEndian;
+
+    // Sync pattern
+    jbyte* syncBytes = nullptr;
+    jsize syncLen = 0;
+    if (jsyncPattern != nullptr) {
+        syncLen = env->GetArrayLength(jsyncPattern);
+        syncBytes = env->GetByteArrayElements(jsyncPattern, nullptr);
+        frame_config.sync_pattern = reinterpret_cast<const uint8_t*>(syncBytes);
+        frame_config.sync_pattern_len = static_cast<size_t>(syncLen);
+    }
+
+    // Type metadata
+    jsize typeCount = jtypeIds ? env->GetArrayLength(jtypeIds) : 0;
+    jlong* typeIds = typeCount > 0 ? env->GetLongArrayElements(jtypeIds, nullptr) : nullptr;
+    jint* receiveOnly = (jreceiveOnly && typeCount > 0) ? env->GetIntArrayElements(jreceiveOnly, nullptr) : nullptr;
+
+    auto* type_ids_c = new uint64_t[typeCount];
+    auto** type_names_c = new const char*[typeCount];
+    auto* recv_only_c = new int[typeCount];
+    auto* jstrings = new jstring[typeCount]; // for release
+
+    for (jsize i = 0; i < typeCount; i++) {
+        type_ids_c[i] = static_cast<uint64_t>(typeIds[i]);
+        jstrings[i] = static_cast<jstring>(env->GetObjectArrayElement(jtypeNames, i));
+        type_names_c[i] = env->GetStringUTFChars(jstrings[i], nullptr);
+        recv_only_c[i] = receiveOnly ? receiveOnly[i] : 0;
+    }
+
+    int err = conduit_register_passthrough_session(
+        name, &frame_config,
+        type_ids_c, type_names_c, recv_only_c,
+        static_cast<size_t>(typeCount));
+
+    // Release all JNI resources
+    for (jsize i = 0; i < typeCount; i++) {
+        env->ReleaseStringUTFChars(jstrings[i], type_names_c[i]);
+        env->DeleteLocalRef(jstrings[i]);
+    }
+    delete[] type_ids_c;
+    delete[] type_names_c;
+    delete[] recv_only_c;
+    delete[] jstrings;
+
+    if (typeIds) env->ReleaseLongArrayElements(jtypeIds, typeIds, JNI_ABORT);
+    if (receiveOnly) env->ReleaseIntArrayElements(jreceiveOnly, receiveOnly, JNI_ABORT);
+    if (syncBytes) env->ReleaseByteArrayElements(jsyncPattern, syncBytes, JNI_ABORT);
+    env->ReleaseStringUTFChars(jname, name);
+
+    return err;
+}
+
 // Version
 JNIEXPORT jstring JNICALL Java_io_conduit_JniNativeBinding_nVersion(JNIEnv* env, jclass) {
     const char* ver = conduit_version();

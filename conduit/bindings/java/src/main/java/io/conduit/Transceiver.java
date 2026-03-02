@@ -2,6 +2,9 @@
 package io.conduit;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Java wrapper for the Conduit Transceiver.
@@ -135,6 +138,13 @@ public class Transceiver implements AutoCloseable {
     private final NativeBinding binding;
     private volatile long handle;
 
+    // Java-side session for passthrough mode (no protocol-specific native .so)
+    private Object javaSession;
+    private java.lang.reflect.Method sessionEncodeWrap;
+    private java.lang.reflect.Method sessionDecodeFrame;
+    private final ConcurrentHashMap<Long, CopyOnWriteArrayList<TypedMessageCallback<?>>>
+        sessionHandlers = new ConcurrentHashMap<>();
+
     /**
      * Create a Transceiver using the auto-detected or user-selected backend.
      *
@@ -227,6 +237,124 @@ public class Transceiver implements AutoCloseable {
     }
 
     // ================================================================
+    // Session registration (passthrough — no protocol-specific .so)
+    // ================================================================
+
+    /**
+     * Register a passthrough session using a bgen-generated Java session class.
+     * <p>
+     * This eliminates the need for protocol-specific native shared libraries.
+     * The native transceiver handles transport and framing only; all message
+     * encode/decode is done on the Java side via the generated session.
+     *
+     * @param name     Session name (e.g., "asterix", "asterix_alt")
+     * @param session  Bgen-generated session object
+     */
+    public void registerSession(String name, Object session) {
+        try {
+            Class<?> cls = session.getClass();
+
+            byte[] syncPattern = (byte[]) cls.getMethod("syncPattern").invoke(session);
+            int minHeaderSize = (int) cls.getMethod("minFrameHeaderSize").invoke(session);
+            long[] typeIds = (long[]) cls.getMethod("leafTypeIds").invoke(session);
+
+            java.lang.reflect.Method typeNameMethod = cls.getMethod("typeName", long.class);
+            java.lang.reflect.Method isReceiveOnlyMethod = cls.getMethod("isReceiveOnly", long.class);
+            java.lang.reflect.Method extractMethod = cls.getMethod("extractFrameLength", byte[].class);
+
+            String[] typeNames = new String[typeIds.length];
+            int[] receiveOnly = new int[typeIds.length];
+            for (int i = 0; i < typeIds.length; i++) {
+                typeNames[i] = (String) typeNameMethod.invoke(session, typeIds[i]);
+                receiveOnly[i] = (boolean) isReceiveOnlyMethod.invoke(session, typeIds[i]) ? 1 : 0;
+            }
+
+            // Probe the frame length extraction parameters
+            int skipBits = probeFrameSkipBits(extractMethod, session, minHeaderSize);
+            int fieldBits = (minHeaderSize * 8) - skipBits;
+            boolean bigEndian = probeFrameEndianness(extractMethod, session, skipBits, fieldBits);
+
+            int err = binding.registerPassthroughSession(
+                name, syncPattern, minHeaderSize, skipBits, fieldBits,
+                bigEndian, typeIds, typeNames, receiveOnly);
+            if (err != 0) {
+                throw new ConduitError(err, "Failed to register session '" + name + "'");
+            }
+
+            // Store session for Java-side encode/decode
+            this.javaSession = session;
+            this.sessionEncodeWrap = cls.getMethod("encodeWrap", long.class, Object.class);
+            this.sessionDecodeFrame = cls.getMethod("decodeFrame", byte[].class);
+
+            // Install a raw frame dispatcher: PassthroughSession delivers raw
+            // frames with type_id=0.  We decode them here and fan out to the
+            // Java-side typed handler registry.
+            onAnyMessage((peerId, typeId, typeName, data) -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> messages =
+                        (List<Map<String, Object>>)
+                            sessionDecodeFrame.invoke(javaSession, data);
+                    for (Map<String, Object> dm : messages) {
+                        long tid = (Long) dm.get("type_id");
+                        Object payload = dm.get("payload");
+                        CopyOnWriteArrayList<TypedMessageCallback<?>> handlers =
+                            sessionHandlers.get(tid);
+                        if (handlers != null) {
+                            for (TypedMessageCallback<?> h : handlers) {
+                                @SuppressWarnings("unchecked")
+                                TypedMessageCallback<Object> typed =
+                                    (TypedMessageCallback<Object>) h;
+                                typed.onMessage(peerId, payload);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Frame decode failed — silently skip
+                }
+            });
+        } catch (ConduitError e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to register session: " + e.getMessage(), e);
+        }
+    }
+
+    private static int probeFrameSkipBits(java.lang.reflect.Method extractMethod,
+                                           Object session, int headerSize) throws Exception {
+        for (int skipBytes = 0; skipBytes < headerSize; skipBytes++) {
+            byte[] header = new byte[headerSize];
+            int testLen = 42;
+            if (headerSize - skipBytes >= 2) {
+                header[skipBytes] = (byte)((testLen >> 8) & 0xFF);
+                header[skipBytes + 1] = (byte)(testLen & 0xFF);
+                int result = (int) extractMethod.invoke(session, (Object) header);
+                if (result == testLen) return skipBytes * 8;
+                header[skipBytes] = (byte)(testLen & 0xFF);
+                header[skipBytes + 1] = (byte)((testLen >> 8) & 0xFF);
+                result = (int) extractMethod.invoke(session, (Object) header);
+                if (result == testLen) return skipBytes * 8;
+            }
+        }
+        return (headerSize - 2) * 8;
+    }
+
+    private static boolean probeFrameEndianness(java.lang.reflect.Method extractMethod,
+                                                 Object session,
+                                                 int skipBits, int fieldBits) throws Exception {
+        int skipBytes = skipBits / 8;
+        int fieldBytes = fieldBits / 8;
+        byte[] header = new byte[skipBytes + fieldBytes];
+        int testLen = 0x0102;
+        if (fieldBytes >= 2) {
+            header[skipBytes] = (byte) 0x01;
+            header[skipBytes + 1] = (byte) 0x02;
+        }
+        int result = (int) extractMethod.invoke(session, (Object) header);
+        return result == testLen;
+    }
+
+    // ================================================================
     // Messaging
     // ================================================================
 
@@ -245,14 +373,30 @@ public class Transceiver implements AutoCloseable {
         try {
             Class<?> cls = msg.getClass();
             long typeId = cls.getField("TYPE_ID").getLong(null);
-            byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
-            sendRaw(peerId, typeId, data);
+
+            if (sessionEncodeWrap != null) {
+                // Use Java session to produce fully-framed bytes.
+                // PassthroughSession passes them through to the transport as-is.
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result =
+                    (Map<String, Object>) sessionEncodeWrap.invoke(javaSession, typeId, msg);
+                if (result == null) {
+                    throw new RuntimeException(
+                        "Session encodeWrap returned null for type " + cls.getSimpleName());
+                }
+                byte[] frameBytes = (byte[]) result.get("bytes");
+                sendRaw(peerId, typeId, frameBytes);
+            } else {
+                // Original path: encode message bytes, let C++ session wrap them.
+                byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
+                sendRaw(peerId, typeId, data);
+            }
         } catch (ConduitError e) {
             throw e;
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
+        } catch (NoSuchFieldException e) {
             throw new IllegalArgumentException(
                 "Message class " + msg.getClass().getName() +
-                " must have static TYPE_ID field and encodeBytes() method", e);
+                " must have static TYPE_ID field", e);
         } catch (Throwable e) {
             throw new RuntimeException("send failed", e);
         }
@@ -325,8 +469,18 @@ public class Transceiver implements AutoCloseable {
     public <T> int onMessage(Class<T> msgClass, TypedMessageCallback<T> callback) {
         try {
             long typeId = msgClass.getField("TYPE_ID").getLong(null);
-            java.lang.reflect.Method decodeMethod = msgClass.getMethod("decodeBytes", byte[].class);
 
+            if (sessionDecodeFrame != null) {
+                // Java-side dispatch: the onAnyMessage frame dispatcher
+                // decodes frames and fans out to these typed handlers.
+                sessionHandlers
+                    .computeIfAbsent(typeId, k -> new CopyOnWriteArrayList<>())
+                    .add(callback);
+                return 0;
+            }
+
+            // Original path: register with native binding for per-message decode.
+            java.lang.reflect.Method decodeMethod = msgClass.getMethod("decodeBytes", byte[].class);
             return onMessage(typeId, (peerId, tid, typeName, data) -> {
                 try {
                     @SuppressWarnings("unchecked")
@@ -336,10 +490,10 @@ public class Transceiver implements AutoCloseable {
                     // Decode failed — skip silently (error fires on C++ side)
                 }
             });
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
+        } catch (NoSuchFieldException e) {
             throw new IllegalArgumentException(
                 "Class " + msgClass.getName() +
-                " must have static TYPE_ID field and decodeBytes(byte[]) method", e);
+                " must have static TYPE_ID field", e);
         } catch (Throwable e) {
             throw new RuntimeException("onMessage failed", e);
         }

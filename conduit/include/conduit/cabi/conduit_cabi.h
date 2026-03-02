@@ -202,6 +202,35 @@ CONDUIT_CABI_API void conduit_xcvr_register_session(
     const char* name, conduit_session_factory_t factory);
 
 /* ================================================================
+ * Passthrough session registration (no protocol-specific .so needed)
+ *
+ * Registers a session that handles framing only.  Encode/decode of
+ * individual messages is done on the caller side (Java/Python).
+ * The passthrough session:
+ *   - Uses the provided framing parameters for StreamFramer
+ *   - encode_wrap(): returns input bytes as-is (already framed)
+ *   - decode_frame(): returns raw frame bytes with type_id = 0
+ * ================================================================ */
+typedef struct {
+    const uint8_t* sync_pattern;
+    size_t         sync_pattern_len;
+    size_t         min_header_size;
+    /* Frame-length extraction: skip `skip_bits` from frame start,
+       then read `field_bits` (8/16/32) in given endianness. */
+    size_t         length_skip_bits;
+    size_t         length_field_bits;    /* 8, 16, or 32 */
+    int            length_big_endian;    /* 1 = big-endian */
+} conduit_frame_config_t;
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
+    const char* name,
+    const conduit_frame_config_t* frame_config,
+    const uint64_t* type_ids,
+    const char** type_names,
+    const int* receive_only,     /* 1 = receive-only, 0 = bidirectional */
+    size_t type_count);
+
+/* ================================================================
  * Version
  * ================================================================ */
 CONDUIT_CABI_API const char* conduit_version(void);

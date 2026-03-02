@@ -210,6 +210,9 @@ public class DummyPeer {
                 port, intervalMs, sessionName);
 
         try (Transceiver tx = new Transceiver()) {
+            // Register Java session (no protocol-specific native .so needed)
+            tx.registerSession(sessionName, new asterix_alt.AsterixDataBlockSession());
+
             // TCP server peer (mirrors C++ TcpServerConfig{.bind_address="0.0.0.0", .port=port})
             tx.addPeer("clients", sessionName,
                     TransportConfig.tcpServer("0.0.0.0:" + port));
@@ -274,6 +277,9 @@ public class DummyPeer {
                 host, port, intervalMs, sessionName);
 
         try (Transceiver tx = new Transceiver()) {
+            // Register Java session (no protocol-specific native .so needed)
+            tx.registerSession(sessionName, new asterix.AsterixDataBlockSession());
+
             // TCP client peer (mirrors C++ TcpClientConfig{.host=host, .port=port})
             int peerId = tx.addPeer("server", sessionName,
                     TransportConfig.tcpClient(host + ":" + port));

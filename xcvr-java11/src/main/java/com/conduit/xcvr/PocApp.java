@@ -59,6 +59,10 @@ public class PocApp {
                 host, port, intervalMs, sessionName);
 
         try (Transceiver tx = new Transceiver()) {
+            // Register Java session (no protocol-specific native .so needed).
+            // The passthrough session handles framing; all encode/decode is Java-side.
+            tx.registerSession(sessionName, new asterix.AsterixDataBlockSession());
+
             // Add TCP client peer (mirrors C++ cfg.add_peer("server", ..., TcpClientConfig))
             int peerId = tx.addPeer("server", sessionName,
                     TransportConfig.tcpClient(host + ":" + port));
