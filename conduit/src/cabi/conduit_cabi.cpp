@@ -12,6 +12,7 @@
 #include <conduit/transceiver/transport/tcp_server.hpp>
 #include <conduit/transceiver/transport/udp.hpp>
 
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -200,13 +201,16 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     std::shared_ptr<trans_ns::ITransport> trans;
     std::string addr(transport->address ? transport->address : "");
 
-    // Parse "host:port" from address string
+    // Parse "host:port" from address string (must not throw — extern "C")
     auto parse_host_port = [](const std::string& a)
         -> std::pair<std::string, uint16_t> {
         auto colon = a.rfind(':');
         if (colon == std::string::npos) return {"", 0};
-        return {a.substr(0, colon),
-                static_cast<uint16_t>(std::stoi(a.substr(colon + 1)))};
+        const char* start = a.c_str() + colon + 1;
+        char* end = nullptr;
+        long val = std::strtol(start, &end, 10);
+        if (end == start || val < 0 || val > 65535) return {a.substr(0, colon), 0};
+        return {a.substr(0, colon), static_cast<uint16_t>(val)};
     };
 
     switch (transport->type) {

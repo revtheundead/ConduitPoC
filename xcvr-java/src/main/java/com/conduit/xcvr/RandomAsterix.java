@@ -520,6 +520,7 @@ public final class RandomAsterix {
 
     static void randFillBds(Random rng, Cat048I250 i250) {
         int n = 1 + rng.nextInt(3);
+        i250.rep = n;
         for (int j = 0; j < n; j++) {
             Cat048I250Bds elem = new Cat048I250Bds();
             long data = 0;
@@ -533,6 +534,7 @@ public final class RandomAsterix {
 
     static void randFillBdsCat021(Random rng, Cat021I250 i250) {
         int n = 1 + rng.nextInt(3);
+        i250.rep = n;
         for (int j = 0; j < n; j++) {
             Cat021I250Bds elem = new Cat021I250Bds();
             long data = 0;
@@ -546,6 +548,7 @@ public final class RandomAsterix {
 
     static void randFillBdsCat007(Random rng, Cat007I250 i250) {
         int n = 1 + rng.nextInt(3);
+        i250.rep = n;
         for (int j = 0; j < n; j++) {
             Cat007I250Bds elem = new Cat007I250Bds();
             long data = 0;
@@ -559,6 +562,7 @@ public final class RandomAsterix {
 
     static void randFillRegisters(Random rng, Cat007I440 i440) {
         int n = 1 + rng.nextInt(4);
+        i440.rep = n;
         for (int j = 0; j < n; j++) {
             Cat007I440Registers elem = new Cat007I440Registers();
             elem.bds1 = randU8(rng, 15);
@@ -569,6 +573,7 @@ public final class RandomAsterix {
 
     static void randFillDestinations(Random rng, Cat253I025 i025) {
         int n = 1 + rng.nextInt(3);
+        i025.rep = n;
         for (int j = 0; j < n; j++) {
             Cat253I025Destinations elem = new Cat253I025Destinations();
             elem.sac = randU8(rng);
@@ -580,6 +585,7 @@ public final class RandomAsterix {
 
     static void randFillSequences(Random rng, Cat253I050 i050) {
         int n = 1 + rng.nextInt(4);
+        i050.rep = n;
         for (int j = 0; j < n; j++) {
             Cat253I050Sequences elem = new Cat253I050Sequences();
             elem.msid = randU16(rng);
