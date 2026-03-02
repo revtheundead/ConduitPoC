@@ -1600,16 +1600,41 @@ void StructEmitter::emit_decode_fx_children(const std::vector<model::StructChild
                 } else if (fti.is_string) {
                     ctx_.line("{");
                     ctx_.indent();
-                    if (c.length) {
+                    if (c.char_bits && c.length) {
+                        // Packed character decode (e.g. ICAO 6-bit)
+                        int char_bits = *c.char_bits;
+                        int char_count = *c.length;
+                        ctx_.line("std::string s;");
+                        ctx_.line("s.reserve(" + std::to_string(char_count) + ");");
+                        ctx_.line("for (int i = 0; i < " + std::to_string(char_count) + "; i++) {");
+                        ctx_.indent();
+                        ctx_.line("auto bits = r.read_bits(" + std::to_string(char_bits) + ");");
+                        ctx_.line("if (!bits) return std::unexpected(bits.error());");
+                        if (char_bits < 7) {
+                            ctx_.line("uint8_t raw = static_cast<uint8_t>(*bits);");
+                            ctx_.line("s += (raw == 0) ? '\\0' : static_cast<char>(raw < 32 ? raw + 0x40 : raw);");
+                        } else {
+                            ctx_.line("s += static_cast<char>(*bits);");
+                        }
+                        ctx_.dedent();
+                        ctx_.line("}");
+                        ctx_.line(member + " = std::move(s);");
+                    } else if (c.length) {
                         ctx_.line("auto val = r.read_string(" + std::to_string(*c.length) + ");");
+                        ctx_.line("if (!val) return std::unexpected(val.error());");
+                        if (field_needs_encoding(c)) {
+                            ctx_.line(member + " = conduit::string::to_ascii(*val, " + field_encoding_enum(c) + ");");
+                        } else {
+                            ctx_.line(member + " = std::move(*val);");
+                        }
                     } else {
                         ctx_.line("auto val = r.read_string(r.remaining_bytes());");
-                    }
-                    ctx_.line("if (!val) return std::unexpected(val.error());");
-                    if (field_needs_encoding(c)) {
-                        ctx_.line(member + " = conduit::string::to_ascii(*val, " + field_encoding_enum(c) + ");");
-                    } else {
-                        ctx_.line(member + " = std::move(*val);");
+                        ctx_.line("if (!val) return std::unexpected(val.error());");
+                        if (field_needs_encoding(c)) {
+                            ctx_.line(member + " = conduit::string::to_ascii(*val, " + field_encoding_enum(c) + ");");
+                        } else {
+                            ctx_.line(member + " = std::move(*val);");
+                        }
                     }
                     // FX string fields are optional<string> — trim on dereferenced value
                     emit_field_trim(ctx_, "(*" + member + ")", c, index_);

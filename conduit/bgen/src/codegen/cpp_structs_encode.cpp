@@ -770,8 +770,27 @@ void StructEmitter::emit_encode_fx_children(const std::vector<model::StructChild
                     ctx_.dedent();
                     ctx_.line("}");
                 } else if (fti.is_string) {
-                    // String in FX: write with padding if fixed-length, else write size
-                    if (c.length) {
+                    // String in FX: handle packed chars, encoding, and padding
+                    if (c.char_bits && c.length) {
+                        // Packed character encode (e.g. ICAO 6-bit)
+                        int char_bits = *c.char_bits;
+                        int char_count = *c.length;
+                        std::string val_expr = member + ".value_or(\"\")";
+                        ctx_.line("{");
+                        ctx_.indent();
+                        ctx_.line("const auto& _s = " + val_expr + ";");
+                        ctx_.line("for (int i = 0; i < " + std::to_string(char_count) + "; i++) {");
+                        ctx_.indent();
+                        ctx_.line("uint8_t ch = (static_cast<size_t>(i) < _s.size()) ? static_cast<uint8_t>(_s[i]) : 0x20;");
+                        if (char_bits < 7) {
+                            ctx_.line("if (ch >= 'a' && ch <= 'z') ch -= 32;");
+                        }
+                        ctx_.line("w.write_bits(ch & ((1 << " + std::to_string(char_bits) + ") - 1), " + std::to_string(char_bits) + ");");
+                        ctx_.dedent();
+                        ctx_.line("}");
+                        ctx_.dedent();
+                        ctx_.line("}");
+                    } else if (c.length) {
                         std::string pad = resolve_padding_char(c);
                         if (field_needs_encoding(c)) {
                             ctx_.line("{");
