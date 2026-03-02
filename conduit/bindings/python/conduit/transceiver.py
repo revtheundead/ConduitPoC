@@ -55,6 +55,17 @@ _ERROR_CALLBACK = ctypes.CFUNCTYPE(
     ctypes.c_void_p,       # user_data
 )
 
+# Frame config for passthrough session registration
+class _CONDUIT_FRAME_CONFIG(ctypes.Structure):
+    _fields_ = [
+        ("sync_pattern", ctypes.POINTER(ctypes.c_uint8)),
+        ("sync_pattern_len", ctypes.c_size_t),
+        ("min_header_size", ctypes.c_size_t),
+        ("length_skip_bits", ctypes.c_size_t),
+        ("length_field_bits", ctypes.c_size_t),
+        ("length_big_endian", ctypes.c_int),
+    ]
+
 # Stats snapshot structure matching C ABI
 class _CONDUIT_STATS(ctypes.Structure):
     _fields_ = [
@@ -232,6 +243,17 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     lib.conduit_stats_reset.argtypes = [ctypes.c_void_p]
     lib.conduit_stats_reset.restype = ctypes.c_int32
 
+    # Passthrough session registration
+    lib.conduit_register_passthrough_session.argtypes = [
+        ctypes.c_char_p,                          # name
+        ctypes.POINTER(_CONDUIT_FRAME_CONFIG),    # frame_config
+        ctypes.POINTER(ctypes.c_uint64),          # type_ids
+        ctypes.POINTER(ctypes.c_char_p),          # type_names
+        ctypes.POINTER(ctypes.c_int),             # receive_only
+        ctypes.c_size_t,                          # type_count
+    ]
+    lib.conduit_register_passthrough_session.restype = ctypes.c_int32
+
     # Version
     lib.conduit_version.argtypes = []
     lib.conduit_version.restype = ctypes.c_char_p
@@ -297,6 +319,9 @@ class Transceiver:
         self._lib = lib
         # Keep references to prevent GC of callback closures
         self._callback_refs: list = []
+        # Passthrough session support
+        self._session = None
+        self._session_handlers: dict = {}  # type_id -> list of callables
 
     def __del__(self):
         self.close()
@@ -318,6 +343,110 @@ class Transceiver:
 
     def __exit__(self, *args):
         self.close()
+
+    # ========================================================================
+    # Session registration (passthrough mode)
+    # ========================================================================
+
+    def register_session(self, name: str, session) -> None:
+        """Register a passthrough session from a bgen-generated session object.
+
+        Must be called before add_peer(). The native transceiver handles
+        transport and framing; all encode/decode runs on the Python side.
+        """
+        # Extract framing config from the session
+        sync = session.sync_pattern()
+        min_header = session.min_frame_header_size()
+        type_ids = session.leaf_type_ids()
+        count = len(type_ids)
+
+        # Probe frame length extraction parameters
+        skip_bits = self._probe_skip_bits(session, min_header)
+        field_bits = (min_header * 8) - skip_bits
+        big_endian = self._probe_endianness(session, skip_bits, field_bits)
+
+        # Build frame config struct
+        fc = _CONDUIT_FRAME_CONFIG()
+        if sync:
+            sync_buf = (ctypes.c_uint8 * len(sync))(*sync)
+            fc.sync_pattern = ctypes.cast(sync_buf, ctypes.POINTER(ctypes.c_uint8))
+            fc.sync_pattern_len = len(sync)
+            self._callback_refs.append(sync_buf)  # prevent GC
+        else:
+            fc.sync_pattern = None
+            fc.sync_pattern_len = 0
+        fc.min_header_size = min_header
+        fc.length_skip_bits = skip_bits
+        fc.length_field_bits = field_bits
+        fc.length_big_endian = 1 if big_endian else 0
+
+        # Build type arrays
+        c_type_ids = (ctypes.c_uint64 * count)(*type_ids)
+        c_names_raw = [session.type_name(tid).encode("utf-8") for tid in type_ids]
+        c_names = (ctypes.c_char_p * count)(*c_names_raw)
+        c_recv_only = (ctypes.c_int * count)(
+            *(1 if session.is_receive_only(tid) else 0 for tid in type_ids))
+
+        err = self._lib.conduit_register_passthrough_session(
+            name.encode("utf-8"),
+            ctypes.byref(fc),
+            c_type_ids,
+            c_names,
+            c_recv_only,
+            count,
+        )
+        if err != 0:
+            raise ConduitError(err, f"Failed to register session '{name}'")
+
+        self._session = session
+
+        # Install a catch-all raw frame handler: PassthroughSession delivers
+        # raw frames. We decode them here and dispatch to Python-side typed handlers.
+        def _frame_dispatcher(peer_id, type_id, type_name, raw):
+            try:
+                messages = self._session.decode_frame(raw)
+                for dm in messages:
+                    tid = dm['type_id']
+                    payload = dm['payload']
+                    handlers = self._session_handlers.get(tid, [])
+                    for h in handlers:
+                        h(peer_id, payload)
+            except Exception:
+                pass  # frame decode failed
+
+        self._register_message_handler(0, _frame_dispatcher, any_message=True)
+
+    @staticmethod
+    def _probe_skip_bits(session, header_size: int) -> int:
+        for skip_bytes in range(header_size):
+            header = bytearray(header_size)
+            test_len = 42
+            if header_size - skip_bytes >= 2:
+                # Try big-endian
+                header[skip_bytes] = (test_len >> 8) & 0xFF
+                header[skip_bytes + 1] = test_len & 0xFF
+                if session.extract_frame_length(bytes(header)) == test_len:
+                    return skip_bytes * 8
+                # Try little-endian
+                header[skip_bytes] = test_len & 0xFF
+                header[skip_bytes + 1] = (test_len >> 8) & 0xFF
+                if session.extract_frame_length(bytes(header)) == test_len:
+                    return skip_bytes * 8
+        return (header_size - 2) * 8
+
+    @staticmethod
+    def _probe_endianness(session, skip_bits: int, field_bits: int) -> bool:
+        skip_bytes = skip_bits // 8
+        field_bytes = (field_bits + 7) // 8
+        header_size = skip_bytes + field_bytes
+        header = bytearray(header_size)
+        test_len = 0x0102
+        # Big-endian encoding
+        header[skip_bytes] = 0x01
+        if field_bytes > 1:
+            header[skip_bytes + 1] = 0x02
+        result = session.extract_frame_length(bytes(header))
+        return result == test_len
 
     def add_peer(self, name: str, session_name: str,
                  transport: TransportConfig) -> int:
@@ -385,7 +514,16 @@ class Transceiver:
                 )
 
         type_id = msg.TYPE_ID
-        data = msg.encode_bytes()
+
+        if self._session is not None:
+            # Passthrough mode: session wraps message into a framed data block
+            result = self._session.encode_wrap(type_id, msg)
+            if result is None:
+                raise ConduitError(-1, f"Session encode_wrap failed for type_id=0x{type_id:x}")
+            data = result['bytes']
+        else:
+            data = msg.encode_bytes()
+
         self.send_raw(peer_id, type_id, data)
 
     def send_raw(self, peer_id: int, type_id: int, data: bytes) -> None:
@@ -451,17 +589,19 @@ class Transceiver:
             resolved_type_id = msg_class.TYPE_ID
 
             def decorator(func):
-                # Wrap user's typed callback to auto-decode
-                def _typed_handler(peer_id, tid, type_name, raw):
-                    try:
-                        decoded = msg_class.decode_bytes(raw)
-                    except Exception:
-                        # Decode failed — skip this message silently
-                        # (error callback on the C++ side fires for decode errors)
-                        return
-                    func(peer_id, decoded)
-
-                self._register_message_handler(resolved_type_id, _typed_handler)
+                if self._session is not None:
+                    # Passthrough mode: register in Python-side handler dict.
+                    # The frame dispatcher will call these with decoded payloads.
+                    self._session_handlers.setdefault(resolved_type_id, []).append(func)
+                else:
+                    # Direct mode: register at the C level with auto-decode
+                    def _typed_handler(peer_id, tid, type_name, raw):
+                        try:
+                            decoded = msg_class.decode_bytes(raw)
+                        except Exception:
+                            return
+                        func(peer_id, decoded)
+                    self._register_message_handler(resolved_type_id, _typed_handler)
                 return func
 
             return decorator

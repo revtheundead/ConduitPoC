@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 from conduit import Transceiver, TcpClientConfig
 from . import random_asterix
 
-# Import generated message classes for handler registration
+# Import generated message classes and session for handler registration
 from generated.messages import (
     Cat007DownlinkRecord,
     Cat007UplinkRecord,
@@ -32,6 +32,7 @@ from generated.messages import (
     Cat048Record,
     Cat253Record,
 )
+from generated.sessions import AsterixDataBlockSession
 
 running = True
 
@@ -62,6 +63,9 @@ def main():
           f"(interval={args.interval_ms}ms, session={args.session})")
 
     with Transceiver() as tx:
+        # Register the session (Python uses passthrough mode — codec runs in Python)
+        tx.register_session(args.session, AsterixDataBlockSession())
+
         # Add TCP client peer (mirrors C++ cfg.add_peer("server", ..., TcpClientConfig))
         peer_id = tx.add_peer("server", args.session,
                               TcpClientConfig(f"{args.host}:{args.port}"))
