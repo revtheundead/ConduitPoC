@@ -101,7 +101,7 @@ std::ostream& MessageLog::get_stream(const std::string& key) {
         dir_created_ = true;
     }
 
-    std::string path = config_.directory + "/" + key;
+    std::string path = (std::filesystem::path(config_.directory) / key).string();
     auto file = std::make_unique<std::ofstream>(path, std::ios::app);
     if (!file->is_open()) {
         LOG_WARN("MessageLog: failed to open log file: " + path);
