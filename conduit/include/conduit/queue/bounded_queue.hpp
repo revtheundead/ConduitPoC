@@ -94,6 +94,7 @@ public:
         if (size_ >= capacity_) {
             switch (drop_policy_) {
                 case DropPolicy::DropOldest:
+                    buffer_[head_] = T{};
                     head_ = (head_ + 1) % capacity_;
                     --size_;
                     stats_.dropped.fetch_add(1, std::memory_order_relaxed);
@@ -132,6 +133,7 @@ public:
 
         if (size_ >= capacity_) {
             if (drop_policy_ == DropPolicy::DropOldest) {
+                buffer_[head_] = T{};
                 head_ = (head_ + 1) % capacity_;
                 --size_;
                 stats_.dropped.fetch_add(1, std::memory_order_relaxed);
@@ -169,6 +171,7 @@ public:
 
         if (size_ >= capacity_) {
             if (drop_policy_ == DropPolicy::DropOldest) {
+                buffer_[head_] = T{};
                 head_ = (head_ + 1) % capacity_;
                 --size_;
                 stats_.dropped.fetch_add(1, std::memory_order_relaxed);
