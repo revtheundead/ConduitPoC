@@ -1758,6 +1758,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             if (cd->bit) {
                 JBitmapField bf;
                 bf.name = cd->name;
+                // Use Object for field declaration since choice cases have no
+                // common base class.  The switch_expr decode path (below)
+                // resolves individual case types directly.
                 bf.j_type = "Object";
                 bf.bit = *cd->bit;
                 bf.is_struct = true;

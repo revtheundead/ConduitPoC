@@ -231,6 +231,56 @@ public class Transceiver implements AutoCloseable {
         if (err != 0) throw new ConduitError(err, "Failed to set message log config");
     }
 
+    // ================================================================
+    // Logger configuration (global — controls internal Conduit logging)
+    // ================================================================
+
+    /**
+     * Set the global Conduit log level.
+     * <p>
+     * Controls internal diagnostic output (debug, warn, error, etc.).
+     * This is distinct from message log config which records message traffic.
+     *
+     * @param level  0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Fatal, 6=Off
+     */
+    public void setLogLevel(int level) {
+        binding.setLogLevel(level);
+    }
+
+    /**
+     * Get the current global Conduit log level.
+     *
+     * @return Current log level (0=Trace through 6=Off)
+     */
+    public int getLogLevel() {
+        return binding.getLogLevel();
+    }
+
+    /**
+     * Add a console log sink for Conduit internal logging.
+     *
+     * @param useStderr  If true, log to stderr; otherwise stdout
+     * @param colorize   If true, use ANSI color codes
+     */
+    public void logAddConsoleSink(boolean useStderr, boolean colorize) {
+        binding.logAddConsoleSink(useStderr, colorize);
+    }
+
+    /**
+     * Add a file log sink for Conduit internal logging.
+     *
+     * @param path    File path for log output
+     * @param append  If true, append to existing file; otherwise overwrite
+     */
+    public void logAddFileSink(String path, boolean append) {
+        binding.logAddFileSink(path, append);
+    }
+
+    /** Remove all Conduit internal log sinks. */
+    public void logClearSinks() {
+        binding.logClearSinks();
+    }
+
     /**
      * Add a peer to the transceiver.
      *

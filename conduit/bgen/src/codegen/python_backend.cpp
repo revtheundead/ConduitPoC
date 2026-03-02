@@ -1905,7 +1905,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             if (cd->bit) {
                 PyBitmapField bf;
                 bf.name = cd->name;
-                bf.py_type = "object";
+                bf.py_type = py_inline_class(cd->name, name_map);
                 bf.bit = *cd->bit;
                 bf.is_struct = true;
                 bf.is_choice = true;
@@ -2006,12 +2006,34 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             std::string sv = "result." + py_field(bf.choice_def->switch_expr->name);
             bool first_case = true;
             for (const auto& cs : bf.choice_def->cases) {
-                std::string val = cs.value ? *cs.value : "0";
+                std::string cond;
+                if (cs.value) {
+                    std::string val = *cs.value;
+                    if (index.constants.count(*cs.value)) {
+                        val = "Constants." + py_snake(*cs.value);
+                    }
+                    cond = sv + " == " + val;
+                } else if (cs.range) {
+                    auto dot_pos = cs.range->find("..");
+                    if (dot_pos != std::string::npos) {
+                        std::string min_s = cs.range->substr(0, dot_pos);
+                        std::string max_s = cs.range->substr(dot_pos + 2);
+                        if (min_s == "0") {
+                            cond = sv + " <= " + max_s;
+                        } else {
+                            cond = min_s + " <= " + sv + " <= " + max_s;
+                        }
+                    } else {
+                        cond = sv + " == " + *cs.range;
+                    }
+                } else {
+                    continue;
+                }
                 std::string prefix = first_case ? "if" : "elif";
                 first_case = false;
-                ctx.line(prefix + " " + sv + " == " + val + ":");
+                ctx.line(prefix + " " + cond + ":");
                 ctx.indent();
-                std::string et = cs.type_ref.empty() ? py_class(cs.name) : py_class(cs.type_ref);
+                std::string et = cs.type_ref.empty() ? py_inline_class(cs.name, name_map) : py_class(cs.type_ref);
                 std::string case_args;
                 auto child_osp = scope_map.find(cs.type_ref.empty() ? cs.name : cs.type_ref);
                 if (child_osp != scope_map.end()) {

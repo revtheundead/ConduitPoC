@@ -194,6 +194,25 @@ public interface NativeBinding extends AutoCloseable {
         long[] typeIds, String[] typeNames, int[] receiveOnly);
 
     // ================================================================
+    // Logger configuration (global — controls internal Conduit logging)
+    // ================================================================
+
+    /** Set the global log level. 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Fatal, 6=Off. */
+    void setLogLevel(int level);
+
+    /** Get the current global log level. */
+    int getLogLevel();
+
+    /** Add a console log sink. */
+    void logAddConsoleSink(boolean useStderr, boolean colorize);
+
+    /** Add a file log sink. */
+    void logAddFileSink(String path, boolean append);
+
+    /** Remove all log sinks. */
+    void logClearSinks();
+
+    // ================================================================
     // Cleanup
     // ================================================================
 

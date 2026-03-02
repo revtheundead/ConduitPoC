@@ -75,6 +75,13 @@ public final class CabiBindings {
     // Session registration
     public static final MethodHandle conduit_register_passthrough_session;
 
+    // Logger configuration
+    public static final MethodHandle conduit_set_log_level;
+    public static final MethodHandle conduit_get_log_level;
+    public static final MethodHandle conduit_log_add_console_sink;
+    public static final MethodHandle conduit_log_add_file_sink;
+    public static final MethodHandle conduit_log_clear_sinks;
+
     // Version
     public static final MethodHandle conduit_version;
 
@@ -180,6 +187,22 @@ public final class CabiBindings {
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+
+        // conduit_set_log_level(level) -> void
+        conduit_set_log_level = lookup("conduit_set_log_level",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+        // conduit_get_log_level() -> int
+        conduit_get_log_level = lookup("conduit_get_log_level",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        // conduit_log_add_console_sink(use_stderr, colorize) -> void
+        conduit_log_add_console_sink = lookup("conduit_log_add_console_sink",
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
+        // conduit_log_add_file_sink(path, append) -> void
+        conduit_log_add_file_sink = lookup("conduit_log_add_file_sink",
+            FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        // conduit_log_clear_sinks() -> void
+        conduit_log_clear_sinks = lookup("conduit_log_clear_sinks",
+            FunctionDescriptor.ofVoid());
 
         conduit_version = lookup("conduit_version",
             FunctionDescriptor.of(ValueLayout.ADDRESS));

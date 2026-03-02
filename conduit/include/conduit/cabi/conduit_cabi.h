@@ -282,6 +282,44 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
     size_t type_count);
 
 /* ================================================================
+ * Logger configuration (global — controls internal Conduit logging)
+ *
+ * These configure the conduit::logging::Logger singleton which all
+ * Transceiver internals use for diagnostic output (DEBUG, WARN, etc.).
+ * Distinct from message_log_config which records message traffic.
+ * ================================================================ */
+
+/* Log levels (mirrors conduit::logging::Level). */
+#define CONDUIT_LOG_LEVEL_TRACE 0
+#define CONDUIT_LOG_LEVEL_DEBUG 1
+#define CONDUIT_LOG_LEVEL_INFO  2
+#define CONDUIT_LOG_LEVEL_WARN  3
+#define CONDUIT_LOG_LEVEL_ERROR 4
+#define CONDUIT_LOG_LEVEL_FATAL 5
+#define CONDUIT_LOG_LEVEL_OFF   6
+
+/** Set the global log level. Messages below this level are suppressed. */
+CONDUIT_CABI_API void conduit_set_log_level(int level);
+
+/** Get the current global log level. */
+CONDUIT_CABI_API int conduit_get_log_level(void);
+
+/** Add a console sink (stdout or stderr, with optional color).
+ *  @param use_stderr  1 = log to stderr, 0 = stdout
+ *  @param colorize    1 = ANSI color output, 0 = plain text
+ */
+CONDUIT_CABI_API void conduit_log_add_console_sink(int use_stderr, int colorize);
+
+/** Add a file sink.
+ *  @param path    File path for log output
+ *  @param append  1 = append to existing file, 0 = overwrite
+ */
+CONDUIT_CABI_API void conduit_log_add_file_sink(const char* path, int append);
+
+/** Remove all log sinks. */
+CONDUIT_CABI_API void conduit_log_clear_sinks(void);
+
+/* ================================================================
  * Version
  * ================================================================ */
 CONDUIT_CABI_API const char* conduit_version(void);

@@ -108,6 +108,13 @@ public final class JniNativeBinding implements NativeBinding {
         int lengthBigEndian,
         long[] typeIds, String[] typeNames, int[] receiveOnly);
 
+    // Logger configuration
+    private static native void nSetLogLevel(int level);
+    private static native int nGetLogLevel();
+    private static native void nLogAddConsoleSink(int useStderr, int colorize);
+    private static native void nLogAddFileSink(String path, int append);
+    private static native void nLogClearSinks();
+
     // ================================================================
     // Callback dispatch (called from C via JNI)
     // ================================================================
@@ -314,6 +321,25 @@ public final class JniNativeBinding implements NativeBinding {
             lengthBigEndian ? 1 : 0,
             typeIds, typeNames, receiveOnly);
     }
+
+    @Override
+    public void setLogLevel(int level) { nSetLogLevel(level); }
+
+    @Override
+    public int getLogLevel() { return nGetLogLevel(); }
+
+    @Override
+    public void logAddConsoleSink(boolean useStderr, boolean colorize) {
+        nLogAddConsoleSink(useStderr ? 1 : 0, colorize ? 1 : 0);
+    }
+
+    @Override
+    public void logAddFileSink(String path, boolean append) {
+        nLogAddFileSink(path, append ? 1 : 0);
+    }
+
+    @Override
+    public void logClearSinks() { nLogClearSinks(); }
 
     @Override
     public void close() {
