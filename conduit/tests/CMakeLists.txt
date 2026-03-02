@@ -126,12 +126,17 @@ endif()
 
 if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
     # Build test transceiver CABI with sessions registered
+    # Includes both transceiver and codec CABI sources so that
+    # test_sessions_register.cpp can call conduit_register_session()
+    # (codec registry) and conduit_xcvr_register_session() (xcvr registry).
     add_library(conduit_cabi_test SHARED
         ${CMAKE_SOURCE_DIR}/src/cabi/conduit_cabi.cpp
+        ${CMAKE_SOURCE_DIR}/src/cabi/conduit_codec_cabi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/cabi/test_sessions_register.cpp
     )
     target_link_libraries(conduit_cabi_test PRIVATE
         conduit
+        conduit_codec
         conduit_warnings
         test_session_protocol
         test_choice_protocol
@@ -144,8 +149,34 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
     target_include_directories(conduit_cabi_test PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
-    target_compile_definitions(conduit_cabi_test PRIVATE CONDUIT_CABI_EXPORTS)
+    target_compile_definitions(conduit_cabi_test PRIVATE CONDUIT_CABI_EXPORTS CONDUIT_CODEC_CABI_EXPORTS)
     set_target_properties(conduit_cabi_test PROPERTIES
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+    )
+endif()
+
+# ============================================================================
+# Test JNI shared library (links against conduit_cabi_test for test sessions)
+# ============================================================================
+
+if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_JNI AND CONDUIT_BUILD_CABI)
+    find_package(JNI REQUIRED)
+
+    add_library(conduit_jni_test SHARED
+        ${CMAKE_SOURCE_DIR}/src/jni/conduit_jni.cpp
+    )
+    target_link_libraries(conduit_jni_test PRIVATE
+        conduit_cabi_test
+        conduit_warnings
+        ${JNI_LIBRARIES}
+    )
+    target_include_directories(conduit_jni_test PRIVATE
+        ${JNI_INCLUDE_DIRS}
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    )
+    set_target_properties(conduit_jni_test PROPERTIES
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON

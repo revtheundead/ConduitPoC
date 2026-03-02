@@ -136,7 +136,7 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeMessage(
 
 JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
     JNIEnv* env, jclass, jlong session, jlong typeId,
-    jobjectArray jpayloads, jintArray jlens, jint count) {
+    jobjectArray jpayloads, jintArray /*jlens*/, jint count) {
 
     if (session == 0) return nullptr;
 

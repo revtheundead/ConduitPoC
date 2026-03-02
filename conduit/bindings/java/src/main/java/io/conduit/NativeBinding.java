@@ -157,6 +157,16 @@ public interface NativeBinding extends AutoCloseable {
     /** Get the library version string. */
     String version();
 
+    /**
+     * Register a passthrough session (framing-only, no protocol .so needed).
+     * Encode/decode of individual messages is handled on the Java side.
+     */
+    int registerPassthroughSession(
+        String name, byte[] syncPattern,
+        int minHeaderSize, int lengthSkipBits, int lengthFieldBits,
+        boolean lengthBigEndian,
+        long[] typeIds, String[] typeNames, int[] receiveOnly);
+
     // ================================================================
     // Cleanup
     // ================================================================

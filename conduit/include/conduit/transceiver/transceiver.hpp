@@ -129,6 +129,11 @@ public:
     VoidResult send_raw(PeerId peer, uint64_t type_id,
                         std::span<const uint8_t> payload_bytes);
 
+    // Send multiple raw payload byte arrays for a given type to a specific peer.
+    VoidResult send_raw_batch(PeerId peer, uint64_t type_id,
+                              const uint8_t** payloads, const size_t* lens,
+                              size_t count);
+
     // Send typed message to a specific peer.
     template<traits::Message T>
     VoidResult send(PeerId peer, const T& msg) {

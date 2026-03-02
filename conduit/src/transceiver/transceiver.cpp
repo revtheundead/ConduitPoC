@@ -443,6 +443,18 @@ VoidResult Transceiver::send_raw(PeerId peer, uint64_t type_id,
     return send_impl(peer, type_id, std::any(std::move(raw)));
 }
 
+VoidResult Transceiver::send_raw_batch(PeerId peer, uint64_t type_id,
+                                       const uint8_t** payloads,
+                                       const size_t* lens, size_t count) {
+    std::vector<std::any> any_payloads;
+    any_payloads.reserve(count);
+    for (size_t i = 0; i < count; i++) {
+        std::vector<uint8_t> raw(payloads[i], payloads[i] + lens[i]);
+        any_payloads.emplace_back(std::move(raw));
+    }
+    return send_batch_impl(peer, type_id, any_payloads);
+}
+
 VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
                                   const std::any& payload) {
     CONDUIT_ENSURE(running_, ErrorCode::NotRunning,

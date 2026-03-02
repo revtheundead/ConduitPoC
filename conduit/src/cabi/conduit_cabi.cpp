@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Conduit Full Transceiver C ABI Implementation
 
+#ifndef CONDUIT_CABI_EXPORTS
 #define CONDUIT_CABI_EXPORTS
+#endif
 
 #include <conduit/cabi/conduit_cabi.h>
 #include <conduit/transceiver/transceiver.hpp>
@@ -11,6 +13,7 @@
 #include <conduit/transceiver/transport/udp.hpp>
 
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -24,7 +27,7 @@ namespace {
 
 struct XcvrSessionRegistry {
     std::mutex mutex;
-    std::unordered_map<std::string, conduit_session_factory_t> factories;
+    std::unordered_map<std::string, std::function<void*()>> factories;
 
     static XcvrSessionRegistry& instance() {
         static XcvrSessionRegistry reg;
@@ -168,7 +171,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     // Look up session factory
-    conduit_session_factory_t factory = nullptr;
+    std::function<void*()> factory;
     {
         auto& reg = XcvrSessionRegistry::instance();
         std::lock_guard lock(reg.mutex);
@@ -311,12 +314,19 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send(
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
     conduit_transceiver_t* xcvr,
-    conduit_peer_id /*peer*/,
-    uint64_t /*type_id*/,
-    const uint8_t** /*payloads*/, const size_t* /*lens*/, size_t /*count*/) {
+    conduit_peer_id peer,
+    uint64_t type_id,
+    const uint8_t** payloads, const size_t* lens, size_t count) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
-    return CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED;
+    if (count > 0 && (!payloads || !lens)) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    auto result = wrapper->xcvr.send_raw_batch(
+        conduit::transceiver::PeerId{peer}, type_id,
+        payloads, lens, count);
+    if (!result) return map_xcvr_error(result.error());
+    return CONDUIT_XCVR_OK;
 }
 
 // ============================================================================
@@ -491,6 +501,197 @@ CONDUIT_CABI_API void conduit_xcvr_register_session(
     auto& reg = XcvrSessionRegistry::instance();
     std::lock_guard lock(reg.mutex);
     reg.factories[name] = factory;
+}
+
+// ============================================================================
+// Passthrough session
+//
+// A protocol-agnostic session that handles framing only.  All encode/decode
+// of individual messages is done on the caller side (Java/Python).
+// This eliminates the need for protocol-specific shared libraries.
+// ============================================================================
+
+namespace {
+
+class PassthroughSession : public conduit::traits::ISession {
+public:
+    struct FrameConfig {
+        std::vector<uint8_t> sync;
+        size_t min_header_size;
+        size_t length_skip_bits;
+        size_t length_field_bits;
+        bool length_big_endian;
+    };
+
+    struct TypeInfo {
+        uint64_t type_id;
+        std::string type_name;
+        bool receive_only;
+    };
+
+    PassthroughSession(FrameConfig frame_config,
+                       std::vector<TypeInfo> types)
+        : frame_config_(std::move(frame_config))
+        , types_(std::move(types)) {
+        for (const auto& t : types_) {
+            ids_.push_back(t.type_id);
+        }
+    }
+
+    // decode_frame: return the raw frame bytes as a single "message" with
+    // type_id = 0.  Java/Python will decode the frame itself.
+    [[nodiscard]] conduit::Result<std::vector<conduit::traits::DecodedMessage>>
+    decode_frame(std::span<const uint8_t> data) override {
+        std::vector<conduit::traits::DecodedMessage> messages;
+        conduit::traits::DecodedMessage dm;
+        dm.type_id = 0; // passthrough: Java does the type routing
+        dm.type_name = "raw_frame";
+        dm.payload = std::vector<uint8_t>(data.begin(), data.end());
+        dm.raw = std::vector<uint8_t>(data.begin(), data.end());
+        messages.push_back(std::move(dm));
+        return messages;
+    }
+
+    // encode_wrap: input bytes are already a complete frame (created by Java).
+    // Just pass them through.
+    [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
+    encode_wrap(uint64_t /*type_id*/, const std::any& payload) override {
+        auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+        if (!raw) return std::unexpected(conduit::Error(
+            conduit::ErrorCode::InvalidArgument,
+            "PassthroughSession: payload must be raw bytes"));
+        conduit::traits::EncodeResult result;
+        result.bytes = *raw;
+        return result;
+    }
+
+    [[nodiscard]] std::span<const uint8_t> sync_pattern() const override {
+        return frame_config_.sync;
+    }
+
+    [[nodiscard]] size_t min_frame_header_size() const override {
+        return frame_config_.min_header_size;
+    }
+
+    [[nodiscard]] size_t extract_frame_length(
+        std::span<const uint8_t> header) const override {
+        if (header.size() < frame_config_.min_header_size) return 0;
+        conduit::io::BitReader r(header);
+        if (frame_config_.length_skip_bits > 0) {
+            if (!r.skip_bits(frame_config_.length_skip_bits)) return 0;
+        }
+        auto endian = frame_config_.length_big_endian
+                          ? conduit::io::Endian::Big
+                          : conduit::io::Endian::Little;
+        if (frame_config_.length_field_bits == 8) {
+            auto val = r.read_u8();
+            return val ? static_cast<size_t>(*val) : 0;
+        } else if (frame_config_.length_field_bits == 16) {
+            auto val = r.read_u16(endian);
+            return val ? static_cast<size_t>(*val) : 0;
+        } else if (frame_config_.length_field_bits == 32) {
+            auto val = r.read_u32(endian);
+            return val ? static_cast<size_t>(*val) : 0;
+        }
+        return 0;
+    }
+
+    [[nodiscard]] std::span<const uint64_t> leaf_type_ids() const override {
+        return ids_;
+    }
+
+    [[nodiscard]] std::string_view type_name(uint64_t type_id) const override {
+        for (const auto& t : types_) {
+            if (t.type_id == type_id) return t.type_name;
+        }
+        return "unknown";
+    }
+
+    [[nodiscard]] bool is_receive_only(uint64_t type_id) const override {
+        for (const auto& t : types_) {
+            if (t.type_id == type_id) return t.receive_only;
+        }
+        return false;
+    }
+
+    [[nodiscard]] std::string_view protocol_name() const override {
+        return "passthrough";
+    }
+
+    void reset() override {}
+
+private:
+    FrameConfig frame_config_;
+    std::vector<TypeInfo> types_;
+    std::vector<uint64_t> ids_;
+};
+
+// Store passthrough configs so factory lambdas can create sessions
+struct PassthroughConfigEntry {
+    PassthroughSession::FrameConfig frame_config;
+    std::vector<PassthroughSession::TypeInfo> types;
+};
+
+std::mutex g_passthrough_configs_mutex;
+std::unordered_map<std::string, std::shared_ptr<PassthroughConfigEntry>> g_passthrough_configs;
+
+} // namespace
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
+    const char* name,
+    const conduit_frame_config_t* frame_config,
+    const uint64_t* type_ids,
+    const char** type_names,
+    const int* receive_only,
+    size_t type_count) {
+
+    if (!name || !frame_config) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    // Build the passthrough config
+    auto config = std::make_shared<PassthroughConfigEntry>();
+    config->frame_config.min_header_size = frame_config->min_header_size;
+    config->frame_config.length_skip_bits = frame_config->length_skip_bits;
+    config->frame_config.length_field_bits = frame_config->length_field_bits;
+    config->frame_config.length_big_endian = (frame_config->length_big_endian != 0);
+    if (frame_config->sync_pattern && frame_config->sync_pattern_len > 0) {
+        config->frame_config.sync.assign(
+            frame_config->sync_pattern,
+            frame_config->sync_pattern + frame_config->sync_pattern_len);
+    }
+    for (size_t i = 0; i < type_count; ++i) {
+        PassthroughSession::TypeInfo ti;
+        ti.type_id = type_ids ? type_ids[i] : 0;
+        ti.type_name = (type_names && type_names[i]) ? type_names[i] : "";
+        ti.receive_only = (receive_only && receive_only[i]) ? true : false;
+        config->types.push_back(std::move(ti));
+    }
+
+    // Store the config
+    std::string session_name(name);
+    {
+        std::lock_guard lock(g_passthrough_configs_mutex);
+        g_passthrough_configs[session_name] = config;
+    }
+
+    // Register a factory that creates PassthroughSession instances.
+    // We insert directly into the registry (not via conduit_xcvr_register_session)
+    // because the factory is a capturing lambda.
+    {
+        auto& reg = XcvrSessionRegistry::instance();
+        std::lock_guard lock(reg.mutex);
+        reg.factories[session_name] = [session_name]() -> void* {
+            std::shared_ptr<PassthroughConfigEntry> cfg;
+            {
+                std::lock_guard lock2(g_passthrough_configs_mutex);
+                auto it = g_passthrough_configs.find(session_name);
+                if (it == g_passthrough_configs.end()) return nullptr;
+                cfg = it->second;
+            }
+            return static_cast<void*>(
+                new PassthroughSession(cfg->frame_config, cfg->types));
+        };
+    }
+    return CONDUIT_XCVR_OK;
 }
 
 // ============================================================================

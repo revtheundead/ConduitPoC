@@ -93,6 +93,12 @@ public final class JniNativeBinding implements NativeBinding {
 
     private static native String nVersion();
 
+    private static native int nRegisterPassthroughSession(
+        String name, byte[] syncPattern,
+        int minHeaderSize, int lengthSkipBits, int lengthFieldBits,
+        int lengthBigEndian,
+        long[] typeIds, String[] typeNames, int[] receiveOnly);
+
     // ================================================================
     // Callback dispatch (called from C via JNI)
     // ================================================================
@@ -258,6 +264,19 @@ public final class JniNativeBinding implements NativeBinding {
     @Override
     public String version() {
         return nVersion();
+    }
+
+    @Override
+    public int registerPassthroughSession(
+            String name, byte[] syncPattern,
+            int minHeaderSize, int lengthSkipBits, int lengthFieldBits,
+            boolean lengthBigEndian,
+            long[] typeIds, String[] typeNames, int[] receiveOnly) {
+        return nRegisterPassthroughSession(
+            name, syncPattern,
+            minHeaderSize, lengthSkipBits, lengthFieldBits,
+            lengthBigEndian ? 1 : 0,
+            typeIds, typeNames, receiveOnly);
     }
 
     @Override

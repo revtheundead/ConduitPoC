@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Conduit Codec-Only C ABI Implementation
 
+#ifndef CONDUIT_CODEC_CABI_EXPORTS
 #define CONDUIT_CODEC_CABI_EXPORTS
+#endif
 
 #include <conduit/cabi/conduit_codec_cabi.h>
 #include <conduit/traits/session_traits.hpp>
