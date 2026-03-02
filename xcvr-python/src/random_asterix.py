@@ -22,7 +22,7 @@ from generated.messages import (
     Cat021RecordItemsRe, Cat021RecordItemsReItems,
     Cat048Record, Cat048RecordItems,
     Cat048RecordItemsRe, Cat048RecordItemsReItems,
-    Cat253Record, Cat253RecordItems,
+    Cat253Record, Cat253RecordItems, Cat253RecordItemsI100,
 )
 from generated.structs import (
     DataSourceId,
@@ -47,8 +47,10 @@ from generated.structs import (
     Cat021ReMes, Cat021ReMesSub, Cat021ReMesSum, Cat021ReMesPno,
     Cat021ReMesEm1, Cat021ReMesXp, Cat021ReMesFom, Cat021ReMesM2,
     Cat253I025, Cat253I025Destinations,
+    Cat253I035, Cat253I040, Cat253I060,
     Cat253I050, Cat253I050Sequences,
-    Cat253I080,
+    Cat253I080, Cat253I090,
+    Cat253Multipath, Cat253Squitter, Cat253BitReport,
 )
 from generated.types import (
     TimeOfDay, AircraftIdent,
@@ -878,18 +880,37 @@ def random_cat253(rng):
         rand_fill_destinations(rng, i025)
         it.i025 = i025
     if rand_bool(rng): it.i030 = rand_u16(rng)
+    if rand_bool(rng): it.i040 = Cat253I040()
     if rand_bool(rng):
         i050 = Cat253I050()
         rand_fill_sequences(rng, i050)
         it.i050 = i050
+    if rand_bool(rng): it.i035 = Cat253I035()
+    if rand_bool(rng): it.i060 = Cat253I060()
+    # I080 + I100 are linked: I100 choice dispatches on I080's start-index
     if rand_bool(rng):
+        variant = rng.randint(0, 2)
+        start_indices = [5, 6, 35]
+
         i080 = Cat253I080()
-        i080.startIndex = 0
-        i080.count = 0
-        i080.stale = Cat253StaleInd.CURRENT
-        i080.sim = SimIndicator.ACTUAL
-        i080.localCtrl = Cat253LocalCtrl.NOT_LOCAL
-        i080.dataIncluded = Cat253DataIncl.NO_DATA
+        i080.startIndex = start_indices[variant]
+        i080.count = rand_u8(rng)
+        i080.stale = rand_enum(rng, Cat253StaleInd)
+        i080.sim = rand_enum(rng, SimIndicator)
+        i080.localCtrl = rand_enum(rng, Cat253LocalCtrl)
+        i080.dataIncluded = Cat253DataIncl.DATA_INCLUDED
         it.i080 = i080
+
+        i100 = Cat253RecordItemsI100()
+        if variant == 0:
+            i100.payload = Cat253Multipath()
+        elif variant == 1:
+            i100.payload = Cat253Squitter()
+        else:
+            i100.payload = Cat253BitReport()
+        it.i100 = i100
+    elif rand_bool(rng):
+        it.i080 = Cat253I080()
+    if rand_bool(rng): it.i090 = Cat253I090()
 
     return rec
