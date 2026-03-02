@@ -103,6 +103,32 @@ VoidResult Transceiver::materialize_config_peers() {
 }
 
 // ============================================================================
+// Pre-start configuration
+// ============================================================================
+
+void Transceiver::set_queue_config(QueueConfig config) {
+    config_.rx_queue = std::move(config);
+}
+
+void Transceiver::set_worker_config(WorkerConfig config) {
+    config_.worker = std::move(config);
+}
+
+void Transceiver::set_message_log_config(MessageLogConfig config) {
+    config_.message_log = std::move(config);
+    // Recreate message log if enabled
+    if (config_.message_log.enabled) {
+        message_log_ = std::make_unique<MessageLog>(config_.message_log);
+    } else {
+        message_log_.reset();
+    }
+}
+
+void Transceiver::set_shutdown_timeout(std::chrono::milliseconds timeout) {
+    config_.shutdown_timeout = timeout;
+}
+
+// ============================================================================
 // Peer management
 // ============================================================================
 

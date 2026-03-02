@@ -508,6 +508,93 @@ CONDUIT_CABI_API void conduit_xcvr_register_session(
 }
 
 // ============================================================================
+// Pre-start configuration
+// ============================================================================
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
+    conduit_transceiver_t* xcvr,
+    size_t capacity,
+    int drop_policy,
+    double back_pressure_threshold) {
+
+    if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+
+    conduit::transceiver::QueueConfig cfg;
+    cfg.capacity = capacity;
+    switch (drop_policy) {
+        case CONDUIT_DROP_OLDEST: cfg.drop_policy = conduit::queue::DropPolicy::DropOldest; break;
+        case CONDUIT_DROP_NEWEST: cfg.drop_policy = conduit::queue::DropPolicy::DropNewest; break;
+        case CONDUIT_DROP_BLOCK:  cfg.drop_policy = conduit::queue::DropPolicy::Block; break;
+        default: return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+    cfg.back_pressure_threshold = back_pressure_threshold;
+
+    wrapper->xcvr.set_queue_config(std::move(cfg));
+    return CONDUIT_XCVR_OK;
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
+    conduit_transceiver_t* xcvr,
+    size_t thread_count,
+    uint64_t handler_timeout_ms) {
+
+    if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+
+    conduit::transceiver::WorkerConfig cfg;
+    cfg.thread_count = thread_count;
+    cfg.handler_timeout = std::chrono::milliseconds(handler_timeout_ms);
+
+    wrapper->xcvr.set_worker_config(std::move(cfg));
+    return CONDUIT_XCVR_OK;
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_shutdown_timeout(
+    conduit_transceiver_t* xcvr,
+    uint64_t timeout_ms) {
+
+    if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+
+    wrapper->xcvr.set_shutdown_timeout(std::chrono::milliseconds(timeout_ms));
+    return CONDUIT_XCVR_OK;
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
+    conduit_transceiver_t* xcvr,
+    const conduit_message_log_config_t* config) {
+
+    if (!xcvr || !config) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+
+    conduit::transceiver::MessageLogConfig cfg;
+    cfg.enabled = (config->enabled != 0);
+    switch (config->mode) {
+        case CONDUIT_LOG_MODE_COMBINED:           cfg.mode = conduit::transceiver::MessageLogMode::Combined; break;
+        case CONDUIT_LOG_MODE_SEPARATE_DIRECTION: cfg.mode = conduit::transceiver::MessageLogMode::SeparateDirection; break;
+        case CONDUIT_LOG_MODE_PER_PEER:           cfg.mode = conduit::transceiver::MessageLogMode::PerPeer; break;
+        case CONDUIT_LOG_MODE_PER_PEER_DIRECTION: cfg.mode = conduit::transceiver::MessageLogMode::PerPeerDirection; break;
+        default: return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+    switch (config->output) {
+        case CONDUIT_LOG_OUTPUT_FILE:   cfg.output = conduit::transceiver::MessageLogOutput::File; break;
+        case CONDUIT_LOG_OUTPUT_STDOUT: cfg.output = conduit::transceiver::MessageLogOutput::Stdout; break;
+        case CONDUIT_LOG_OUTPUT_BOTH:   cfg.output = conduit::transceiver::MessageLogOutput::Both; break;
+        default: return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+    if (config->directory)          cfg.directory = config->directory;
+    if (config->prefix)             cfg.prefix = config->prefix;
+    if (config->filename)           cfg.filename = config->filename;
+    if (config->sent_filename)      cfg.sent_filename = config->sent_filename;
+    if (config->received_filename)  cfg.received_filename = config->received_filename;
+    cfg.include_message_content = (config->include_message_content != 0);
+
+    wrapper->xcvr.set_message_log_config(std::move(cfg));
+    return CONDUIT_XCVR_OK;
+}
+
+// ============================================================================
 // Passthrough session
 //
 // A protocol-agnostic session that handles framing only.  All encode/decode

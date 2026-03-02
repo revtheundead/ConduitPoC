@@ -93,6 +93,15 @@ public final class JniNativeBinding implements NativeBinding {
 
     private static native String nVersion();
 
+    private static native int nSetQueueConfig(long handle, long capacity, int dropPolicy,
+                                                double backPressureThreshold);
+    private static native int nSetWorkerConfig(long handle, long threadCount, long handlerTimeoutMs);
+    private static native int nSetShutdownTimeout(long handle, long timeoutMs);
+    private static native int nSetMessageLogConfig(long handle, int enabled, int mode, int output,
+                                                    String directory, String prefix, String filename,
+                                                    String sentFilename, String receivedFilename,
+                                                    int includeMessageContent);
+
     private static native int nRegisterPassthroughSession(
         String name, byte[] syncPattern,
         int minHeaderSize, int lengthSkipBits, int lengthFieldBits,
@@ -264,6 +273,33 @@ public final class JniNativeBinding implements NativeBinding {
     @Override
     public String version() {
         return nVersion();
+    }
+
+    @Override
+    public int setQueueConfig(long handle, long capacity, int dropPolicy,
+                              double backPressureThreshold) {
+        return nSetQueueConfig(handle, capacity, dropPolicy, backPressureThreshold);
+    }
+
+    @Override
+    public int setWorkerConfig(long handle, long threadCount, long handlerTimeoutMs) {
+        return nSetWorkerConfig(handle, threadCount, handlerTimeoutMs);
+    }
+
+    @Override
+    public int setShutdownTimeout(long handle, long timeoutMs) {
+        return nSetShutdownTimeout(handle, timeoutMs);
+    }
+
+    @Override
+    public int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
+                                   String directory, String prefix, String filename,
+                                   String sentFilename, String receivedFilename,
+                                   boolean includeMessageContent) {
+        return nSetMessageLogConfig(handle, enabled ? 1 : 0, mode, output,
+            directory, prefix, filename,
+            sentFilename, receivedFilename,
+            includeMessageContent ? 1 : 0);
     }
 
     @Override

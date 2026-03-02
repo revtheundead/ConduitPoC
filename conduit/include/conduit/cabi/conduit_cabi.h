@@ -202,6 +202,57 @@ CONDUIT_CABI_API void conduit_xcvr_register_session(
     const char* name, conduit_session_factory_t factory);
 
 /* ================================================================
+ * Pre-start configuration (call before conduit_start)
+ * ================================================================ */
+
+/* Queue drop policies. */
+#define CONDUIT_DROP_OLDEST 0
+#define CONDUIT_DROP_NEWEST 1
+#define CONDUIT_DROP_BLOCK  2
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
+    conduit_transceiver_t* xcvr,
+    size_t capacity,
+    int drop_policy,            /* CONDUIT_DROP_* */
+    double back_pressure_threshold);
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
+    conduit_transceiver_t* xcvr,
+    size_t thread_count,
+    uint64_t handler_timeout_ms);
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_shutdown_timeout(
+    conduit_transceiver_t* xcvr,
+    uint64_t timeout_ms);
+
+/* Message log modes. */
+#define CONDUIT_LOG_MODE_COMBINED           0
+#define CONDUIT_LOG_MODE_SEPARATE_DIRECTION 1
+#define CONDUIT_LOG_MODE_PER_PEER           2
+#define CONDUIT_LOG_MODE_PER_PEER_DIRECTION 3
+
+/* Message log output targets. */
+#define CONDUIT_LOG_OUTPUT_FILE   0
+#define CONDUIT_LOG_OUTPUT_STDOUT 1
+#define CONDUIT_LOG_OUTPUT_BOTH   2
+
+typedef struct {
+    int            enabled;
+    int            mode;              /* CONDUIT_LOG_MODE_* */
+    int            output;            /* CONDUIT_LOG_OUTPUT_* */
+    const char*    directory;
+    const char*    prefix;
+    const char*    filename;          /* nullable */
+    const char*    sent_filename;     /* nullable */
+    const char*    received_filename; /* nullable */
+    int            include_message_content;
+} conduit_message_log_config_t;
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
+    conduit_transceiver_t* xcvr,
+    const conduit_message_log_config_t* config);
+
+/* ================================================================
  * Passthrough session registration (no protocol-specific .so needed)
  *
  * Registers a session that handles framing only.  Encode/decode of

@@ -66,6 +66,12 @@ public final class CabiBindings {
     public static final MethodHandle conduit_stats;
     public static final MethodHandle conduit_stats_reset;
 
+    // Configuration
+    public static final MethodHandle conduit_set_queue_config;
+    public static final MethodHandle conduit_set_worker_config;
+    public static final MethodHandle conduit_set_shutdown_timeout;
+    public static final MethodHandle conduit_set_message_log_config;
+
     // Session registration
     public static final MethodHandle conduit_register_passthrough_session;
 
@@ -145,6 +151,28 @@ public final class CabiBindings {
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         conduit_stats_reset = lookup("conduit_stats_reset",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+
+        // conduit_set_queue_config(xcvr, capacity, drop_policy, back_pressure_threshold) -> error
+        conduit_set_queue_config = lookup("conduit_set_queue_config",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+                ValueLayout.JAVA_DOUBLE));
+        // conduit_set_worker_config(xcvr, thread_count, handler_timeout_ms) -> error
+        conduit_set_worker_config = lookup("conduit_set_worker_config",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
+        // conduit_set_shutdown_timeout(xcvr, timeout_ms) -> error
+        conduit_set_shutdown_timeout = lookup("conduit_set_shutdown_timeout",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        // conduit_set_message_log_config(xcvr, enabled, mode, output, directory, prefix, filename,
+        //                                sent_filename, received_filename, include_message_content) -> error
+        conduit_set_message_log_config = lookup("conduit_set_message_log_config",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_INT));
 
         // conduit_register_passthrough_session(name, frame_config, type_ids, type_names, receive_only, count) -> error
         conduit_register_passthrough_session = lookup("conduit_register_passthrough_session",
