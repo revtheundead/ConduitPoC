@@ -33,6 +33,9 @@ if(MSVC)
     target_compile_options(conduit_warnings INTERFACE
         /W4 /permissive- /Zc:__cplusplus /Zc:preprocessor
     )
+    # Prevent windows.h from defining min/max macros (conflicts with std::min/std::max)
+    # and reduce windows.h include bloat.
+    target_compile_definitions(conduit_warnings INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN)
 else()
     target_compile_options(conduit_warnings INTERFACE
         -Wall -Wextra -Wpedantic -Wconversion -Wshadow
