@@ -593,7 +593,10 @@ class BitReader:
         chars = []
         for _ in range(count):
             c = self.read_bits(char_bits)
-            chars.append(chr(0 if c == 0 else (c + 0x40 if c < 32 else c)))
+            if char_bits < 7:
+                chars.append(chr(0 if c == 0 else (c + 0x40 if c < 32 else c)))
+            else:
+                chars.append(chr(c))
         return ''.join(chars)
 
     def read_terminated_string(self, terminator: int, max_len: int) -> str:
@@ -731,7 +734,9 @@ class BitWriter:
 
     def write_packed_chars(self, s: str, count: int, char_bits: int) -> None:
         for i in range(count):
-            c = ord(s[i]) if i < len(s) else 0
+            c = ord(s[i]) if i < len(s) else 0x20
+            if char_bits < 7 and ord('a') <= c <= ord('z'):
+                c -= 32
             self.write_bits(c - 0x40 if c >= 0x40 else c, char_bits)
 
     def write_terminated_string(self, s: str, terminator: int) -> None:
@@ -994,7 +999,12 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            ctx.line("s = r.read_string(" + std::to_string(*t.length) + ")");
+            {
+                std::string enc_suffix;
+                if (t.encoding == model::StringEncoding::Ia5) enc_suffix = ", 1";
+                else if (t.encoding == model::StringEncoding::Ebcdic) enc_suffix = ", 2";
+                ctx.line("s = r.read_string(" + std::to_string(*t.length) + enc_suffix + ")");
+            }
             std::string ch = (t.padding == model::StringPadding::Space) ? "' '" : "'\\x00'";
             if (t.trim == model::StringTrim::Right || t.trim == model::StringTrim::Both)
                 ctx.line("s = s.rstrip(" + ch + ")");
@@ -1006,7 +1016,12 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
             int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
-            ctx.line("w.write_string(self._value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + ")");
+            {
+                std::string enc_suffix;
+                if (t.encoding == model::StringEncoding::Ia5) enc_suffix = ", encoding=1";
+                else if (t.encoding == model::StringEncoding::Ebcdic) enc_suffix = ", encoding=2";
+                ctx.line("w.write_string(self._value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + enc_suffix + ")");
+            }
             ctx.dedent();
             ctx.line();
             ctx.line("def __eq__(self, o: object) -> bool:");
@@ -1612,10 +1627,16 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
                 ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
             } else if (fi.is_string) {
                 // String: write empty string with proper padding when absent
-                if (f->length) {
+                if (f->char_bits && f->length) {
+                    // Packed character encode (e.g., ICAO 6-bit chars)
+                    ctx.line("w.write_packed_chars(" + m + " if " + m + " is not None else '', " +
+                             std::to_string(*f->length) + ", " + std::to_string(*f->char_bits) + ")");
+                } else if (f->length) {
                     int pad = (f->padding && *f->padding == model::StringPadding::Space) ? 0x20 : 0;
+                    bool has_enc = py_field_needs_encoding(*f);
+                    std::string enc_suffix = has_enc ? (", encoding=" + py_encoding_const(*f)) : "";
                     ctx.line("w.write_string(" + m + " if " + m + " is not None else '', " +
-                             std::to_string(*f->length) + ", " + std::to_string(pad) + ")");
+                             std::to_string(*f->length) + ", " + std::to_string(pad) + enc_suffix + ")");
                 } else {
                     ctx.line("if " + m + " is not None:");
                     ctx.indent(); ctx.line("w.write_string(" + m + ", len(" + m + "))"); ctx.dedent();
@@ -2019,19 +2040,21 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             if (bf.raw_signed) {
                 read = "r.read_signed_bits(" + std::to_string(bf.raw_bits) + ")";
             } else {
-                if (bf.raw_bits <= 8) read = "r.read_bits(" + std::to_string(bf.raw_bits) + ")";
-                else if (bf.raw_bits <= 16) {
+                if (bf.raw_bits == 16) {
                     std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
                     read = "r.read_u16(" + be + ")";
-                } else if (bf.raw_bits <= 32) {
+                } else if (bf.raw_bits == 32) {
                     std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
                     read = "r.read_u32(" + be + ")";
+                } else if (bf.raw_bits == 64) {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    read = "r.read_u64(" + be + ")";
                 } else {
                     read = "r.read_bits(" + std::to_string(bf.raw_bits) + ")";
                 }
             }
-            ctx.line(m + " = " + read + " * " + std::to_string(bf.scale) +
-                     (bf.offset != 0.0 ? " + " + std::to_string(bf.offset) : ""));
+            ctx.line(m + " = " + read + " * " + py_double(bf.scale) +
+                     (bf.offset != 0.0 ? " + " + py_double(bf.offset) : ""));
         } else if (bf.is_string) {
             std::string enc_arg;
             if (bf.source_field) enc_arg = py_encoding_const(*bf.source_field);
@@ -2062,9 +2085,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 read = "r.read_signed_bits(" + std::to_string(bf.bits) + ")";
             } else {
-                if (bf.bits <= 8) read = "r.read_bits(" + std::to_string(bf.bits) + ")";
-                else if (bf.bits <= 16) read = "r.read_u16(" + be + ")";
-                else if (bf.bits <= 32) read = "r.read_u32(" + be + ")";
+                if (bf.bits == 16) read = "r.read_u16(" + be + ")";
+                else if (bf.bits == 32) read = "r.read_u32(" + be + ")";
+                else if (bf.bits == 64) read = "r.read_u64(" + be + ")";
                 else read = "r.read_bits(" + std::to_string(bf.bits) + ")";
             }
             if (bf.is_float) {
@@ -2128,15 +2151,21 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         } else if (bf.is_enum) {
             ctx.line(m + ".encode(w)");
         } else if (bf.has_scale) {
-            std::string reverse_scale = "int((" + m + " - " + std::to_string(bf.offset) + ") / " + std::to_string(bf.scale) + ")";
+            std::string reverse_scale = "int((" + m + " - " + py_double(bf.offset) + ") / " + py_double(bf.scale) + ")";
             if (bf.raw_signed) {
                 ctx.line("w.write_signed_bits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ")");
             } else {
-                if (bf.raw_bits <= 8) ctx.line("w.write_bits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ")");
-                else {
+                if (bf.raw_bits == 16) {
                     std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
-                    if (bf.raw_bits <= 16) ctx.line("w.write_u16(" + reverse_scale + ", " + be + ")");
-                    else ctx.line("w.write_u32(" + reverse_scale + ", " + be + ")");
+                    ctx.line("w.write_u16(" + reverse_scale + ", " + be + ")");
+                } else if (bf.raw_bits == 32) {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    ctx.line("w.write_u32(" + reverse_scale + ", " + be + ")");
+                } else if (bf.raw_bits == 64) {
+                    std::string be = (bf.raw_endian == model::Endian::Big) ? "True" : "False";
+                    ctx.line("w.write_u64(" + reverse_scale + ", " + be + ")");
+                } else {
+                    ctx.line("w.write_bits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ")");
                 }
             }
         } else if (bf.is_string) {
@@ -2168,9 +2197,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
                 ctx.line("w.write_signed_bits(" + m + ", " + std::to_string(bf.bits) + ")");
             } else {
-                if (bf.bits <= 8) ctx.line("w.write_bits(" + m + ", " + std::to_string(bf.bits) + ")");
-                else if (bf.bits <= 16) ctx.line("w.write_u16(" + m + ", " + be + ")");
-                else if (bf.bits <= 32) ctx.line("w.write_u32(" + m + ", " + be + ")");
+                if (bf.bits == 16) ctx.line("w.write_u16(" + m + ", " + be + ")");
+                else if (bf.bits == 32) ctx.line("w.write_u32(" + m + ", " + be + ")");
+                else if (bf.bits == 64) ctx.line("w.write_u64(" + m + ", " + be + ")");
                 else ctx.line("w.write_bits(" + m + ", " + std::to_string(bf.bits) + ")");
             }
         }

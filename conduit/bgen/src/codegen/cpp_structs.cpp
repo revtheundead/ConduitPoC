@@ -1872,7 +1872,11 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
                 ctx_.line("auto val = r.read_string(r.remaining_bytes());");
             }
             ctx_.line("if (!val) return std::unexpected(val.error());");
-            ctx_.line(member + " = std::move(*val);");
+            if (bf.source_field && field_needs_encoding(*bf.source_field)) {
+                ctx_.line(member + " = conduit::string::to_ascii(*val, " + field_encoding_enum(*bf.source_field) + ");");
+            } else {
+                ctx_.line(member + " = std::move(*val);");
+            }
             if (bf.source_field) {
                 emit_field_trim(ctx_, "(*" + member + ")", *bf.source_field, index_);
             }
@@ -1993,10 +1997,24 @@ void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bf
         } else if (bf.is_enum) {
             ctx_.line("CONDUIT_TRY(encode_" + bf.cpp_type + "(*" + member + ", w));");
         } else if (bf.is_string) {
-            if (bf.length) {
-                ctx_.line("w.write_string(*" + member + ", " + std::to_string(*bf.length) + ");");
+            if (bf.source_field && field_needs_encoding(*bf.source_field)) {
+                ctx_.line("{");
+                ctx_.indent();
+                ctx_.line("auto wire = conduit::string::from_ascii(*" + member + ", " + field_encoding_enum(*bf.source_field) + ");");
+                if (bf.length) {
+                    std::string pad = resolve_padding_char(*bf.source_field);
+                    ctx_.line("w.write_string(wire, " + std::to_string(*bf.length) + ", " + pad + ");");
+                } else {
+                    ctx_.line("w.write_string(wire, wire.size());");
+                }
+                ctx_.dedent();
+                ctx_.line("}");
             } else {
-                ctx_.line("w.write_string(*" + member + ", " + member + "->size());");
+                if (bf.length) {
+                    ctx_.line("w.write_string(*" + member + ", " + std::to_string(*bf.length) + ");");
+                } else {
+                    ctx_.line("w.write_string(*" + member + ", " + member + "->size());");
+                }
             }
         } else if (bf.is_bytes) {
             if (bf.length) {

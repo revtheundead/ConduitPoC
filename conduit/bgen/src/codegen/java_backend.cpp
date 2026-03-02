@@ -608,7 +608,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("public String readPackedChars(int count, int charBits) {");
     ctx.indent();
     ctx.line("StringBuilder sb = new StringBuilder(count);");
-    ctx.line("for (int i=0;i<count;i++) { int c=(int)readBits(charBits); sb.append((char)(c==0?0:(c<32?c+0x40:c))); }");
+    ctx.line("for (int i=0;i<count;i++) { int c=(int)readBits(charBits); if (charBits<7) sb.append((char)(c==0?0:(c<32?c+0x40:c))); else sb.append((char)c); }");
     ctx.line("return sb.toString();");
     ctx.dedent();
     ctx.line("}");
@@ -769,7 +769,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     // Packed character write: writes char_bits per character with IA5 6-bit mapping
     ctx.line("public void writePackedChars(String s, int count, int charBits) {");
     ctx.indent();
-    ctx.line("for (int i=0;i<count;i++) { int c=i<s.length()?(s.charAt(i)&0xFF):0; writeBits(c>=0x40?c-0x40:c, charBits); }");
+    ctx.line("for (int i=0;i<count;i++) { int c=i<s.length()?(s.charAt(i)&0xFF):0x20; if (charBits<7 && c>='a' && c<='z') c-=32; writeBits(c>=0x40?c-0x40:c, charBits); }");
     ctx.dedent();
     ctx.line("}");
     // Terminated string write
@@ -1474,14 +1474,21 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
                 ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
                 ctx.line("else { new " + stype + "().encode(w); }");
             } else if (fi.is_string) {
-                if (f->length) {
+                if (f->char_bits && f->length) {
+                    // Packed character encode (e.g., ICAO 6-bit chars)
+                    ctx.line("w.writePackedChars(" + m + " != null ? " + m + " : \"\", " +
+                             std::to_string(*f->length) + ", " + std::to_string(*f->char_bits) + ");");
+                } else if (f->length) {
                     int pad = 0;
                     if (f->padding && *f->padding == model::StringPadding::Space) {
                         bool is_ebcdic = (f->encoding && *f->encoding == model::StringEncoding::Ebcdic);
                         pad = is_ebcdic ? 0x40 : 0x20;
                     }
-                    ctx.line("w.writeString(" + m + " != null ? " + m + " : \"\", " +
-                             std::to_string(*f->length) + ", " + std::to_string(pad) + ");");
+                    bool has_enc = j_field_needs_encoding(*f);
+                    std::string enc_arg = has_enc ? ", " + j_encoding_const(*f) : "";
+                    std::string write_fn = has_enc ? "writeStringEncoded" : "writeString";
+                    ctx.line("w." + write_fn + "(" + m + " != null ? " + m + " : \"\", " +
+                             std::to_string(*f->length) + ", " + std::to_string(pad) + enc_arg + ");");
                 } else {
                     ctx.line("if (" + m + " != null) { w.writeString(" + m + ", " + m + ".length(), 0); }");
                 }
@@ -1903,10 +1910,10 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 if (bf.raw_bits <= 8) read = "r.readSignedBits(" + std::to_string(bf.raw_bits) + ")";
                 else read = "r.readSignedBits(" + std::to_string(bf.raw_bits) + ")";
             } else {
-                if (bf.raw_bits <= 8) read = "r.readBits(" + std::to_string(bf.raw_bits) + ")";
-                else if (bf.raw_bits <= 16) read = "r.readU16(" + be + ")";
-                else if (bf.raw_bits <= 32) read = "r.readU32(" + be + ")";
-                else read = "r.readU64(" + be + ")";
+                if (bf.raw_bits == 16) read = "r.readU16(" + be + ")";
+                else if (bf.raw_bits == 32) read = "r.readU32(" + be + ")";
+                else if (bf.raw_bits == 64) read = "r.readU64(" + be + ")";
+                else read = "r.readBits(" + std::to_string(bf.raw_bits) + ")";
             }
             ctx.line(m + " = (double) " + read + " * " + j_double(bf.scale) +
                      (bf.offset != 0.0 ? " + " + j_double(bf.offset) : "") + ";");
@@ -1943,10 +1950,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 if (bf.bits <= 8) read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
                 else read = "(int) r.readSignedBits(" + std::to_string(bf.bits) + ")";
             } else {
-                if (bf.bits <= 8) read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
-                else if (bf.bits <= 16) read = "r.readU16(" + be + ")";
-                else if (bf.bits <= 32) read = "r.readU32(" + be + ")";
-                else read = "r.readU64(" + be + ")";
+                if (bf.bits == 8) read = "r.readU8()";
+                else if (bf.bits == 16) read = "r.readU16(" + be + ")";
+                else if (bf.bits == 32) read = "r.readU32(" + be + ")";
+                else if (bf.bits == 64) read = "r.readU64(" + be + ")";
+                else read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
             }
             if (bf.is_float) {
                 if (bf.bits == 32) read = "r.readF32(" + be + ")";
@@ -2019,10 +2027,10 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 if (bf.raw_bits <= 8) ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
                 else ctx.line("w.writeSignedBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
             } else {
-                if (bf.raw_bits <= 8) ctx.line("w.writeBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
-                else if (bf.raw_bits <= 16) ctx.line("w.writeU16((int) " + reverse_scale + ", " + be + ");");
-                else if (bf.raw_bits <= 32) ctx.line("w.writeU32((int) " + reverse_scale + ", " + be + ");");
-                else ctx.line("w.writeU64(" + reverse_scale + ", " + be + ");");
+                if (bf.raw_bits == 16) ctx.line("w.writeU16((int) " + reverse_scale + ", " + be + ");");
+                else if (bf.raw_bits == 32) ctx.line("w.writeU32((int) " + reverse_scale + ", " + be + ");");
+                else if (bf.raw_bits == 64) ctx.line("w.writeU64(" + reverse_scale + ", " + be + ");");
+                else ctx.line("w.writeBits(" + reverse_scale + ", " + std::to_string(bf.raw_bits) + ");");
             }
         } else if (bf.is_string) {
             int pad = 0;
@@ -2054,10 +2062,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 if (bf.bits <= 8) ctx.line("w.writeSignedBits(" + m + ", " + std::to_string(bf.bits) + ");");
                 else ctx.line("w.writeSignedBits(" + m + ", " + std::to_string(bf.bits) + ");");
             } else {
-                if (bf.bits <= 8) ctx.line("w.writeBits(" + m + ", " + std::to_string(bf.bits) + ");");
-                else if (bf.bits <= 16) ctx.line("w.writeU16(" + m + ", " + be + ");");
-                else if (bf.bits <= 32) ctx.line("w.writeU32(" + m + ", " + be + ");");
-                else ctx.line("w.writeU64(" + m + ", " + be + ");");
+                if (bf.bits == 8) ctx.line("w.writeU8(" + m + ");");
+                else if (bf.bits == 16) ctx.line("w.writeU16(" + m + ", " + be + ");");
+                else if (bf.bits == 32) ctx.line("w.writeU32(" + m + ", " + be + ");");
+                else if (bf.bits == 64) ctx.line("w.writeU64(" + m + ", " + be + ");");
+                else ctx.line("w.writeBits(" + m + ", " + std::to_string(bf.bits) + ");");
             }
         }
         ctx.dedent();
