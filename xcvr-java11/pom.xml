@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.conduit</groupId>
+    <artifactId>xcvr-java11</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Conduit xcvr PoC (Java 11 / JNI)</name>
+    <description>ASTERIX transceiver proof-of-concept using Conduit with JNI backend (Java 11+)</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>11</maven.compiler.release>
+        <conduit.build.dir>${project.basedir}/../conduit/build</conduit.build.dir>
+        <exec.appArgs></exec.appArgs>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.conduit</groupId>
+            <artifactId>conduit-java</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Add bgen-generated source directories -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>add-source</goal></goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.basedir}/asterix/generated</source>
+                                <source>${project.basedir}/asterix-alt/generated</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>11</release>
+                </configuration>
+            </plugin>
+
+            <!-- exec:java for running the apps -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <mainClass>com.conduit.xcvr.PocApp</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+          Run PocApp (TCP client):
+            mvn exec:java -PrunPocApp -Dexec.appArgs="127.0.0.1 5000 -\-interval-ms 500"
+        -->
+        <profile>
+            <id>runPocApp</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.conduit.xcvr.PocApp</mainClass>
+                            <systemProperties>
+                                <systemProperty>
+                                    <key>java.library.path</key>
+                                    <value>${conduit.build.dir}</value>
+                                </systemProperty>
+                            </systemProperties>
+                            <commandlineArgs>${exec.appArgs}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+          Run DummyPeer (TCP server or client):
+            mvn exec:java -PrunDummyPeer -Dexec.appArgs="server -\-port 5000"
+            mvn exec:java -PrunDummyPeer -Dexec.appArgs="client 127.0.0.1 5000"
+        -->
+        <profile>
+            <id>runDummyPeer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.conduit.xcvr.DummyPeer</mainClass>
+                            <systemProperties>
+                                <systemProperty>
+                                    <key>java.library.path</key>
+                                    <value>${conduit.build.dir}</value>
+                                </systemProperty>
+                            </systemProperties>
+                            <commandlineArgs>${exec.appArgs}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
