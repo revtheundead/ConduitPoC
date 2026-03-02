@@ -66,6 +66,9 @@ public final class CabiBindings {
     public static final MethodHandle conduit_stats;
     public static final MethodHandle conduit_stats_reset;
 
+    // Session registration
+    public static final MethodHandle conduit_register_passthrough_session;
+
     // Version
     public static final MethodHandle conduit_version;
 
@@ -142,6 +145,13 @@ public final class CabiBindings {
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         conduit_stats_reset = lookup("conduit_stats_reset",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+
+        // conduit_register_passthrough_session(name, frame_config, type_ids, type_names, receive_only, count) -> error
+        conduit_register_passthrough_session = lookup("conduit_register_passthrough_session",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
         conduit_version = lookup("conduit_version",
             FunctionDescriptor.of(ValueLayout.ADDRESS));

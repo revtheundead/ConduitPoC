@@ -365,6 +365,63 @@ public final class PanamaNativeBinding implements NativeBinding {
     }
 
     // ================================================================
+    // Session registration
+    // ================================================================
+
+    /**
+     * Layout for conduit_frame_config_t (6 fields, 64-bit platform):
+     * { uint8_t* sync_pattern, size_t sync_pattern_len, size_t min_header_size,
+     *   size_t length_skip_bits, size_t length_field_bits, int length_big_endian }
+     */
+    private static final StructLayout FRAME_CONFIG_LAYOUT = MemoryLayout.structLayout(
+        ValueLayout.ADDRESS.withName("sync_pattern"),
+        ValueLayout.JAVA_LONG.withName("sync_pattern_len"),
+        ValueLayout.JAVA_LONG.withName("min_header_size"),
+        ValueLayout.JAVA_LONG.withName("length_skip_bits"),
+        ValueLayout.JAVA_LONG.withName("length_field_bits"),
+        ValueLayout.JAVA_INT.withName("length_big_endian"),
+        MemoryLayout.paddingLayout(4)
+    );
+
+    @Override
+    public int registerPassthroughSession(
+            String name, byte[] syncPattern,
+            int minHeaderSize, int lengthSkipBits, int lengthFieldBits,
+            boolean lengthBigEndian,
+            long[] typeIds, String[] typeNames, int[] receiveOnly) {
+        try {
+            int count = typeIds.length;
+            var nameStr = arena.allocateUtf8String(name);
+
+            // Build frame config struct
+            var cfg = arena.allocate(FRAME_CONFIG_LAYOUT);
+            var syncBuf = arena.allocateArray(ValueLayout.JAVA_BYTE, syncPattern);
+            cfg.set(ValueLayout.ADDRESS, 0, syncBuf);
+            cfg.set(ValueLayout.JAVA_LONG, 8, (long) syncPattern.length);
+            cfg.set(ValueLayout.JAVA_LONG, 16, (long) minHeaderSize);
+            cfg.set(ValueLayout.JAVA_LONG, 24, (long) lengthSkipBits);
+            cfg.set(ValueLayout.JAVA_LONG, 32, (long) lengthFieldBits);
+            cfg.set(ValueLayout.JAVA_INT, 40, lengthBigEndian ? 1 : 0);
+
+            // Build arrays
+            var ids = arena.allocateArray(ValueLayout.JAVA_LONG, typeIds);
+            var names = arena.allocate(
+                ValueLayout.ADDRESS.byteSize() * count,
+                ValueLayout.ADDRESS.byteAlignment());
+            for (int i = 0; i < count; i++) {
+                names.setAtIndex(ValueLayout.ADDRESS, i,
+                    arena.allocateUtf8String(typeNames[i]));
+            }
+            var recvOnly = arena.allocateArray(ValueLayout.JAVA_INT, receiveOnly);
+
+            return (int) CabiBindings.conduit_register_passthrough_session.invokeExact(
+                nameStr, cfg, ids, names, recvOnly, (long) count);
+        } catch (Throwable e) {
+            throw new RuntimeException("registerPassthroughSession failed", e);
+        }
+    }
+
+    // ================================================================
     // Cleanup
     // ================================================================
 

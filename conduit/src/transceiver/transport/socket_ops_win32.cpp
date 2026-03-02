@@ -64,7 +64,7 @@ Result<socket_t> create_udp_socket() {
 
 VoidResult set_nonblocking(socket_t sock) {
     u_long mode = 1;
-    if (ioctlsocket(static_cast<SOCKET>(sock), FIONBIO, &mode) != 0) {
+    if (ioctlsocket(static_cast<SOCKET>(sock), static_cast<long>(FIONBIO), &mode) != 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
                           "Failed to set non-blocking: " +
@@ -175,7 +175,7 @@ Result<WakePipe> create_wake_pipe() {
 
     // Set read socket non-blocking so drain_wake_pipe never blocks
     u_long nb_mode = 1;
-    if (ioctlsocket(listener, FIONBIO, &nb_mode) != 0) {
+    if (ioctlsocket(listener, static_cast<long>(FIONBIO), &nb_mode) != 0) {
         ::closesocket(listener);
         ::closesocket(sender);
         return std::unexpected(

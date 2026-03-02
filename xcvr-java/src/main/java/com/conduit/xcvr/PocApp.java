@@ -51,6 +51,9 @@ public class PocApp {
                 host, port, intervalMs, sessionName);
 
         try (var tx = new Transceiver()) {
+            // Register the session (Java uses passthrough mode — codec runs in Java)
+            tx.registerSession(sessionName, new AsterixDataBlockSession());
+
             // Add TCP client peer (mirrors C++ cfg.add_peer("server", ..., TcpClientConfig))
             int peerId = tx.addPeer("server", sessionName,
                     TransportConfig.tcpClient(host + ":" + port));

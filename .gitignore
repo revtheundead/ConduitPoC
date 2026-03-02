@@ -3,9 +3,11 @@ __pycache__/
 *.pyo
 *.class
 build/
+build-*/
 .gradle/
 **/generated/
 *.egg-info/
 test_roundtrip
 test_roundtrip_old
 xcvr/test_cat021_roundtrip
+logs/

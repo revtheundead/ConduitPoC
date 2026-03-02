@@ -1,0 +1,139 @@
+name: Windows Build & Test
+
+on:
+  push:
+    branches: [master, dev, 'claude/**']
+  pull_request:
+    branches: [master, dev]
+
+jobs:
+  # ── Windows build with MSVC ────────────────────────────────────────────────
+  windows-msvc:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (with tests)
+        run: >
+          cmake -B build-conduit -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build conduit
+        run: cmake --build build-conduit --config ${{ matrix.build_type }} --parallel
+
+      - name: Run conduit tests
+        run: |
+          cd build-conduit
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
+
+      - name: Configure xcvr
+        run: >
+          cmake -B build-xcvr -S xcvr
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build xcvr
+        run: cmake --build build-xcvr --config ${{ matrix.build_type }} --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        shell: pwsh
+        run: |
+          $buildDir = "build-xcvr/${{ matrix.build_type }}"
+          if (-not (Test-Path "$buildDir/dummy_peer.exe")) {
+            $buildDir = "build-xcvr"
+          }
+
+          # Start server in background
+          $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
+            -ArgumentList "server","--port","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 2
+
+          # Start client in background
+          $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
+            -ArgumentList "127.0.0.1","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          # Stop both
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+
+          Write-Host "=== Server stdout ==="
+          Get-Content server_out.txt
+          Write-Host "=== Client stdout ==="
+          Get-Content client_out.txt
+
+          # Verify both produced output (basic smoke check)
+          $serverOut = Get-Content server_out.txt -Raw
+          $clientOut = Get-Content client_out.txt -Raw
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            exit 1
+          }
+
+  # ── Windows build with MinGW (cross-compilation parity) ────────────────────
+  windows-mingw:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+
+      - name: Configure xcvr (MinGW)
+        run: >
+          cmake -B build-mingw -S xcvr -G "MinGW Makefiles"
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build xcvr (MinGW)
+        run: cmake --build build-mingw --parallel
+
+  # ── Linux build (regression check) ────────────────────────────────────────
+  linux-gcc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"

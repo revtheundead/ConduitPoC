@@ -29,9 +29,10 @@ from conduit import Transceiver, TcpClientConfig, TcpServerConfig
 from . import random_asterix
 from . import random_asterix_alt
 
-# Import generated message classes from both perspectives
+# Import generated message classes and sessions from both perspectives
 # Client perspective (asterix) -- loaded from asterix/generated/
 import generated.messages as asterix_msgs
+from generated.sessions import AsterixDataBlockSession as AsterixSession
 # Server perspective (asterix_alt) -- loaded by random_asterix_alt under generated_alt/
 
 running = True
@@ -51,6 +52,11 @@ def _load_alt_messages():
     (which is imported above), so the module is already available.
     """
     return sys.modules['generated_alt.messages']
+
+
+def _load_alt_session():
+    """Return the asterix-alt AsterixDataBlockSession class."""
+    return sys.modules['generated_alt.sessions'].AsterixDataBlockSession
 
 
 # ── Handler registration ─────────────────────────────────────────────────
@@ -199,6 +205,10 @@ def run_server(args, interval_s):
     alt_msgs = _load_alt_messages()
 
     with Transceiver() as tx:
+        # Register the session (Python uses passthrough mode — codec runs in Python)
+        AltSession = _load_alt_session()
+        tx.register_session(session_name, AltSession())
+
         # TCP server peer (mirrors C++ TcpServerConfig{.bind_address="0.0.0.0", .port=port})
         tx.add_peer("clients", session_name,
                      TcpServerConfig(f"0.0.0.0:{port}"))
@@ -236,6 +246,9 @@ def run_client(args, interval_s):
           f"(interval={args.interval_ms}ms, session={session_name})")
 
     with Transceiver() as tx:
+        # Register the session (Python uses passthrough mode — codec runs in Python)
+        tx.register_session(session_name, AsterixSession())
+
         # TCP client peer (mirrors C++ TcpClientConfig{.host=host, .port=port})
         peer_id = tx.add_peer("server", session_name,
                               TcpClientConfig(f"{host}:{port}"))

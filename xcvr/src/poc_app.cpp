@@ -23,6 +23,10 @@ using namespace std::chrono_literals;
 static std::atomic<bool> g_running{true};
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 static BOOL WINAPI ctrl_handler(DWORD) {
     g_running = false;
     return TRUE;
