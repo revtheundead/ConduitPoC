@@ -1594,8 +1594,9 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                 bool first = true;
                 for (const auto& cs : cd->cases) {
                     std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
-                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + et + " _cv) {");
+                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + et + ") {");
                     ctx.indent();
+                    ctx.line(et + " _cv = (" + et + ") " + m + ";");
                     ctx.line("_cv.encode(w);");
                     ctx.dedent();
                     first = false;
@@ -1604,8 +1605,9 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                     std::string ow_type = cd->otherwise->type_ref.empty()
                         ? j_inline_class(cd->otherwise->name, name_map)
                         : j_class(cd->otherwise->type_ref);
-                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + " _cv) {");
+                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + ") {");
                     ctx.indent();
+                    ctx.line(ow_type + " _cv = (" + ow_type + ") " + m + ";");
                     ctx.line("_cv.encode(w);");
                     ctx.dedent();
                     first = false;
@@ -2427,7 +2429,15 @@ std::string generate_j_protocol(const model::Protocol& protocol,
     ctx.line();
 
     // Type registry
-    ctx.line("public record TypeInfo(long typeId, String typeName) {}");
+    ctx.line("public static final class TypeInfo {");
+    ctx.indent();
+    ctx.line("private final long typeId;");
+    ctx.line("private final String typeName;");
+    ctx.line("public TypeInfo(long typeId, String typeName) { this.typeId = typeId; this.typeName = typeName; }");
+    ctx.line("public long typeId() { return typeId; }");
+    ctx.line("public String typeName() { return typeName; }");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line();
     ctx.line("public static final TypeInfo[] TYPES = {");
     ctx.indent();
@@ -2714,8 +2724,9 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
         bool first = true;
         for (const auto& lt : si.leaf_types) {
             std::string leaf_class = j_class(lt.name);
-            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + " _m) {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") item;");
             ctx.line("_m.encode(w);");
             ctx.dedent();
             first = false;
@@ -2727,8 +2738,9 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
         bool first = true;
         for (const auto& lt : si.leaf_types) {
             std::string leaf_class = j_class(lt.name);
-            ctx.line(std::string(first ? "if" : "} else if") + " (payload instanceof " + leaf_class + " _m) {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (payload instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") payload;");
             ctx.line("_m.encode(w);");
             ctx.dedent();
             first = false;
@@ -2967,8 +2979,9 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             ctx.indent();
             for (const auto& lt : si.leaf_types) {
                 std::string leaf_class = j_class(lt.name);
-                ctx.line("if (item instanceof " + leaf_class + " _fm) {");
+                ctx.line("if (item instanceof " + leaf_class + ") {");
                 ctx.indent();
+                ctx.line(leaf_class + " _fm = (" + leaf_class + ") item;");
                 for (const auto& child : frame.footer_fields) {
                     if (auto* f = std::get_if<model::Field>(&child)) {
                         ctx.line("_fm." + j_field(f->name) + " = result." + j_field(f->name) + ";");
@@ -2982,8 +2995,9 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
         } else {
             for (const auto& lt : si.leaf_types) {
                 std::string leaf_class = j_class(lt.name);
-                ctx.line("if (result.payload instanceof " + leaf_class + " _fm) {");
+                ctx.line("if (result.payload instanceof " + leaf_class + ") {");
                 ctx.indent();
+                ctx.line(leaf_class + " _fm = (" + leaf_class + ") result.payload;");
                 for (const auto& child : frame.footer_fields) {
                     if (auto* f = std::get_if<model::Field>(&child)) {
                         ctx.line("_fm." + j_field(f->name) + " = result." + j_field(f->name) + ";");
@@ -3271,8 +3285,9 @@ std::string generate_j_session_class(const model::Protocol& protocol,
         bool first = true;
         for (const auto& lt : si.leaf_types) {
             std::string leaf_class = j_class(lt.name);
-            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + " _m) {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (item instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") item;");
             ctx.line("Map<String, Object> dm = new HashMap<>();");
             ctx.line("dm.put(\"type_id\", " + j_hex64(lt.type_id) + ");");
             ctx.line("dm.put(\"type_name\", \"" + lt.name + "\");");
@@ -3289,8 +3304,9 @@ std::string generate_j_session_class(const model::Protocol& protocol,
         bool first = true;
         for (const auto& lt : si.leaf_types) {
             std::string leaf_class = j_class(lt.name);
-            ctx.line(std::string(first ? "if" : "} else if") + " (frame.payload instanceof " + leaf_class + " _m) {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (frame.payload instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") frame.payload;");
             ctx.line("Map<String, Object> dm = new HashMap<>();");
             ctx.line("dm.put(\"type_id\", " + j_hex64(lt.type_id) + ");");
             ctx.line("dm.put(\"type_name\", \"" + lt.name + "\");");
@@ -3555,8 +3571,9 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             std::string leaf_class = j_class(lt.name);
             std::string prefix = first ? "if" : "} else if";
             first = false;
-            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + " _m) {");
+            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") payload;");
             ctx.line("return _m.toString();");
             ctx.dedent();
         }
@@ -3576,8 +3593,9 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             std::string leaf_class = j_class(lt.name);
             std::string prefix = first ? "if" : "} else if";
             first = false;
-            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + " _m) {");
+            ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + ") {");
             ctx.indent();
+            ctx.line(leaf_class + " _m = (" + leaf_class + ") payload;");
             ctx.line("return _m.toString();");
             ctx.dedent();
         }

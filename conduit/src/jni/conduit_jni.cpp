@@ -289,7 +289,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSend(
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
     JNIEnv* env, jclass, jlong handle,
     jint peerId, jlong typeId,
-    jobjectArray jpayloads, jintArray jlengths, jint count) {
+    jobjectArray jpayloads, jintArray /*jlengths*/, jint count) {
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
