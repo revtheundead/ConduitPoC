@@ -44,6 +44,11 @@ else()
             -Wlogical-op
         )
     endif()
+    # MinGW: COFF object format has a 65536 section limit; heavy template
+    # instantiation (especially with C++23) can exceed this in debug builds.
+    if(MINGW)
+        target_compile_options(conduit_warnings INTERFACE -Wa,-mbig-obj)
+    endif()
 endif()
 
 # ============================================================================

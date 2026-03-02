@@ -423,7 +423,7 @@ VoidResult TcpClientTransport::Impl::try_connect() {
     #ifdef _WIN32
     {
         u_long mode = 0;
-        if (ioctlsocket(static_cast<SOCKET>(s), FIONBIO, &mode) != 0) {
+        if (ioctlsocket(static_cast<SOCKET>(s), static_cast<long>(FIONBIO), &mode) != 0) {
             close_socket(s);
             return std::unexpected(
                 CONDUIT_ERROR(ErrorCode::SocketError,
