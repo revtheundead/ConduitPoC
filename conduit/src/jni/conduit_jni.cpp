@@ -534,4 +534,36 @@ JNIEXPORT jstring JNICALL Java_io_conduit_JniNativeBinding_nVersion(JNIEnv* env,
     return env->NewStringUTF(ver ? ver : "");
 }
 
+// ============================================================================
+// Logger configuration
+// ============================================================================
+
+JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nSetLogLevel(
+        JNIEnv*, jclass, jint level) {
+    conduit_set_log_level(level);
+}
+
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nGetLogLevel(
+        JNIEnv*, jclass) {
+    return conduit_get_log_level();
+}
+
+JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nLogAddConsoleSink(
+        JNIEnv*, jclass, jint use_stderr, jint colorize) {
+    conduit_log_add_console_sink(use_stderr, colorize);
+}
+
+JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nLogAddFileSink(
+        JNIEnv* env, jclass, jstring path, jint append) {
+    const char* p = env->GetStringUTFChars(path, nullptr);
+    if (!p) return;
+    conduit_log_add_file_sink(p, append);
+    env->ReleaseStringUTFChars(path, p);
+}
+
+JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nLogClearSinks(
+        JNIEnv*, jclass) {
+    conduit_log_clear_sinks();
+}
+
 } // extern "C"

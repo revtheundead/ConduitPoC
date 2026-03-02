@@ -290,6 +290,22 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     ]
     lib.conduit_register_passthrough_session.restype = ctypes.c_int32
 
+    # Logger configuration
+    lib.conduit_set_log_level.argtypes = [ctypes.c_int]
+    lib.conduit_set_log_level.restype = None
+
+    lib.conduit_get_log_level.argtypes = []
+    lib.conduit_get_log_level.restype = ctypes.c_int
+
+    lib.conduit_log_add_console_sink.argtypes = [ctypes.c_int, ctypes.c_int]
+    lib.conduit_log_add_console_sink.restype = None
+
+    lib.conduit_log_add_file_sink.argtypes = [ctypes.c_char_p, ctypes.c_int]
+    lib.conduit_log_add_file_sink.restype = None
+
+    lib.conduit_log_clear_sinks.argtypes = []
+    lib.conduit_log_clear_sinks.restype = None
+
     # Version
     lib.conduit_version.argtypes = []
     lib.conduit_version.restype = ctypes.c_char_p
@@ -401,6 +417,59 @@ class Transceiver:
             self._handle, timeout_ms)
         if err != 0:
             raise ConduitError(err, "Failed to set shutdown timeout")
+
+    # ========================================================================
+    # Logger configuration (global — controls internal Conduit logging)
+    # ========================================================================
+
+    @staticmethod
+    def set_log_level(level: int) -> None:
+        """Set the global Conduit log level.
+
+        Controls internal diagnostic output (debug, warn, error, etc.).
+        This is distinct from message_log_config which records message traffic.
+
+        Args:
+            level: 0=Trace, 1=Debug, 2=Info, 3=Warn, 4=Error, 5=Fatal, 6=Off
+        """
+        _get_lib().conduit_set_log_level(level)
+
+    @staticmethod
+    def get_log_level() -> int:
+        """Get the current global Conduit log level.
+
+        Returns:
+            Current log level (0=Trace through 6=Off)
+        """
+        return _get_lib().conduit_get_log_level()
+
+    @staticmethod
+    def log_add_console_sink(use_stderr: bool = False,
+                             colorize: bool = True) -> None:
+        """Add a console log sink for Conduit internal logging.
+
+        Args:
+            use_stderr: If True, log to stderr; otherwise stdout
+            colorize: If True, use ANSI color codes
+        """
+        _get_lib().conduit_log_add_console_sink(
+            1 if use_stderr else 0, 1 if colorize else 0)
+
+    @staticmethod
+    def log_add_file_sink(path: str, append: bool = True) -> None:
+        """Add a file log sink for Conduit internal logging.
+
+        Args:
+            path: File path for log output
+            append: If True, append to existing file; otherwise overwrite
+        """
+        _get_lib().conduit_log_add_file_sink(
+            path.encode("utf-8"), 1 if append else 0)
+
+    @staticmethod
+    def log_clear_sinks() -> None:
+        """Remove all Conduit internal log sinks."""
+        _get_lib().conduit_log_clear_sinks()
 
     def set_message_log_config(self, *,
                                enabled: bool = False,

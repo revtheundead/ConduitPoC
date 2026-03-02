@@ -421,6 +421,57 @@ public final class PanamaNativeBinding implements NativeBinding {
     }
 
     // ================================================================
+    // Logger configuration
+    // ================================================================
+
+    @Override
+    public void setLogLevel(int level) {
+        try {
+            CabiBindings.conduit_set_log_level.invokeExact(level);
+        } catch (Throwable e) {
+            throw new RuntimeException("setLogLevel failed", e);
+        }
+    }
+
+    @Override
+    public int getLogLevel() {
+        try {
+            return (int) CabiBindings.conduit_get_log_level.invokeExact();
+        } catch (Throwable e) {
+            throw new RuntimeException("getLogLevel failed", e);
+        }
+    }
+
+    @Override
+    public void logAddConsoleSink(boolean useStderr, boolean colorize) {
+        try {
+            CabiBindings.conduit_log_add_console_sink.invokeExact(
+                useStderr ? 1 : 0, colorize ? 1 : 0);
+        } catch (Throwable e) {
+            throw new RuntimeException("logAddConsoleSink failed", e);
+        }
+    }
+
+    @Override
+    public void logAddFileSink(String path, boolean append) {
+        try {
+            var pathStr = arena.allocateUtf8String(path);
+            CabiBindings.conduit_log_add_file_sink.invokeExact(pathStr, append ? 1 : 0);
+        } catch (Throwable e) {
+            throw new RuntimeException("logAddFileSink failed", e);
+        }
+    }
+
+    @Override
+    public void logClearSinks() {
+        try {
+            CabiBindings.conduit_log_clear_sinks.invokeExact();
+        } catch (Throwable e) {
+            throw new RuntimeException("logClearSinks failed", e);
+        }
+    }
+
+    // ================================================================
     // Session registration
     // ================================================================
 

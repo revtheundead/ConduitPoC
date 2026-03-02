@@ -11,6 +11,7 @@
 #include <conduit/transceiver/transport/tcp_client.hpp>
 #include <conduit/transceiver/transport/tcp_server.hpp>
 #include <conduit/transceiver/transport/udp.hpp>
+#include <conduit/logging/logger.hpp>
 
 #include <cstdlib>
 #include <cstring>
@@ -783,6 +784,36 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
         };
     }
     return CONDUIT_XCVR_OK;
+}
+
+// ============================================================================
+// Logger configuration
+// ============================================================================
+
+CONDUIT_CABI_API void conduit_set_log_level(int level) {
+    if (level < 0 || level > 6) return;
+    conduit::logging::Logger::instance().setLevel(
+        static_cast<conduit::logging::Level>(level));
+}
+
+CONDUIT_CABI_API int conduit_get_log_level(void) {
+    return static_cast<int>(conduit::logging::Logger::instance().level());
+}
+
+CONDUIT_CABI_API void conduit_log_add_console_sink(int use_stderr, int colorize) {
+    conduit::logging::Logger::instance().addSink(
+        std::make_shared<conduit::logging::ConsoleSink>(
+            use_stderr != 0, colorize != 0));
+}
+
+CONDUIT_CABI_API void conduit_log_add_file_sink(const char* path, int append) {
+    if (!path) return;
+    conduit::logging::Logger::instance().addSink(
+        std::make_shared<conduit::logging::FileSink>(path, append != 0));
+}
+
+CONDUIT_CABI_API void conduit_log_clear_sinks(void) {
+    conduit::logging::Logger::instance().clearSinks();
 }
 
 // ============================================================================
