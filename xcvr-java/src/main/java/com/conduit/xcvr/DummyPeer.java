@@ -139,8 +139,8 @@ public class DummyPeer {
 
     private static void printUsage() {
         System.err.println("Usage:");
-        System.err.println("  java DummyPeer server [--port N] [--interval-ms N] [--session NAME]");
-        System.err.println("  java DummyPeer client [host] [port] [--interval-ms N] [--session NAME]");
+        System.err.println("  java DummyPeer server [--port N] [--interval-ms N] [--session NAME] [--log-dir DIR] [--log-prefix PFX]");
+        System.err.println("  java DummyPeer client [host] [port] [--interval-ms N] [--session NAME] [--log-dir DIR] [--log-prefix PFX]");
     }
 
     public static void main(String[] args) {
@@ -162,24 +162,30 @@ public class DummyPeer {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> running = false));
 
         int intervalMs = 1000;
+        String logDir = "./logs";
+        String logPrefix = null;  // default set per mode below
 
         // Parse common options
         for (int i = 1; i < args.length; i++) {
             if (args[i].equals("--interval-ms") && i + 1 < args.length) {
                 intervalMs = Integer.parseInt(args[++i]);
+            } else if (args[i].equals("--log-dir") && i + 1 < args.length) {
+                logDir = args[++i];
+            } else if (args[i].equals("--log-prefix") && i + 1 < args.length) {
+                logPrefix = args[++i];
             }
         }
 
         if (isServer) {
-            runServer(args, intervalMs);
+            runServer(args, intervalMs, logDir, logPrefix != null ? logPrefix : "server");
         } else {
-            runClient(args, intervalMs);
+            runClient(args, intervalMs, logDir, logPrefix != null ? logPrefix : "client");
         }
 
         System.out.println("[dummy_peer] Done.");
     }
 
-    private static void runServer(String[] args, int intervalMs) {
+    private static void runServer(String[] args, int intervalMs, String logDir, String logPrefix) {
         int port = 5000;
         String sessionName = "asterix_alt";
 
@@ -194,6 +200,10 @@ public class DummyPeer {
                 port, intervalMs, sessionName);
 
         try (var tx = new Transceiver()) {
+            // Configure message logging (mirrors C++ cfg.message_log)
+            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
+                    logDir, logPrefix, null, null, null, false);
+
             // Register the session (Java uses passthrough mode — codec runs in Java)
             tx.registerSession(sessionName, new asterix_alt.AsterixDataBlockSession());
 
@@ -232,7 +242,7 @@ public class DummyPeer {
         }
     }
 
-    private static void runClient(String[] args, int intervalMs) {
+    private static void runClient(String[] args, int intervalMs, String logDir, String logPrefix) {
         String host = "127.0.0.1";
         int port = 5000;
         String sessionName = "asterix";
@@ -259,6 +269,10 @@ public class DummyPeer {
                 host, port, intervalMs, sessionName);
 
         try (var tx = new Transceiver()) {
+            // Configure message logging (mirrors C++ cfg.message_log)
+            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
+                    logDir, logPrefix, null, null, null, false);
+
             // Register the session (Java uses passthrough mode — codec runs in Java)
             tx.registerSession(sessionName, new asterix.AsterixDataBlockSession());
 

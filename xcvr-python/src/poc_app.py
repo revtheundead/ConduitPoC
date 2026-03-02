@@ -53,6 +53,10 @@ def main():
                         help="Send interval in milliseconds (default: 1000)")
     parser.add_argument("--session", default="asterix",
                         help="Session name (default: asterix)")
+    parser.add_argument("--log-dir", default="./logs",
+                        help="Message log directory (default: ./logs)")
+    parser.add_argument("--log-prefix", default="poc",
+                        help="Message log file prefix (default: poc)")
     args = parser.parse_args()
 
     # Install signal handlers (mirrors C++ signal_handler)
@@ -63,6 +67,15 @@ def main():
           f"(interval={args.interval_ms}ms, session={args.session})")
 
     with Transceiver() as tx:
+        # Configure message logging (mirrors C++ cfg.message_log)
+        tx.set_message_log_config(
+            enabled=True,
+            mode=1,  # SeparateDirection
+            output=0,  # File
+            directory=args.log_dir,
+            prefix=args.log_prefix,
+        )
+
         # Register the session (Python uses passthrough mode — codec runs in Python)
         tx.register_session(args.session, AsterixDataBlockSession())
 

@@ -179,6 +179,10 @@ def main():
                         help="Send interval in milliseconds (default: 1000)")
     parser.add_argument("--session", default=None,
                         help="Session name override")
+    parser.add_argument("--log-dir", default="./logs",
+                        help="Message log directory (default: ./logs)")
+    parser.add_argument("--log-prefix", default=None,
+                        help="Message log file prefix (default: server/client)")
     args = parser.parse_args()
 
     # Install signal handlers
@@ -205,6 +209,16 @@ def run_server(args, interval_s):
     alt_msgs = _load_alt_messages()
 
     with Transceiver() as tx:
+        # Configure message logging (mirrors C++ cfg.message_log)
+        log_prefix = args.log_prefix or "server"
+        tx.set_message_log_config(
+            enabled=True,
+            mode=1,  # SeparateDirection
+            output=0,  # File
+            directory=args.log_dir,
+            prefix=log_prefix,
+        )
+
         # Register the session (Python uses passthrough mode — codec runs in Python)
         AltSession = _load_alt_session()
         tx.register_session(session_name, AltSession())
@@ -246,6 +260,16 @@ def run_client(args, interval_s):
           f"(interval={args.interval_ms}ms, session={session_name})")
 
     with Transceiver() as tx:
+        # Configure message logging (mirrors C++ cfg.message_log)
+        log_prefix = args.log_prefix or "client"
+        tx.set_message_log_config(
+            enabled=True,
+            mode=1,  # SeparateDirection
+            output=0,  # File
+            directory=args.log_dir,
+            prefix=log_prefix,
+        )
+
         # Register the session (Python uses passthrough mode — codec runs in Python)
         tx.register_session(session_name, AsterixSession())
 

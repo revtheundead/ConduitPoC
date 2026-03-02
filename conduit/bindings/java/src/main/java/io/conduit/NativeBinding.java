@@ -157,6 +157,32 @@ public interface NativeBinding extends AutoCloseable {
     /** Get the library version string. */
     String version();
 
+    // ================================================================
+    // Pre-start configuration
+    // ================================================================
+
+    /** Configure the receive queue. Must be called before start(). */
+    int setQueueConfig(long handle, long capacity, int dropPolicy,
+                       double backPressureThreshold);
+
+    /** Configure worker threads. Must be called before start(). */
+    int setWorkerConfig(long handle, long threadCount,
+                        long handlerTimeoutMs);
+
+    /** Set the graceful shutdown timeout. */
+    int setShutdownTimeout(long handle, long timeoutMs);
+
+    /**
+     * Configure message logging. Must be called before start().
+     *
+     * @param mode   0=Combined, 1=SeparateDirection, 2=PerPeer, 3=PerPeerDirection
+     * @param output 0=File, 1=Stdout, 2=Both
+     */
+    int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
+                            String directory, String prefix, String filename,
+                            String sentFilename, String receivedFilename,
+                            boolean includeMessageContent);
+
     /**
      * Register a passthrough session (framing-only, no protocol .so needed).
      * Encode/decode of individual messages is handled on the Java side.

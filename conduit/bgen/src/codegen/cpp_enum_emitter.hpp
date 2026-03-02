@@ -38,9 +38,9 @@ inline void emit_enum_class(EmitContext& ctx,
         ctx.line("case " + enum_name + "::" + to_enum_value_name(ev.name) +
                  ": return \"" + ev.name + "\";");
     }
+    ctx.line("default: return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
-    ctx.line("return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
@@ -72,11 +72,14 @@ inline void emit_enum_class(EmitContext& ctx,
     ctx.indent();
     ctx.line("return val;");
     ctx.dedent();
-    ctx.dedent();
-    ctx.line("}");
+    ctx.line("default:");
+    ctx.indent();
     ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,");
     ctx.line("    \"unknown " + enum_name + " value: \" + std::to_string(static_cast<" +
              underlying_type + ">(val))));");
+    ctx.dedent();
+    ctx.dedent();
+    ctx.line("}");
     ctx.dedent();
     ctx.line("}");
     ctx.line();

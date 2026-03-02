@@ -1526,6 +1526,11 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     std::string args = py_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
                     ctx.line(m + " = " + et + ".decode(" + reader_var + args + ")");
                     ctx.dedent();
+                } else if (!first) {
+                    ctx.line("else:");
+                    ctx.indent();
+                    ctx.line("raise DecodeError(\"choice '" + cd->name + "': no case matched switch value\")");
+                    ctx.dedent();
                 }
             };
             if (cd->present_when) {
@@ -2864,7 +2869,7 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
                 case model::ArithOp::Add: op_str = " + "; break;
                 case model::ArithOp::Sub: op_str = " - "; break;
                 case model::ArithOp::Mul: op_str = " * "; break;
-                case model::ArithOp::Div: op_str = " / "; break;
+                case model::ArithOp::Div: op_str = " // "; break;
                 default: break;
             }
             if (!op_str.empty()) {
@@ -2948,7 +2953,7 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
                     total_expr = "(" + raw_val + " + " + std::to_string(si.frame_length_modifier.literal) + ")";
                     break;
                 case model::ArithOp::Mul:
-                    total_expr = "(" + raw_val + " / " + std::to_string(si.frame_length_modifier.literal) + ")";
+                    total_expr = "(" + raw_val + " // " + std::to_string(si.frame_length_modifier.literal) + ")";
                     break;
                 case model::ArithOp::Div:
                     total_expr = "(" + raw_val + " * " + std::to_string(si.frame_length_modifier.literal) + ")";

@@ -168,6 +168,69 @@ public class Transceiver implements AutoCloseable {
         }
     }
 
+    // ================================================================
+    // Pre-start configuration (call before start())
+    // ================================================================
+
+    /**
+     * Configure the receive queue. Must be called before {@link #start()}.
+     *
+     * @param capacity               Queue capacity (default 1024)
+     * @param dropPolicy             0=DropOldest, 1=DropNewest, 2=Block
+     * @param backPressureThreshold  0.0=disabled, 0.8=pause at 80%
+     */
+    public void setQueueConfig(long capacity, int dropPolicy,
+                               double backPressureThreshold) {
+        int err = binding.setQueueConfig(handle, capacity, dropPolicy,
+                                         backPressureThreshold);
+        if (err != 0) throw new ConduitError(err, "Failed to set queue config");
+    }
+
+    /**
+     * Configure worker threads. Must be called before {@link #start()}.
+     *
+     * @param threadCount      Number of dispatch threads (default 1)
+     * @param handlerTimeoutMs Log warning if handler exceeds this (0=off)
+     */
+    public void setWorkerConfig(long threadCount, long handlerTimeoutMs) {
+        int err = binding.setWorkerConfig(handle, threadCount, handlerTimeoutMs);
+        if (err != 0) throw new ConduitError(err, "Failed to set worker config");
+    }
+
+    /**
+     * Set the graceful shutdown timeout.
+     *
+     * @param timeoutMs Max time to wait for workers to drain (0=indefinite)
+     */
+    public void setShutdownTimeout(long timeoutMs) {
+        int err = binding.setShutdownTimeout(handle, timeoutMs);
+        if (err != 0) throw new ConduitError(err, "Failed to set shutdown timeout");
+    }
+
+    /**
+     * Configure message logging. Must be called before {@link #start()}.
+     *
+     * @param enabled                Whether logging is enabled
+     * @param mode                   0=Combined, 1=SeparateDirection, 2=PerPeer, 3=PerPeerDirection
+     * @param output                 0=File, 1=Stdout, 2=Both
+     * @param directory              Log file directory
+     * @param prefix                 Log file prefix
+     * @param filename               Filename pattern (supports {peer}, {direction}); null for default
+     * @param sentFilename           Per-direction filename override; null for default
+     * @param receivedFilename       Per-direction filename override; null for default
+     * @param includeMessageContent  Whether to include to_string() output
+     */
+    public void setMessageLogConfig(boolean enabled, int mode, int output,
+                                    String directory, String prefix,
+                                    String filename, String sentFilename,
+                                    String receivedFilename,
+                                    boolean includeMessageContent) {
+        int err = binding.setMessageLogConfig(handle, enabled, mode, output,
+                directory, prefix, filename, sentFilename, receivedFilename,
+                includeMessageContent);
+        if (err != 0) throw new ConduitError(err, "Failed to set message log config");
+    }
+
     /**
      * Add a peer to the transceiver.
      *

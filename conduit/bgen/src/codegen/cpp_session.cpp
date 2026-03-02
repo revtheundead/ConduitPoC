@@ -452,9 +452,9 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
     for (const auto& lt : si.leaf_types) {
         ctx.line("case " + type_id_literal(lt.type_id) + ": return \"" + lt.name + "\";");
     }
+    ctx.line("default: return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
-    ctx.line("return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
@@ -475,9 +475,9 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
                     ctx.line("case " + type_id_literal(lt.type_id) + ": return true; // " + lt.name);
                 }
             }
+            ctx.line("default: return false;");
             ctx.dedent();
             ctx.line("}");
-            ctx.line("return false;");
             ctx.dedent();
             ctx.line("}");
             ctx.line();

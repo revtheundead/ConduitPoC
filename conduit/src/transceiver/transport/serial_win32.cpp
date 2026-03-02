@@ -6,9 +6,6 @@
 #include <conduit/transceiver/transport/serial.hpp>
 #include <conduit/logging/logger.hpp>
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
 #include <windows.h>
 
 #include <atomic>

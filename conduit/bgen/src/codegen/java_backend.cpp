@@ -1372,6 +1372,11 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                     std::string args = j_build_outer_args(ow_name, scope_map, pfx, outer_ctx);
                     ctx.line(m + " = " + et + ".decode(" + reader_var + args + ");");
                     ctx.dedent();
+                } else if (!first) {
+                    ctx.line("} else {");
+                    ctx.indent();
+                    ctx.line("throw new ConduitCodecException(\"choice '" + cd->name + "': no case matched switch value\");");
+                    ctx.dedent();
                 }
                 if (!first) ctx.line("}");
             };

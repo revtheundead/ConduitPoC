@@ -31,6 +31,9 @@ public class PocApp {
         int intervalMs = 1000;
         String sessionName = "asterix";
 
+        String logDir = "./logs";
+        String logPrefix = "poc";
+
         // Parse arguments (mirrors C++ poc_app arg parsing)
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -39,6 +42,12 @@ public class PocApp {
                     break;
                 case "--session":
                     if (i + 1 < args.length) sessionName = args[++i];
+                    break;
+                case "--log-dir":
+                    if (i + 1 < args.length) logDir = args[++i];
+                    break;
+                case "--log-prefix":
+                    if (i + 1 < args.length) logPrefix = args[++i];
                     break;
                 default:
                     if (!args[i].startsWith("--")) {
@@ -59,6 +68,10 @@ public class PocApp {
                 host, port, intervalMs, sessionName);
 
         try (Transceiver tx = new Transceiver()) {
+            // Configure message logging (mirrors C++ cfg.message_log)
+            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
+                    logDir, logPrefix, null, null, null, false);
+
             // Register Java session (no protocol-specific native .so needed).
             // The passthrough session handles framing; all encode/decode is Java-side.
             tx.registerSession(sessionName, new asterix.AsterixDataBlockSession());

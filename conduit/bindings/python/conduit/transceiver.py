@@ -80,6 +80,21 @@ class _CONDUIT_STATS(ctypes.Structure):
     ]
 
 
+# Message log config structure matching C ABI
+class _CONDUIT_MESSAGE_LOG_CONFIG(ctypes.Structure):
+    _fields_ = [
+        ("enabled", ctypes.c_int),
+        ("mode", ctypes.c_int),
+        ("output", ctypes.c_int),
+        ("directory", ctypes.c_char_p),
+        ("prefix", ctypes.c_char_p),
+        ("filename", ctypes.c_char_p),
+        ("sent_filename", ctypes.c_char_p),
+        ("received_filename", ctypes.c_char_p),
+        ("include_message_content", ctypes.c_int),
+    ]
+
+
 # Named tuple for Python-friendly stats access
 Stats = namedtuple("Stats", [
     "messages_received", "messages_dispatched", "messages_dropped",
@@ -243,6 +258,27 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     lib.conduit_stats_reset.argtypes = [ctypes.c_void_p]
     lib.conduit_stats_reset.restype = ctypes.c_int32
 
+    # Pre-start configuration
+    lib.conduit_set_queue_config.argtypes = [
+        ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_double,
+    ]
+    lib.conduit_set_queue_config.restype = ctypes.c_int32
+
+    lib.conduit_set_worker_config.argtypes = [
+        ctypes.c_void_p, ctypes.c_size_t, ctypes.c_uint64,
+    ]
+    lib.conduit_set_worker_config.restype = ctypes.c_int32
+
+    lib.conduit_set_shutdown_timeout.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint64,
+    ]
+    lib.conduit_set_shutdown_timeout.restype = ctypes.c_int32
+
+    lib.conduit_set_message_log_config.argtypes = [
+        ctypes.c_void_p, ctypes.c_void_p,
+    ]
+    lib.conduit_set_message_log_config.restype = ctypes.c_int32
+
     # Passthrough session registration
     lib.conduit_register_passthrough_session.argtypes = [
         ctypes.c_char_p,                          # name
@@ -322,6 +358,88 @@ class Transceiver:
         # Passthrough session support
         self._session = None
         self._session_handlers: dict = {}  # type_id -> list of callables
+
+    # ========================================================================
+    # Pre-start configuration (call before start())
+    # ========================================================================
+
+    def set_queue_config(self, capacity: int = 1024,
+                         drop_policy: int = 0,
+                         back_pressure_threshold: float = 0.0) -> None:
+        """Configure the receive queue. Must be called before start().
+
+        Args:
+            capacity: Queue capacity (default 1024)
+            drop_policy: 0=DropOldest, 1=DropNewest, 2=Block
+            back_pressure_threshold: 0.0=disabled, 0.8=pause at 80%
+        """
+        err = self._lib.conduit_set_queue_config(
+            self._handle, capacity, drop_policy, back_pressure_threshold)
+        if err != 0:
+            raise ConduitError(err, "Failed to set queue config")
+
+    def set_worker_config(self, thread_count: int = 1,
+                          handler_timeout_ms: int = 0) -> None:
+        """Configure worker threads. Must be called before start().
+
+        Args:
+            thread_count: Number of dispatch threads (default 1)
+            handler_timeout_ms: Log warning if handler exceeds this (0=off)
+        """
+        err = self._lib.conduit_set_worker_config(
+            self._handle, thread_count, handler_timeout_ms)
+        if err != 0:
+            raise ConduitError(err, "Failed to set worker config")
+
+    def set_shutdown_timeout(self, timeout_ms: int = 0) -> None:
+        """Set the graceful shutdown timeout.
+
+        Args:
+            timeout_ms: Max time to wait for workers to drain (0=indefinite)
+        """
+        err = self._lib.conduit_set_shutdown_timeout(
+            self._handle, timeout_ms)
+        if err != 0:
+            raise ConduitError(err, "Failed to set shutdown timeout")
+
+    def set_message_log_config(self, *,
+                               enabled: bool = False,
+                               mode: int = 0,
+                               output: int = 0,
+                               directory: str = ".",
+                               prefix: str = "conduit",
+                               filename: str = "",
+                               sent_filename: str = "",
+                               received_filename: str = "",
+                               include_message_content: bool = True) -> None:
+        """Configure message logging. Must be called before start().
+
+        Args:
+            enabled: Whether logging is enabled
+            mode: 0=Combined, 1=SeparateDirection, 2=PerPeer, 3=PerPeerDirection
+            output: 0=File, 1=Stdout, 2=Both
+            directory: Log file directory
+            prefix: Log file prefix
+            filename: Log filename pattern (supports {peer}, {direction})
+            sent_filename: Override for sent direction
+            received_filename: Override for received direction
+            include_message_content: Include to_string() output (has perf cost)
+        """
+        cfg = _CONDUIT_MESSAGE_LOG_CONFIG()
+        cfg.enabled = 1 if enabled else 0
+        cfg.mode = mode
+        cfg.output = output
+        cfg.directory = directory.encode("utf-8")
+        cfg.prefix = prefix.encode("utf-8")
+        cfg.filename = filename.encode("utf-8") if filename else None
+        cfg.sent_filename = sent_filename.encode("utf-8") if sent_filename else None
+        cfg.received_filename = received_filename.encode("utf-8") if received_filename else None
+        cfg.include_message_content = 1 if include_message_content else 0
+
+        err = self._lib.conduit_set_message_log_config(
+            self._handle, ctypes.byref(cfg))
+        if err != 0:
+            raise ConduitError(err, "Failed to set message log config")
 
     def __del__(self):
         self.close()

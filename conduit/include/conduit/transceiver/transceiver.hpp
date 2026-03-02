@@ -193,6 +193,22 @@ public:
     // Access the handler registry (for C ABI raw catch-all installation).
     HandlerRegistry& handlers() noexcept { return handlers_; }
 
+    // ========================================================================
+    // Pre-start configuration (call before start())
+    // ========================================================================
+
+    // Configure the receive queue. Must be called before start().
+    void set_queue_config(QueueConfig config);
+
+    // Configure worker threads. Must be called before start().
+    void set_worker_config(WorkerConfig config);
+
+    // Configure message logging. Must be called before start().
+    void set_message_log_config(MessageLogConfig config);
+
+    // Set the graceful shutdown timeout. Can be called at any time.
+    void set_shutdown_timeout(std::chrono::milliseconds timeout);
+
 private:
     // Internal peer context
     struct PeerContext {

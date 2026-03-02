@@ -693,6 +693,9 @@ void StructEmitter::emit_encode_choice(const model::ChoiceDef& c, bool is_option
                             if (!bad.empty()) bad += " || ";
                             bad += "(_sw >= static_cast<decltype(_sw)>(" + lo + ") && "
                                    "_sw <= static_cast<decltype(_sw)>(" + hi + "))";
+                        } else {
+                            if (!bad.empty()) bad += " || ";
+                            bad += "_sw == static_cast<decltype(_sw)>(" + *cs.range + ")";
                         }
                     }
                 }

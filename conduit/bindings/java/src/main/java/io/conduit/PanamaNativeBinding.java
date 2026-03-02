@@ -365,6 +365,62 @@ public final class PanamaNativeBinding implements NativeBinding {
     }
 
     // ================================================================
+    // Configuration
+    // ================================================================
+
+    @Override
+    public int setQueueConfig(long handle, long capacity, int dropPolicy,
+                              double backPressureThreshold) {
+        try {
+            return (int) CabiBindings.conduit_set_queue_config.invokeExact(
+                MemorySegment.ofAddress(handle), capacity, dropPolicy, backPressureThreshold);
+        } catch (Throwable e) {
+            throw new RuntimeException("setQueueConfig failed", e);
+        }
+    }
+
+    @Override
+    public int setWorkerConfig(long handle, long threadCount, long handlerTimeoutMs) {
+        try {
+            return (int) CabiBindings.conduit_set_worker_config.invokeExact(
+                MemorySegment.ofAddress(handle), threadCount, handlerTimeoutMs);
+        } catch (Throwable e) {
+            throw new RuntimeException("setWorkerConfig failed", e);
+        }
+    }
+
+    @Override
+    public int setShutdownTimeout(long handle, long timeoutMs) {
+        try {
+            return (int) CabiBindings.conduit_set_shutdown_timeout.invokeExact(
+                MemorySegment.ofAddress(handle), timeoutMs);
+        } catch (Throwable e) {
+            throw new RuntimeException("setShutdownTimeout failed", e);
+        }
+    }
+
+    @Override
+    public int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
+                                   String directory, String prefix, String filename,
+                                   String sentFilename, String receivedFilename,
+                                   boolean includeMessageContent) {
+        try {
+            var dirStr = arena.allocateUtf8String(directory);
+            var prefixStr = arena.allocateUtf8String(prefix);
+            var filenameStr = arena.allocateUtf8String(filename);
+            var sentFilenameStr = arena.allocateUtf8String(sentFilename);
+            var receivedFilenameStr = arena.allocateUtf8String(receivedFilename);
+            return (int) CabiBindings.conduit_set_message_log_config.invokeExact(
+                MemorySegment.ofAddress(handle), enabled ? 1 : 0, mode, output,
+                dirStr, prefixStr, filenameStr,
+                sentFilenameStr, receivedFilenameStr,
+                includeMessageContent ? 1 : 0);
+        } catch (Throwable e) {
+            throw new RuntimeException("setMessageLogConfig failed", e);
+        }
+    }
+
+    // ================================================================
     // Session registration
     // ================================================================
 

@@ -126,9 +126,9 @@ void emit_enum_type(EmitContext& ctx, const model::TypeDef& t) {
         ctx.line("case " + name + "::" + to_enum_value_name(ev.name) +
                  ": return \"" + ev.name + "\";");
     }
+    ctx.line("default: return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
-    ctx.line("return \"unknown\";");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
@@ -147,10 +147,13 @@ void emit_enum_type(EmitContext& ctx, const model::TypeDef& t) {
     ctx.indent();
     ctx.line("return val;");
     ctx.dedent();
-    ctx.dedent();
-    ctx.line("}");
+    ctx.line("default:");
+    ctx.indent();
     ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownEnumValue,");
     ctx.line("    \"unknown " + name + " value: \" + std::to_string(static_cast<" + underlying + ">(val))));");
+    ctx.dedent();
+    ctx.dedent();
+    ctx.line("}");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
