@@ -967,8 +967,10 @@ public class TestTransceiverJni {
     }
 
     @Test
-    @DisplayName("JNI: sendBatch with payloads throws when batch not supported")
-    void sendBatchWithPayloads() {
+    @DisplayName("JNI: sendBatch throws for non-array-payload protocol")
+    void sendBatchNonArrayProtocol() {
+        // session_protocol uses <payload/> (single message per frame),
+        // not <payload count="*"/> (array), so batch encoding is not supported.
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("test", "session_protocol",
                 TransportConfig.udp("127.0.0.1:10291"));
@@ -980,7 +982,6 @@ public class TestTransceiverJni {
                 msg.timestamp = i;
                 payloads.add(msg.encodeBytes());
             }
-            // session_protocol does not support batch encoding
             assertThrows(ConduitError.class,
                 () -> t.sendBatch(peerId, PingBody.TYPE_ID, payloads));
 

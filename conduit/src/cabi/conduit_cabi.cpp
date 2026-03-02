@@ -314,12 +314,19 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send(
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
     conduit_transceiver_t* xcvr,
-    conduit_peer_id /*peer*/,
-    uint64_t /*type_id*/,
-    const uint8_t** /*payloads*/, const size_t* /*lens*/, size_t /*count*/) {
+    conduit_peer_id peer,
+    uint64_t type_id,
+    const uint8_t** payloads, const size_t* lens, size_t count) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
-    return CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED;
+    if (count > 0 && (!payloads || !lens)) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    auto result = wrapper->xcvr.send_raw_batch(
+        conduit::transceiver::PeerId{peer}, type_id,
+        payloads, lens, count);
+    if (!result) return map_xcvr_error(result.error());
+    return CONDUIT_XCVR_OK;
 }
 
 // ============================================================================
