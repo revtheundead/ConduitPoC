@@ -433,7 +433,7 @@
     <!-- Subfield #2: Raw Doppler Speed (repetitive) -->
     <struct name="Cat007I120Rds">
       <doc>Raw Doppler Speed</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(doppler)">
         <doc>Repetition factor</doc>
       </field>
       <array name="doppler" count-from="rep">
@@ -612,7 +612,7 @@
          ======================================================================= -->
     <struct name="Cat007I250">
       <doc>I007/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
@@ -899,7 +899,7 @@
         <!-- FRN 34: SPF - Special Purpose Field -->
         <struct name="spf" bit="34">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SPF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -908,7 +908,7 @@
         <!-- FRN 35: REF - Reserved Expansion Field -->
         <struct name="ref" bit="33">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of REF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
