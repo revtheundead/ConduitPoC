@@ -444,7 +444,7 @@
          ======================================================================= -->
     <struct name="Cat253I025">
       <doc>I253/025 - Data Destination Identifier and Local Data Destination ID</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(destinations)">
         <doc>Repetition factor</doc>
       </field>
       <array name="destinations" count-from="rep">
@@ -500,7 +500,7 @@
          ======================================================================= -->
     <struct name="Cat253I050">
       <doc>I253/050 - Message Sequence Identifier</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(sequences)">
         <doc>Repetition factor</doc>
       </field>
       <array name="sequences" count-from="rep">
@@ -624,7 +624,7 @@
          ======================================================================= -->
     <struct name="Cat253I090">
       <doc>I253/090 - Application Data (not used, included for completeness)</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(data-items)">
         <doc>Repetition factor</doc>
       </field>
       <array name="data-items" count-from="rep">
@@ -898,7 +898,7 @@
         <!-- FRN 13: SP - Special Purpose Field -->
         <struct name="sp" bit="10">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -907,7 +907,7 @@
         <!-- FRN 14: RFS - Random Field Sequencing -->
         <struct name="rfs" bit="9">
           <doc>Random Field Sequencing</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RFS including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

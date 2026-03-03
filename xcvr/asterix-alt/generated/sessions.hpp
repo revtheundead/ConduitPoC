@@ -276,15 +276,15 @@ public:
             case 0xd597a1ab87dbb779ULL: return "Cat021Record";
             case 0x85be2a9ab4cf6c50ULL: return "Cat048Record";
             case 0x7f7b50444b289e0eULL: return "Cat253Record";
+            default: return "unknown";
         }
-        return "unknown";
     }
 
     [[nodiscard]] bool is_receive_only(uint64_t type_id) const override {
         switch (type_id) {
             case 0x8d0fb175aeb7de98ULL: return true; // Cat007UplinkRecord
+            default: return false;
         }
-        return false;
     }
 
     [[nodiscard]] std::string_view protocol_name() const override {

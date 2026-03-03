@@ -199,11 +199,11 @@ TEST_CASE("TCP: data routed to correct peer", "[tcp]") {
 
     // Client A sends 0xAA
     std::vector<uint8_t> msg_a = {0xAA};
-    c_a.client->send(c_a.peer_id, msg_a);
+    (void)c_a.client->send(c_a.peer_id, msg_a);
 
     // Client B sends 0xBB
     std::vector<uint8_t> msg_b = {0xBB};
-    c_b.client->send(c_b.peer_id, msg_b);
+    (void)c_b.client->send(c_b.peer_id, msg_b);
 
     wait_until([&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size() >= 2; });
 
@@ -431,7 +431,7 @@ TEST_CASE("TCP: rapid connect/disconnect 10 clients", "[tcp]") {
             static_cast<uint8_t>(i + 2),
             static_cast<uint8_t>(i + 3)
         };
-        c.client->send(c.peer_id, msg);
+        (void)c.client->send(c.peer_id, msg);
 
         wait_until([&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size() > static_cast<size_t>(i); });
 
@@ -467,8 +467,8 @@ TEST_CASE("TCP: server send to specific peer", "[tcp]") {
 
         std::vector<uint8_t> data1 = {0xAA, 0xBB};
         std::vector<uint8_t> data2 = {0xCC, 0xDD};
-        srv.server->send(srv.connected_peers[0], data1);
-        srv.server->send(srv.connected_peers[1], data2);
+        (void)srv.server->send(srv.connected_peers[0], data1);
+        (void)srv.server->send(srv.connected_peers[1], data2);
     }
 
     wait_until([&] {
@@ -553,7 +553,7 @@ public:
         }
         auto& msg = std::any_cast<const XcvrTestMsg&>(payload);
         conduit::io::BitWriter writer;
-        msg.encode(writer);
+        (void)msg.encode(writer);
         auto bytes = writer.finish();
         if (!bytes) return std::unexpected(bytes.error());
         return conduit::traits::EncodeResult{std::move(*bytes), {}};
@@ -746,7 +746,7 @@ TEST_CASE("TCP: server handles abrupt client disconnect mid-transfer", "[tcp]") 
 
         // Send a partial chunk of what would be a larger logical message
         std::vector<uint8_t> partial = {0x01, 0x02, 0x03};
-        c.client->send(c.peer_id, partial);
+        (void)c.client->send(c.peer_id, partial);
 
         wait_until([&] { std::lock_guard lock(srv.rx_mutex); return !srv.received_data.empty(); });
 
@@ -766,7 +766,7 @@ TEST_CASE("TCP: server handles abrupt client disconnect mid-transfer", "[tcp]") 
         wait_until([&] { std::lock_guard lock(srv.peers_mutex); return srv.connected_peers.size() > prev_connected; });
 
         std::vector<uint8_t> msg = {0xDE, 0xAD};
-        c2.client->send(c2.peer_id, msg);
+        (void)c2.client->send(c2.peer_id, msg);
 
         size_t prev_rx = [&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size(); }();
         wait_until([&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size() > prev_rx; });
@@ -801,7 +801,7 @@ TEST_CASE("TCP: client recovers after server closes connection", "[tcp]") {
         std::lock_guard lock(srv.peers_mutex);
         if (!srv.connected_peers.empty()) {
             std::vector<uint8_t> msg = {0xAA};
-            srv.server->send(srv.connected_peers[0], msg);
+            (void)srv.server->send(srv.connected_peers[0], msg);
         }
     }
 
@@ -823,7 +823,7 @@ TEST_CASE("TCP: client recovers after server closes connection", "[tcp]") {
 
     // Verify the reconnected client can send
     std::vector<uint8_t> verify_msg = {0xBB, 0xCC};
-    c.client->send(c.peer_id, verify_msg);
+    (void)c.client->send(c.peer_id, verify_msg);
 
     wait_until([&] { std::lock_guard lock(srv2.rx_mutex); return !srv2.received_data.empty(); });
 

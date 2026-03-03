@@ -41,6 +41,10 @@
         <value id="1" name="duplicate-address"/>
         <value id="2" name="surface-vehicle"/>
         <value id="3" name="anonymous"/>
+        <value id="4" name="reserved-4"/>
+        <value id="5" name="reserved-5"/>
+        <value id="6" name="reserved-6"/>
+        <value id="7" name="reserved-7"/>
       </enum>
     </type>
 
@@ -467,7 +471,7 @@
     <!-- Subfield #2: Trajectory Intent Data (repetitive) -->
     <struct name="Cat021I110Tid">
       <doc>Trajectory Intent Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(points)">
         <doc>Repetition factor</doc>
       </field>
       <array name="points" count-from="rep">
@@ -882,7 +886,7 @@
          ======================================================================= -->
     <struct name="Cat021I250">
       <doc>I021/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
@@ -1540,7 +1544,7 @@
         <!-- FRN 48: RE - Reserved Expansion Field (Ed 1.3) -->
         <struct name="re" bit="50">
           <doc>Reserved Expansion Field (ASTERIX Cat021 REF Ed 1.3)</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
           <struct name="items" presence="bitmap">
@@ -1578,7 +1582,7 @@
         <!-- FRN 49: SP - Special Purpose Field -->
         <struct name="sp" bit="49">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

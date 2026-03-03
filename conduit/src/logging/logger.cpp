@@ -22,14 +22,28 @@ namespace conduit::logging {
 
 namespace colors {
 
+// Portable getenv that avoids MSVC C4996 deprecation warning.
+static bool has_env(const char* name) noexcept {
+#ifdef _MSC_VER
+    char* buf = nullptr;
+    size_t len = 0;
+    if (_dupenv_s(&buf, &len, name) == 0 && buf != nullptr) {
+        free(buf);
+        return true;
+    }
+    return false;
+#else
+    return std::getenv(name) != nullptr;
+#endif
+}
+
 bool supportsColor(bool use_stderr) noexcept {
     // Cache both results to avoid repeated system calls.
     static const bool stdout_supports = []() {
-        if (std::getenv("NO_COLOR") != nullptr) return false;
-        if (std::getenv("FORCE_COLOR") != nullptr) return true;
+        if (has_env("NO_COLOR")) return false;
+        if (has_env("FORCE_COLOR")) return true;
 #ifdef _WIN32
-        if (std::getenv("WT_SESSION") != nullptr ||
-            std::getenv("ConEmuANSI") != nullptr) return true;
+        if (has_env("WT_SESSION") || has_env("ConEmuANSI")) return true;
         return _isatty(_fileno(stdout)) != 0;
 #else
         return isatty(fileno(stdout)) != 0;
@@ -37,11 +51,10 @@ bool supportsColor(bool use_stderr) noexcept {
     }();
 
     static const bool stderr_supports = []() {
-        if (std::getenv("NO_COLOR") != nullptr) return false;
-        if (std::getenv("FORCE_COLOR") != nullptr) return true;
+        if (has_env("NO_COLOR")) return false;
+        if (has_env("FORCE_COLOR")) return true;
 #ifdef _WIN32
-        if (std::getenv("WT_SESSION") != nullptr ||
-            std::getenv("ConEmuANSI") != nullptr) return true;
+        if (has_env("WT_SESSION") || has_env("ConEmuANSI")) return true;
         return _isatty(_fileno(stderr)) != 0;
 #else
         return isatty(fileno(stderr)) != 0;

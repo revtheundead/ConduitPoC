@@ -1135,9 +1135,9 @@ private:
                         } else {
                             // No bits known — just verify it parses as an integer
                             if (base == model::PrimitiveBase::Uint)
-                                std::stoull(*f.default_value, nullptr, 0);
+                                (void)std::stoull(*f.default_value, nullptr, 0);
                             else
-                                std::stoll(*f.default_value, nullptr, 0);
+                                (void)std::stoll(*f.default_value, nullptr, 0);
                         }
                     } catch (...) {
                         error(f.loc, "field '" + f.name + "': default value '" +
@@ -1151,7 +1151,7 @@ private:
                     }
                 } else if (base == model::PrimitiveBase::Float) {
                     try {
-                        std::stod(*f.default_value);
+                        (void)std::stod(*f.default_value);
                     } catch (...) {
                         error(f.loc, "field '" + f.name + "': default value '" +
                               *f.default_value + "' is not a valid float");

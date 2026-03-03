@@ -233,7 +233,7 @@ int main(int argc, char* argv[]) {
         if (log_prefix.empty()) log_prefix = "server";
 
         std::cout << "[dummy_peer] Server mode on port " << port
-                  << " (interval=" << interval_ms << "ms)\n";
+                  << " (interval=" << interval_ms << "ms)" << std::endl;
 
         TransceiverConfig cfg;
         cfg.message_log.enabled = true;
@@ -263,7 +263,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::cout << "[dummy_peer] Listening. Press Ctrl+C to stop.\n";
+        std::cout << "[dummy_peer] Listening. Press Ctrl+C to stop." << std::endl;
 
         std::mt19937 rng(std::random_device{}());
         while (g_running) {
@@ -297,7 +297,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::cout << "[dummy_peer] Client mode connecting to " << host << ":" << port
-                  << " (interval=" << interval_ms << "ms)\n";
+                  << " (interval=" << interval_ms << "ms)" << std::endl;
 
         TransceiverConfig cfg;
         cfg.message_log.enabled = true;
@@ -327,7 +327,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::cout << "[dummy_peer] Started. Press Ctrl+C to stop.\n";
+        std::cout << "[dummy_peer] Started. Press Ctrl+C to stop." << std::endl;
 
         std::mt19937 rng(std::random_device{}());
         while (g_running) {

@@ -1768,9 +1768,9 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
                       std::to_string(byte_idx) + "] |= (1 << " +
                       std::to_string(bit_in_byte) + ");");
         }
-        ctx_.line("for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << " +
+        ctx_.line("for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << " +
                   std::to_string(*sd.bitmap_ext) + ");");
-        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));");
+        ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));");
 
         emit_bitmap_encode_fields(bfields, 0, max_octet);
     } else {

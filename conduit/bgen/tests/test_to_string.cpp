@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <array>
 #include <span>
 #include <string>
 #include <utility>

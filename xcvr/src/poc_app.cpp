@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
     install_signal_handler();
 
     std::cout << "[poc_app] Connecting to " << host << ":" << port
-              << " (interval=" << interval_ms << "ms)\n";
+              << " (interval=" << interval_ms << "ms)" << std::endl;
 
     // Build transceiver config
     TransceiverConfig cfg;
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "[poc_app] Started. Press Ctrl+C to stop.\n";
+    std::cout << "[poc_app] Started. Press Ctrl+C to stop." << std::endl;
 
     // Send loop
     std::mt19937 rng(std::random_device{}());

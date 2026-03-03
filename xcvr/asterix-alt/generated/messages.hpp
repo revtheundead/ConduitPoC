@@ -44,24 +44,48 @@ public:
     bool operator==(const Cat007DownlinkRecord_items_spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat007DownlinkRecord_items_spf> decode(conduit::io::BitReader& r) {
         Cat007DownlinkRecord_items_spf result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -96,24 +120,48 @@ public:
     bool operator==(const Cat007DownlinkRecord_items_ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat007DownlinkRecord_items_ref> decode(conduit::io::BitReader& r) {
         Cat007DownlinkRecord_items_ref result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -405,8 +453,8 @@ public:
         if (i085_.has_value()) fspec[4] |= (1 << 5);
         if (spf_.has_value()) fspec[4] |= (1 << 2);
         if (ref_.has_value()) fspec[4] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -1001,24 +1049,48 @@ public:
     bool operator==(const Cat007UplinkRecord_items_spf&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat007UplinkRecord_items_spf> decode(conduit::io::BitReader& r) {
         Cat007UplinkRecord_items_spf result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -1053,24 +1125,48 @@ public:
     bool operator==(const Cat007UplinkRecord_items_ref&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat007UplinkRecord_items_ref> decode(conduit::io::BitReader& r) {
         Cat007UplinkRecord_items_ref result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -1218,8 +1314,8 @@ public:
         if (i440_.has_value()) fspec[1] |= (1 << 2);
         if (spf_.has_value()) fspec[2] |= (1 << 2);
         if (ref_.has_value()) fspec[2] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -1771,23 +1867,47 @@ public:
     bool operator==(const Cat021Record_items_re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         CONDUIT_TRY(items_.encode(w));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat021Record_items_re> decode(conduit::io::BitReader& r) {
         Cat021Record_items_re result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto val = Cat021Record_items_re_items::decode(r);
-            if (!val) return std::unexpected(val.error());
-            result.items_ = std::move(*val);
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto val = Cat021Record_items_re_items::decode(r);
+                if (!val) return std::unexpected(val.error());
+                result.items_ = std::move(*val);
+            }
         }
         return result;
     }
@@ -1822,24 +1942,48 @@ public:
     bool operator==(const Cat021Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat021Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat021Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -2219,8 +2363,8 @@ public:
         if (i295_.has_value()) fspec[5] |= (1 << 1);
         if (re_.has_value()) fspec[6] |= (1 << 2);
         if (sp_.has_value()) fspec[6] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -2967,24 +3111,48 @@ public:
     bool operator==(const Cat048Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat048Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat048Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -3163,23 +3331,47 @@ public:
     bool operator==(const Cat048Record_items_re&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         CONDUIT_TRY(items_.encode(w));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat048Record_items_re> decode(conduit::io::BitReader& r) {
         Cat048Record_items_re result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto val = Cat048Record_items_re_items::decode(r);
-            if (!val) return std::unexpected(val.error());
-            result.items_ = std::move(*val);
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto val = Cat048Record_items_re_items::decode(r);
+                if (!val) return std::unexpected(val.error());
+                result.items_ = std::move(*val);
+            }
         }
         return result;
     }
@@ -3431,8 +3623,8 @@ public:
         if (i060_.has_value()) fspec[3] |= (1 << 3);
         if (sp_.has_value()) fspec[3] |= (1 << 2);
         if (re_.has_value()) fspec[3] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -4017,12 +4209,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto switch_val = i080.start_index();
                 if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
@@ -4077,24 +4280,48 @@ public:
     bool operator==(const Cat253Record_items_sp&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat253Record_items_sp> decode(conduit::io::BitReader& r) {
         Cat253Record_items_sp result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -4129,24 +4356,48 @@ public:
     bool operator==(const Cat253Record_items_rfs&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(len_));
+        auto struct_start_pos_ = w.size_bytes();
+        auto length_byte_pos_ = w.size_bytes();
+        w.write_u8(static_cast<uint8_t>(0));
         w.write_bytes(std::span<const uint8_t>(data_.data(), data_.size()));
+        if (!w.patch_u8(length_byte_pos_, static_cast<uint8_t>(w.size_bytes() - struct_start_pos_)))
+            return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "failed to patch auto-length"));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
 
     static conduit::Result<Cat253Record_items_rfs> decode(conduit::io::BitReader& r) {
         Cat253Record_items_rfs result;
+        auto auto_len_start_ = r.remaining_bytes();
         {
             auto val = r.read_u8();
             if (!val) return std::unexpected(val.error().with_context("field 'len'"));
             result.len_ = static_cast<uint8>(*val);
         }
         {
-            auto nbytes_ = static_cast<size_t>((result.len_ - 1));
-            auto span = r.read_bytes(nbytes_);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
-            result.data_.assign(span->begin(), span->end());
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic push
+            #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
+            auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
+            if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
+            auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
+            {
+                auto nbytes_ = static_cast<size_t>((result.len_ - 1));
+                auto span = r.read_bytes(nbytes_);
+                if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+                result.data_.assign(span->begin(), span->end());
+            }
         }
         return result;
     }
@@ -4286,8 +4537,8 @@ public:
         if (i100_.has_value()) fspec[1] |= (1 << 3);
         if (sp_.has_value()) fspec[1] |= (1 << 2);
         if (rfs_.has_value()) fspec[1] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }

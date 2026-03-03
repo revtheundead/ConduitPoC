@@ -1716,8 +1716,8 @@ public:
         if (em1_.has_value()) fspec[0] |= (1 << 3);
         if (tos_.has_value()) fspec[0] |= (1 << 2);
         if (xp_.has_value()) fspec[0] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sum_.has_value()) {
             CONDUIT_TRY(sum_->encode(w));
         }
@@ -2214,7 +2214,7 @@ public:
     bool operator==(const Cat007I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -2287,8 +2287,8 @@ public:
         std::array<uint8_t, 1> fspec{};
         if (cal_.has_value()) fspec[0] |= (1 << 7);
         if (rds_.has_value()) fspec[0] |= (1 << 6);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (cal_.has_value()) {
             CONDUIT_TRY(cal_->encode(w));
         }
@@ -2454,8 +2454,8 @@ public:
         if (pam_.has_value()) fspec[0] |= (1 << 3);
         if (rpd_.has_value()) fspec[0] |= (1 << 2);
         if (apd_.has_value()) fspec[0] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (srl_.has_value()) {
             w.write_bits(*srl_, 8);
         }
@@ -3080,7 +3080,7 @@ public:
     bool operator==(const Cat007I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -3360,8 +3360,8 @@ public:
         if (ms_.has_value()) fspec[0] |= (1 << 4);
         if (mx_nb_.has_value()) fspec[0] |= (1 << 3);
         if (sms_nb_.has_value()) fspec[0] |= (1 << 2);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (tr_.has_value()) {
             CONDUIT_TRY(tr_->encode(w));
         }
@@ -3977,8 +3977,8 @@ public:
         std::array<uint8_t, 1> fspec{};
         if (rim_.has_value()) fspec[0] |= (1 << 2);
         if (mipt_.has_value()) fspec[0] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (rim_.has_value()) {
             CONDUIT_TRY(rim_->encode(w));
         }
@@ -4231,7 +4231,7 @@ public:
     bool operator==(const Cat007I440&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(registers_.size())));
         for (const auto& elem : registers_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -5349,7 +5349,7 @@ public:
     bool operator==(const Cat021I110Tid&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(points_.size())));
         for (const auto& elem : points_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -5422,8 +5422,8 @@ public:
         std::array<uint8_t, 1> fspec{};
         if (tis_.has_value()) fspec[0] |= (1 << 7);
         if (tid_.has_value()) fspec[0] |= (1 << 6);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (tis_.has_value()) {
             CONDUIT_TRY(tis_->encode(w));
         }
@@ -6609,8 +6609,8 @@ public:
         if (wd_.has_value()) fspec[0] |= (1 << 6);
         if (tmp_.has_value()) fspec[0] |= (1 << 5);
         if (trb_.has_value()) fspec[0] |= (1 << 4);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (ws_.has_value()) {
             CONDUIT_TRY(ws_->encode(w));
         }
@@ -6863,7 +6863,7 @@ public:
     bool operator==(const Cat021I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -7350,8 +7350,8 @@ public:
         if (roa_.has_value()) fspec[2] |= (1 << 1);
         if (ara_.has_value()) fspec[3] |= (1 << 7);
         if (scc_.has_value()) fspec[3] |= (1 << 6);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (aos_.has_value()) {
             w.write_bits(*aos_, 8);
         }
@@ -8657,8 +8657,8 @@ public:
         if (xp_.has_value()) fspec[0] |= (1 << 4);
         if (fom_.has_value()) fspec[0] |= (1 << 3);
         if (m2_.has_value()) fspec[0] |= (1 << 2);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sum_.has_value()) {
             CONDUIT_TRY(sum_->encode(w));
         }
@@ -9909,7 +9909,7 @@ public:
     bool operator==(const Cat048I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -9982,8 +9982,8 @@ public:
         std::array<uint8_t, 1> fspec{};
         if (cal_.has_value()) fspec[0] |= (1 << 7);
         if (rds_.has_value()) fspec[0] |= (1 << 6);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (cal_.has_value()) {
             CONDUIT_TRY(cal_->encode(w));
         }
@@ -10149,8 +10149,8 @@ public:
         if (pam_.has_value()) fspec[0] |= (1 << 3);
         if (rpd_.has_value()) fspec[0] |= (1 << 2);
         if (apd_.has_value()) fspec[0] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (srl_.has_value()) {
             w.write_bits(*srl_, 8);
         }
@@ -10875,7 +10875,7 @@ public:
     bool operator==(const Cat048I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -11525,8 +11525,8 @@ public:
         if (em1_.has_value()) fspec[0] |= (1 << 3);
         if (tos_.has_value()) fspec[0] |= (1 << 2);
         if (xp_.has_value()) fspec[0] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sum_.has_value()) {
             CONDUIT_TRY(sum_->encode(w));
         }
@@ -11884,8 +11884,8 @@ public:
         if (tos_.has_value()) fspec[0] |= (1 << 2);
         if (xp_.has_value()) fspec[0] |= (1 << 1);
         if (fom_.has_value()) fspec[1] |= (1 << 7);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sum_.has_value()) {
             CONDUIT_TRY(sum_->encode(w));
         }
@@ -12175,8 +12175,8 @@ public:
         if (scr_.has_value()) fspec[0] |= (1 << 6);
         if (rw_.has_value()) fspec[0] |= (1 << 5);
         if (ar_.has_value()) fspec[0] |= (1 << 4);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sco_.has_value()) {
             w.write_bits(*sco_, 8);
         }
@@ -12426,7 +12426,7 @@ public:
     bool operator==(const Cat253I025&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(destinations_.size())));
         for (const auto& elem : destinations_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -12658,7 +12658,7 @@ public:
     bool operator==(const Cat253I050&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(sequences_.size())));
         for (const auto& elem : sequences_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -13249,7 +13249,7 @@ public:
     bool operator==(const Cat253I090&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(rep_));
+        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(data_items_.size())));
         for (const auto& elem : data_items_) {
             CONDUIT_TRY(elem.encode(w));
         }

@@ -143,7 +143,7 @@ TEST_CASE("Generated protocol descriptor has type registry", "[codegen]") {
 
     // Should have find functions
     CHECK(gc->protocol.find("find(uint64_t type_id)") != std::string::npos);
-    CHECK(gc->protocol.find("find(std::string_view name)") != std::string::npos);
+    CHECK(gc->protocol.find("find(std::string_view type_name)") != std::string::npos);
 
     // Should list leaf types
     CHECK(gc->protocol.find("AlphaBody") != std::string::npos);
@@ -762,7 +762,7 @@ TEST_CASE("generate_protocol contains ProtocolDescriptor with expected members",
 
     // Lookup functions
     CHECK(gc->protocol.find("find(uint64_t type_id)") != std::string::npos);
-    CHECK(gc->protocol.find("find(std::string_view name)") != std::string::npos);
+    CHECK(gc->protocol.find("find(std::string_view type_name)") != std::string::npos);
 
     // Session factory
     CHECK(gc->protocol.find("create_session()") != std::string::npos);

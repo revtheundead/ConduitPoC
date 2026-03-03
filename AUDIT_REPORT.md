@@ -805,3 +805,184 @@ strings but never compile or execute the generated code. This means:
    fields
 5. **Wire encoding tests for types**: Test BCD, BCD_S, BNR_S roundtrips in all
    three languages
+
+---
+
+# Python Runtime Test Coverage Audit
+
+Comprehensive analysis of Python runtime test coverage, identifying gaps between
+the C++ test suite (which has full roundtrip tests for 60+ BMDL fixtures) and the
+Python tests (which only cover 13 generated modules).
+
+## Summary
+
+| Metric | Count |
+|--------|-------|
+| Generated Python test modules | 13 |
+| BMDL fixtures with C++ roundtrip tests | 60+ |
+| Python runtime test files (before audit) | 8 |
+| Python runtime test files (after audit) | 9 |
+| New test cases added | 87 |
+| Total passing Python tests | 640 |
+| Pre-existing failures (not related to audit) | 14 |
+
+## Existing Python Runtime Test Coverage (Before Audit)
+
+### Test Files and Their Scope
+
+| Test File | Tests | Modules Covered | Coverage Area |
+|-----------|-------|-----------------|---------------|
+| `test_roundtrip.py` | 194 | all_types, boundary_types, mixed_endian, field_scale, wire_encodings, string_features | Encode/decode roundtrips for primitives, strings, enums, flags, scaled types |
+| `test_wire_format.py` | 109 | all_types, boundary_types, mixed_endian, field_scale, wire_encodings | Exact byte patterns for encoding verification |
+| `test_session.py` | 83 | session_protocol, choice_protocol | Session classes, frame encode/decode, protocol descriptors |
+| `test_session_extended.py` | 73 | direction_qualified, sentry_link, all_types, wire_encodings | Direction-qualified sessions, auto-increment, float specials |
+| `test_arrays_choices.py` | 65 | arrays_choices | Fixed arrays, FixedArrayMsg, SubX/SubY/Point structs |
+| `test_errors.py` | 58 | all_types, session_protocol, choice_protocol, arrays_choices, wire_encodings, boundary_types, mixed_endian, field_scale, constraints, struct_features | Truncated data, empty data, invalid enums, error hierarchy |
+| `test_codec_cabi.py` | 52 | session_protocol | Codec C ABI bindings (requires native library) |
+| `test_transceiver_cabi.py` | 87 | session_protocol | Transceiver C ABI bindings (requires native library) |
+
+### Coverage Gaps Identified (Before Audit)
+
+#### A. Missing Python Runtime Modules (35+ BMDL Fixtures)
+
+The following BMDL fixtures have full C++ roundtrip tests but **no generated
+Python modules** for runtime testing. The build system only generates Python
+code for 13 of 60+ fixtures.
+
+**FX (Field Extension) blocks** — No runtime tests:
+- `fx_block.bmdl.xml`, `fx_advanced.bmdl.xml`, `fx_choice.bmdl.xml`
+- `fx_string.bmdl.xml`, `fx_ia5_string.bmdl.xml`
+
+**Bitmap structs** — No runtime tests:
+- `bitmap_fx.bmdl.xml`, `bitmap_advanced.bmdl.xml`, `bitmap_wide_fixed.bmdl.xml`
+
+**String encodings** — No runtime tests:
+- `ebcdic_strings.bmdl.xml`
+
+**Inline/embedded structs** — No runtime tests:
+- `inline_struct.bmdl.xml`, `inline_field_types.bmdl.xml`
+- `inline_enum.bmdl.xml`, `inline_case_collision.bmdl.xml`
+
+**Auto fields** — No runtime tests:
+- `auto_count.bmdl.xml`, `auto_struct_length.bmdl.xml`, `auto_sequence.bmdl.xml`
+
+**Expression features** — No runtime tests:
+- `expr_features.bmdl.xml`
+
+**Frame configurations** — No runtime tests:
+- `frame_basic.bmdl.xml`, `frame_config.bmdl.xml`, `frame_footer.bmdl.xml`
+- `frame_direction.bmdl.xml`, `frame_array.bmdl.xml`, `frame_timestamp.bmdl.xml`
+- `frame_length_offset.bmdl.xml`, `frame_count.bmdl.xml`
+- `frame_payload_length.bmdl.xml`, `frame_payload_length_from.bmdl.xml`
+- `frame_length_arith.bmdl.xml`
+
+**Other** — No runtime tests:
+- `format_binary.bmdl.xml`, `present_when_complex.bmdl.xml`
+- `default_initial.bmdl.xml`, `constraints_extended.bmdl.xml`
+- `constraint_tighten.bmdl.xml`, `outer_scope.bmdl.xml`
+- `enum_arrays.bmdl.xml`, `signed_length.bmdl.xml`
+- `send_only_leaf.bmdl.xml`, `string_prefix_incl.bmdl.xml`
+- `constants_everywhere.bmdl.xml`, `bytes_numeric.bmdl.xml`
+- `type_name_override.bmdl.xml`, `msg_config.bmdl.xml`
+- `length_arith.bmdl.xml`, `asterix.bmdl.xml`, `stress_large.bmdl.xml`
+
+#### B. Gaps Within Existing 13 Generated Modules
+
+Even for the 13 modules that have generated Python code, several important
+areas lacked runtime tests:
+
+| Module | Gap | Severity |
+|--------|-----|----------|
+| `wire_encodings` | No value-based BCD/BCD_S/sign-magnitude/CB2 roundtrip tests | HIGH |
+| `boundary_types` | Only truncation error tests; no value-based BoundaryMsg or OddWidthMsg roundtrips | HIGH |
+| `struct_features` | No AlignedMessage (alignment padding) tests; minimal present-when tests | HIGH |
+| `arrays_choices` | No ChoiceMsg dispatch tests; no NestedChoiceMsg; no DeepNestedMsg; no CountFromArrayMsg | HIGH |
+| `string_features` | No StringMsg type-wrapper tests; no MaxLenMsg; no InlineStringMsg | MEDIUM |
+| `field_scale` | No negative/zero/boundary scale roundtrips | MEDIUM |
+| `constraints` | Only basic roundtrip; no boundary value tests; no wire size verification | MEDIUM |
+| `mixed_endian` | No byte pattern verification; no wire size check | MEDIUM |
+| `session_protocol` | No session encode_wrap/decode_frame/format_message/reset tests | MEDIUM |
+| All modules | No ProtocolDescriptor metadata verification | LOW |
+| All modules | No `__repr__` output verification | LOW |
+| All modules | No BitReader/BitWriter edge cases (single-bit, u64, signed_bits, alignment) | LOW |
+
+## New Tests Added (test_coverage_audit.py)
+
+The audit produced `test_coverage_audit.py` with **87 test cases** covering all
+gaps in the existing 13 generated modules:
+
+| Test Class | Tests | Coverage Area |
+|------------|-------|---------------|
+| `TestWireEncodingRoundtrip` | 5 | BCD, BCD_S, sign-magnitude, CB2 value roundtrips; zero/negative/max values |
+| `TestBoundaryTypeValues` | 8 | BoundaryMsg min/max/typical values; OddWidthMsg; ScaledTemp value/setter |
+| `TestStructFeaturesExtended` | 8 | AlignedMessage roundtrip/size; ConditionalMessage present-when; GpsCoord; reserved fields |
+| `TestArraysChoicesExtended` | 9 | CountFromArrayMsg; ChoiceMsg TYPE_A/TYPE_B/fallback; NestedChoiceMsg; DeepNestedMsg |
+| `TestStringFeaturesExtended` | 9 | StringMsg type wrappers; null/space padding; trim behavior; type equality; MaxLenMsg; InlineStringMsg |
+| `TestFieldScaleExtended` | 4 | Positive/negative/zero scale roundtrips; double-encode identity |
+| `TestMixedEndianValues` | 2 | Byte pattern verification (BE/LE ordering); wire size check |
+| `TestConstraintModule` | 4 | Max/min/typical boundary values; double-encode identity; wire size |
+| `TestProtocolMetadata` | 10 | ProtocolDescriptor for all 10 non-session modules |
+| `TestSessionExtendedCoverage` | 13 | encode_wrap, decode_frame, format_message, sequence counter, reset, type_name, leaf_type_ids, is_receive_only, sync_pattern |
+| `TestBitIoEdgeCases` | 6 | Single-bit read/write; u64; signed_bits; string; skip_bits; align_to |
+| `TestReprOutput` | 9 | `__repr__` output for all major message types |
+
+## Pre-Existing Test Failures (15) — ALL FIXED
+
+All 15 pre-existing failures have been diagnosed and fixed:
+
+| Test | Root Cause | Fix |
+|------|------------|-----|
+| `TestSentryLink*` (4 tests) | Codegen emitted bare enum default `self.status = online` | Qualified to `DeviceStatus.ONLINE` in codegen + generated file |
+| `TestFloat32SpecialValues::test_*` (4) | Tests didn't initialize type-wrapper fields (ascii, utf8, etc.) | Added `_make_all_types_msg()` helper |
+| `TestFloat64SpecialValues::test_*` (4) | Same root cause as f32 tests | Same fix |
+| `TestWireEncodingOverflow::test_bcd_overflow_*` (2) | `write_bcd` lacked overflow validation | Added `EncodeError` on overflow in codegen template + all 13 bit_io.py |
+| `TestSentryLinkAutoIncrement::test_8bit_wrap_around` (1) | Test checked wrong byte offset (2 vs 5) for sequence field | Fixed offset to 5 (sync:2 + msg_type:1 + length:2) |
+
+## Recommendations
+
+### Priority 1: Generate Python Modules for All Fixtures
+
+Update the CMake build system to generate Python test modules for all BMDL
+fixtures, not just the current 13. This would enable runtime testing of:
+- FX blocks (5 fixtures) — critical for optional field encoding
+- Bitmap structs (3 fixtures) — critical for FSPEC/ASTERIX protocols
+- EBCDIC strings — important for aviation data links
+- Inline structs (4 fixtures) — important for struct flattening
+- Auto fields (3 fixtures) — important for frame automation
+- Expression features — important for computed field lengths
+
+### Priority 2: Fix Pre-Existing Test Failures — RESOLVED
+
+All 15 pre-existing failures in `test_session_extended.py` have been fixed:
+
+1. **Sentry link enum defaults (4 tests):** Python codegen emitted bare identifier
+   for default enum values (e.g., `self.status = online` instead of
+   `DeviceStatus.ONLINE`). Fixed in `python_backend.cpp` `collect_py_fields()` to
+   qualify enum defaults with `py_class(type_ref) + "." + py_enum_val(value)`.
+   Also fixed the generated `sentry_link/messages.py` directly.
+
+2. **Float special value roundtrips (8 tests):** Tests only set `f32`/`f64` on
+   `AllTypesMessage` but `encode()` unconditionally calls `.encode(w)` on
+   type-wrapper fields (`ascii`, `utf8`, `temp`, `color`, `status`) which default
+   to `None`. Fixed tests to initialize all type-wrapper fields via a
+   `_make_all_types_msg()` helper.
+
+3. **BCD overflow validation (2 tests):** `write_bcd()` did not validate that
+   values fit within the BCD digit count. Fixed in `python_backend.cpp` codegen
+   template and all 13 generated `bit_io.py` files to raise `EncodeError` when
+   `abs(value) > 10^(digits) - 1`.
+
+4. **Sequence byte offset (1 test):** `test_8bit_wrap_around` checked byte offset
+   2 for the sequence field, but the sentry_link frame layout places it at offset
+   5 (after sync:2 + msg_type:1 + length:2). Fixed assertion offset.
+
+### Priority 3: Cross-Language Compatibility Tests
+
+Create test infrastructure to:
+1. Encode binary data with C++ generated code
+2. Save as golden test fixtures
+3. Decode with Python and Java generated code
+4. Verify field values match
+
+This would catch parity bugs like the IA5 encoding mismatch (bug #4) and
+CB2 wire encoding mismatch (bug #5) found in the initial audit.

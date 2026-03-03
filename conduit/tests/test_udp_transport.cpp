@@ -245,8 +245,8 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
     // Each client sends distinct data
     std::vector<uint8_t> msg1 = {0x01};
     std::vector<uint8_t> msg2 = {0x02};
-    c1->send(c1_peer, msg1);
-    c2->send(c2_peer, msg2);
+    (void)c1->send(c1_peer, msg1);
+    (void)c2->send(c2_peer, msg2);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
@@ -340,8 +340,8 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
 
     // Each client sends a message so server discovers their addresses
     std::vector<uint8_t> hello = {0xFF};
-    c1->send(c1_peer, hello);
-    c2->send(c2_peer, hello);
+    (void)c1->send(c1_peer, hello);
+    (void)c2->send(c2_peer, hello);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
@@ -352,8 +352,8 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
 
         std::vector<uint8_t> reply1 = {0xAA};
         std::vector<uint8_t> reply2 = {0xBB};
-        server->send(server_peers[0], reply1);
-        server->send(server_peers[1], reply2);
+        (void)server->send(server_peers[0], reply1);
+        (void)server->send(server_peers[1], reply2);
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -424,7 +424,7 @@ TEST_CASE("UDP: large datagram 1400 bytes", "[udp]") {
         large_msg[i] = static_cast<uint8_t>(i & 0xFF);
     }
 
-    tb->send(pb, large_msg);
+    (void)tb->send(pb, large_msg);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     ta->stop();
@@ -487,7 +487,7 @@ TEST_CASE("UDP: rapid fire 100 datagrams", "[udp]") {
         uint8_t b2 = static_cast<uint8_t>((i >> 8) & 0xFF);
         uint8_t b3 = static_cast<uint8_t>(i & 0xFF);
         std::vector<uint8_t> msg = {b0, b1, b2, b3};
-        tb->send(pb, msg);
+        (void)tb->send(pb, msg);
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -579,7 +579,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     std::vector<uint8_t> msg = {0x01};
-    tb->send(pb, msg);
+    (void)tb->send(pb, msg);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     ta->stop();
@@ -592,7 +592,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     REQUIRE(tb->start(make_cb_b()).has_value());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    tb->send(pb, msg);
+    (void)tb->send(pb, msg);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     ta->stop();
@@ -714,7 +714,7 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
     // Each client sends a packet so the server discovers them
     for (size_t i = 0; i < 3; ++i) {
         std::vector<uint8_t> msg = {static_cast<uint8_t>(i + 1)};
-        clients[i]->send(PeerId{static_cast<uint32_t>(i + 50)}, msg);
+        (void)clients[i]->send(PeerId{static_cast<uint32_t>(i + 50)}, msg);
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -778,7 +778,7 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     std::vector<uint8_t> msg = {0x01};
-    c->send(c_peer, msg);
+    (void)c->send(c_peer, msg);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 

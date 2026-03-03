@@ -186,7 +186,7 @@
          ======================================================================= -->
     <struct name="Cat007I440">
       <doc>I007/440 - Directed Interrogation BDS Register Request</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(registers)">
         <doc>Repetition factor</doc>
       </field>
       <array name="registers" count-from="rep">
@@ -296,7 +296,7 @@
         <!-- FRN 20: SPF - Special Purpose Field -->
         <struct name="spf" bit="18">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SPF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -305,7 +305,7 @@
         <!-- FRN 21: REF - Reserved Expansion Field -->
         <struct name="ref" bit="17">
           <doc>Reserved Expansion Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of REF including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>

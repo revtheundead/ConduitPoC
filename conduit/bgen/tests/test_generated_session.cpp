@@ -279,8 +279,8 @@ TEST_CASE("reset resets sequence counter", "[session][reset]") {
     REQUIRE(ping_type_id != 0);
 
     // Encode a few times to advance sequence
-    session->encode_wrap(ping_type_id, std::any{ping});
-    session->encode_wrap(ping_type_id, std::any{ping});
+    (void)session->encode_wrap(ping_type_id, std::any{ping});
+    (void)session->encode_wrap(ping_type_id, std::any{ping});
 
     // Reset and encode again
     session->reset();

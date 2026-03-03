@@ -63,12 +63,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -128,12 +139,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -431,8 +453,8 @@ public:
         if (i085_.has_value()) fspec[4] |= (1 << 5);
         if (spf_.has_value()) fspec[4] |= (1 << 2);
         if (ref_.has_value()) fspec[4] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -1111,12 +1133,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -1270,8 +1303,8 @@ public:
         if (i440_.has_value()) fspec[1] |= (1 << 2);
         if (spf_.has_value()) fspec[2] |= (1 << 2);
         if (ref_.has_value()) fspec[2] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -1842,12 +1875,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto val = Cat021Record_items_re_items::decode(r);
                 if (!val) return std::unexpected(val.error());
@@ -1906,12 +1950,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -2297,8 +2352,8 @@ public:
         if (i295_.has_value()) fspec[5] |= (1 << 1);
         if (re_.has_value()) fspec[6] |= (1 << 2);
         if (sp_.has_value()) fspec[6] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -3064,12 +3119,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -3273,12 +3339,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto val = Cat048Record_items_re_items::decode(r);
                 if (!val) return std::unexpected(val.error());
@@ -3535,8 +3612,8 @@ public:
         if (i060_.has_value()) fspec[3] |= (1 << 3);
         if (sp_.has_value()) fspec[3] |= (1 << 2);
         if (re_.has_value()) fspec[3] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }
@@ -4121,12 +4198,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto switch_val = i080.startIndex();
                 if (switch_val == static_cast<decltype(switch_val)>(0x05)) {
@@ -4200,12 +4288,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -4265,12 +4364,23 @@ public:
             result.len_ = static_cast<uint8>(*val);
         }
         {
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic push
             #pragma GCC diagnostic ignored "-Wshadow"
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(push)
+            #pragma warning(disable: 4457)
+            #endif
             auto auto_len_sub_ = r.sub_reader(static_cast<size_t>(result.len_ - (auto_len_start_ - r.remaining_bytes())));
             if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());
             auto& r = *auto_len_sub_;
+            #if defined(__GNUC__) && !defined(__clang__)
             #pragma GCC diagnostic pop
+            #endif
+            #ifdef _MSC_VER
+            #pragma warning(pop)
+            #endif
             {
                 auto nbytes_ = static_cast<size_t>((result.len_ - 1));
                 auto span = r.read_bytes(nbytes_);
@@ -4416,8 +4526,8 @@ public:
         if (i100_.has_value()) fspec[1] |= (1 << 3);
         if (sp_.has_value()) fspec[1] |= (1 << 2);
         if (rfs_.has_value()) fspec[1] |= (1 << 1);
-        for (size_t i = 0; i < static_cast<size_t>(last_octet); i++) fspec[i] |= (1 << 0);
-        w.write_bytes(std::span<const uint8_t>(fspec.data(), static_cast<size_t>(last_octet) + 1));
+        for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
+        w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (i010_.has_value()) {
             CONDUIT_TRY(i010_->encode(w));
         }

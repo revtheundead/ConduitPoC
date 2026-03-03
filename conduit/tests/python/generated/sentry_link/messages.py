@@ -14,7 +14,7 @@ class HeartbeatBody:
     def __init__(self) -> None:
         self.timestamp = 0
         self.uptime_hours = 0
-        self.status = online
+        self.status = DeviceStatus.ONLINE
         self.cpu_load = 0
 
     @staticmethod
@@ -147,7 +147,7 @@ class AlertBody:
     def __init__(self) -> None:
         self.timestamp = 0
         self.source_id = 0
-        self.severity = info
+        self.severity = SeverityLevel.INFO
         self.category = 0
         self.alert_code = 0
         self.message = ''

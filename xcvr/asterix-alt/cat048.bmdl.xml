@@ -290,7 +290,7 @@
     <!-- NOTE: DOP is uint16 (unsigned) in Cat048, unlike Cat007 which uses int16 (signed) -->
     <struct name="Cat048I120Rds">
       <doc>Raw Doppler Speed</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(doppler)">
         <doc>Repetition factor</doc>
       </field>
       <array name="doppler" count-from="rep">
@@ -499,7 +499,7 @@
          ======================================================================= -->
     <struct name="Cat048I250">
       <doc>I048/250 - Mode S MB Data</doc>
-      <field name="rep" type="uint8">
+      <field name="rep" type="uint8" auto="count(bds)">
         <doc>Repetition factor</doc>
       </field>
       <array name="bds" count-from="rep">
@@ -968,7 +968,7 @@
         <!-- FRN 27: SP - Special Purpose Field -->
         <struct name="sp" bit="26">
           <doc>Special Purpose Field</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
           </field>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -977,7 +977,7 @@
         <!-- FRN 28: RE - Reserved Expansion Field (Ed 1.9) -->
         <struct name="re" bit="25">
           <doc>Reserved Expansion Field (ASTERIX Cat048 REF Ed 1.9)</doc>
-          <field name="len" type="uint8">
+          <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
           <struct name="items" presence="bitmap">

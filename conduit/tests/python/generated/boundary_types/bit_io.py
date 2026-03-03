@@ -206,6 +206,9 @@ class BitWriter:
             self.write_u8(b)
 
     def write_bcd(self, value: int, bits: int) -> None:
+        max_val = 10 ** (bits // 4) - 1
+        if abs(value) > max_val:
+            raise EncodeError(f"BCD overflow: {value} exceeds {bits // 4}-digit max ({max_val})")
         raw = 0
         v = abs(value)
         for i in range(bits // 4):

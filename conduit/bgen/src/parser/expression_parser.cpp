@@ -347,7 +347,7 @@ private:
         auto left = parse_bitor();
         if (!left) return left;
 
-        model::ExprOp op;
+        model::ExprOp op{};
         bool found = true;
         switch (current_.kind) {
             case TokenKind::Eq: op = model::ExprOp::Eq; break;

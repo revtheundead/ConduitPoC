@@ -775,7 +775,7 @@ TEST_CASE("DataBlock Cat048 multiple records roundtrip", "[roundtrip][asterix]")
 
     // Compute correct length
     conduit::io::BitWriter lw;
-    std::visit([&lw](const auto& v) { v.encode(lw); }, db.records());
+    std::visit([&lw](const auto& v) { (void)v.encode(lw); }, db.records());
     db.set_len(static_cast<asterix::uint16>(lw.size_bytes() + 3));
 
     auto enc_result = db.encode_bytes();
