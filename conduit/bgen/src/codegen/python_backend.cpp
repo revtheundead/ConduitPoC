@@ -755,6 +755,9 @@ class BitWriter:
             self.write_u8(b)
 
     def write_bcd(self, value: int, bits: int) -> None:
+        max_val = 10 ** (bits // 4) - 1
+        if abs(value) > max_val:
+            raise EncodeError(f"BCD overflow: {value} exceeds {bits // 4}-digit max ({max_val})")
         raw = 0
         v = abs(value)
         for i in range(bits // 4):
@@ -1802,7 +1805,13 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             else if (fi.is_float || fi.has_scale) pf.default_val = "0.0";
             else if (fi.is_bool) pf.default_val = "False";
             else pf.default_val = "0";
-            if (f->default_value) pf.default_val = *f->default_value;
+            if (f->default_value) {
+                pf.default_val = *f->default_value;
+                // Enum fields: qualify bare value name with type prefix
+                if (fi.is_enum && !f->type_ref.empty()) {
+                    pf.default_val = py_class(f->type_ref) + "." + py_enum_val(pf.default_val);
+                }
+            }
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
                 pf.default_val = *f->constraint->equals;

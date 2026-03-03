@@ -348,8 +348,9 @@ class TestSentryLinkAutoIncrement:
         # Counter is now 256; masked to 8 bits = 0
         wrap_result = session.encode_wrap(HeartbeatBody.TYPE_ID, hb)
         frame_bytes = wrap_result['bytes']
-        # Sequence byte is at offset 2 (after sync: 2 bytes)
-        assert frame_bytes[2] == 0, \
+        # Frame layout: sync(2) + msg_type(1) + length(2) + sequence(1)
+        # Sequence byte is at offset 5
+        assert frame_bytes[5] == 0, \
             "Sequence byte should wrap to 0 at 256th message"
 
     def test_per_session_not_per_type(self):
@@ -439,31 +440,43 @@ class TestFrameErrorCases:
 # Matches C++ test_generated_roundtrip.cpp float NaN/Infinity tests
 # ---------------------------------------------------------------------------
 
+def _make_all_types_msg():
+    """Create an AllTypesMessage with all type-wrapper fields initialized."""
+    from all_types.types import AsciiStr, Utf8Str, ScaledTemp, ColorEnum, StatusFlags
+    msg = AllTypesMessage()
+    msg.ascii = AsciiStr('')
+    msg.utf8 = Utf8Str('')
+    msg.temp = ScaledTemp(0)
+    msg.color = ColorEnum.RED
+    msg.status = StatusFlags(0)
+    return msg
+
+
 class TestFloat32SpecialValues:
 
     def test_nan_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f32 = float('nan')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert math.isnan(decoded.f32), "Decoded f32 should be NaN"
 
     def test_positive_infinity_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f32 = float('inf')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert decoded.f32 == float('inf')
 
     def test_negative_infinity_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f32 = float('-inf')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert decoded.f32 == float('-inf')
 
     def test_negative_zero_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f32 = -0.0
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
@@ -475,28 +488,28 @@ class TestFloat32SpecialValues:
 class TestFloat64SpecialValues:
 
     def test_nan_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f64 = float('nan')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert math.isnan(decoded.f64), "Decoded f64 should be NaN"
 
     def test_positive_infinity_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f64 = float('inf')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert decoded.f64 == float('inf')
 
     def test_negative_infinity_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f64 = float('-inf')
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)
         assert decoded.f64 == float('-inf')
 
     def test_negative_zero_roundtrip(self):
-        msg = AllTypesMessage()
+        msg = _make_all_types_msg()
         msg.f64 = -0.0
         encoded = msg.encode_bytes()
         decoded = AllTypesMessage.decode_bytes(encoded)

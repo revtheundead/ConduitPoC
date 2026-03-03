@@ -926,18 +926,17 @@ gaps in the existing 13 generated modules:
 | `TestBitIoEdgeCases` | 6 | Single-bit read/write; u64; signed_bits; string; skip_bits; align_to |
 | `TestReprOutput` | 9 | `__repr__` output for all major message types |
 
-## Pre-Existing Test Failures (14)
+## Pre-Existing Test Failures (15) — ALL FIXED
 
-These failures existed before the audit and are not related to audit changes:
+All 15 pre-existing failures have been diagnosed and fixed:
 
-| Test | Issue |
-|------|-------|
-| `TestSentryLinkEncodeDecodeRoundtrip::test_heartbeat_roundtrip` | Sentry link session codegen missing features |
-| `TestSentryLinkAutoIncrement::test_*` (2) | Auto-increment session state not persisting |
-| `TestSentryLinkReset::test_reset_clears_sequence` | Reset sequence counter issue |
-| `TestFloat32SpecialValues::test_*` (4) | Float encode fails: AllTypesMessage requires non-None string fields |
-| `TestFloat64SpecialValues::test_*` (4) | Same string field initialization issue |
-| `TestWireEncodingOverflow::test_bcd_overflow_*` (2) | BCD encode does not raise on overflow values |
+| Test | Root Cause | Fix |
+|------|------------|-----|
+| `TestSentryLink*` (4 tests) | Codegen emitted bare enum default `self.status = online` | Qualified to `DeviceStatus.ONLINE` in codegen + generated file |
+| `TestFloat32SpecialValues::test_*` (4) | Tests didn't initialize type-wrapper fields (ascii, utf8, etc.) | Added `_make_all_types_msg()` helper |
+| `TestFloat64SpecialValues::test_*` (4) | Same root cause as f32 tests | Same fix |
+| `TestWireEncodingOverflow::test_bcd_overflow_*` (2) | `write_bcd` lacked overflow validation | Added `EncodeError` on overflow in codegen template + all 13 bit_io.py |
+| `TestSentryLinkAutoIncrement::test_8bit_wrap_around` (1) | Test checked wrong byte offset (2 vs 5) for sequence field | Fixed offset to 5 (sync:2 + msg_type:1 + length:2) |
 
 ## Recommendations
 
@@ -952,12 +951,30 @@ fixtures, not just the current 13. This would enable runtime testing of:
 - Auto fields (3 fixtures) — important for frame automation
 - Expression features — important for computed field lengths
 
-### Priority 2: Fix Pre-Existing Test Failures
+### Priority 2: Fix Pre-Existing Test Failures — RESOLVED
 
-The 14 pre-existing failures in `test_session_extended.py` should be addressed:
-1. Float special value tests need to initialize string fields on AllTypesMessage
-2. Sentry link session tests need codegen fixes for auto-increment state
-3. BCD overflow tests need encode-time validation in the generated codec
+All 15 pre-existing failures in `test_session_extended.py` have been fixed:
+
+1. **Sentry link enum defaults (4 tests):** Python codegen emitted bare identifier
+   for default enum values (e.g., `self.status = online` instead of
+   `DeviceStatus.ONLINE`). Fixed in `python_backend.cpp` `collect_py_fields()` to
+   qualify enum defaults with `py_class(type_ref) + "." + py_enum_val(value)`.
+   Also fixed the generated `sentry_link/messages.py` directly.
+
+2. **Float special value roundtrips (8 tests):** Tests only set `f32`/`f64` on
+   `AllTypesMessage` but `encode()` unconditionally calls `.encode(w)` on
+   type-wrapper fields (`ascii`, `utf8`, `temp`, `color`, `status`) which default
+   to `None`. Fixed tests to initialize all type-wrapper fields via a
+   `_make_all_types_msg()` helper.
+
+3. **BCD overflow validation (2 tests):** `write_bcd()` did not validate that
+   values fit within the BCD digit count. Fixed in `python_backend.cpp` codegen
+   template and all 13 generated `bit_io.py` files to raise `EncodeError` when
+   `abs(value) > 10^(digits) - 1`.
+
+4. **Sequence byte offset (1 test):** `test_8bit_wrap_around` checked byte offset
+   2 for the sequence field, but the sentry_link frame layout places it at offset
+   5 (after sync:2 + msg_type:1 + length:2). Fixed assertion offset.
 
 ### Priority 3: Cross-Language Compatibility Tests
 
