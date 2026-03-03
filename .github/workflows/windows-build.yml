@@ -68,18 +68,28 @@ jobs:
           if (!$client.HasExited) { $client.Kill() }
           if (!$server.HasExited) { $server.Kill() }
 
+          # Wait briefly for output files to finalize
+          Start-Sleep -Milliseconds 500
+
           Write-Host "=== Server stdout ==="
-          Get-Content server_out.txt
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
           Write-Host "=== Client stdout ==="
-          Get-Content client_out.txt
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
 
           # Verify both produced output (basic smoke check)
-          $serverOut = Get-Content server_out.txt -Raw
-          $clientOut = Get-Content client_out.txt -Raw
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
           if ($serverOut -match "Listening" -and $clientOut -match "Started") {
             Write-Host "Smoke test PASSED: both apps started successfully"
           } else {
             Write-Host "Smoke test FAILED: apps did not start properly"
+            if ($client.HasExited) {
+              Write-Host "Client exit code: $($client.ExitCode)"
+            }
             exit 1
           }
 
@@ -94,7 +104,7 @@ jobs:
         uses: egor-tensin/setup-mingw@v2.2.0
         with:
           platform: x64
-          version: 12.2.0
+          version: 13.2.0
 
       - name: Configure xcvr (MinGW)
         run: >
