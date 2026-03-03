@@ -16,7 +16,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../conduit ${CMAKE_BINARY_DIR}/cond
 # Common compile options
 function(niis_xcvr_compile_opts target)
     if(MSVC)
-        target_compile_options(${target} PRIVATE /W3 /permissive- /Zc:__cplusplus /Zc:preprocessor)
+        target_compile_options(${target} PRIVATE /W3 /permissive- /Zc:__cplusplus /Zc:preprocessor /bigobj)
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra)
         if(MINGW)
