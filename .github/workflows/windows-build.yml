@@ -104,9 +104,13 @@ jobs:
         shell: pwsh
         run: |
           choco install mingw --version=13.2.0 -y --no-progress
-          $mingwBin = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+          # Refresh session PATH so we can find the newly-installed gcc
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          Update-SessionEnvironment
+          $mingwBin = (Get-Command gcc -ErrorAction Stop).Source | Split-Path -Parent
+          Write-Host "MinGW bin: $mingwBin"
           echo $mingwBin | Out-File -Append -FilePath $env:GITHUB_PATH
-          & "$mingwBin\gcc.exe" --version
+          gcc --version
 
       - name: Configure xcvr (MinGW)
         run: >
