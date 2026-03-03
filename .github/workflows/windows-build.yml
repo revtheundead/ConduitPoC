@@ -101,10 +101,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up MinGW
-        uses: egor-tensin/setup-mingw@v2.2.0
-        with:
-          platform: x64
-          version: 13.2.0
+        shell: pwsh
+        run: |
+          choco install mingw --version=13.2.0 -y --no-progress
+          $mingwBin = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+          echo $mingwBin | Out-File -Append -FilePath $env:GITHUB_PATH
+          & "$mingwBin\gcc.exe" --version
 
       - name: Configure xcvr (MinGW)
         run: >
