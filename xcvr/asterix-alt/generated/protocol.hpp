@@ -36,9 +36,9 @@ struct ProtocolDescriptor {
         return nullptr;
     }
 
-    static constexpr const TypeInfo* find(std::string_view name) {
+    static constexpr const TypeInfo* find(std::string_view type_name) {
         for (const auto& t : types) {
-            if (t.type_name == name) return &t;
+            if (t.type_name == type_name) return &t;
         }
         return nullptr;
     }

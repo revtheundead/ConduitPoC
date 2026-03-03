@@ -6,6 +6,7 @@
 #include <conduit/core/error.hpp>
 #include <conduit/io/bit_writer.hpp>
 #include <conduit/io/bit_reader.hpp>
+#include <array>
 #include <cstring>
 
 using namespace conduit::io;

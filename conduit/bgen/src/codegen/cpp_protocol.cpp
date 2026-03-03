@@ -171,11 +171,11 @@ std::string generate_protocol(const model::Protocol& protocol,
     ctx.line();
 
     // Lookup by type_name
-    ctx.line("static constexpr const TypeInfo* find(std::string_view name) {");
+    ctx.line("static constexpr const TypeInfo* find(std::string_view type_name) {");
     ctx.indent();
     ctx.line("for (const auto& t : types) {");
     ctx.indent();
-    ctx.line("if (t.type_name == name) return &t;");
+    ctx.line("if (t.type_name == type_name) return &t;");
     ctx.dedent();
     ctx.line("}");
     ctx.line("return nullptr;");

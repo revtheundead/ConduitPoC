@@ -6,6 +6,7 @@
 #include <conduit/core/error.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <array>
 #include <cstdint>
 #include <type_traits>
 #include <vector>
