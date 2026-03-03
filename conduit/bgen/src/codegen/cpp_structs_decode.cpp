@@ -632,12 +632,23 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                 + " - (auto_len_start_ - r.remaining_bytes()))";
             ctx_.line("{");
             ctx_.indent();
+            ctx_.line("#if defined(__GNUC__) && !defined(__clang__)");
             ctx_.line("#pragma GCC diagnostic push");
             ctx_.line("#pragma GCC diagnostic ignored \"-Wshadow\"");
+            ctx_.line("#endif");
+            ctx_.line("#ifdef _MSC_VER");
+            ctx_.line("#pragma warning(push)");
+            ctx_.line("#pragma warning(disable: 4457)");
+            ctx_.line("#endif");
             ctx_.line("auto auto_len_sub_ = r.sub_reader(" + remaining + ");");
             ctx_.line("if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());");
             ctx_.line("auto& r = *auto_len_sub_;");
+            ctx_.line("#if defined(__GNUC__) && !defined(__clang__)");
             ctx_.line("#pragma GCC diagnostic pop");
+            ctx_.line("#endif");
+            ctx_.line("#ifdef _MSC_VER");
+            ctx_.line("#pragma warning(pop)");
+            ctx_.line("#endif");
             in_sub_reader_scope = true;
         }
     }

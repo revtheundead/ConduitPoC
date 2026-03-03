@@ -107,7 +107,7 @@ public:
         }
         auto& msg = std::any_cast<const ErrTestMsg&>(payload);
         io::BitWriter writer;
-        msg.encode(writer);
+        (void)msg.encode(writer);
         auto bytes = writer.finish();
         if (!bytes) return std::unexpected(bytes.error());
         return traits::EncodeResult{std::move(*bytes), {}};
@@ -189,7 +189,7 @@ public:
         }
         auto& msg = std::any_cast<const ErrTestMsg&>(payload);
         io::BitWriter writer;
-        msg.encode(writer);
+        (void)msg.encode(writer);
         auto bytes = writer.finish();
         if (!bytes) return std::unexpected(bytes.error());
         return traits::EncodeResult{std::move(*bytes), {}};

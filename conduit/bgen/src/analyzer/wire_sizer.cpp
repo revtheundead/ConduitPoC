@@ -117,11 +117,11 @@ private:
                     return std::nullopt;
                 } else if constexpr (std::is_same_v<T, model::Reserved>) {
                     return static_cast<size_t>(c.bits);
-                } else if constexpr (std::is_same_v<T, model::Align>) {
+                } else {
+                    static_assert(std::is_same_v<T, model::Align>);
                     all_fixed = false;
                     return std::nullopt;
                 }
-                return std::nullopt;
             }, child);
 
             if (sz) {
@@ -173,8 +173,9 @@ private:
                         auto result = compute_children_size_bits(def->children);
                         visiting_.erase(def->name);
                         return result;
+                    } else {
+                        return std::nullopt;
                     }
-                    return std::nullopt;
                 }, *resolved);
             }
             return std::nullopt;
@@ -230,7 +231,8 @@ private:
                         auto result = compute_children_size_bits(def->children);
                         visiting_.erase(def->name);
                         return result;
-                    } else if constexpr (std::is_same_v<T, model::MessageDef>) {
+                    } else {
+                        static_assert(std::is_same_v<T, model::MessageDef>);
                         // Cycle detection: if we're already computing this message, break the cycle
                         if (visiting_.count(def->name)) {
                             return std::nullopt;
@@ -240,7 +242,6 @@ private:
                         visiting_.erase(def->name);
                         return result;
                     }
-                    return std::nullopt;
                 }, *resolved);
             }
         }
@@ -289,7 +290,8 @@ private:
                             auto result = compute_children_size_bits(def->children);
                             visiting_.erase(def->name);
                             return result;
-                        } else if constexpr (std::is_same_v<T, model::MessageDef>) {
+                        } else {
+                            static_assert(std::is_same_v<T, model::MessageDef>);
                             // Cycle detection for message references
                             if (visiting_.count(def->name)) {
                                 return std::nullopt;
@@ -299,7 +301,6 @@ private:
                             visiting_.erase(def->name);
                             return result;
                         }
-                        return std::nullopt;
                     }, *resolved);
                 }
             } else {

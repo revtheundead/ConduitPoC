@@ -6,6 +6,7 @@
 #include <conduit/transceiver/transport/itransport.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <algorithm>
 #include <any>
 #include <chrono>
 #include <cstdint>
@@ -119,7 +120,7 @@ public:
         }
         auto& msg = std::any_cast<const TestMsg&>(payload);
         io::BitWriter writer;
-        msg.encode(writer);
+        (void)msg.encode(writer);
         auto bytes = writer.finish();
         if (!bytes) return std::unexpected(bytes.error());
         return traits::EncodeResult{std::move(*bytes), {}};
@@ -626,7 +627,7 @@ public:
             return std::unexpected(CONDUIT_ERROR(ErrorCode::UnknownTypeId, "Unknown type"));
         auto& msg = std::any_cast<const BatchTestMsg&>(payload);
         io::BitWriter w;
-        msg.encode(w);
+        (void)msg.encode(w);
         auto bytes = w.finish();
         if (!bytes) return std::unexpected(bytes.error());
         return traits::EncodeResult{std::move(*bytes), {}};
@@ -641,7 +642,7 @@ public:
             auto* msg = std::any_cast<BatchTestMsg>(&p);
             if (!msg)
                 return std::unexpected(CONDUIT_ERROR(ErrorCode::InvalidArgument, "type mismatch"));
-            msg->encode(w);
+            (void)msg->encode(w);
         }
         auto bytes = w.finish();
         if (!bytes) return std::unexpected(bytes.error());

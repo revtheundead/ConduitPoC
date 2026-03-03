@@ -280,8 +280,8 @@ TEST_CASE("Auto-sequence session reset resets sequence", "[roundtrip][auto_seq][
     REQUIRE(body_a_id != 0);
 
     // Advance sequence
-    session->encode_wrap(body_a_id, std::any{body});
-    session->encode_wrap(body_a_id, std::any{body});
+    (void)session->encode_wrap(body_a_id, std::any{body});
+    (void)session->encode_wrap(body_a_id, std::any{body});
 
     // Reset
     session->reset();
