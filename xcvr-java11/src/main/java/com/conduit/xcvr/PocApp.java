@@ -69,8 +69,14 @@ public class PocApp {
 
         try (Transceiver tx = new Transceiver()) {
             // Configure message logging (mirrors C++ cfg.message_log)
-            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
-                    logDir, logPrefix, null, null, null, false);
+            Transceiver.MessageLogConfig logCfg = new Transceiver.MessageLogConfig();
+            logCfg.enabled = true;
+            logCfg.mode = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+            logCfg.output = Transceiver.MessageLogOutput.FILE;
+            logCfg.directory = logDir;
+            logCfg.prefix = logPrefix;
+            logCfg.includeMessageContent = false;
+            tx.setMessageLogConfig(logCfg);
 
             // Register Java session (no protocol-specific native .so needed).
             // The passthrough session handles framing; all encode/decode is Java-side.

@@ -13,20 +13,51 @@ import os
 from collections import namedtuple
 from typing import Callable, Optional
 
-from conduit.types import TransportConfig, TransportType
+from conduit.types import (
+    TransportConfig, TransportType,
+    UdpConfig, TcpClientConfig, TcpServerConfig, SerialConfig,
+    MessageLogMode, MessageLogOutput,
+)
 
 
 # ============================================================================
 # C type definitions
 # ============================================================================
 
-_CONDUIT_TRANSPORT_CONFIG = type("_TransportConfig", (ctypes.Structure,), {
-    "_fields_": [
-        ("type", ctypes.c_int),
-        ("address", ctypes.c_char_p),
-        ("baud_rate", ctypes.c_uint32),
+class _CONDUIT_TRANSPORT_CONFIG(ctypes.Structure):
+    """Mirrors the extended conduit_transport_config_t C struct.
+
+    Fields use the "0 = use C++ default" convention.
+    reconnect_enabled: >0 = on, 0 = use default (on), <0 = off.
+    """
+    _fields_ = [
+        # Common
+        ("type",                        ctypes.c_int),
+        ("address",                     ctypes.c_char_p),
+        ("baud_rate",                   ctypes.c_uint32),
+        ("recv_buffer_size",            ctypes.c_size_t),
+        # TCP client
+        ("connect_timeout_ms",          ctypes.c_uint32),
+        ("reconnect_enabled",           ctypes.c_int),
+        ("reconnect_initial_delay_ms",  ctypes.c_uint32),
+        ("reconnect_max_delay_ms",      ctypes.c_uint32),
+        ("reconnect_backoff_multiplier",ctypes.c_double),
+        ("reconnect_max_attempts",      ctypes.c_uint32),
+        # UDP
+        ("bind_address",                ctypes.c_char_p),
+        ("bind_port",                   ctypes.c_uint16),
+        ("remote_port",                 ctypes.c_uint16),
+        ("max_datagram_size",           ctypes.c_size_t),
+        ("max_peers",                   ctypes.c_size_t),
+        ("peer_timeout_s",              ctypes.c_uint32),
+        # TCP server
+        ("max_clients",                 ctypes.c_size_t),
+        # Serial
+        ("data_bits",                   ctypes.c_uint8),
+        ("parity",                      ctypes.c_int),
+        ("stop_bits",                   ctypes.c_int),
+        ("flow_control",                ctypes.c_int),
     ]
-})
 
 # Callback types
 _MSG_CALLBACK = ctypes.CFUNCTYPE(
@@ -473,8 +504,8 @@ class Transceiver:
 
     def set_message_log_config(self, *,
                                enabled: bool = False,
-                               mode: int = 0,
-                               output: int = 0,
+                               mode=MessageLogMode.COMBINED,
+                               output=MessageLogOutput.FILE,
                                directory: str = ".",
                                prefix: str = "conduit",
                                filename: str = "",
@@ -484,20 +515,20 @@ class Transceiver:
         """Configure message logging. Must be called before start().
 
         Args:
-            enabled: Whether logging is enabled
-            mode: 0=Combined, 1=SeparateDirection, 2=PerPeer, 3=PerPeerDirection
-            output: 0=File, 1=Stdout, 2=Both
-            directory: Log file directory
-            prefix: Log file prefix
-            filename: Log filename pattern (supports {peer}, {direction})
-            sent_filename: Override for sent direction
-            received_filename: Override for received direction
-            include_message_content: Include to_string() output (has perf cost)
+            enabled:  Whether logging is enabled.
+            mode:     :class:`MessageLogMode` (or int); controls file grouping.
+            output:   :class:`MessageLogOutput` (or int); controls destination.
+            directory: Log file directory.
+            prefix:   Log file prefix.
+            filename: Log filename pattern (supports ``{peer}``, ``{direction}``).
+            sent_filename: Override for sent direction.
+            received_filename: Override for received direction.
+            include_message_content: Include ``to_string()`` output (has perf cost).
         """
         cfg = _CONDUIT_MESSAGE_LOG_CONFIG()
         cfg.enabled = 1 if enabled else 0
-        cfg.mode = mode
-        cfg.output = output
+        cfg.mode = int(mode)
+        cfg.output = int(output)
         cfg.directory = directory.encode("utf-8")
         cfg.prefix = prefix.encode("utf-8")
         cfg.filename = filename.encode("utf-8") if filename else None
@@ -636,12 +667,62 @@ class Transceiver:
         return result == test_len
 
     def add_peer(self, name: str, session_name: str,
-                 transport: TransportConfig) -> int:
-        """Add a peer to the transceiver. Returns peer ID."""
+                 transport) -> int:
+        """Add a peer to the transceiver. Returns peer ID.
+
+        Args:
+            name:         Human-readable peer name.
+            session_name: Registered session type name.
+            transport:    Transport configuration — any of :class:`UdpConfig`,
+                          :class:`TcpClientConfig`, :class:`TcpServerConfig`,
+                          :class:`SerialConfig`, or the legacy
+                          :class:`TransportConfig`.
+        """
         cfg = _CONDUIT_TRANSPORT_CONFIG()
-        cfg.type = transport.type.value
-        cfg.address = transport.address.encode("utf-8")
-        cfg.baud_rate = transport.baud_rate
+        cfg.type    = int(transport.type)
+        cfg.address = getattr(transport, "address", "") or ""
+        if cfg.address:
+            cfg.address = cfg.address.encode("utf-8")
+
+        # Common optional fields
+        cfg.recv_buffer_size = getattr(transport, "recv_buffer_size", 0) or 0
+
+        if isinstance(transport, TcpClientConfig):
+            cfg.connect_timeout_ms = transport.connect_timeout_ms
+            rp = transport.reconnect
+            if rp is None:
+                cfg.reconnect_enabled = -1   # disabled
+            elif not rp.enabled:
+                cfg.reconnect_enabled = -1   # disabled
+            else:
+                cfg.reconnect_enabled          = 1
+                cfg.reconnect_initial_delay_ms = rp.initial_delay_ms
+                cfg.reconnect_max_delay_ms     = rp.max_delay_ms
+                cfg.reconnect_backoff_multiplier = rp.backoff_multiplier
+                cfg.reconnect_max_attempts     = rp.max_attempts
+
+        elif isinstance(transport, UdpConfig):
+            if transport.bind_address:
+                cfg.bind_address = transport.bind_address.encode("utf-8")
+            cfg.bind_port         = transport.bind_port
+            cfg.remote_port       = transport.remote_port
+            cfg.max_datagram_size = transport.max_datagram_size
+            cfg.max_peers         = transport.max_peers
+            cfg.peer_timeout_s    = transport.peer_timeout_s
+
+        elif isinstance(transport, TcpServerConfig):
+            cfg.max_clients = transport.max_clients
+
+        elif isinstance(transport, SerialConfig):
+            cfg.baud_rate   = transport.baud_rate
+            cfg.data_bits   = transport.data_bits
+            cfg.parity      = int(transport.parity)
+            cfg.stop_bits   = int(transport.stop_bits)
+            cfg.flow_control = int(transport.flow_control)
+
+        elif isinstance(transport, TransportConfig):
+            # Legacy plain TransportConfig
+            cfg.baud_rate = transport.baud_rate
 
         peer_id = ctypes.c_uint32(0)
         err = self._lib.conduit_add_peer(

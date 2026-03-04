@@ -132,6 +132,66 @@ public class Transceiver implements AutoCloseable {
     }
 
     // ================================================================
+    // Message logging enums and config (mirrors C++ MessageLogMode / MessageLogOutput)
+    // ================================================================
+
+    /** Message-log grouping mode (mirrors C++ {@code MessageLogMode}). */
+    public enum MessageLogMode {
+        /** All messages in a single file. */
+        COMBINED(0),
+        /** Separate files for sent and received. */
+        SEPARATE_DIRECTION(1),
+        /** One file per peer (both directions). */
+        PER_PEER(2),
+        /** Separate sent/received files per peer. */
+        PER_PEER_DIRECTION(3);
+
+        public final int value;
+        MessageLogMode(int v) { this.value = v; }
+    }
+
+    /** Message-log output destination (mirrors C++ {@code MessageLogOutput}). */
+    public enum MessageLogOutput {
+        /** Write to log files. */
+        FILE(0),
+        /** Write to stdout. */
+        STDOUT(1),
+        /** Write to both files and stdout. */
+        BOTH(2);
+
+        public final int value;
+        MessageLogOutput(int v) { this.value = v; }
+    }
+
+    /**
+     * Message logging configuration (mirrors C++ {@code MessageLogConfig}).
+     * <p>
+     * Use with {@link #setMessageLogConfig(MessageLogConfig)}.
+     *
+     * <pre>{@code
+     * var cfg = new Transceiver.MessageLogConfig();
+     * cfg.enabled = true;
+     * cfg.mode    = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+     * cfg.output  = Transceiver.MessageLogOutput.FILE;
+     * cfg.directory = "./logs";
+     * cfg.prefix    = "poc";
+     * tx.setMessageLogConfig(cfg);
+     * }</pre>
+     */
+    public static final class MessageLogConfig {
+        public boolean        enabled                = false;
+        public MessageLogMode mode                   = MessageLogMode.COMBINED;
+        public MessageLogOutput output               = MessageLogOutput.FILE;
+        public String         directory              = ".";
+        public String         prefix                 = "conduit";
+        /** Filename pattern; supports {@code {peer}} and {@code {direction}}. */
+        public String         filename               = null;
+        public String         sentFilename           = null;
+        public String         receivedFilename       = null;
+        public boolean        includeMessageContent  = true;
+    }
+
+    // ================================================================
     // Instance state
     // ================================================================
 
@@ -208,26 +268,25 @@ public class Transceiver implements AutoCloseable {
     }
 
     /**
-     * Configure message logging. Must be called before {@link #start()}.
+     * Configure message logging using a {@link MessageLogConfig} object.
+     * Must be called before {@link #start()}.
      *
-     * @param enabled                Whether logging is enabled
-     * @param mode                   0=Combined, 1=SeparateDirection, 2=PerPeer, 3=PerPeerDirection
-     * @param output                 0=File, 1=Stdout, 2=Both
-     * @param directory              Log file directory
-     * @param prefix                 Log file prefix
-     * @param filename               Filename pattern (supports {peer}, {direction}); null for default
-     * @param sentFilename           Per-direction filename override; null for default
-     * @param receivedFilename       Per-direction filename override; null for default
-     * @param includeMessageContent  Whether to include to_string() output
+     * <pre>{@code
+     * var cfg = new Transceiver.MessageLogConfig();
+     * cfg.enabled = true;
+     * cfg.mode    = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+     * cfg.output  = Transceiver.MessageLogOutput.FILE;
+     * cfg.directory = "./logs";
+     * cfg.prefix    = "poc";
+     * tx.setMessageLogConfig(cfg);
+     * }</pre>
      */
-    public void setMessageLogConfig(boolean enabled, int mode, int output,
-                                    String directory, String prefix,
-                                    String filename, String sentFilename,
-                                    String receivedFilename,
-                                    boolean includeMessageContent) {
-        int err = binding.setMessageLogConfig(handle, enabled, mode, output,
-                directory, prefix, filename, sentFilename, receivedFilename,
-                includeMessageContent);
+    public void setMessageLogConfig(MessageLogConfig cfg) {
+        int err = binding.setMessageLogConfig(handle, cfg.enabled,
+                cfg.mode.value, cfg.output.value,
+                cfg.directory, cfg.prefix,
+                cfg.filename, cfg.sentFilename, cfg.receivedFilename,
+                cfg.includeMessageContent);
         if (err != 0) throw new ConduitError(err, "Failed to set message log config");
     }
 
@@ -290,8 +349,7 @@ public class Transceiver implements AutoCloseable {
      * @return Peer ID
      */
     public int addPeer(String name, String sessionName, TransportConfig transport) {
-        int result = binding.addPeer(handle, name, sessionName,
-            transport.type().value(), transport.address(), transport.baudRate());
+        int result = binding.addPeer(handle, name, sessionName, transport);
         if (result < 0) {
             throw new ConduitError(result, "Failed to add peer '" + name + "'");
         }

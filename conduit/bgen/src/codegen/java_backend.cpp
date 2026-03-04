@@ -3674,14 +3674,27 @@ bool JavaBackend::generate(
     while (!java_pkg.empty() && java_pkg.back() == '.') java_pkg.pop_back();
     if (java_pkg.empty()) java_pkg = "io.conduit.gen";
 
+    // Build package subdirectory path (e.g. "io.conduit.asterix" -> "io/conduit/asterix")
+    std::filesystem::path pkg_rel;
+    {
+        std::string seg;
+        for (char c : java_pkg) {
+            if (c == '.') { if (!seg.empty()) { pkg_rel /= seg; seg.clear(); } }
+            else seg += c;
+        }
+        if (!seg.empty()) pkg_rel /= seg;
+    }
+    auto pkg_dir = output_dir / pkg_rel;
+    std::filesystem::create_directories(pkg_dir);
+
     bool ok = true;
 
     // Infrastructure files
-    ok &= write_file(output_dir / "BitReader.java", generate_j_bit_reader(java_pkg));
-    ok &= write_file(output_dir / "BitWriter.java", generate_j_bit_writer(java_pkg));
-    ok &= write_file(output_dir / "ConduitCodecException.java", generate_j_exception(java_pkg));
-    ok &= write_file(output_dir / "Constants.java", generate_j_constants(protocol, java_pkg));
-    ok &= write_file(output_dir / "Protocol.java", generate_j_protocol(protocol, sessions, java_pkg));
+    ok &= write_file(pkg_dir / "BitReader.java", generate_j_bit_reader(java_pkg));
+    ok &= write_file(pkg_dir / "BitWriter.java", generate_j_bit_writer(java_pkg));
+    ok &= write_file(pkg_dir / "ConduitCodecException.java", generate_j_exception(java_pkg));
+    ok &= write_file(pkg_dir / "Constants.java", generate_j_constants(protocol, java_pkg));
+    ok &= write_file(pkg_dir / "Protocol.java", generate_j_protocol(protocol, sessions, java_pkg));
 
     int file_count = 5;
 
@@ -3841,7 +3854,7 @@ bool JavaBackend::generate(
                     tctx.dedent();
                     tctx.line("}");
                 }
-                ok &= write_file(output_dir / (name + ".java"), tctx.str());
+                ok &= write_file(pkg_dir / (name + ".java"), tctx.str());
                 file_count++;
             }
         }
@@ -3862,7 +3875,7 @@ bool JavaBackend::generate(
         JInlineNameMap name_map;
         collect_inline_types(sd.children, index, java_pkg, empty, scope_map, sd.name, inline_files, name_map);
         for (const auto& [fname, fcode] : inline_files) {
-            ok &= write_file(output_dir / fname, fcode);
+            ok &= write_file(pkg_dir / fname, fcode);
             file_count++;
         }
         std::string code;
@@ -3871,7 +3884,7 @@ bool JavaBackend::generate(
         } else {
             code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map);
         }
-        ok &= write_file(output_dir / (j_class(sd.name) + ".java"), code);
+        ok &= write_file(pkg_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
     }
 
@@ -3922,13 +3935,13 @@ bool JavaBackend::generate(
         JInlineNameMap name_map;
         collect_inline_types(md.children, index, java_pkg, tid_map, scope_map, md.name, inline_files, name_map);
         for (const auto& [fname, fcode] : inline_files) {
-            ok &= write_file(output_dir / fname, fcode);
+            ok &= write_file(pkg_dir / fname, fcode);
             file_count++;
         }
         auto mff_it = msg_frame_fields.find(md.name);
         std::vector<JFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<JFieldDef>{};
         std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields);
-        ok &= write_file(output_dir / (j_class(md.name) + ".java"), code);
+        ok &= write_file(pkg_dir / (j_class(md.name) + ".java"), code);
         file_count++;
     }
 
@@ -3936,7 +3949,7 @@ bool JavaBackend::generate(
     for (const auto& si : sessions) {
         if (si.is_frame_based && si.frame) {
             std::string code = generate_j_frame_class(si, index, java_pkg);
-            ok &= write_file(output_dir / (j_class(si.frame->name) + ".java"), code);
+            ok &= write_file(pkg_dir / (j_class(si.frame->name) + ".java"), code);
             file_count++;
         }
     }
@@ -3946,12 +3959,12 @@ bool JavaBackend::generate(
         if (si.is_frame_based && si.frame) {
             std::string code = generate_j_session_class(protocol, si, index, java_pkg);
             std::string session_name = j_class(si.frame->name) + "Session";
-            ok &= write_file(output_dir / (session_name + ".java"), code);
+            ok &= write_file(pkg_dir / (session_name + ".java"), code);
             file_count++;
         }
     }
 
-    if (ok) Logger::info("generated " + std::to_string(file_count) + " Java files in " + output_dir.string());
+    if (ok) Logger::info("generated " + std::to_string(file_count) + " Java files in " + pkg_dir.string());
     return ok;
 }
 

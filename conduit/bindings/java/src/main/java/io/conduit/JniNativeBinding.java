@@ -69,7 +69,15 @@ public final class JniNativeBinding implements NativeBinding {
     private static native int nIsRunning(long handle);
 
     private static native int nAddPeer(long handle, String name, String sessionName,
-                                       int transportType, String address, int baudRate);
+                                       int transportType, String address, long baudRate,
+                                       long recvBufferSize, long connectTimeoutMs,
+                                       int reconnectEnabled,
+                                       long reconnectInitialDelayMs, long reconnectMaxDelayMs,
+                                       double reconnectBackoffMul, long reconnectMaxAttempts,
+                                       String bindAddress, int bindPort, int remotePort,
+                                       long maxDatagramSize, long maxPeers, long peerTimeoutS,
+                                       long maxClients,
+                                       int dataBits, int parity, int stopBits, int flowControl);
     private static native int nSolePeer(long handle);
     private static native int nPeerByName(long handle, String name);
     private static native long nPeerCount(long handle);
@@ -179,8 +187,17 @@ public final class JniNativeBinding implements NativeBinding {
 
     @Override
     public int addPeer(long handle, String name, String sessionName,
-                       int transportType, String address, int baudRate) {
-        return nAddPeer(handle, name, sessionName, transportType, address, baudRate);
+                       TransportConfig transport) {
+        return nAddPeer(handle, name, sessionName,
+            transport.type().value(), transport.address(), transport.baudRate(),
+            transport.recvBufferSize(), transport.connectTimeoutMs(),
+            transport.reconnectEnabled(),
+            transport.reconnectInitialDelayMs(), transport.reconnectMaxDelayMs(),
+            transport.reconnectBackoffMul(), transport.reconnectMaxAttempts(),
+            transport.bindAddress(), transport.bindPort(), transport.remotePort(),
+            transport.maxDatagramSize(), transport.maxPeers(), transport.peerTimeoutS(),
+            transport.maxClients(),
+            transport.dataBits(), transport.parity(), transport.stopBits(), transport.flowControl());
     }
 
     @Override

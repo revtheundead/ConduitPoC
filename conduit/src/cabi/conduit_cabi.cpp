@@ -11,6 +11,7 @@
 #include <conduit/transceiver/transport/tcp_client.hpp>
 #include <conduit/transceiver/transport/tcp_server.hpp>
 #include <conduit/transceiver/transport/udp.hpp>
+#include <conduit/transceiver/transport/serial.hpp>
 #include <conduit/logging/logger.hpp>
 
 #include <cstdlib>
@@ -63,6 +64,8 @@ conduit_xcvr_error_t map_xcvr_error(const conduit::Error& err) {
 
 // Wrapper around Transceiver with C ABI state
 struct TransceiverWrapper {
+    TransceiverWrapper() = default;
+
     conduit::transceiver::Transceiver xcvr;
     uint32_t next_cb_id = 1;
 
@@ -216,11 +219,28 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
 
     switch (transport->type) {
         case CONDUIT_TRANSPORT_UDP: {
-            auto [host, port] = parse_host_port(addr);
-            if (port == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
             trans_ns::UdpConfig cfg;
-            cfg.remote_address = host;
-            cfg.remote_port = port;
+            // bind_address / bind_port override for explicit bind+remote split
+            if (transport->bind_address && transport->bind_address[0] != '\0') {
+                cfg.bind_address = transport->bind_address;
+                cfg.bind_port    = transport->bind_port;
+                // address is the remote endpoint
+                auto [rhost, rport] = parse_host_port(addr);
+                cfg.remote_address = rhost;
+                cfg.remote_port    = transport->remote_port ? transport->remote_port : rport;
+            } else {
+                // address encodes remote host:port; bind to 0.0.0.0:0 by default
+                auto [rhost, rport] = parse_host_port(addr);
+                if (rhost.empty() || rport == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+                cfg.remote_address = rhost;
+                cfg.remote_port    = rport;
+                cfg.bind_port      = transport->bind_port;
+            }
+            if (transport->recv_buffer_size)  cfg.recv_buffer_size  = transport->recv_buffer_size;
+            if (transport->max_datagram_size) cfg.max_datagram_size = transport->max_datagram_size;
+            if (transport->max_peers)         cfg.max_peers         = transport->max_peers;
+            if (transport->peer_timeout_s)
+                cfg.peer_timeout = std::chrono::seconds(transport->peer_timeout_s);
             trans = std::make_shared<trans_ns::UdpTransport>(cfg);
             break;
         }
@@ -230,6 +250,24 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             trans_ns::TcpClientConfig cfg;
             cfg.host = host;
             cfg.port = port;
+            if (transport->recv_buffer_size) cfg.recv_buffer_size = transport->recv_buffer_size;
+            if (transport->connect_timeout_ms)
+                cfg.connect_timeout = std::chrono::milliseconds(transport->connect_timeout_ms);
+            // reconnect_enabled: <0 = disabled, 0 = use default (enabled), >0 = enabled
+            if (transport->reconnect_enabled < 0) {
+                cfg.reconnect.enabled = false;
+            } else {
+                cfg.reconnect.enabled = true;
+                if (transport->reconnect_initial_delay_ms)
+                    cfg.reconnect.initial_delay =
+                        std::chrono::milliseconds(transport->reconnect_initial_delay_ms);
+                if (transport->reconnect_max_delay_ms)
+                    cfg.reconnect.max_delay =
+                        std::chrono::milliseconds(transport->reconnect_max_delay_ms);
+                if (transport->reconnect_backoff_multiplier > 0.0)
+                    cfg.reconnect.backoff_multiplier = transport->reconnect_backoff_multiplier;
+                cfg.reconnect.max_attempts = transport->reconnect_max_attempts;
+            }
             trans = std::make_shared<trans_ns::TcpClientTransport>(cfg);
             break;
         }
@@ -238,11 +276,39 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             trans_ns::TcpServerConfig cfg;
             cfg.bind_address = host.empty() ? "0.0.0.0" : host;
             cfg.port = port;
+            if (transport->max_clients)      cfg.max_clients      = transport->max_clients;
+            if (transport->recv_buffer_size) cfg.recv_buffer_size = transport->recv_buffer_size;
             trans = std::make_shared<trans_ns::TcpServerTransport>(cfg);
             break;
         }
-        case CONDUIT_TRANSPORT_SERIAL:
-            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        case CONDUIT_TRANSPORT_SERIAL: {
+            if (!transport->address || transport->address[0] == '\0')
+                return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+            trans_ns::SerialConfig cfg;
+            cfg.port      = transport->address;
+            cfg.baud_rate = transport->baud_rate ? transport->baud_rate : 9600;
+            if (transport->data_bits)    cfg.data_bits = transport->data_bits;
+            if (transport->recv_buffer_size) cfg.recv_buffer_size = transport->recv_buffer_size;
+            switch (transport->parity) {
+                case CONDUIT_SERIAL_PARITY_ODD:  cfg.parity = trans_ns::Parity::Odd;  break;
+                case CONDUIT_SERIAL_PARITY_EVEN: cfg.parity = trans_ns::Parity::Even; break;
+                default:                         cfg.parity = trans_ns::Parity::None; break;
+            }
+            switch (transport->stop_bits) {
+                case CONDUIT_SERIAL_STOP_BITS_TWO: cfg.stop_bits = trans_ns::StopBits::Two; break;
+                default:                           cfg.stop_bits = trans_ns::StopBits::One; break;
+            }
+            switch (transport->flow_control) {
+                case CONDUIT_SERIAL_FLOW_HARDWARE:
+                    cfg.flow_control = trans_ns::FlowControl::Hardware; break;
+                case CONDUIT_SERIAL_FLOW_SOFTWARE:
+                    cfg.flow_control = trans_ns::FlowControl::Software; break;
+                default:
+                    cfg.flow_control = trans_ns::FlowControl::None;     break;
+            }
+            trans = std::make_shared<trans_ns::SerialTransport>(cfg);
+            break;
+        }
     }
 
     // Query the transport to decide which add_peer overload to use.
