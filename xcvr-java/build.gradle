@@ -29,11 +29,43 @@ tasks.withType(JavaExec).configureEach {
     jvmArgs += ['--enable-preview']
 }
 
+// Code generation
+// bgen --language java writes files into <output>/<pkg>/ so the srcDirs below
+// must point to the source roots (one level above the package directory).
+// Run: ./gradlew generateCode   (requires conduit/build/bgen to exist)
+def bgenExe = System.getenv('BGEN_PATH') ?:
+    "${rootProject.projectDir}/../conduit/build/bgen"
+
+tasks.register('generateAsterix', Exec) {
+    commandLine bgenExe,
+        '--input',    "${projectDir}/asterix/asterix.bmdl.xml",
+        '--output',   "${projectDir}/asterix/generated",
+        '--language', 'java'
+    inputs.dir("${projectDir}/asterix")
+    outputs.dir("${projectDir}/asterix/generated")
+}
+
+tasks.register('generateAsterixAlt', Exec) {
+    commandLine bgenExe,
+        '--input',    "${projectDir}/asterix-alt/asterix-alt.bmdl.xml",
+        '--output',   "${projectDir}/asterix-alt/generated",
+        '--language', 'java'
+    inputs.dir("${projectDir}/asterix-alt")
+    outputs.dir("${projectDir}/asterix-alt/generated")
+}
+
+tasks.register('generateCode') {
+    dependsOn 'generateAsterix', 'generateAsterixAlt'
+    description = 'Regenerate Java sources from BMDL protocol definitions via bgen'
+}
+
 sourceSets {
     main {
         java {
             srcDirs = [
                 'src/main/java',
+                // Source roots: bgen creates the package subdir inside each of these.
+                // e.g. for package "asterix": asterix/generated/asterix/*.java
                 'asterix/generated',
                 'asterix-alt/generated',
             ]
