@@ -207,29 +207,57 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nIsRunning(JNIEnv*, jcla
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
     JNIEnv* env, jclass, jlong handle,
     jstring jname, jstring jsessionName,
-    jint transportType, jstring jaddress, jint baudRate) {
+    jint transportType, jstring jaddress, jlong baudRate,
+    jlong recvBufferSize, jlong connectTimeoutMs,
+    jint reconnectEnabled,
+    jlong reconnectInitialDelayMs, jlong reconnectMaxDelayMs,
+    jdouble reconnectBackoffMul, jlong reconnectMaxAttempts,
+    jstring jbindAddress, jint bindPort, jint remotePort,
+    jlong maxDatagramSize, jlong maxPeers, jlong peerTimeoutS,
+    jlong maxClients,
+    jint dataBits, jint parity, jint stopBits, jint flowControl) {
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
-    const char* name = env->GetStringUTFChars(jname, nullptr);
+    const char* name        = env->GetStringUTFChars(jname, nullptr);
     const char* sessionName = env->GetStringUTFChars(jsessionName, nullptr);
-    const char* address = env->GetStringUTFChars(jaddress, nullptr);
+    const char* address     = env->GetStringUTFChars(jaddress, nullptr);
+    const char* bindAddress = jbindAddress ? env->GetStringUTFChars(jbindAddress, nullptr) : nullptr;
 
-    conduit_transport_config_t cfg;
-    cfg.type = static_cast<conduit_transport_type_t>(transportType);
-    cfg.address = address;
-    cfg.baud_rate = static_cast<uint32_t>(baudRate);
+    conduit_transport_config_t cfg = {};
+    cfg.type                       = static_cast<conduit_transport_type_t>(transportType);
+    cfg.address                    = address;
+    cfg.baud_rate                  = static_cast<uint32_t>(baudRate);
+    cfg.recv_buffer_size           = static_cast<size_t>(recvBufferSize);
+    cfg.connect_timeout_ms         = static_cast<uint32_t>(connectTimeoutMs);
+    cfg.reconnect_enabled          = static_cast<int>(reconnectEnabled);
+    cfg.reconnect_initial_delay_ms = static_cast<uint32_t>(reconnectInitialDelayMs);
+    cfg.reconnect_max_delay_ms     = static_cast<uint32_t>(reconnectMaxDelayMs);
+    cfg.reconnect_backoff_multiplier = static_cast<double>(reconnectBackoffMul);
+    cfg.reconnect_max_attempts     = static_cast<uint32_t>(reconnectMaxAttempts);
+    cfg.bind_address               = bindAddress;
+    cfg.bind_port                  = static_cast<uint16_t>(bindPort);
+    cfg.remote_port                = static_cast<uint16_t>(remotePort);
+    cfg.max_datagram_size          = static_cast<size_t>(maxDatagramSize);
+    cfg.max_peers                  = static_cast<size_t>(maxPeers);
+    cfg.peer_timeout_s             = static_cast<uint32_t>(peerTimeoutS);
+    cfg.max_clients                = static_cast<size_t>(maxClients);
+    cfg.data_bits                  = static_cast<uint8_t>(dataBits);
+    cfg.parity                     = static_cast<int>(parity);
+    cfg.stop_bits                  = static_cast<int>(stopBits);
+    cfg.flow_control               = static_cast<int>(flowControl);
 
     conduit_peer_id peer_id = 0;
     int err = conduit_add_peer(
         reinterpret_cast<conduit_transceiver_t*>(handle),
         name, sessionName, &cfg, &peer_id);
 
+    if (bindAddress) env->ReleaseStringUTFChars(jbindAddress, bindAddress);
     env->ReleaseStringUTFChars(jaddress, address);
     env->ReleaseStringUTFChars(jsessionName, sessionName);
     env->ReleaseStringUTFChars(jname, name);
 
-    if (err != 0) return err; // negative error code
+    if (err != 0) return err;
     return static_cast<jint>(peer_id);
 }
 

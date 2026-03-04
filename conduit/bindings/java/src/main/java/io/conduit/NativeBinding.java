@@ -40,18 +40,15 @@ public interface NativeBinding extends AutoCloseable {
     // ================================================================
 
     /**
-     * Add a peer.
+     * Add a peer with full transport configuration.
      *
-     * @param handle       Transceiver handle
-     * @param name         Human-readable peer name
-     * @param sessionName  Registered session type name
-     * @param transportType  Transport type ordinal (UDP=0, TCP_CLIENT=1, TCP_SERVER=2, SERIAL=3)
-     * @param address      Transport address string
-     * @param baudRate     Baud rate (serial only, 0 otherwise)
+     * @param handle     Transceiver handle
+     * @param name       Human-readable peer name
+     * @param sessionName Registered session type name
+     * @param transport  Full transport configuration
      * @return peer ID, or negative error code
      */
-    int addPeer(long handle, String name, String sessionName,
-                int transportType, String address, int baudRate);
+    int addPeer(long handle, String name, String sessionName, TransportConfig transport);
 
     /**
      * Get the sole peer ID (when only one peer exists).

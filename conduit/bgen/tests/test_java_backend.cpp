@@ -54,7 +54,7 @@ static std::optional<GeneratedJava> gen_java(const std::string& fixture) {
         return std::nullopt;
 
     GeneratedJava gj;
-    for (auto& entry : fs::directory_iterator(tmp))
+    for (auto& entry : fs::recursive_directory_iterator(tmp))
         if (entry.is_regular_file())
             gj.files[entry.path().filename().string()] = read_file(entry.path());
 

@@ -21,7 +21,7 @@ import argparse
 # Ensure the asterix generated package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 
-from conduit import Transceiver, TcpClientConfig
+from conduit import Transceiver, TcpClientConfig, MessageLogMode, MessageLogOutput
 from . import random_asterix
 
 # Import generated message classes and session for handler registration
@@ -70,8 +70,8 @@ def main():
         # Configure message logging (mirrors C++ cfg.message_log)
         tx.set_message_log_config(
             enabled=True,
-            mode=1,  # SeparateDirection
-            output=0,  # File
+            mode=MessageLogMode.SEPARATE_DIRECTION,
+            output=MessageLogOutput.FILE,
             directory=args.log_dir,
             prefix=args.log_prefix,
         )

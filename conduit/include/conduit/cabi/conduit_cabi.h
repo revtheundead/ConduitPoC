@@ -52,10 +52,66 @@ typedef enum {
     CONDUIT_TRANSPORT_SERIAL
 } conduit_transport_type_t;
 
+/* Serial parity values for conduit_transport_config_t.parity */
+#define CONDUIT_SERIAL_PARITY_NONE  0
+#define CONDUIT_SERIAL_PARITY_ODD   1
+#define CONDUIT_SERIAL_PARITY_EVEN  2
+
+/* Serial stop-bits values for conduit_transport_config_t.stop_bits */
+#define CONDUIT_SERIAL_STOP_BITS_ONE 0
+#define CONDUIT_SERIAL_STOP_BITS_TWO 1
+
+/* Serial flow-control values for conduit_transport_config_t.flow_control */
+#define CONDUIT_SERIAL_FLOW_NONE     0
+#define CONDUIT_SERIAL_FLOW_HARDWARE 1
+#define CONDUIT_SERIAL_FLOW_SOFTWARE 2
+
 typedef struct {
     conduit_transport_type_t type;
-    const char* address;        /* "host:port" for TCP/UDP, device path for serial */
-    uint32_t baud_rate;         /* Serial only */
+
+    /* ------------------------------------------------------------------
+     * Common fields (all transport types)
+     * ------------------------------------------------------------------ */
+    const char* address;        /* "host:port" for TCP/UDP; device path for serial */
+    uint32_t baud_rate;         /* Serial: baud rate (0 = use default 9600) */
+    size_t recv_buffer_size;    /* 0 = use transport default (~65536 TCP/UDP, 4096 serial) */
+
+    /* ------------------------------------------------------------------
+     * TCP client: connect timeout and reconnect policy
+     * reconnect_enabled: >0 = enabled, 0 = use C++ default (enabled),
+     *                    <0 = disabled
+     * All delay/multiplier fields: 0 = use C++ default
+     * ------------------------------------------------------------------ */
+    uint32_t connect_timeout_ms;           /* 0 = use default (10000 ms) */
+    int      reconnect_enabled;            /* >0=on, 0=default(on), <0=off */
+    uint32_t reconnect_initial_delay_ms;   /* 0 = use default (1000 ms) */
+    uint32_t reconnect_max_delay_ms;       /* 0 = use default (30000 ms) */
+    double   reconnect_backoff_multiplier; /* 0.0 = use default (2.0) */
+    uint32_t reconnect_max_attempts;       /* 0 = unlimited (C++ default) */
+
+    /* ------------------------------------------------------------------
+     * UDP: explicit bind/remote split and multi-peer tuning.
+     * When bind_address/bind_port are set, address is treated as remote.
+     * ------------------------------------------------------------------ */
+    const char* bind_address;   /* NULL = "0.0.0.0" or infer from address */
+    uint16_t    bind_port;      /* 0 = ephemeral or port from address */
+    uint16_t    remote_port;    /* 0 = port from address */
+    size_t      max_datagram_size; /* 0 = use default (65507) */
+    size_t      max_peers;         /* 0 = use default (1024) */
+    uint32_t    peer_timeout_s;    /* 0 = no timeout (C++ default) */
+
+    /* ------------------------------------------------------------------
+     * TCP server
+     * ------------------------------------------------------------------ */
+    size_t max_clients;         /* 0 = use default (64) */
+
+    /* ------------------------------------------------------------------
+     * Serial: frame parameters (0 = use C++ defaults)
+     * ------------------------------------------------------------------ */
+    uint8_t data_bits;          /* 0 = use default (8) */
+    int     parity;             /* CONDUIT_SERIAL_PARITY_* (0=None, C++ default) */
+    int     stop_bits;          /* CONDUIT_SERIAL_STOP_BITS_* (0=One, C++ default) */
+    int     flow_control;       /* CONDUIT_SERIAL_FLOW_* (0=None, C++ default) */
 } conduit_transport_config_t;
 
 /* ================================================================

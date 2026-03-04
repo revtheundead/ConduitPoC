@@ -31,16 +31,61 @@ public final class PanamaNativeBinding implements NativeBinding {
         ValueLayout.ADDRESS, ValueLayout.ADDRESS);
 
     /**
-     * Layout for conduit_transport_config_t with correct padding for 64-bit.
-     * C struct: { int type; [4 bytes padding]; char* address; uint32_t baud_rate; [4 bytes padding] }
+     * Layout for the extended conduit_transport_config_t (64-bit LP64 ABI).
+     * <p>
+     * Offsets (all 64-bit systems):
+     *   0  int    type
+     *   4  (pad4)
+     *   8  char*  address
+     *  16  u32    baud_rate
+     *  20  (pad4)
+     *  24  size_t recv_buffer_size
+     *  32  u32    connect_timeout_ms
+     *  36  int    reconnect_enabled
+     *  40  u32    reconnect_initial_delay_ms
+     *  44  u32    reconnect_max_delay_ms
+     *  48  double reconnect_backoff_multiplier
+     *  56  u32    reconnect_max_attempts
+     *  60  (pad4)
+     *  64  char*  bind_address
+     *  72  u16    bind_port
+     *  74  u16    remote_port
+     *  76  (pad4)
+     *  80  size_t max_datagram_size
+     *  88  size_t max_peers
+     *  96  u32    peer_timeout_s
+     * 100  (pad4)
+     * 104  size_t max_clients
+     * 112  u8     data_bits
+     * 113  (pad3)
+     * 116  int    parity
+     * 120  int    stop_bits
+     * 124  int    flow_control
+     * Total: 128 bytes
      */
-    private static final StructLayout TRANSPORT_CONFIG_LAYOUT = MemoryLayout.structLayout(
-        ValueLayout.JAVA_INT.withName("type"),
-        MemoryLayout.paddingLayout(4),
-        ValueLayout.ADDRESS.withName("address"),
-        ValueLayout.JAVA_INT.withName("baud_rate"),
-        MemoryLayout.paddingLayout(4)
-    );
+    private static final int TRANSPORT_CONFIG_SIZE = 128;
+    // field byte offsets
+    private static final long TC_OFF_TYPE                    =   0;
+    private static final long TC_OFF_ADDRESS                 =   8;
+    private static final long TC_OFF_BAUD_RATE               =  16;
+    private static final long TC_OFF_RECV_BUFFER_SIZE        =  24;
+    private static final long TC_OFF_CONNECT_TIMEOUT_MS      =  32;
+    private static final long TC_OFF_RECONNECT_ENABLED       =  36;
+    private static final long TC_OFF_RECONNECT_INIT_DELAY_MS =  40;
+    private static final long TC_OFF_RECONNECT_MAX_DELAY_MS  =  44;
+    private static final long TC_OFF_RECONNECT_BACKOFF_MUL   =  48;
+    private static final long TC_OFF_RECONNECT_MAX_ATTEMPTS  =  56;
+    private static final long TC_OFF_BIND_ADDRESS            =  64;
+    private static final long TC_OFF_BIND_PORT               =  72;
+    private static final long TC_OFF_REMOTE_PORT             =  74;
+    private static final long TC_OFF_MAX_DATAGRAM_SIZE       =  80;
+    private static final long TC_OFF_MAX_PEERS               =  88;
+    private static final long TC_OFF_PEER_TIMEOUT_S          =  96;
+    private static final long TC_OFF_MAX_CLIENTS             = 104;
+    private static final long TC_OFF_DATA_BITS               = 112;
+    private static final long TC_OFF_PARITY                  = 116;
+    private static final long TC_OFF_STOP_BITS               = 120;
+    private static final long TC_OFF_FLOW_CONTROL            = 124;
 
     /** Layout for conduit_stats_snapshot_t: 8 uint64_t fields */
     private static final StructLayout STATS_LAYOUT = MemoryLayout.structLayout(
@@ -117,20 +162,42 @@ public final class PanamaNativeBinding implements NativeBinding {
 
     @Override
     public int addPeer(long handle, String name, String sessionName,
-                       int transportType, String address, int baudRate) {
+                       TransportConfig transport) {
         try {
-            var nameStr = arena.allocateUtf8String(name);
+            var nameStr    = arena.allocateUtf8String(name);
             var sessionStr = arena.allocateUtf8String(sessionName);
-            var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-            cfg.set(ValueLayout.JAVA_INT, 0, transportType);
-            var addrStr = arena.allocateUtf8String(address);
-            cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-            cfg.set(ValueLayout.JAVA_INT, 16, baudRate);
+            // Allocate zero-filled config struct (0 fields = use C++ defaults)
+            var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_TYPE,      transport.type().value());
+            var addrStr = arena.allocateUtf8String(transport.address());
+            cfg.set(ValueLayout.ADDRESS,     TC_OFF_ADDRESS,   addrStr);
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_BAUD_RATE, (int) transport.baudRate());
+            cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_RECV_BUFFER_SIZE,        transport.recvBufferSize());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_CONNECT_TIMEOUT_MS,      (int) transport.connectTimeoutMs());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_RECONNECT_ENABLED,       transport.reconnectEnabled());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_RECONNECT_INIT_DELAY_MS, (int) transport.reconnectInitialDelayMs());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_RECONNECT_MAX_DELAY_MS,  (int) transport.reconnectMaxDelayMs());
+            cfg.set(ValueLayout.JAVA_DOUBLE, TC_OFF_RECONNECT_BACKOFF_MUL,   transport.reconnectBackoffMul());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_RECONNECT_MAX_ATTEMPTS,  (int) transport.reconnectMaxAttempts());
+            if (transport.bindAddress() != null) {
+                var bindAddrStr = arena.allocateUtf8String(transport.bindAddress());
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_BIND_ADDRESS, bindAddrStr);
+            }
+            cfg.set(ValueLayout.JAVA_SHORT,  TC_OFF_BIND_PORT,          (short) transport.bindPort());
+            cfg.set(ValueLayout.JAVA_SHORT,  TC_OFF_REMOTE_PORT,        (short) transport.remotePort());
+            cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_DATAGRAM_SIZE,  transport.maxDatagramSize());
+            cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_PEERS,          transport.maxPeers());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_PEER_TIMEOUT_S,     (int) transport.peerTimeoutS());
+            cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_CLIENTS,        transport.maxClients());
+            cfg.set(ValueLayout.JAVA_BYTE,   TC_OFF_DATA_BITS,          (byte) transport.dataBits());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_PARITY,             transport.parity());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_STOP_BITS,          transport.stopBits());
+            cfg.set(ValueLayout.JAVA_INT,    TC_OFF_FLOW_CONTROL,       transport.flowControl());
 
             var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
             int err = (int) CabiBindings.conduit_add_peer.invokeExact(
                 MemorySegment.ofAddress(handle), nameStr, sessionStr, cfg, peerIdOut);
-            if (err != 0) return err; // negative error code
+            if (err != 0) return err;
             return peerIdOut.get(ValueLayout.JAVA_INT, 0);
         } catch (Throwable e) {
             throw new RuntimeException("addPeer failed", e);
