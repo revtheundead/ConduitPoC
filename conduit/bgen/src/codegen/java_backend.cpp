@@ -1699,6 +1699,13 @@ struct JBitmapField {
     const model::Field* source_field = nullptr;
 };
 
+// Forward declarations
+static bool j_is_protocol_type(const std::string& t);
+static void j_emit_imports(EmitContext& ctx,
+                            const std::string& codec_pkg,
+                            const std::string& pkg,
+                            const std::set<std::string>& type_names);
+
 std::string generate_j_bitmap_class(const model::StructDef& sd,
                                      const analyzer::TypeIndex& index,
                                      const std::string& pkg,
