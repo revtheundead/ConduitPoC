@@ -484,6 +484,76 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nStatsReset(
     return conduit_stats_reset(reinterpret_cast<conduit_transceiver_t*>(handle));
 }
 
+// Pre-start configuration
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetQueueConfig(
+    JNIEnv*, jclass, jlong handle, jlong capacity, jint dropPolicy,
+    jdouble backPressureThreshold) {
+
+    if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    return conduit_set_queue_config(
+        reinterpret_cast<conduit_transceiver_t*>(handle),
+        static_cast<size_t>(capacity),
+        static_cast<int>(dropPolicy),
+        static_cast<double>(backPressureThreshold));
+}
+
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetWorkerConfig(
+    JNIEnv*, jclass, jlong handle, jlong threadCount, jlong handlerTimeoutMs) {
+
+    if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    return conduit_set_worker_config(
+        reinterpret_cast<conduit_transceiver_t*>(handle),
+        static_cast<size_t>(threadCount),
+        static_cast<uint64_t>(handlerTimeoutMs));
+}
+
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetShutdownTimeout(
+    JNIEnv*, jclass, jlong handle, jlong timeoutMs) {
+
+    if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    return conduit_set_shutdown_timeout(
+        reinterpret_cast<conduit_transceiver_t*>(handle),
+        static_cast<uint64_t>(timeoutMs));
+}
+
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
+    JNIEnv* env, jclass, jlong handle,
+    jint enabled, jint mode, jint output,
+    jstring jdirectory, jstring jprefix, jstring jfilename,
+    jstring jsentFilename, jstring jreceivedFilename,
+    jint includeMessageContent) {
+
+    if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    const char* directory        = jdirectory        ? env->GetStringUTFChars(jdirectory,        nullptr) : nullptr;
+    const char* prefix           = jprefix           ? env->GetStringUTFChars(jprefix,           nullptr) : nullptr;
+    const char* filename         = jfilename         ? env->GetStringUTFChars(jfilename,         nullptr) : nullptr;
+    const char* sentFilename     = jsentFilename     ? env->GetStringUTFChars(jsentFilename,     nullptr) : nullptr;
+    const char* receivedFilename = jreceivedFilename ? env->GetStringUTFChars(jreceivedFilename, nullptr) : nullptr;
+
+    conduit_message_log_config_t cfg = {};
+    cfg.enabled                 = static_cast<int>(enabled);
+    cfg.mode                    = static_cast<int>(mode);
+    cfg.output                  = static_cast<int>(output);
+    cfg.directory               = directory;
+    cfg.prefix                  = prefix;
+    cfg.filename                = filename;
+    cfg.sent_filename           = sentFilename;
+    cfg.received_filename       = receivedFilename;
+    cfg.include_message_content = static_cast<int>(includeMessageContent);
+
+    int err = conduit_set_message_log_config(
+        reinterpret_cast<conduit_transceiver_t*>(handle), &cfg);
+
+    if (receivedFilename) env->ReleaseStringUTFChars(jreceivedFilename, receivedFilename);
+    if (sentFilename)     env->ReleaseStringUTFChars(jsentFilename,     sentFilename);
+    if (filename)         env->ReleaseStringUTFChars(jfilename,         filename);
+    if (prefix)           env->ReleaseStringUTFChars(jprefix,           prefix);
+    if (directory)        env->ReleaseStringUTFChars(jdirectory,        directory);
+
+    return err;
+}
+
 // Passthrough session registration
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSession(
     JNIEnv* env, jclass,

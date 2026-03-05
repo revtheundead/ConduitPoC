@@ -172,14 +172,10 @@ public final class CabiBindings {
         conduit_set_shutdown_timeout = lookup("conduit_set_shutdown_timeout",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
-        // conduit_set_message_log_config(xcvr, enabled, mode, output, directory, prefix, filename,
-        //                                sent_filename, received_filename, include_message_content) -> error
+        // conduit_set_message_log_config(xcvr, config*) -> error
         conduit_set_message_log_config = lookup("conduit_set_message_log_config",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.JAVA_INT));
+                ValueLayout.ADDRESS, ValueLayout.ADDRESS));
 
         // conduit_register_passthrough_session(name, frame_config, type_ids, type_names, receive_only, count) -> error
         conduit_register_passthrough_session = lookup("conduit_register_passthrough_session",
