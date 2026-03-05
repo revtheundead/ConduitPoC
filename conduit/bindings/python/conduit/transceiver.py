@@ -680,9 +680,9 @@ class Transceiver:
         """
         cfg = _CONDUIT_TRANSPORT_CONFIG()
         cfg.type    = int(transport.type)
-        cfg.address = getattr(transport, "address", "") or ""
-        if cfg.address:
-            cfg.address = cfg.address.encode("utf-8")
+        _address = getattr(transport, "address", "") or ""
+        if _address:
+            cfg.address = _address.encode("utf-8")
 
         # Common optional fields
         cfg.recv_buffer_size = getattr(transport, "recv_buffer_size", 0) or 0

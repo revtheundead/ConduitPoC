@@ -271,9 +271,10 @@ jobs:
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
       - name: Build xcvr-java11
-        run: >
-          mvn package -q -f xcvr-java11/pom.xml
-          -Dconduit.build.dir=${{ github.workspace }}/build-conduit/Release
+        shell: pwsh
+        run: |
+          $buildDir = "${{ github.workspace }}\build-conduit\Release"
+          mvn package -q -f xcvr-java11/pom.xml "-Dconduit.build.dir=$buildDir"
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         shell: pwsh
