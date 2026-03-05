@@ -198,10 +198,12 @@ jobs:
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         run: |
           BUILD_DIR=${{ github.workspace }}/build-conduit
+          JNI_LIB=$BUILD_DIR/libconduit_jni.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f xcvr-java11/pom.xml -PrunDummyPeer \
             -Dconduit.build.dir=$BUILD_DIR \
+            -Dconduit.jni.path=$JNI_LIB \
             -Dexec.appArgs="server --port 15001 --interval-ms 500" \
             > server_out.txt 2>&1 &
           SERVER_PID=$!
@@ -211,6 +213,7 @@ jobs:
           # Run PocApp client for 5 seconds
           timeout 5 mvn exec:java -f xcvr-java11/pom.xml -PrunPocApp \
             -Dconduit.build.dir=$BUILD_DIR \
+            -Dconduit.jni.path=$JNI_LIB \
             -Dexec.appArgs="127.0.0.1 15001 --interval-ms 500" \
             > client_out.txt 2>&1 || true
 
@@ -277,12 +280,14 @@ jobs:
         run: |
           # conduit_jni.dll lands in build-conduit/Release/ with MSVC
           $BuildDir = "${{ github.workspace }}\build-conduit\Release"
+          $JniLib = "$BuildDir\conduit_jni.dll"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
             -ArgumentList @(
               "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunDummyPeer",
               "-Dconduit.build.dir=$BuildDir",
+              "-Dconduit.jni.path=$JniLib",
               "-Dexec.appArgs=server --port 15001 --interval-ms 500"
             ) `
             -PassThru -NoNewWindow `
@@ -296,6 +301,7 @@ jobs:
             -ArgumentList @(
               "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunPocApp",
               "-Dconduit.build.dir=$BuildDir",
+              "-Dconduit.jni.path=$JniLib",
               "-Dexec.appArgs=127.0.0.1 15001 --interval-ms 500"
             ) `
             -PassThru -NoNewWindow `
