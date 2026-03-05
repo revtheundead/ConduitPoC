@@ -181,7 +181,7 @@ jobs:
 
       - name: Generate Java sources from BMDL
         run: |
-          BGEN=./build-conduit/bgen
+          BGEN=./build-conduit/bgen/bgen
           $BGEN --input xcvr-java11/asterix/asterix.bmdl.xml \
                 --output xcvr-java11/asterix/generated --language java
           $BGEN --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml \
@@ -257,8 +257,8 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          # With MSVC multi-config generator, bgen.exe lands in build-conduit/Release/
-          $bgen = "build-conduit/Release/bgen.exe"
+          # With MSVC multi-config generator, bgen.exe lands in build-conduit/bgen/Release/
+          $bgen = "build-conduit/bgen/Release/bgen.exe"
           & $bgen --input xcvr-java11/asterix/asterix.bmdl.xml `
                   --output xcvr-java11/asterix/generated --language java
           & $bgen --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
@@ -355,7 +355,7 @@ jobs:
 
       - name: Generate Java sources from BMDL
         run: |
-          BGEN=./conduit/build/bgen
+          BGEN=./conduit/build/bgen/bgen
           $BGEN --input xcvr-java/asterix/asterix.bmdl.xml \
                 --output xcvr-java/asterix/generated --language java
           $BGEN --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml \
@@ -430,7 +430,7 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/Release/bgen.exe"
           & $bgen --input xcvr-java/asterix/asterix.bmdl.xml `
                   --output xcvr-java/asterix/generated --language java
           & $bgen --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml `
@@ -528,7 +528,7 @@ jobs:
 
       - name: Generate Python sources from BMDL
         run: |
-          BGEN=./conduit/build/bgen
+          BGEN=./conduit/build/bgen/bgen
           $BGEN --input xcvr-python/asterix/asterix.bmdl.xml \
                 --output xcvr-python/asterix/generated --language python
           $BGEN --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml \
@@ -595,7 +595,7 @@ jobs:
       - name: Generate Python sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/Release/bgen.exe"
           & $bgen --input xcvr-python/asterix/asterix.bmdl.xml `
                   --output xcvr-python/asterix/generated --language python
           & $bgen --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
