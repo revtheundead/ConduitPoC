@@ -1,4 +1,4 @@
-name: Windows Build & Test
+name: Build & Test
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
     branches: [master, dev]
 
 jobs:
-  # ── Windows build with MSVC ────────────────────────────────────────────────
-  windows-msvc:
+  # ── C++ / Windows MSVC ─────────────────────────────────────────────────────
+  cpp-windows-msvc:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -93,8 +93,8 @@ jobs:
             exit 1
           }
 
-  # ── Windows build with MinGW (cross-compilation parity) ────────────────────
-  windows-mingw:
+  # ── C++ / Windows MinGW (cross-compilation parity) ─────────────────────────
+  cpp-windows-mingw:
     runs-on: windows-latest
 
     steps:
@@ -120,8 +120,8 @@ jobs:
       - name: Build xcvr (MinGW)
         run: cmake --build build-mingw --parallel
 
-  # ── Linux build (regression check) ────────────────────────────────────────
-  linux-gcc:
+  # ── C++ / Linux GCC ────────────────────────────────────────────────────────
+  cpp-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -145,7 +145,7 @@ jobs:
           cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
           cmake --build build-xcvr --parallel
 
-      - name: Smoke-test xcvr apps
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
           cd build-xcvr
           ./dummy_peer server --port 15000 --interval-ms 500 &
@@ -155,8 +155,8 @@ jobs:
           kill $SERVER_PID 2>/dev/null || true
           echo "Smoke test completed"
 
-  # ── Linux Java 11 / JNI smoke test ─────────────────────────────────────────
-  linux-java11-jni:
+  # ── Java 11 JNI / Linux ────────────────────────────────────────────────────
+  java11-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -229,3 +229,103 @@ jobs:
             echo "Smoke test FAILED: apps did not start properly"
             exit 1
           fi
+
+  # ── Java 11 JNI / Windows ──────────────────────────────────────────────────
+  java11-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Configure conduit (CABI + JNI + bgen)
+        run: >
+          cmake -B build-conduit -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_JNI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + JNI + bgen)
+        run: cmake --build build-conduit --config Release --parallel
+
+      - name: Generate Java sources from BMDL
+        shell: pwsh
+        run: |
+          # With MSVC multi-config generator, bgen.exe lands in build-conduit/Release/
+          $bgen = "build-conduit/Release/bgen.exe"
+          & $bgen --input xcvr-java11/asterix/asterix.bmdl.xml `
+                  --output xcvr-java11/asterix/generated --language java
+          & $bgen --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
+                  --output xcvr-java11/asterix-alt/generated --language java
+
+      - name: Install conduit-java to local Maven repo
+        run: mvn install -q -f conduit/bindings/java/pom.xml
+
+      - name: Build xcvr-java11
+        run: >
+          mvn package -q -f xcvr-java11/pom.xml
+          -Dconduit.build.dir=${{ github.workspace }}/build-conduit/Release
+
+      - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
+        shell: pwsh
+        run: |
+          # conduit_jni.dll lands in build-conduit/Release/ with MSVC
+          $BuildDir = "${{ github.workspace }}\build-conduit\Release"
+
+          # Start DummyPeer in server mode in the background
+          $server = Start-Process -FilePath "mvn" `
+            -ArgumentList @(
+              "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunDummyPeer",
+              "-Dconduit.build.dir=$BuildDir",
+              "-Dexec.appArgs=server --port 15001 --interval-ms 500"
+            ) `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 3
+
+          # Start PocApp client in background, then wait 5 seconds
+          $client = Start-Process -FilePath "mvn" `
+            -ArgumentList @(
+              "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunPocApp",
+              "-Dconduit.build.dir=$BuildDir",
+              "-Dexec.appArgs=127.0.0.1 15001 --interval-ms 500"
+            ) `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server output ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client output ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          # Verify both apps started successfully (basic smoke check)
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both Java 11 JNI apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            if ($client.HasExited) {
+              Write-Host "Client exit code: $($client.ExitCode)"
+            }
+            exit 1
+          }
