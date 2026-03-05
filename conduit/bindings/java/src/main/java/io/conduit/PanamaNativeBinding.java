@@ -466,22 +466,41 @@ public final class PanamaNativeBinding implements NativeBinding {
         }
     }
 
+    /**
+     * Layout for conduit_message_log_config_t (64-bit LP64 ABI):
+     *   0  int    enabled
+     *   4  int    mode
+     *   8  int    output
+     *  12  (pad4)
+     *  16  char*  directory
+     *  24  char*  prefix
+     *  32  char*  filename          (nullable)
+     *  40  char*  sent_filename     (nullable)
+     *  48  char*  received_filename (nullable)
+     *  56  int    include_message_content
+     *  60  (pad4)
+     * Total: 64 bytes
+     */
+    private static final int MSG_LOG_CONFIG_SIZE = 64;
+
     @Override
     public int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
                                    String directory, String prefix, String filename,
                                    String sentFilename, String receivedFilename,
                                    boolean includeMessageContent) {
         try {
-            var dirStr = arena.allocateUtf8String(directory);
-            var prefixStr = arena.allocateUtf8String(prefix);
-            var filenameStr = arena.allocateUtf8String(filename);
-            var sentFilenameStr = arena.allocateUtf8String(sentFilename);
-            var receivedFilenameStr = arena.allocateUtf8String(receivedFilename);
+            var cfg = arena.allocate(MSG_LOG_CONFIG_SIZE, 8);
+            cfg.set(ValueLayout.JAVA_INT,  0, enabled ? 1 : 0);
+            cfg.set(ValueLayout.JAVA_INT,  4, mode);
+            cfg.set(ValueLayout.JAVA_INT,  8, output);
+            cfg.set(ValueLayout.ADDRESS,  16, directory        != null ? arena.allocateUtf8String(directory)        : MemorySegment.NULL);
+            cfg.set(ValueLayout.ADDRESS,  24, prefix           != null ? arena.allocateUtf8String(prefix)           : MemorySegment.NULL);
+            cfg.set(ValueLayout.ADDRESS,  32, filename         != null ? arena.allocateUtf8String(filename)         : MemorySegment.NULL);
+            cfg.set(ValueLayout.ADDRESS,  40, sentFilename     != null ? arena.allocateUtf8String(sentFilename)     : MemorySegment.NULL);
+            cfg.set(ValueLayout.ADDRESS,  48, receivedFilename != null ? arena.allocateUtf8String(receivedFilename) : MemorySegment.NULL);
+            cfg.set(ValueLayout.JAVA_INT, 56, includeMessageContent ? 1 : 0);
             return (int) CabiBindings.conduit_set_message_log_config.invokeExact(
-                MemorySegment.ofAddress(handle), enabled ? 1 : 0, mode, output,
-                dirStr, prefixStr, filenameStr,
-                sentFilenameStr, receivedFilenameStr,
-                includeMessageContent ? 1 : 0);
+                MemorySegment.ofAddress(handle), cfg);
         } catch (Throwable e) {
             throw new RuntimeException("setMessageLogConfig failed", e);
         }
