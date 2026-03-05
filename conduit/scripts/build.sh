@@ -3,12 +3,20 @@
 # Conduit — Build Script
 #
 # Usage:
-#   ./scripts/build.sh              # Configure + build (Debug)
-#   ./scripts/build.sh --release    # Build everything (Release)
-#   ./scripts/build.sh --debug      # Build (Debug, no optimizations)
-#   ./scripts/build.sh --clean      # Wipe build dir, then configure + build
-#   ./scripts/build.sh --third-party # Build only third-party dependencies
-#   ./scripts/build.sh --test       # Run all tests after build
+#   ./scripts/build.sh              Configure + build (Debug)
+#   ./scripts/build.sh --release    Build everything (Release): enables
+#                                   examples, benchmarks, cabi, jni, java
+#   ./scripts/build.sh --debug      Build (Debug, no optimizations)
+#   ./scripts/build.sh --clean      Wipe build dir, then configure + build
+#   ./scripts/build.sh --cabi       Build CABI shared libraries
+#   ./scripts/build.sh --jni        Build JNI shared libraries (implies --cabi)
+#   ./scripts/build.sh --java       Build Java bindings via Maven (implies --jni)
+#   ./scripts/build.sh --sanitize   Enable address + undefined-behavior sanitizers
+#   ./scripts/build.sh --third-party Build only third-party dependencies
+#   ./scripts/build.sh --test       Run all tests after build
+#
+# Flags may be combined freely, e.g.:
+#   ./scripts/build.sh --debug --jni --test
 # ============================================================================
 
 set -euo pipefail
@@ -22,7 +30,12 @@ CLEAN=false
 THIRD_PARTY_ONLY=false
 BUILD_ALL=false
 RUN_TESTS=false
+BUILD_CABI=false
+BUILD_JNI=false
+BUILD_JAVA=false
+ENABLE_SANITIZERS=false
 BUILD_DIR="build"
+JAVA_BINDINGS_DIR="bindings/java"
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 # ============================================================================
@@ -32,13 +45,18 @@ JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 for arg in "$@"; do
     case "$arg" in
         --clean)       CLEAN=true ;;
-        --release)     BUILD_TYPE="Release"; BUILD_ALL=true ;;
+        --release)     BUILD_TYPE="Release"; BUILD_ALL=true
+                       BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true ;;
         --debug)       BUILD_TYPE="Debug" ;;
         --third-party) THIRD_PARTY_ONLY=true ;;
         --test)        RUN_TESTS=true ;;
+        --cabi)        BUILD_CABI=true ;;
+        --jni)         BUILD_CABI=true; BUILD_JNI=true ;;
+        --java)        BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true ;;
+        --sanitize)    ENABLE_SANITIZERS=true ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--release] [--debug] [--clean] [--third-party] [--test]"
+            echo "Usage: $0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--third-party] [--test]"
             exit 1 ;;
     esac
 done
@@ -97,6 +115,22 @@ else
     fail "No build tool found. Please install ninja-build or make."
 fi
 
+# JNI/Java toolchain checks
+if [ "$BUILD_JNI" = true ]; then
+    if ! command -v java &>/dev/null; then
+        warn "java not found — JNI build may fail if JAVA_HOME is not set"
+    else
+        echo "  java $(java -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+[^ ]*' | head -1) ... ok"
+    fi
+fi
+
+if [ "$BUILD_JAVA" = true ]; then
+    if ! command -v mvn &>/dev/null; then
+        fail "mvn not found. Please install Apache Maven to build Java bindings."
+    fi
+    echo "  mvn $(mvn --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) ... ok"
+fi
+
 # ============================================================================
 # Clean
 # ============================================================================
@@ -137,17 +171,30 @@ CMAKE_FLAGS=(
 )
 
 if [ "$BUILD_ALL" = true ]; then
-    CMAKE_FLAGS+=(
-        -DCONDUIT_BUILD_EXAMPLES=ON
-        -DCONDUIT_BUILD_BENCHMARKS=ON
-    )
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_EXAMPLES=ON -DCONDUIT_BUILD_BENCHMARKS=ON)
 else
-    CMAKE_FLAGS+=(
-        -DCONDUIT_BUILD_EXAMPLES=OFF
-        -DCONDUIT_BUILD_BENCHMARKS=OFF
-    )
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_EXAMPLES=OFF -DCONDUIT_BUILD_BENCHMARKS=OFF)
 fi
 
+if [ "$BUILD_CABI" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_CABI=ON -DCONDUIT_BUILD_CODEC_CABI=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_CABI=OFF -DCONDUIT_BUILD_CODEC_CABI=OFF)
+fi
+
+if [ "$BUILD_JNI" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JNI=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JNI=OFF)
+fi
+
+if [ "$ENABLE_SANITIZERS" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_ENABLE_SANITIZERS=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_ENABLE_SANITIZERS=OFF)
+fi
+
+# Determine whether (re)configuration is needed
 NEEDS_CONFIGURE=false
 if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
     NEEDS_CONFIGURE=true
@@ -156,23 +203,33 @@ elif [ "CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ] || \
      [ "bgen/CMakeLists.txt" -nt "$BUILD_DIR/CMakeCache.txt" ]; then
     NEEDS_CONFIGURE=true
 else
-    # Reconfigure if build type or options changed from cached values
-    CACHED_TYPE=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CMAKE_BUILD_TYPE' | cut -d= -f2)
-    CACHED_EXAMPLES=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CONDUIT_BUILD_EXAMPLES' | cut -d= -f2)
-    CACHED_BENCHMARKS=$(cmake -L -N "$BUILD_DIR" 2>/dev/null | grep 'CONDUIT_BUILD_BENCHMARKS' | cut -d= -f2)
+    _cache() { cmake -L -N "$BUILD_DIR" 2>/dev/null | grep "^$1" | cut -d= -f2; }
+    CACHED_TYPE=$(_cache CMAKE_BUILD_TYPE)
+    CACHED_EXAMPLES=$(_cache CONDUIT_BUILD_EXAMPLES)
+    CACHED_BENCHMARKS=$(_cache CONDUIT_BUILD_BENCHMARKS)
+    CACHED_CABI=$(_cache CONDUIT_BUILD_CABI)
+    CACHED_JNI=$(_cache CONDUIT_BUILD_JNI)
+    CACHED_SANITIZE=$(_cache CONDUIT_ENABLE_SANITIZERS)
 
-    if [ "$CACHED_TYPE" != "$BUILD_TYPE" ]; then
-        NEEDS_CONFIGURE=true
-    fi
-    if [ "$BUILD_ALL" = true ]; then
-        if [ "$CACHED_EXAMPLES" != "ON" ] || [ "$CACHED_BENCHMARKS" != "ON" ]; then
-            NEEDS_CONFIGURE=true
-        fi
-    else
-        if [ "$CACHED_EXAMPLES" != "OFF" ] || [ "$CACHED_BENCHMARKS" != "OFF" ]; then
-            NEEDS_CONFIGURE=true
-        fi
-    fi
+    WANT_EXAMPLES="OFF"; WANT_BENCHMARKS="OFF"
+    [ "$BUILD_ALL" = true ] && { WANT_EXAMPLES="ON"; WANT_BENCHMARKS="ON"; }
+    WANT_CABI="OFF"; WANT_JNI="OFF"
+    [ "$BUILD_CABI" = true ] && WANT_CABI="ON"
+    [ "$BUILD_JNI"  = true ] && WANT_JNI="ON"
+    WANT_SANITIZE="OFF"
+    [ "$ENABLE_SANITIZERS" = true ] && WANT_SANITIZE="ON"
+
+    for pair in \
+        "$CACHED_TYPE:$BUILD_TYPE" \
+        "$CACHED_EXAMPLES:$WANT_EXAMPLES" \
+        "$CACHED_BENCHMARKS:$WANT_BENCHMARKS" \
+        "$CACHED_CABI:$WANT_CABI" \
+        "$CACHED_JNI:$WANT_JNI" \
+        "$CACHED_SANITIZE:$WANT_SANITIZE"
+    do
+        cached="${pair%%:*}"; want="${pair##*:}"
+        if [ "$cached" != "$want" ]; then NEEDS_CONFIGURE=true; break; fi
+    done
 fi
 
 if [ "$NEEDS_CONFIGURE" = true ]; then
@@ -191,10 +248,18 @@ fi
 # ============================================================================
 
 step "Building ($BUILD_TYPE, $JOBS jobs)"
-
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" -j "$JOBS"
-
 step "Build succeeded"
+
+# ============================================================================
+# Java bindings (Maven install to local repo)
+# ============================================================================
+
+if [ "$BUILD_JAVA" = true ]; then
+    step "Building Java bindings (Maven)"
+    (cd "$JAVA_BINDINGS_DIR" && mvn install -q)
+    step "Java bindings installed to local Maven repo"
+fi
 
 # ============================================================================
 # Test (only with --test)
