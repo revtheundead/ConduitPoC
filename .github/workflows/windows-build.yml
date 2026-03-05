@@ -329,3 +329,329 @@ jobs:
             }
             exit 1
           }
+
+  # ── Java 21 Panama FFI / Linux ─────────────────────────────────────────────
+  java21-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configure conduit (CABI + bgen)
+        run: >
+          cmake -B conduit/build -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + bgen)
+        run: cmake --build conduit/build --parallel
+
+      - name: Generate Java sources from BMDL
+        run: |
+          BGEN=./conduit/build/bgen
+          $BGEN --input xcvr-java/asterix/asterix.bmdl.xml \
+                --output xcvr-java/asterix/generated --language java
+          $BGEN --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml \
+                --output xcvr-java/asterix-alt/generated --language java
+
+      - name: Install conduit-java to local Maven repo
+        run: mvn install -q -f conduit/bindings/java/pom.xml
+
+      - name: Build xcvr-java
+        run: mvn package -q -f xcvr-java/pom.xml
+
+      - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
+        run: |
+          BUILD_DIR=${{ github.workspace }}/conduit/build
+          CABI_PATH=$BUILD_DIR/libconduit_cabi.so
+
+          # Start DummyPeer in server mode in the background
+          mvn exec:java -f xcvr-java/pom.xml -PrunDummyPeer \
+            -Dconduit.build.dir=$BUILD_DIR \
+            -Dconduit.cabi.path=$CABI_PATH \
+            -Dexec.appArgs="server --port 15002 --interval-ms 500" \
+            > server_out.txt 2>&1 &
+          SERVER_PID=$!
+
+          sleep 3
+
+          # Run PocApp client for 5 seconds
+          timeout 5 mvn exec:java -f xcvr-java/pom.xml -PrunPocApp \
+            -Dconduit.build.dir=$BUILD_DIR \
+            -Dconduit.cabi.path=$CABI_PATH \
+            -Dexec.appArgs="127.0.0.1 15002 --interval-ms 500" \
+            > client_out.txt 2>&1 || true
+
+          kill $SERVER_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED: both Java 21 Panama FFI apps started successfully"
+          else
+            echo "Smoke test FAILED: apps did not start properly"
+            exit 1
+          fi
+
+  # ── Java 21 Panama FFI / Windows ───────────────────────────────────────────
+  java21-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configure conduit (CABI + bgen)
+        run: >
+          cmake -B conduit/build -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + bgen)
+        run: cmake --build conduit/build --config Release --parallel
+
+      - name: Generate Java sources from BMDL
+        shell: pwsh
+        run: |
+          $bgen = "conduit/build/Release/bgen.exe"
+          & $bgen --input xcvr-java/asterix/asterix.bmdl.xml `
+                  --output xcvr-java/asterix/generated --language java
+          & $bgen --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml `
+                  --output xcvr-java/asterix-alt/generated --language java
+
+      - name: Install conduit-java to local Maven repo
+        run: mvn install -q -f conduit/bindings/java/pom.xml
+
+      - name: Build xcvr-java
+        run: >
+          mvn package -q -f xcvr-java/pom.xml
+          -Dconduit.build.dir=${{ github.workspace }}/conduit/build/Release
+          -Dconduit.cabi.path=${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+
+      - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
+        shell: pwsh
+        run: |
+          $BuildDir = "${{ github.workspace }}\conduit\build\Release"
+          $CabiPath = "$BuildDir\conduit_cabi.dll"
+
+          # Start DummyPeer in server mode in the background
+          $server = Start-Process -FilePath "mvn" `
+            -ArgumentList @(
+              "exec:java", "-f", "xcvr-java/pom.xml", "-PrunDummyPeer",
+              "-Dconduit.build.dir=$BuildDir",
+              "-Dconduit.cabi.path=$CabiPath",
+              "-Dexec.appArgs=server --port 15002 --interval-ms 500"
+            ) `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 3
+
+          # Start PocApp client in background, then wait 5 seconds
+          $client = Start-Process -FilePath "mvn" `
+            -ArgumentList @(
+              "exec:java", "-f", "xcvr-java/pom.xml", "-PrunPocApp",
+              "-Dconduit.build.dir=$BuildDir",
+              "-Dconduit.cabi.path=$CabiPath",
+              "-Dexec.appArgs=127.0.0.1 15002 --interval-ms 500"
+            ) `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server output ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client output ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both Java 21 Panama FFI apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            if ($client.HasExited) {
+              Write-Host "Client exit code: $($client.ExitCode)"
+            }
+            exit 1
+          }
+
+  # ── Python / Linux ─────────────────────────────────────────────────────────
+  python-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Configure conduit (CABI + bgen)
+        run: >
+          cmake -B conduit/build -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + bgen)
+        run: cmake --build conduit/build --parallel
+
+      - name: Generate Python sources from BMDL
+        run: |
+          BGEN=./conduit/build/bgen
+          $BGEN --input xcvr-python/asterix/asterix.bmdl.xml \
+                --output xcvr-python/asterix/generated --language python
+          $BGEN --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml \
+                --output xcvr-python/asterix-alt/generated --language python
+
+      - name: Install conduit Python bindings and xcvr-python
+        run: |
+          pip install conduit/bindings/python/
+          pip install xcvr-python/
+
+      - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
+        env:
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/libconduit_cabi.so
+        run: |
+          cd xcvr-python
+
+          python -m src.dummy_peer server --port 15003 --interval-ms 500 \
+            > ../server_out.txt 2>&1 &
+          SERVER_PID=$!
+
+          sleep 2
+
+          timeout 5 python -m src.poc_app 127.0.0.1 15003 --interval-ms 500 \
+            > ../client_out.txt 2>&1 || true
+
+          kill $SERVER_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED: both Python apps started successfully"
+          else
+            echo "Smoke test FAILED: apps did not start properly"
+            exit 1
+          fi
+
+  # ── Python / Windows ───────────────────────────────────────────────────────
+  python-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Configure conduit (CABI + bgen)
+        run: >
+          cmake -B conduit/build -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + bgen)
+        run: cmake --build conduit/build --config Release --parallel
+
+      - name: Generate Python sources from BMDL
+        shell: pwsh
+        run: |
+          $bgen = "conduit/build/Release/bgen.exe"
+          & $bgen --input xcvr-python/asterix/asterix.bmdl.xml `
+                  --output xcvr-python/asterix/generated --language python
+          & $bgen --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
+                  --output xcvr-python/asterix-alt/generated --language python
+
+      - name: Install conduit Python bindings and xcvr-python
+        run: |
+          pip install conduit/bindings/python/
+          pip install xcvr-python/
+
+      - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
+        shell: pwsh
+        env:
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+        run: |
+          # Start DummyPeer in server mode in the background
+          $server = Start-Process -FilePath "python" `
+            -ArgumentList "-m", "src.dummy_peer", "server", "--port", "15003", "--interval-ms", "500" `
+            -WorkingDirectory "xcvr-python" `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 2
+
+          # Start PocApp client in background, then wait 5 seconds
+          $client = Start-Process -FilePath "python" `
+            -ArgumentList "-m", "src.poc_app", "127.0.0.1", "15003", "--interval-ms", "500" `
+            -WorkingDirectory "xcvr-python" `
+            -PassThru -NoNewWindow `
+            -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server output ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client output ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both Python apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            if ($client.HasExited) {
+              Write-Host "Client exit code: $($client.ExitCode)"
+            }
+            exit 1
+          }
