@@ -154,3 +154,78 @@ jobs:
           timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
           kill $SERVER_PID 2>/dev/null || true
           echo "Smoke test completed"
+
+  # ── Linux Java 11 / JNI smoke test ─────────────────────────────────────────
+  linux-java11-jni:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Configure conduit (CABI + JNI + bgen)
+        run: >
+          cmake -B build-conduit -S conduit
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_JNI=ON
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit (CABI + JNI + bgen)
+        run: cmake --build build-conduit --parallel
+
+      - name: Generate Java sources from BMDL
+        run: |
+          BGEN=./build-conduit/bgen
+          $BGEN --input xcvr-java11/asterix/asterix.bmdl.xml \
+                --output xcvr-java11/asterix/generated --language java
+          $BGEN --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml \
+                --output xcvr-java11/asterix-alt/generated --language java
+
+      - name: Install conduit-java to local Maven repo
+        run: mvn install -q -f conduit/bindings/java/pom.xml
+
+      - name: Build xcvr-java11
+        run: >
+          mvn package -q -f xcvr-java11/pom.xml
+          -Dconduit.build.dir=${{ github.workspace }}/build-conduit
+
+      - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
+        run: |
+          BUILD_DIR=${{ github.workspace }}/build-conduit
+
+          # Start DummyPeer in server mode in the background
+          mvn exec:java -f xcvr-java11/pom.xml -PrunDummyPeer \
+            -Dconduit.build.dir=$BUILD_DIR \
+            -Dexec.appArgs="server --port 15001 --interval-ms 500" \
+            > server_out.txt 2>&1 &
+          SERVER_PID=$!
+
+          sleep 3
+
+          # Run PocApp client for 5 seconds
+          timeout 5 mvn exec:java -f xcvr-java11/pom.xml -PrunPocApp \
+            -Dconduit.build.dir=$BUILD_DIR \
+            -Dexec.appArgs="127.0.0.1 15001 --interval-ms 500" \
+            > client_out.txt 2>&1 || true
+
+          kill $SERVER_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+
+          # Verify both apps started successfully (basic smoke check)
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED: both Java 11 JNI apps started successfully"
+          else
+            echo "Smoke test FAILED: apps did not start properly"
+            exit 1
+          fi
