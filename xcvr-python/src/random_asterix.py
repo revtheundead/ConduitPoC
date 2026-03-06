@@ -65,6 +65,18 @@ from generated.types import (
     Cat021ThreatTypeInd,
     Cat253StaleInd, Cat253LocalCtrl, Cat253DataIncl,
     Cat253Priority, Cat253Direction, Cat253MsgType,
+    Cat253MpDetection, Cat253MpLevel,
+    Cat253SqRxChannel, Cat253SqMsSquitter, Cat253SqM5Squitter,
+    Cat253BrBitType, Cat253BrSuccessState,
+    Cat253BrAntennaGeneral, Cat253BrAntennaScanError,
+    Cat253BrPowerSourceGeneral,
+    Cat253BrCtrlUnitGeneral, Cat253BrKbCryptoComm, Cat253BrKbRtc, Cat253BrKbHeatWarning,
+    Cat253BrBottomBandGeneral, Cat253BrTbCtrlComm, Cat253BrTbConfigUpload,
+    Cat253BrVswrGeneral, Cat253BrVswrSum, Cat253BrVswrDiff, Cat253BrVswrOmni,
+    Cat253BrAfbGeneral, Cat253BrAfbMainSynth,
+    Cat253BrAfbBitSynth, Cat253BrAfbTotalCh, Cat253BrAfbDiffCh, Cat253BrAfbOmniCh,
+    Cat253BrRfgybGeneral, Cat253BrRfgybTotalPwr, Cat253BrRfgybDiffPwr,
+    Cat253BrRfgybOmniPwr, Cat253BrRfgybHeatWarning, Cat253BrCryptoGeneral,
 )
 
 
@@ -865,6 +877,54 @@ def random_cat048(rng):
     return rec
 
 
+# -- Cat253 I100 variant helpers ------------------------------------------
+
+def rand_cat253_multipath(rng):
+    mp = Cat253Multipath()
+    mp.detection = rand_enum(rng, Cat253MpDetection)
+    mp.level = rand_enum(rng, Cat253MpLevel)
+    return mp
+
+def rand_cat253_squitter(rng):
+    sq = Cat253Squitter()
+    sq.rxChannel = rand_enum(rng, Cat253SqRxChannel)
+    sq.msSquitter = rand_enum(rng, Cat253SqMsSquitter)
+    sq.m5Squitter = rand_enum(rng, Cat253SqM5Squitter)
+    return sq
+
+def rand_cat253_bit_report(rng):
+    br = Cat253BitReport()
+    br.bitType = rand_enum(rng, Cat253BrBitType)
+    br.successState = rand_enum(rng, Cat253BrSuccessState)
+    br.antennaGeneral = rand_enum(rng, Cat253BrAntennaGeneral)
+    br.antennaScanError = rand_enum(rng, Cat253BrAntennaScanError)
+    br.powerSourceGeneral = rand_enum(rng, Cat253BrPowerSourceGeneral)
+    br.ctrlUnitGeneral = rand_enum(rng, Cat253BrCtrlUnitGeneral)
+    br.kbCryptoComm = rand_enum(rng, Cat253BrKbCryptoComm)
+    br.kbRtc = rand_enum(rng, Cat253BrKbRtc)
+    br.kbHeatWarning = rand_enum(rng, Cat253BrKbHeatWarning)
+    br.bottomBandGeneral = rand_enum(rng, Cat253BrBottomBandGeneral)
+    br.tbCtrlComm = rand_enum(rng, Cat253BrTbCtrlComm)
+    br.tbConfigUpload = rand_enum(rng, Cat253BrTbConfigUpload)
+    br.vswrGeneral = rand_enum(rng, Cat253BrVswrGeneral)
+    br.vswrSum = rand_enum(rng, Cat253BrVswrSum)
+    br.vswrDiff = rand_enum(rng, Cat253BrVswrDiff)
+    br.vswrOmni = rand_enum(rng, Cat253BrVswrOmni)
+    br.afbGeneral = rand_enum(rng, Cat253BrAfbGeneral)
+    br.afbMainSynth = rand_enum(rng, Cat253BrAfbMainSynth)
+    br.afbBitSynth = rand_enum(rng, Cat253BrAfbBitSynth)
+    br.afbTotalCh = rand_enum(rng, Cat253BrAfbTotalCh)
+    br.afbDiffCh = rand_enum(rng, Cat253BrAfbDiffCh)
+    br.afbOmniCh = rand_enum(rng, Cat253BrAfbOmniCh)
+    br.rfgybGeneral = rand_enum(rng, Cat253BrRfgybGeneral)
+    br.rfgybTotalPwr = rand_enum(rng, Cat253BrRfgybTotalPwr)
+    br.rfgybDiffPwr = rand_enum(rng, Cat253BrRfgybDiffPwr)
+    br.rfgybOmniPwr = rand_enum(rng, Cat253BrRfgybOmniPwr)
+    br.rfgybHeatWarning = rand_enum(rng, Cat253BrRfgybHeatWarning)
+    br.cryptoGeneral = rand_enum(rng, Cat253BrCryptoGeneral)
+    return br
+
+
 # -- Cat253 Record --------------------------------------------------------
 
 def random_cat253(rng):
@@ -918,11 +978,11 @@ def random_cat253(rng):
 
         i100 = Cat253RecordItemsI100()
         if variant == 0:
-            i100.payload = Cat253Multipath()
+            i100.payload = rand_cat253_multipath(rng)
         elif variant == 1:
-            i100.payload = Cat253Squitter()
+            i100.payload = rand_cat253_squitter(rng)
         else:
-            i100.payload = Cat253BitReport()
+            i100.payload = rand_cat253_bit_report(rng)
         it.i100 = i100
     elif rand_bool(rng):
         i080 = Cat253I080()

@@ -972,9 +972,9 @@ public final class RandomAsterix {
 
             Cat253RecordItemsI100 i100 = new Cat253RecordItemsI100();
             switch (variant) {
-                case 0: i100.payload = new Cat253Multipath(); break;
-                case 1: i100.payload = new Cat253Squitter(); break;
-                case 2: i100.payload = new Cat253BitReport(); break;
+                case 0: i100.payload = randCat253Multipath(rng); break;
+                case 1: i100.payload = randCat253Squitter(rng); break;
+                case 2: i100.payload = randCat253BitReport(rng); break;
             }
             it.i100 = i100;
         } else if (randBool(rng)) {
@@ -990,5 +990,55 @@ public final class RandomAsterix {
         if (randBool(rng)) it.i090 = new Cat253I090();
 
         return rec;
+    }
+
+    // -- Cat253 I100 variant helpers ------------------------------------------
+
+    private static Cat253Multipath randCat253Multipath(Random rng) {
+        Cat253Multipath mp = new Cat253Multipath();
+        mp.detection = randEnum(rng, Cat253MpDetection.class);
+        mp.level = randEnum(rng, Cat253MpLevel.class);
+        return mp;
+    }
+
+    private static Cat253Squitter randCat253Squitter(Random rng) {
+        Cat253Squitter sq = new Cat253Squitter();
+        sq.rxChannel = randEnum(rng, Cat253SqRxChannel.class);
+        sq.msSquitter = randEnum(rng, Cat253SqMsSquitter.class);
+        sq.m5Squitter = randEnum(rng, Cat253SqM5Squitter.class);
+        return sq;
+    }
+
+    private static Cat253BitReport randCat253BitReport(Random rng) {
+        Cat253BitReport br = new Cat253BitReport();
+        br.bitType = randEnum(rng, Cat253BrBitType.class);
+        br.successState = randEnum(rng, Cat253BrSuccessState.class);
+        br.antennaGeneral = randEnum(rng, Cat253BrAntennaGeneral.class);
+        br.antennaScanError = randEnum(rng, Cat253BrAntennaScanError.class);
+        br.powerSourceGeneral = randEnum(rng, Cat253BrPowerSourceGeneral.class);
+        br.ctrlUnitGeneral = randEnum(rng, Cat253BrCtrlUnitGeneral.class);
+        br.kbCryptoComm = randEnum(rng, Cat253BrKbCryptoComm.class);
+        br.kbRtc = randEnum(rng, Cat253BrKbRtc.class);
+        br.kbHeatWarning = randEnum(rng, Cat253BrKbHeatWarning.class);
+        br.bottomBandGeneral = randEnum(rng, Cat253BrBottomBandGeneral.class);
+        br.tbCtrlComm = randEnum(rng, Cat253BrTbCtrlComm.class);
+        br.tbConfigUpload = randEnum(rng, Cat253BrTbConfigUpload.class);
+        br.vswrGeneral = randEnum(rng, Cat253BrVswrGeneral.class);
+        br.vswrSum = randEnum(rng, Cat253BrVswrSum.class);
+        br.vswrDiff = randEnum(rng, Cat253BrVswrDiff.class);
+        br.vswrOmni = randEnum(rng, Cat253BrVswrOmni.class);
+        br.afbGeneral = randEnum(rng, Cat253BrAfbGeneral.class);
+        br.afbMainSynth = randEnum(rng, Cat253BrAfbMainSynth.class);
+        br.afbBitSynth = randEnum(rng, Cat253BrAfbBitSynth.class);
+        br.afbTotalCh = randEnum(rng, Cat253BrAfbTotalCh.class);
+        br.afbDiffCh = randEnum(rng, Cat253BrAfbDiffCh.class);
+        br.afbOmniCh = randEnum(rng, Cat253BrAfbOmniCh.class);
+        br.rfgybGeneral = randEnum(rng, Cat253BrRfgybGeneral.class);
+        br.rfgybTotalPwr = randEnum(rng, Cat253BrRfgybTotalPwr.class);
+        br.rfgybDiffPwr = randEnum(rng, Cat253BrRfgybDiffPwr.class);
+        br.rfgybOmniPwr = randEnum(rng, Cat253BrRfgybOmniPwr.class);
+        br.rfgybHeatWarning = randEnum(rng, Cat253BrRfgybHeatWarning.class);
+        br.cryptoGeneral = randEnum(rng, Cat253BrCryptoGeneral.class);
+        return br;
     }
 }
