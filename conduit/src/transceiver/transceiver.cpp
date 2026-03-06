@@ -107,14 +107,26 @@ VoidResult Transceiver::materialize_config_peers() {
 // ============================================================================
 
 void Transceiver::set_queue_config(QueueConfig config) {
+    if (running_.load()) {
+        LOG_ERROR("set_queue_config called while running; ignoring");
+        return;
+    }
     config_.rx_queue = std::move(config);
 }
 
 void Transceiver::set_worker_config(WorkerConfig config) {
+    if (running_.load()) {
+        LOG_ERROR("set_worker_config called while running; ignoring");
+        return;
+    }
     config_.worker = std::move(config);
 }
 
 void Transceiver::set_message_log_config(MessageLogConfig config) {
+    if (running_.load()) {
+        LOG_ERROR("set_message_log_config called while running; ignoring");
+        return;
+    }
     config_.message_log = std::move(config);
     // Recreate message log if enabled
     if (config_.message_log.enabled) {
@@ -495,14 +507,6 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
     // use-after-free if peer is erased by I/O thread after unlock.
     auto transport = ctx->transport;
 
-    // Block sending receive-only message types
-    if (ctx->session->is_receive_only(type_id)) {
-        auto name = ctx->session->type_name(type_id);
-        return std::unexpected(
-            CONDUIT_ERROR(ErrorCode::DirectionViolation,
-                          std::format("Cannot send receive-only message type '{}'", name)));
-    }
-
     // Encode via session under per-peer lock (session is not thread-safe)
     std::vector<uint8_t> encoded;
     std::string log_content;
@@ -513,6 +517,16 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
     std::string_view log_transport;
     {
         std::lock_guard ctx_lock(ctx->ctx_mutex);
+
+        // Block sending receive-only message types (under ctx_mutex to
+        // avoid racing with session->reset() on reconnect)
+        if (ctx->session->is_receive_only(type_id)) {
+            auto name = ctx->session->type_name(type_id);
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::DirectionViolation,
+                              std::format("Cannot send receive-only message type '{}'", name)));
+        }
+
         CONDUIT_TRY_ASSIGN(auto, enc,
                            ctx->session->encode_wrap(type_id, payload));
         encoded = std::move(enc.bytes);
@@ -557,13 +571,6 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
 
     auto transport = ctx->transport;
 
-    if (ctx->session->is_receive_only(type_id)) {
-        auto name = ctx->session->type_name(type_id);
-        return std::unexpected(
-            CONDUIT_ERROR(ErrorCode::DirectionViolation,
-                          std::format("Cannot send receive-only message type '{}'", name)));
-    }
-
     std::vector<uint8_t> encoded;
     std::string log_content;
     std::string log_type_name;
@@ -573,6 +580,14 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
     std::string_view log_transport;
     {
         std::lock_guard ctx_lock(ctx->ctx_mutex);
+
+        if (ctx->session->is_receive_only(type_id)) {
+            auto name = ctx->session->type_name(type_id);
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::DirectionViolation,
+                              std::format("Cannot send receive-only message type '{}'", name)));
+        }
+
         CONDUIT_TRY_ASSIGN(auto, enc,
                            ctx->session->encode_batch(type_id, payloads));
         encoded = std::move(enc.bytes);
@@ -988,12 +1003,25 @@ void Transceiver::worker_loop() {
 // ============================================================================
 
 PeerId Transceiver::next_peer_id() {
-    uint32_t id = next_peer_id_.fetch_add(1);
-    if (id == 0) {
-        LOG_WARN("PeerId counter wrapped around, skipping reserved ID 0");
-        id = next_peer_id_.fetch_add(1);
+    // Try up to 256 times to find an unused ID (handles wrap-around collisions)
+    for (int attempt = 0; attempt < 256; ++attempt) {
+        uint32_t id = next_peer_id_.fetch_add(1);
+        if (id == 0) {
+            LOG_WARN("PeerId counter wrapped around, skipping reserved ID 0");
+            continue;
+        }
+        // After wrap-around, check for collision with still-live peers.
+        // Callers that hold peers_mutex_ (handle_peer_connected) get a
+        // correct check; callers that don't (add_peer, pre-start only)
+        // have no concurrent modifications, so the check is also safe.
+        if (peer_map_.find(id) == peer_map_.end()) {
+            return PeerId{id};
+        }
+        LOG_WARNF("PeerId {} already in use after wrap-around, retrying", id);
     }
-    return PeerId{id};
+    // Extremely unlikely: 256 consecutive IDs all in use
+    LOG_ERROR("Failed to allocate unique PeerId after 256 attempts");
+    return PeerId{next_peer_id_.fetch_add(1)};
 }
 
 Transceiver::PeerContext* Transceiver::find_peer(PeerId id) {

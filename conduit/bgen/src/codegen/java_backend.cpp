@@ -90,6 +90,18 @@ std::string j_double(double v) {
     return s;
 }
 
+// Qualify bare constant names (uppercase-starting identifiers) with Constants.
+// Constants are emitted as `long` so we add an (int) cast to avoid lossy-conversion
+// errors when the value is used in int field assignments or comparisons.
+std::string j_qualify_const(const std::string& val) {
+    if (val.empty()) return val;
+    char c = val[0];
+    if (std::isalpha(static_cast<unsigned char>(c)) && std::isupper(static_cast<unsigned char>(c))) {
+        return "(int) Constants." + val;
+    }
+    return val;
+}
+
 // ============================================================================
 // Java expression codegen
 // ============================================================================
@@ -438,8 +450,8 @@ bool j_needs_int_cast(const JFieldInfo& fi) {
 }
 
 std::string j_read_expr(const JFieldInfo& fi) {
-    if (fi.wire_enc == model::WireEncoding::BCD) return "r.readBcd(" + std::to_string(fi.bits) + ")";
-    if (fi.wire_enc == model::WireEncoding::BCD_S) return "r.readBcdSigned(" + std::to_string(fi.bits) + ")";
+    if (fi.wire_enc == model::WireEncoding::BCD) return "(int) r.readBcd(" + std::to_string(fi.bits) + ")";
+    if (fi.wire_enc == model::WireEncoding::BCD_S) return "(int) r.readBcdSigned(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.readSignMagnitude(" + std::to_string(fi.bits) + ")";
     bool be = (fi.endian == model::Endian::Big);
     if (fi.is_float) {
@@ -951,10 +963,10 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else if (fi.j_type == "long") jf.init = "0L";
             else jf.init = "0";
             // Apply explicit default value from BMDL spec (matching C++/Python)
-            if (f->default_value) jf.init = *f->default_value;
+            if (f->default_value) jf.init = j_qualify_const(*f->default_value);
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
-                jf.init = *f->constraint->equals;
+                jf.init = j_qualify_const(*f->constraint->equals);
             }
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
@@ -984,6 +996,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
                              const std::string& len_ref_target = "",
+                             const model::Field* auto_len_ref_field = nullptr,
                              const JInlineNameMap& name_map = {},
                              const std::string& parent_class_name = {});
 
@@ -1096,14 +1109,14 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
         if (f.constraint->equals) {
-            ctx.line("if (" + m + " != " + *f.constraint->equals + ") throw new ConduitCodecException(\"" + f.name + " constraint violation: expected " + *f.constraint->equals + "\");");
+            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint violation: expected " + *f.constraint->equals + "\");");
         }
         if (f.constraint->max) {
-            ctx.line("if (" + m + " > " + *f.constraint->max + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
+            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
         }
         bool is_signed = fi.is_signed;
         if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
-            ctx.line("if (" + m + " < " + *f.constraint->min + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
+            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
         }
     }
 }
@@ -1561,6 +1574,7 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
                              const std::string& len_ref_target,
+                             const model::Field* auto_len_ref_field,
                              const JInlineNameMap& name_map,
                              const std::string& parent_class_name) {
     // Get the BMDL name from a StructChild
@@ -1575,10 +1589,49 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
         }, child);
     };
 
+    // Helper lambda: emit the auto-length(field) backpatch
+    auto emit_length_ref_patch = [&]() {
+        if (!auto_len_ref_field) return;
+        auto al_fi = j_resolve_field(*auto_len_ref_field, index);
+        bool be = (al_fi.endian == model::Endian::Big);
+        std::string target_field = j_field(auto_len_ref_field->auto_expr->field_ref);
+        std::string size_expr = "w.sizeBytes() - _" + target_field + "Start";
+        if (auto_len_ref_field->auto_expr->modifier.has_modifier()) {
+            auto& mod = auto_len_ref_field->auto_expr->modifier;
+            std::string op_str;
+            switch (mod.op) {
+                case model::ArithOp::Add: op_str = " + "; break;
+                case model::ArithOp::Sub: op_str = " - "; break;
+                case model::ArithOp::Mul: op_str = " * "; break;
+                case model::ArithOp::Div: op_str = " / "; break;
+                default: break;
+            }
+            if (!op_str.empty()) {
+                size_expr = "((" + size_expr + ")" + op_str +
+                            std::to_string(mod.literal) + ")";
+            }
+        }
+        if (al_fi.bits <= 8) {
+            ctx.line("w.patchU8(_lenRefPos, " + size_expr + ");");
+        } else if (al_fi.bits <= 16) {
+            ctx.line("w.patchU16(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
+        } else {
+            ctx.line("w.patchU32(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
+        }
+    };
+
+    bool is_target_active = false;
     for (const auto& child : children) {
+        std::string child_name = get_child_name(child);
+
         // auto-length(field) start marker: record position before the target child
-        if (!len_ref_target.empty() && get_child_name(child) == len_ref_target) {
+        if (!len_ref_target.empty() && child_name == len_ref_target) {
             ctx.line("int _" + j_field(len_ref_target) + "Start = w.sizeBytes();");
+            is_target_active = true;
+        } else if (is_target_active) {
+            // The previous child was the target; emit the backpatch now
+            emit_length_ref_patch();
+            is_target_active = false;
         }
 
         if (auto* f = std::get_if<model::Field>(&child)) {
@@ -1662,6 +1715,10 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             ctx.dedent();
             ctx.line("}");
         }
+    }
+    // If the target field was the last child, emit the backpatch now
+    if (is_target_active) {
+        emit_length_ref_patch();
     }
 }
 
@@ -1961,9 +2018,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
             std::string read;
             if (bf.wire_enc == model::WireEncoding::BCD) {
-                read = "r.readBcd(" + std::to_string(bf.bits) + ")";
+                read = "(int) r.readBcd(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
-                read = "r.readBcdSigned(" + std::to_string(bf.bits) + ")";
+                read = "(int) r.readBcdSigned(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 read = "r.readSignMagnitude(" + std::to_string(bf.bits) + ")";
             } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
@@ -2154,15 +2211,15 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                     ctx.line("if (" + m + " != null) {");
                     ctx.indent();
                     if (con.equals)
-                        ctx.line("if (" + m + " != " + *con.equals +
+                        ctx.line("if (" + m + " != " + j_qualify_const(*con.equals) +
                                  ") throw new ConduitCodecException(\"" + f->name +
                                  ": expected " + *con.equals + "\");");
                     if (con.max)
-                        ctx.line("if (" + m + " > " + *con.max +
+                        ctx.line("if (" + m + " > " + j_qualify_const(*con.max) +
                                  ") throw new ConduitCodecException(\"" + f->name +
                                  " exceeds max " + *con.max + "\");");
                     if (con.min && (*con.min != "0" || fi.is_signed))
-                        ctx.line("if (" + m + " < " + *con.min +
+                        ctx.line("if (" + m + " < " + j_qualify_const(*con.min) +
                                  ") throw new ConduitCodecException(\"" + f->name +
                                  " below min " + *con.min + "\");");
                     ctx.dedent();
@@ -2320,7 +2377,7 @@ std::string generate_j_class(const std::string& name,
             ctx.line("int _structStart = w.sizeBytes();");
         }
         std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
-        emit_j_encode_children(ctx, children, index, "this", len_ref_target, name_map, cn);
+        emit_j_encode_children(ctx, children, index, "this", len_ref_target, auto_len_ref_field, name_map, cn);
 
         // Backpatch auto-length (whole struct)
         if (auto_len_field) {
@@ -2351,34 +2408,8 @@ std::string generate_j_class(const std::string& name,
             }
         }
 
-        // Backpatch auto-length(field) - field-specific length
-        if (auto_len_ref_field) {
-            auto al_fi = j_resolve_field(*auto_len_ref_field, index);
-            bool be = (al_fi.endian == model::Endian::Big);
-            std::string target_field = j_field(auto_len_ref_field->auto_expr->field_ref);
-            std::string size_expr = "w.sizeBytes() - _" + target_field + "Start";
-            if (auto_len_ref_field->auto_expr->modifier.has_modifier()) {
-                std::string op_str;
-                switch (auto_len_ref_field->auto_expr->modifier.op) {
-                    case model::ArithOp::Add: op_str = " + "; break;
-                    case model::ArithOp::Sub: op_str = " - "; break;
-                    case model::ArithOp::Mul: op_str = " * "; break;
-                    case model::ArithOp::Div: op_str = " / "; break;
-                    default: break;
-                }
-                if (!op_str.empty()) {
-                    size_expr = "((" + size_expr + ")" + op_str +
-                                std::to_string(auto_len_ref_field->auto_expr->modifier.literal) + ")";
-                }
-            }
-            if (al_fi.bits <= 8) {
-                ctx.line("w.patchU8(_lenRefPos, " + size_expr + ");");
-            } else if (al_fi.bits <= 16) {
-                ctx.line("w.patchU16(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
-            } else {
-                ctx.line("w.patchU32(_lenRefPos, " + size_expr + ", " + (be ? "true" : "false") + ");");
-            }
-        }
+        // Note: auto-length(field) backpatching is now emitted inline within
+        // emit_j_encode_children, right after the target field is written.
 
         ctx.dedent();
         ctx.line("}");
@@ -2455,17 +2486,17 @@ std::string generate_j_class(const std::string& name,
                             ctx.indent();
                         }
                         if (con.equals) {
-                            ctx.line("if (" + m + " != " + *con.equals +
+                            ctx.line("if (" + m + " != " + j_qualify_const(*con.equals) +
                                      ") throw new ConduitCodecException(\"" + f->name +
                                      ": expected " + *con.equals + "\");");
                         }
                         if (con.max) {
-                            ctx.line("if (" + m + " > " + *con.max +
+                            ctx.line("if (" + m + " > " + j_qualify_const(*con.max) +
                                      ") throw new ConduitCodecException(\"" + f->name +
                                      " exceeds max " + *con.max + "\");");
                         }
                         if (con.min && (*con.min != "0" || fi.is_signed)) {
-                            ctx.line("if (" + m + " < " + *con.min +
+                            ctx.line("if (" + m + " < " + j_qualify_const(*con.min) +
                                      ") throw new ConduitCodecException(\"" + f->name +
                                      " below min " + *con.min + "\");");
                         }
@@ -2729,7 +2760,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
         for (const auto& child : frame.header_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
                 if (f->constraint && f->constraint->equals) {
-                    ctx.line("frame." + j_field(f->name) + " = " + *f->constraint->equals + ";");
+                    ctx.line("frame." + j_field(f->name) + " = " + j_qualify_const(*f->constraint->equals) + ";");
                 }
             }
         }
@@ -2787,7 +2818,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                     ctx.line(j_write_stmt("this." + j_field(f->name), fi) + ";");
                 }
             } else if (f->constraint && f->constraint->equals) {
-                ctx.line(j_write_stmt(*f->constraint->equals, fi) + ";");
+                ctx.line(j_write_stmt(j_qualify_const(*f->constraint->equals), fi) + ";");
             } else {
                 std::string val = "this." + j_field(f->name);
                 if (fi.is_enum) {
@@ -3548,7 +3579,7 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                     for (const auto& hc : si.frame->header_fields) {
                         if (auto* f = std::get_if<model::Field>(&hc)) {
                             if (f->constraint && f->constraint->equals) {
-                                ctx.line("frame." + j_field(f->name) + " = " + *f->constraint->equals + ";");
+                                ctx.line("frame." + j_field(f->name) + " = " + j_qualify_const(*f->constraint->equals) + ";");
                             }
                         }
                     }
@@ -3781,7 +3812,9 @@ bool JavaBackend::generate(
             bool is_flags = !t.flags.empty();
             bool has_scale = t.scale.has_value() || t.offset.has_value();
             bool is_string = (t.base == model::PrimitiveBase::String);
-            if (is_enum || is_flags || has_scale || is_string || t.constraint) {
+            // Generate wrapper for all type aliases (enum, flags, scaled, string,
+            // constrained, and plain integer types used as array elements).
+            {
                 std::string name = j_class(t.name);
                 // Generate individual file for this type
                 EmitContext tctx;
@@ -3913,14 +3946,14 @@ bool JavaBackend::generate(
                         tctx.indent();
                         tctx.line("long raw = r." + rd + "(" + std::to_string(t.bits) + ");");
                         if (t.constraint->equals) {
-                            tctx.line("if (raw != " + *t.constraint->equals + ") throw new ConduitCodecException(\"" + name + " constraint violation: expected " + *t.constraint->equals + "\");");
+                            tctx.line("if (raw != " + j_qualify_const(*t.constraint->equals) + ") throw new ConduitCodecException(\"" + name + " constraint violation: expected " + *t.constraint->equals + "\");");
                         }
                         if (t.constraint->max) {
-                            tctx.line("if (raw > " + *t.constraint->max + ") throw new ConduitCodecException(\"" + name + " exceeds max " + *t.constraint->max + "\");");
+                            tctx.line("if (raw > " + j_qualify_const(*t.constraint->max) + ") throw new ConduitCodecException(\"" + name + " exceeds max " + *t.constraint->max + "\");");
                         }
                         // Skip min=0 for unsigned types (always true)
                         if (t.constraint->min && (*t.constraint->min != "0" || is_signed)) {
-                            tctx.line("if (raw < " + *t.constraint->min + ") throw new ConduitCodecException(\"" + name + " below min " + *t.constraint->min + "\");");
+                            tctx.line("if (raw < " + j_qualify_const(*t.constraint->min) + ") throw new ConduitCodecException(\"" + name + " below min " + *t.constraint->min + "\");");
                         }
                         tctx.line("return new " + name + "(raw);");
                         tctx.dedent();

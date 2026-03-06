@@ -4,6 +4,50 @@ from enum import IntEnum
 from .bit_io import BitReader, BitWriter, ConstraintError, DecodeError
 
 
+class Uint8:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint8':
+        raw = r.read_bits(8)
+        return Uint8(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 8)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint8) and self._raw == o._raw
+
+
+class Uint16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint16':
+        raw = r.read_bits(16)
+        return Uint16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint16) and self._raw == o._raw
+
+
 class NameStr:
     __slots__ = ('_value',)
     WIRE_SIZE = 20

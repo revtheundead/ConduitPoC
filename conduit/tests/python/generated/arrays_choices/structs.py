@@ -35,7 +35,7 @@ class Point:
         return f'Point(x={self.x}, y={self.y})'
 
 class SubX:
-    __slots__ = ('val')
+    __slots__ = ('val',)
 
     def __init__(self) -> None:
         self.val = 0
@@ -106,6 +106,8 @@ class TypeABody:
             result.sub_body = SubX.decode(r)
         elif result.sub_type == Constants.SUB_Y:
             result.sub_body = SubY.decode(r)
+        else:
+            raise DecodeError("choice 'sub-body': no case matched switch value")
         return result
 
     @staticmethod
@@ -125,7 +127,7 @@ class TypeABody:
         return f'TypeABody(sub_type={self.sub_type}, sub_body={self.sub_body})'
 
 class TypeBBody:
-    __slots__ = ('tag')
+    __slots__ = ('tag',)
 
     def __init__(self) -> None:
         self.tag = 0
@@ -152,7 +154,7 @@ class TypeBBody:
         return f'TypeBBody(tag={self.tag})'
 
 class FallbackBody:
-    __slots__ = ('raw')
+    __slots__ = ('raw',)
 
     def __init__(self) -> None:
         self.raw = 0

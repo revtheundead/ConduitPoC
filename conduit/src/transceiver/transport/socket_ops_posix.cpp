@@ -26,7 +26,7 @@ void cleanup_networking() {
 }
 
 Result<socket_t> create_tcp_socket() {
-    int s = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int s = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
     if (s < 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
@@ -37,7 +37,7 @@ Result<socket_t> create_tcp_socket() {
 }
 
 Result<socket_t> create_udp_socket() {
-    int s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int s = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_UDP);
     if (s < 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
@@ -99,7 +99,7 @@ int get_last_error() {
 std::string error_to_string(int err) {
     char buf[256];
     // Use the XSI-compliant strerror_r which returns int
-    #if (_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE
+    #if (_POSIX_C_SOURCE >= 200112L) && !defined(_GNU_SOURCE)
     if (strerror_r(err, buf, sizeof(buf)) == 0) {
         return std::string(buf);
     }
@@ -115,7 +115,7 @@ std::string error_to_string(int err) {
 
 Result<WakePipe> create_wake_pipe() {
     int fds[2];
-    if (::pipe(fds) != 0) {
+    if (::pipe2(fds, O_CLOEXEC) != 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
                           "Failed to create pipe: " + error_to_string(errno)));

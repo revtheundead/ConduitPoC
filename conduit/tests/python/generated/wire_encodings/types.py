@@ -4,6 +4,182 @@ from enum import IntEnum
 from .bit_io import BitReader, BitWriter, ConstraintError, DecodeError
 
 
+class Uint8:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint8':
+        raw = r.read_bits(8)
+        return Uint8(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 8)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint8) and self._raw == o._raw
+
+
+class Uint16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint16':
+        raw = r.read_bits(16)
+        return Uint16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint16) and self._raw == o._raw
+
+
+class Int16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Int16':
+        raw = r.read_signed_bits(16)
+        return Int16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_signed_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Int16) and self._raw == o._raw
+
+
+class BcdAltitude:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'BcdAltitude':
+        raw = r.read_bcd(16)
+        return BcdAltitude(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bcd(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, BcdAltitude) and self._raw == o._raw
+
+
+class BcdHeading:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'BcdHeading':
+        raw = r.read_bcd_signed(13)
+        return BcdHeading(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bcd_signed(self._raw, 13)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, BcdHeading) and self._raw == o._raw
+
+
+class SignMagOffset:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'SignMagOffset':
+        raw = r.read_sign_magnitude(16)
+        return SignMagOffset(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_sign_magnitude(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, SignMagOffset) and self._raw == o._raw
+
+
+class Cb2Value:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Cb2Value':
+        raw = r.read_signed_bits(16)
+        return Cb2Value(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_signed_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Cb2Value) and self._raw == o._raw
+
+
+class BnrValue:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'BnrValue':
+        raw = r.read_bits(16)
+        return BnrValue(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, BnrValue) and self._raw == o._raw
+
+
 class BcdScaled:
     __slots__ = ('_raw',)
     SCALE = 0.1
@@ -23,11 +199,11 @@ class BcdScaled:
 
     @staticmethod
     def decode(r: BitReader) -> 'BcdScaled':
-        raw = r.read_bits(16)
+        raw = r.read_bcd(16)
         return BcdScaled(raw)
 
     def encode(self, w: BitWriter) -> None:
-        w.write_bits(self._raw, 16)
+        w.write_bcd(self._raw, 16)
 
     def __eq__(self, o: object) -> bool:
         return isinstance(o, BcdScaled) and self._raw == o._raw

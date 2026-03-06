@@ -387,10 +387,11 @@ class TestStructFeaturesExtended:
         from struct_features import ConstrainedMessage
         from struct_features.structs import GpsCoord
 
+        from struct_features.constants import Constants as SFConstants
         msg = ConstrainedMessage()
-        msg.magic = 0xBEEF
-        msg.version = 3
-        msg.value = 5000
+        msg.magic = SFConstants.MAGIC  # 0xCAFE - must match equals constraint
+        msg.version = SFConstants.VERSION  # 3 - must match equals constraint
+        msg.value = 500  # must be in range [10, 1000]
         msg.position = GpsCoord()
         msg.position.latitude = 1000
         msg.position.longitude = 2000
@@ -400,9 +401,9 @@ class TestStructFeaturesExtended:
         assert len(data) == 14
 
         msg2 = ConstrainedMessage.decode_bytes(data)
-        assert msg2.magic == 0xBEEF
-        assert msg2.version == 3
-        assert msg2.value == 5000
+        assert msg2.magic == SFConstants.MAGIC
+        assert msg2.version == SFConstants.VERSION
+        assert msg2.value == 500
         assert msg2.position.latitude == 1000
         assert msg2.position.longitude == 2000
 
@@ -495,62 +496,66 @@ class TestArraysChoicesExtended:
 
         msg = ChoiceMsg()
         msg.msg_type = 99  # neither TYPE_A nor TYPE_B
-        msg.length = 2
+        msg.length = 4  # FallbackBody = 4 bytes (u32)
         body = FallbackBody()
-        body.raw = 0x1234
+        body.raw = 0x12345678
         msg.body = body
 
         data = msg.encode_bytes()
         msg2 = ChoiceMsg.decode_bytes(data)
         assert msg2.msg_type == 99
         assert isinstance(msg2.body, FallbackBody)
-        assert msg2.body.raw == 0x1234
+        assert msg2.body.raw == 0x12345678
 
     def test_nested_choice_msg_typed_sub_x(self):
-        from arrays_choices.messages import NestedChoiceMsg, Typed, Alpha
+        from arrays_choices.messages import (
+            NestedChoiceMsg, NestedChoiceMsgTyped, NestedChoiceMsgTypedAlpha
+        )
         from arrays_choices.constants import Constants
 
         msg = NestedChoiceMsg()
         msg.msg_type = 1  # Typed
         msg.sub_type = Constants.SUB_X  # Alpha
-        msg.body = Typed()
-        msg.body.detail = Alpha()
+        msg.body = NestedChoiceMsgTyped()
+        msg.body.detail = NestedChoiceMsgTypedAlpha()
         msg.body.detail.a_val = 0xBEEF
 
         data = msg.encode_bytes()
         msg2 = NestedChoiceMsg.decode_bytes(data)
         assert msg2.msg_type == 1
         assert msg2.sub_type == Constants.SUB_X
-        assert isinstance(msg2.body, Typed)
-        assert isinstance(msg2.body.detail, Alpha)
+        assert isinstance(msg2.body, NestedChoiceMsgTyped)
+        assert isinstance(msg2.body.detail, NestedChoiceMsgTypedAlpha)
         assert msg2.body.detail.a_val == 0xBEEF
 
     def test_nested_choice_msg_simple(self):
-        from arrays_choices.messages import NestedChoiceMsg, Simple
+        from arrays_choices.messages import NestedChoiceMsg, NestedChoiceMsgSimple
 
         msg = NestedChoiceMsg()
         msg.msg_type = 2  # Simple
         msg.sub_type = 0
-        msg.body = Simple()
+        msg.body = NestedChoiceMsgSimple()
         msg.body.data = 0xCAFEBABE
 
         data = msg.encode_bytes()
         msg2 = NestedChoiceMsg.decode_bytes(data)
         assert msg2.msg_type == 2
-        assert isinstance(msg2.body, Simple)
+        assert isinstance(msg2.body, NestedChoiceMsgSimple)
         assert msg2.body.data == 0xCAFEBABE
 
     def test_deep_nested_msg_full_path(self):
-        from arrays_choices.messages import DeepNestedMsg, L1, L2, L3
+        from arrays_choices.messages import (
+            DeepNestedMsg, DeepNestedMsgL1, DeepNestedMsgL1L2, DeepNestedMsgL1L2L3
+        )
         from arrays_choices.constants import Constants
 
         msg = DeepNestedMsg()
         msg.type_a = 1
         msg.type_b = Constants.SUB_X
         msg.type_c = Constants.SUB_Y
-        msg.outer = L1()
-        msg.outer.mid = L2()
-        msg.outer.mid.inner = L3()
+        msg.outer = DeepNestedMsgL1()
+        msg.outer.mid = DeepNestedMsgL1L2()
+        msg.outer.mid.inner = DeepNestedMsgL1L2L3()
         msg.outer.mid.inner.value = 0xDEAD1234
 
         data = msg.encode_bytes()
@@ -562,16 +567,18 @@ class TestArraysChoicesExtended:
 
     def test_deep_nested_msg_no_outer(self):
         from arrays_choices.messages import DeepNestedMsg
+        from arrays_choices.bit_io import DecodeError
 
         msg = DeepNestedMsg()
-        msg.type_a = 0  # no outer choice matches
+        msg.type_a = 0  # no outer choice matches -> should raise on decode
         msg.type_b = 0
         msg.type_c = 0
 
         data = msg.encode_bytes()
-        msg2 = DeepNestedMsg.decode_bytes(data)
-        assert msg2.type_a == 0
-        assert msg2.outer is None
+        # The new codegen raises DecodeError when no choice case matches
+        import pytest
+        with pytest.raises(DecodeError, match="no case matched"):
+            DeepNestedMsg.decode_bytes(data)
 
 
 # ============================================================================
@@ -826,14 +833,14 @@ class TestConstraintModule:
         from constraints import ConstraintMsg
 
         msg = ConstraintMsg()
-        msg.magic = 0xFFFF
-        msg.percent = 100
+        msg.magic = 0xBEEF  # equals constraint - must match
+        msg.percent = 100   # max=100
         msg.deferred_val = 0xFFFF
         msg.payload = 0xFFFFFFFF
 
         data = msg.encode_bytes()
         msg2 = ConstraintMsg.decode_bytes(data)
-        assert msg2.magic == 0xFFFF
+        assert msg2.magic == 0xBEEF
         assert msg2.percent == 100
         assert msg2.deferred_val == 0xFFFF
         assert msg2.payload == 0xFFFFFFFF
@@ -842,17 +849,43 @@ class TestConstraintModule:
         from constraints import ConstraintMsg
 
         msg = ConstraintMsg()
-        msg.magic = 0
-        msg.percent = 0
+        msg.magic = 0xBEEF  # equals constraint - must match
+        msg.percent = 0     # min=0
         msg.deferred_val = 0
         msg.payload = 0
 
         data = msg.encode_bytes()
         msg2 = ConstraintMsg.decode_bytes(data)
-        assert msg2.magic == 0
+        assert msg2.magic == 0xBEEF
         assert msg2.percent == 0
         assert msg2.deferred_val == 0
         assert msg2.payload == 0
+
+    def test_constraint_msg_magic_violation(self):
+        """Decoding with wrong magic should raise ConstraintError."""
+        from constraints import ConstraintMsg
+        from constraints.bit_io import ConstraintError, BitWriter
+
+        w = BitWriter()
+        w.write_u16(0xDEAD, True)  # wrong magic
+        w.write_u8(50)
+        w.write_u16(100, True)
+        w.write_u32(0, True)
+        with pytest.raises(ConstraintError, match="magic"):
+            ConstraintMsg.decode_bytes(w.to_bytes())
+
+    def test_constraint_msg_percent_violation(self):
+        """Decoding with percent > 100 should raise ConstraintError."""
+        from constraints import ConstraintMsg
+        from constraints.bit_io import ConstraintError, BitWriter
+
+        w = BitWriter()
+        w.write_u16(0xBEEF, True)  # correct magic
+        w.write_u8(101)            # exceeds max=100
+        w.write_u16(100, True)
+        w.write_u32(0, True)
+        with pytest.raises(ConstraintError, match="percent"):
+            ConstraintMsg.decode_bytes(w.to_bytes())
 
     def test_constraint_msg_double_encode(self):
         from constraints import ConstraintMsg

@@ -9,9 +9,13 @@ class PingBody:
     TYPE_ID = 0x0ad7bb3ecc473399
     TYPE_NAME = 'PingBody'
     ID_VALUE = 1
-    __slots__ = ('timestamp')
+    __slots__ = ('sync', 'seq', 'msg_id', 'length', 'timestamp')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.seq = 0
+        self.msg_id = 0
+        self.length = 0
         self.timestamp = 0
 
     @staticmethod
@@ -33,15 +37,19 @@ class PingBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'PingBody(timestamp={self.timestamp})'
+        return f'PingBody(sync={self.sync}, seq={self.seq}, msg_id={self.msg_id}, length={self.length}, timestamp={self.timestamp})'
 
 class DataBody:
     TYPE_ID = 0x29d16b9e73f85835
     TYPE_NAME = 'DataBody'
     ID_VALUE = 2
-    __slots__ = ('channel', 'payload_a', 'payload_b')
+    __slots__ = ('sync', 'seq', 'msg_id', 'length', 'channel', 'payload_a', 'payload_b')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.seq = 0
+        self.msg_id = 0
+        self.length = 0
         self.channel = 0
         self.payload_a = 0
         self.payload_b = 0
@@ -69,15 +77,19 @@ class DataBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'DataBody(channel={self.channel}, payload_a={self.payload_a}, payload_b={self.payload_b})'
+        return f'DataBody(sync={self.sync}, seq={self.seq}, msg_id={self.msg_id}, length={self.length}, channel={self.channel}, payload_a={self.payload_a}, payload_b={self.payload_b})'
 
 class AckBody:
     TYPE_ID = 0xcc431e5e357bc2e6
     TYPE_NAME = 'AckBody'
     ID_VALUE = 3
-    __slots__ = ('acked_seq')
+    __slots__ = ('sync', 'seq', 'msg_id', 'length', 'acked_seq')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.seq = 0
+        self.msg_id = 0
+        self.length = 0
         self.acked_seq = 0
 
     @staticmethod
@@ -99,7 +111,7 @@ class AckBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'AckBody(acked_seq={self.acked_seq})'
+        return f'AckBody(sync={self.sync}, seq={self.seq}, msg_id={self.msg_id}, length={self.length}, acked_seq={self.acked_seq})'
 
 class Packet:
     __slots__ = ('sync', 'seq', 'msg_id', 'length', 'payload')
@@ -150,10 +162,22 @@ class Packet:
         _payload_r = r.sub_reader(int(result.length) - 7)
         if result.msg_id == 1:
             result.payload = PingBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.seq = result.seq
+            result.payload.msg_id = result.msg_id
+            result.payload.length = result.length
         elif result.msg_id == 2:
             result.payload = DataBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.seq = result.seq
+            result.payload.msg_id = result.msg_id
+            result.payload.length = result.length
         elif result.msg_id == 3:
             result.payload = AckBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.seq = result.seq
+            result.payload.msg_id = result.msg_id
+            result.payload.length = result.length
         return result
 
     @staticmethod

@@ -9,9 +9,10 @@ class UplinkPayload:
     TYPE_ID = 0x43eb816dac19f83e
     TYPE_NAME = 'UplinkPayload'
     ID_VALUE = 1
-    __slots__ = ('tx_data')
+    __slots__ = ('tag', 'tx_data')
 
     def __init__(self) -> None:
+        self.tag = 0
         self.tx_data = 0
 
     @staticmethod
@@ -33,15 +34,16 @@ class UplinkPayload:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'UplinkPayload(tx_data={self.tx_data})'
+        return f'UplinkPayload(tag={self.tag}, tx_data={self.tx_data})'
 
 class DownlinkPayload:
     TYPE_ID = 0x1b0d6d132ec96e89
     TYPE_NAME = 'DownlinkPayload'
     ID_VALUE = 1
-    __slots__ = ('rx_data')
+    __slots__ = ('tag', 'rx_data')
 
     def __init__(self) -> None:
+        self.tag = 0
         self.rx_data = 0
 
     @staticmethod
@@ -63,15 +65,16 @@ class DownlinkPayload:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'DownlinkPayload(rx_data={self.rx_data})'
+        return f'DownlinkPayload(tag={self.tag}, rx_data={self.rx_data})'
 
 class CommonPayload:
     TYPE_ID = 0xd99b6c6485bfb782
     TYPE_NAME = 'CommonPayload'
     ID_VALUE = 2
-    __slots__ = ('common_data')
+    __slots__ = ('tag', 'common_data')
 
     def __init__(self) -> None:
+        self.tag = 0
         self.common_data = 0
 
     @staticmethod
@@ -93,7 +96,7 @@ class CommonPayload:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'CommonPayload(common_data={self.common_data})'
+        return f'CommonPayload(tag={self.tag}, common_data={self.common_data})'
 
 class Frame:
     __slots__ = ('tag', 'payload')
@@ -130,8 +133,10 @@ class Frame:
         result.tag = r.read_u8()
         if result.tag == 1:
             result.payload = DownlinkPayload.decode(r)
+            result.payload.tag = result.tag
         elif result.tag == 2:
             result.payload = CommonPayload.decode(r)
+            result.payload.tag = result.tag
         return result
 
     @staticmethod

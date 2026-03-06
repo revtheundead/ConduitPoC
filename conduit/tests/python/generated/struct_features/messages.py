@@ -9,8 +9,8 @@ class ConstrainedMessage:
     __slots__ = ('magic', 'version', 'value', 'position')
 
     def __init__(self) -> None:
-        self.magic = 0
-        self.version = 0
+        self.magic = Constants.MAGIC
+        self.version = Constants.VERSION
         self.value = 0
         self.position = None
 
@@ -18,8 +18,12 @@ class ConstrainedMessage:
     def decode(r: 'BitReader') -> 'ConstrainedMessage':
         result = ConstrainedMessage()
         result.magic = r.read_u16(True)
+        if result.magic != Constants.MAGIC: raise ConstraintError('magic constraint violation: expected MAGIC')
         result.version = r.read_u8()
+        if result.version != Constants.VERSION: raise ConstraintError('version constraint violation: expected VERSION')
         result.value = r.read_u16(True)
+        if result.value > 1000: raise ConstraintError('value exceeds max 1000')
+        if result.value < 10: raise ConstraintError('value below min 10')
         r.skip_bits(8)
         result.position = GpsCoord.decode(r)
         return result
@@ -42,6 +46,16 @@ class ConstrainedMessage:
 
     def __repr__(self) -> str:
         return f'ConstrainedMessage(magic={self.magic}, version={self.version}, value={self.value}, position={self.position})'
+
+    def validate(self) -> None:
+        if self.magic != Constants.MAGIC:
+            raise ConstraintError('magic: expected MAGIC')
+        if self.version != Constants.VERSION:
+            raise ConstraintError('version: expected VERSION')
+        if self.value > 1000:
+            raise ConstraintError('value exceeds max 1000')
+        if self.value < 10:
+            raise ConstraintError('value below min 10')
 
 class AlignedMessage:
     __slots__ = ('flag', 'data')

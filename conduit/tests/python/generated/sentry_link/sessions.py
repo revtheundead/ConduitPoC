@@ -54,40 +54,72 @@ class FrameSession:
         try:
             frame = Frame.decode_bytes(data)
         except Exception:
-            return None
+            return []
         msg = frame.payload
         messages = [{'type_id': msg.TYPE_ID, 'type_name': msg.TYPE_NAME, 'payload': msg, 'raw': data}]
+        import sys
+        for dm in messages:
+            tid = dm['type_id']
+            if tid == 0xe2792bc0a389ea7f:
+                print(f"WARNING: Received send-only message type 'ConfigBody'", file=sys.stderr)
         return messages
 
     def encode_wrap(self, type_id: int, payload) -> Optional[dict]:
         if type_id == 0xd960403cb7f2944f:
+            _auto_fields = []
             frame = Frame.wrap(payload)
-            frame.sequence = self._seq & 255
+            _seq_val = self._seq & 255
+            frame.sequence = _seq_val
             self._seq += 1
+            _auto_fields.append(('sequence', str(_seq_val)))
+            _auto_fields.append(('msg-type', str(HeartbeatBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0x8a09fcedca7e9de3:
+            _auto_fields = []
             frame = Frame.wrap(payload)
-            frame.sequence = self._seq & 255
+            _seq_val = self._seq & 255
+            frame.sequence = _seq_val
             self._seq += 1
+            _auto_fields.append(('sequence', str(_seq_val)))
+            _auto_fields.append(('msg-type', str(SensorBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0xe2792bc0a389ea7f:
+            _auto_fields = []
             frame = Frame.wrap(payload)
-            frame.sequence = self._seq & 255
+            _seq_val = self._seq & 255
+            frame.sequence = _seq_val
             self._seq += 1
+            _auto_fields.append(('sequence', str(_seq_val)))
+            _auto_fields.append(('msg-type', str(ConfigBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0x34ebed7f49293589:
+            _auto_fields = []
             frame = Frame.wrap(payload)
-            frame.sequence = self._seq & 255
+            _seq_val = self._seq & 255
+            frame.sequence = _seq_val
             self._seq += 1
+            _auto_fields.append(('sequence', str(_seq_val)))
+            _auto_fields.append(('msg-type', str(AlertBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         else:
             return None
 
     def format_message(self, type_id: int, payload) -> str:
+        if type_id == 0xd960403cb7f2944f:
+            return repr(payload)
+        elif type_id == 0x8a09fcedca7e9de3:
+            return repr(payload)
+        elif type_id == 0xe2792bc0a389ea7f:
+            return repr(payload)
+        elif type_id == 0x34ebed7f49293589:
+            return repr(payload)
+        return ''
+
+    def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:
         if type_id == 0xd960403cb7f2944f:
             return repr(payload)
         elif type_id == 0x8a09fcedca7e9de3:

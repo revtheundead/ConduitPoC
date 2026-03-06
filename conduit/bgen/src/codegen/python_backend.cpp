@@ -94,6 +94,18 @@ std::string py_field(std::string_view name) {
     return s;
 }
 
+// Qualify bare constant names with Constants. prefix
+// e.g. "MAGIC" -> "Constants.MAGIC", "0xBEEF" -> "0xBEEF", "42" -> "42"
+std::string py_qualify_const(const std::string& val) {
+    if (val.empty()) return val;
+    // Check if it looks like a constant name (starts with upper-case letter)
+    char c = val[0];
+    if (std::isalpha(static_cast<unsigned char>(c)) && std::isupper(static_cast<unsigned char>(c))) {
+        return "Constants." + val;
+    }
+    return val;
+}
+
 std::string py_hex64(uint64_t v) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "0x%016llx", static_cast<unsigned long long>(v));
@@ -1033,7 +1045,9 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.dedent();
             ctx.dedent();
             ctx.line();
-        } else if (t.constraint) {
+        } else if (t.constraint || (!is_enum && !is_flags && !has_scale && !is_string)) {
+            // Constrained type alias OR plain integer wrapper (e.g. uint16 -> Uint16)
+            // Both need decode()/encode() so they can be used as array element types.
             std::string name = py_class(t.name);
             ctx.line();
             ctx.line("class " + name + ":");
@@ -1051,12 +1065,12 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
             ctx.line("raw = " + py_type_read_expr(t, is_signed));
-            if (t.constraint->equals)
-                ctx.line("if raw != " + *t.constraint->equals + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
-            if (t.constraint->max)
-                ctx.line("if raw > " + *t.constraint->max + ": raise ConstraintError('" + name + " exceeds max')");
-            if (t.constraint->min && (*t.constraint->min != "0" || is_signed))
-                ctx.line("if raw < " + *t.constraint->min + ": raise ConstraintError('" + name + " below min')");
+            if (t.constraint && t.constraint->equals)
+                ctx.line("if raw != " + py_qualify_const(*t.constraint->equals) + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
+            if (t.constraint && t.constraint->max)
+                ctx.line("if raw > " + py_qualify_const(*t.constraint->max) + ": raise ConstraintError('" + name + " exceeds max')");
+            if (t.constraint && t.constraint->min && (*t.constraint->min != "0" || is_signed))
+                ctx.line("if raw < " + py_qualify_const(*t.constraint->min) + ": raise ConstraintError('" + name + " below min')");
             ctx.line("return " + name + "(raw)");
             ctx.dedent();
             ctx.line();
@@ -1171,6 +1185,8 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                              const std::string& parent_class_name = {});
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             const std::string& len_ref_target = {},
+                             const model::Field* auto_len_ref_field = nullptr,
                              const PyInlineNameMap& name_map = {},
                              const std::string& parent_class_name = {});
 
@@ -1278,14 +1294,14 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
         if (f.constraint->equals) {
-            ctx.line("if " + m + " != " + *f.constraint->equals + ": raise ConstraintError('" + f.name + " constraint violation: expected " + *f.constraint->equals + "')");
+            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError('" + f.name + " constraint violation: expected " + *f.constraint->equals + "')");
         }
         if (f.constraint->max) {
-            ctx.line("if " + m + " > " + *f.constraint->max + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
         }
         bool is_signed = fi.is_signed;
         if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
-            ctx.line("if " + m + " < " + *f.constraint->min + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
+            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
         }
     }
 }
@@ -1660,8 +1676,9 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
                     ctx.indent(); ctx.line("w.write_bytes(" + m + ")"); ctx.dedent();
                 }
             } else if (fi.has_scale) {
-                // Scaled: use 0.0 when absent
-                std::string val = m + " if " + m + " is not None else 0.0";
+                // Scaled: use 0.0 when absent (parenthesize the ternary to avoid
+                // operator precedence issues with offset subtraction)
+                std::string val = "(" + m + " if " + m + " is not None else 0.0)";
                 std::string inv = val;
                 if (fi.offset != 0.0) inv = "(" + inv + " - " + py_double(fi.offset) + ")";
                 if (fi.scale != 1.0) inv = "(" + inv + " / " + py_double(fi.scale) + ")";
@@ -1713,9 +1730,65 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
 
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             const std::string& len_ref_target,
+                             const model::Field* auto_len_ref_field,
                              const PyInlineNameMap& name_map,
                              const std::string& parent_class_name) {
+    // Helper lambda: get BMDL name from a StructChild
+    auto get_child_name = [](const model::StructChild& c) -> std::string {
+        if (auto* f = std::get_if<model::Field>(&c)) return f->name;
+        if (auto* sd = std::get_if<model::StructDef>(&c)) return sd->name;
+        if (auto* ad = std::get_if<model::ArrayDef>(&c)) return ad->name;
+        if (auto* cd = std::get_if<model::ChoiceDef>(&c)) return cd->name;
+        return {};
+    };
+
+    // Helper lambda: emit the auto-length(field) backpatch after the target field
+    auto emit_length_ref_patch = [&]() {
+        if (!auto_len_ref_field) return;
+        auto al_fi = py_resolve_field(*auto_len_ref_field, index);
+        bool be = (al_fi.endian == model::Endian::Big);
+        std::string target_py = py_field(auto_len_ref_field->auto_expr->field_ref);
+        std::string size_expr = "w.size_bytes() - _" + target_py + "_start";
+        if (auto_len_ref_field->auto_expr->modifier.has_modifier()) {
+            auto& mod = auto_len_ref_field->auto_expr->modifier;
+            switch (mod.op) {
+                case model::ArithOp::Add:
+                    size_expr = "(" + size_expr + " + " + std::to_string(mod.literal) + ")";
+                    break;
+                case model::ArithOp::Sub:
+                    size_expr = "(" + size_expr + " - " + std::to_string(mod.literal) + ")";
+                    break;
+                case model::ArithOp::Mul:
+                    size_expr = "(" + size_expr + " * " + std::to_string(mod.literal) + ")";
+                    break;
+                case model::ArithOp::Div:
+                    size_expr = "(" + size_expr + " // " + std::to_string(mod.literal) + ")";
+                    break;
+                default: break;
+            }
+        }
+        if (al_fi.bits <= 8) ctx.line("w.patch_u8(_len_pos, " + size_expr + ")");
+        else if (al_fi.bits <= 16) ctx.line("w.patch_u16(_len_pos, " + size_expr + ", " +
+            std::string(be ? "True" : "False") + ")");
+        else ctx.line("w.patch_u32(_len_pos, " + size_expr + ", " +
+            std::string(be ? "True" : "False") + ")");
+    };
+
+    bool is_target_active = false;
     for (const auto& child : children) {
+        std::string child_name = get_child_name(child);
+
+        // auto-length(field) start marker: record position before the target child
+        if (!len_ref_target.empty() && child_name == len_ref_target) {
+            ctx.line("_" + py_field(len_ref_target) + "_start = w.size_bytes()");
+            is_target_active = true;
+        } else if (is_target_active) {
+            // The previous child was the target field; emit the backpatch now
+            emit_length_ref_patch();
+            is_target_active = false;
+        }
+
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
@@ -1762,6 +1835,10 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             }
             ctx.dedent();
         }
+    }
+    // If the target field was the last child, emit the backpatch now
+    if (is_target_active) {
+        emit_length_ref_patch();
     }
 }
 
@@ -1810,11 +1887,13 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
                 // Enum fields: qualify bare value name with type prefix
                 if (fi.is_enum && !f->type_ref.empty()) {
                     pf.default_val = py_class(f->type_ref) + "." + py_enum_val(pf.default_val);
+                } else {
+                    pf.default_val = py_qualify_const(pf.default_val);
                 }
             }
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
-                pf.default_val = *f->constraint->equals;
+                pf.default_val = py_qualify_const(*f->constraint->equals);
             }
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
@@ -2297,19 +2376,19 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                     ctx.line("if " + m + " is not None:");
                     ctx.indent();
                     if (con.equals) {
-                        ctx.line("if " + m + " != " + *con.equals + ":");
+                        ctx.line("if " + m + " != " + py_qualify_const(*con.equals) + ":");
                         ctx.indent();
                         ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
                         ctx.dedent();
                     }
                     if (con.max) {
-                        ctx.line("if " + m + " > " + *con.max + ":");
+                        ctx.line("if " + m + " > " + py_qualify_const(*con.max) + ":");
                         ctx.indent();
                         ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
                         ctx.dedent();
                     }
                     if (con.min && (*con.min != "0" || fi.is_signed)) {
-                        ctx.line("if " + m + " < " + *con.min + ":");
+                        ctx.line("if " + m + " < " + py_qualify_const(*con.min) + ":");
                         ctx.indent();
                         ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
                         ctx.dedent();
@@ -2414,19 +2493,23 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     else {
         // Check for auto-length fields; if present, record struct start position
         bool has_auto_length = false;
+        const model::Field* auto_len_ref_field = nullptr;
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length
-                    && f->auto_expr->field_ref.empty()) {
-                    has_auto_length = true;
-                    break;
+                if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Length) {
+                    if (f->auto_expr->field_ref.empty()) {
+                        has_auto_length = true;
+                    } else {
+                        auto_len_ref_field = f;
+                    }
                 }
             }
         }
         if (has_auto_length) {
             ctx.line("_struct_start = w.size_bytes()");
         }
-        emit_py_encode_children(ctx, children, index, "self", name_map, cn);
+        std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
+        emit_py_encode_children(ctx, children, index, "self", len_ref_target, auto_len_ref_field, name_map, cn);
         // Auto-length backpatching (struct-level only: auto="length" with no field_ref)
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
@@ -2462,6 +2545,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                 }
             }
         }
+        // Note: auto-length(field) backpatching is emitted inline within
+        // emit_py_encode_children, right after the target field is written.
     }
     ctx.dedent();
     ctx.line();
@@ -2544,19 +2629,19 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                             ctx.indent();
                         }
                         if (con.equals) {
-                            ctx.line("if " + m + " != " + *con.equals + ":");
+                            ctx.line("if " + m + " != " + py_qualify_const(*con.equals) + ":");
                             ctx.indent();
                             ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
                             ctx.dedent();
                         }
                         if (con.max) {
-                            ctx.line("if " + m + " > " + *con.max + ":");
+                            ctx.line("if " + m + " > " + py_qualify_const(*con.max) + ":");
                             ctx.indent();
                             ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
                             ctx.dedent();
                         }
                         if (con.min && (*con.min != "0" || fi.is_signed)) {
-                            ctx.line("if " + m + " < " + *con.min + ":");
+                            ctx.line("if " + m + " < " + py_qualify_const(*con.min) + ":");
                             ctx.indent();
                             ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
                             ctx.dedent();

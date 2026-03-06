@@ -84,5 +84,5 @@ class AllTypesMessage:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'AllTypesMessage(u8={self.u8}, u16={self.u16}, u32={self.u32}, u64={self.u64}, i8={self.i8}, i16={self.i16}, i32={self.i32}, f32={self.f32}, f64={self.f64}, flag={self.flag}, ascii={self.ascii}, utf8={self.utf8}, raw={self.raw}, le16={self.le16}, le32={self.le32}, temp={self.temp}, hex={self.hex}, color={self.color}, status={self.status})'
+        return f'AllTypesMessage(u8={self.u8}, u16={self.u16}, u32={self.u32}, u64={self.u64}, i8={self.i8}, i16={self.i16}, i32={self.i32}, f32={self.f32}, f64={self.f64}, flag={self.flag}, ascii={self.ascii}, utf8={self.utf8}, raw={self.raw}, le16={self.le16}, le32={self.le32}, temp={self.temp}, hex={hex(self.hex)}, color={self.color}, status={self.status})'
 

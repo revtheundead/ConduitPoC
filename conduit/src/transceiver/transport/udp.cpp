@@ -34,7 +34,11 @@ struct AddrHash {
     size_t operator()(const sockaddr_in& a) const noexcept {
         auto h1 = std::hash<uint32_t>{}(a.sin_addr.s_addr);
         auto h2 = std::hash<uint16_t>{}(a.sin_port);
-        return h1 ^ (h2 << 16);
+        // Use a proper hash combine to avoid collisions when many peers
+        // share the same IP (different ports) or vice versa.
+        size_t seed = h1;
+        seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
     }
 };
 

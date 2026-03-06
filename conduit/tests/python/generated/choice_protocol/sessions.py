@@ -50,24 +50,35 @@ class FrameSession:
         try:
             frame = Frame.decode_bytes(data)
         except Exception:
-            return None
+            return []
         msg = frame.payload
         messages = [{'type_id': msg.TYPE_ID, 'type_name': msg.TYPE_NAME, 'payload': msg, 'raw': data}]
         return messages
 
     def encode_wrap(self, type_id: int, payload) -> Optional[dict]:
         if type_id == 0x24395aaf5388c853:
+            _auto_fields = []
             frame = Frame.wrap(payload)
+            _auto_fields.append(('message-type', str(AlphaBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0x8b968b89bfd16bff:
+            _auto_fields = []
             frame = Frame.wrap(payload)
+            _auto_fields.append(('message-type', str(BetaBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         else:
             return None
 
     def format_message(self, type_id: int, payload) -> str:
+        if type_id == 0x24395aaf5388c853:
+            return repr(payload)
+        elif type_id == 0x8b968b89bfd16bff:
+            return repr(payload)
+        return ''
+
+    def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:
         if type_id == 0x24395aaf5388c853:
             return repr(payload)
         elif type_id == 0x8b968b89bfd16bff:

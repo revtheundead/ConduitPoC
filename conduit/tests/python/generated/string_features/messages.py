@@ -60,9 +60,12 @@ class TermStringMsg:
     def decode(r: 'BitReader') -> 'TermStringMsg':
         result = TermStringMsg()
         result.id = r.read_u8()
-        result.null_term = r.read_string(r.remaining_bytes())
-        result.newline_term = r.read_string(r.remaining_bytes())
-        result.crlf_term = r.read_string(r.remaining_bytes())
+        result.null_term = r.read_terminated_string(0, 65535)
+        result.null_term = result.null_term.rstrip('\x00')
+        result.newline_term = r.read_terminated_string(0x0A, 65535)
+        result.newline_term = result.newline_term.rstrip('\x00')
+        result.crlf_term = r.read_crlf_terminated_string(65535)
+        result.crlf_term = result.crlf_term.rstrip('\x00')
         return result
 
     @staticmethod
@@ -71,9 +74,9 @@ class TermStringMsg:
 
     def encode(self, w: 'BitWriter') -> None:
         w.write_u8(self.id)
-        w.write_string(self.null_term, len(self.null_term))
-        w.write_string(self.newline_term, len(self.newline_term))
-        w.write_string(self.crlf_term, len(self.crlf_term))
+        w.write_terminated_string(self.null_term, 0)
+        w.write_terminated_string(self.newline_term, 0x0A)
+        w.write_crlf_terminated_string(self.crlf_term)
 
     def encode_bytes(self) -> bytes:
         w = BitWriter()
@@ -96,6 +99,7 @@ class MaxLenMsg:
         result.id = r.read_u8()
         result.data = r.read_string(32)
         result.data = result.data.rstrip('\x00')
+        if len(result.data) > 16: raise ConstraintError('data exceeds max length 16')
         return result
 
     @staticmethod
