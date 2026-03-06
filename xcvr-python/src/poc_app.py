@@ -22,7 +22,7 @@ import traceback
 # Ensure the asterix generated package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 
-from conduit import Transceiver, TcpClientConfig, MessageLogMode, MessageLogOutput
+from conduit import Transceiver, TcpClientConfig, MessageLogMode, MessageLogOutput, ConduitError
 from . import random_asterix
 
 # Import generated message classes and session for handler registration
@@ -146,6 +146,9 @@ def main():
                     msg = random_asterix.random_cat253(rng)
                     print(f"[SEND] {Cat253Record.TYPE_NAME}")
                     tx.send(peer_id, msg)
+            except ConduitError as e:
+                if e.code != -4:  # -4 = no peer connected
+                    print(f"[SEND ERROR] {e}", file=sys.stderr)
             except Exception as e:
                 traceback.print_exc(file=sys.stderr)
 

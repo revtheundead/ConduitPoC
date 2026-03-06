@@ -123,7 +123,10 @@ def send_server_message(tx, rng):
             print(f"[SEND] Cat253Record")
             tx.send(msg)
     except ConduitError as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        if e.code == -4:
+            pass  # no peer connected yet
+        else:
+            print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 
@@ -149,7 +152,10 @@ def send_client_message(tx, peer_id, rng):
             print(f"[SEND] {asterix_msgs.Cat253Record.TYPE_NAME}")
             tx.send(peer_id, msg)
     except ConduitError as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        if e.code == -4:
+            pass  # no peer connected yet
+        else:
+            print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 

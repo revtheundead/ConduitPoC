@@ -12,6 +12,7 @@ package com.conduit.xcvr;
 // Usage: java PocApp [host] [port] [--interval-ms N] [--session NAME]
 
 import asterix.*;
+import io.conduit.ConduitError;
 import io.conduit.ConduitNative;
 import io.conduit.Transceiver;
 import io.conduit.TransportConfig;
@@ -153,6 +154,9 @@ public class PocApp {
                             break;
                         }
                     }
+                } catch (ConduitError e) {
+                    if (e.code() != -4) // -4 = no peer connected
+                        System.err.printf("[SEND ERROR] %s%n", e.getMessage());
                 } catch (Exception e) {
                     System.err.printf("[SEND ERROR] %s%n", e.getMessage());
                 }

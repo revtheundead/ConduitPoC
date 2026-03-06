@@ -16,6 +16,7 @@ package com.conduit.xcvr;
 
 import asterix.*;
 import asterix_alt.*;
+import io.conduit.ConduitError;
 import io.conduit.ConduitNative;
 import io.conduit.Transceiver;
 import io.conduit.TransportConfig;
@@ -90,6 +91,9 @@ public class DummyPeer {
                     break;
                 }
             }
+        } catch (ConduitError e) {
+            if (e.code() != -4) // -4 = no peer connected yet
+                System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         } catch (Exception e) {
             System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         }
@@ -127,6 +131,9 @@ public class DummyPeer {
                     break;
                 }
             }
+        } catch (ConduitError e) {
+            if (e.code() != -4) // -4 = no peer connected yet
+                System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         } catch (Exception e) {
             System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         }
