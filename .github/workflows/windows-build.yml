@@ -554,6 +554,7 @@ jobs:
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/libconduit_cabi.so
+          PYTHONUNBUFFERED: "1"
         run: |
           cd xcvr-python
 
@@ -622,6 +623,7 @@ jobs:
         shell: pwsh
         env:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+          PYTHONUNBUFFERED: "1"
         run: |
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "python" `

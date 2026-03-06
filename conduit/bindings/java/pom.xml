@@ -81,6 +81,8 @@
                                     <compilerArgs>
                                         <arg>--enable-preview</arg>
                                     </compilerArgs>
+                                    <!-- Clear inherited excludes so these files ARE compiled -->
+                                    <excludes combine.self="override"/>
                                     <includes>
                                         <include>io/conduit/CabiBindings.java</include>
                                         <include>io/conduit/CodecBindings.java</include>

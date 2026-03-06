@@ -20,6 +20,7 @@ import signal
 import time
 import random
 import argparse
+import traceback
 
 # Ensure both generated packages are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
@@ -122,7 +123,7 @@ def send_server_message(tx, rng):
             print(f"[SEND] Cat253Record")
             tx.send(msg)
     except Exception as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
 
 
 def send_client_message(tx, peer_id, rng):
@@ -146,7 +147,7 @@ def send_client_message(tx, peer_id, rng):
             print(f"[SEND] {asterix_msgs.Cat253Record.TYPE_NAME}")
             tx.send(peer_id, msg)
     except Exception as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
 
 
 # ── Stats ────────────────────────────────────────────────────────────────

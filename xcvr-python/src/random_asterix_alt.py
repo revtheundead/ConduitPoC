@@ -30,7 +30,7 @@ if _PKG not in sys.modules:
     _init_spec.loader.exec_module(_pkg_mod)
 
     for _sub in ('bit_io', 'constants', 'types', 'structs', 'protocol',
-                 'sessions', 'messages'):
+                 'messages', 'sessions'):
         _fpath = os.path.join(_GEN_DIR, _sub + '.py')
         if not os.path.exists(_fpath):
             continue
