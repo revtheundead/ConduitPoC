@@ -3,13 +3,11 @@ import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Comprehensive tests for newly generated Java schemas.
- * Covers: expr_features, inline_enum, constants_everywhere, constraints_ext,
- * format_binary, auto_count, auto_struct_length, bitmap_advanced, fx_block,
- * fx_advanced, inline_field_types, present_when_complex, frame_basic,
- * bytes_numeric, outer_scope.
+ * Tests for codegen schema features: expressions, inline enums, constants,
+ * constraints, binary format, auto-count, auto-length, bitmaps, FX blocks,
+ * inline field types, present-when, frames, multi-byte numerics, outer scope.
  */
-public class TestNewSchemas {
+public class TestCodegenSchemas {
 
     // ========================================================================
     // expr_features
