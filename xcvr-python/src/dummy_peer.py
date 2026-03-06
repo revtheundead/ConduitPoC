@@ -173,7 +173,7 @@ def main():
                         help="Run as 'server' or 'client'")
     parser.add_argument("host", nargs="?", default="127.0.0.1",
                         help="Host (client mode, default: 127.0.0.1)")
-    parser.add_argument("port", nargs="?", type=int, default=5000,
+    parser.add_argument("--port", type=int, default=5000,
                         help="Port (default: 5000)")
     parser.add_argument("--interval-ms", type=int, default=1000,
                         help="Send interval in milliseconds (default: 1000)")
