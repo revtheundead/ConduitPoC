@@ -26,7 +26,7 @@ import traceback
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix-alt'))
 
-from conduit import Transceiver, TcpClientConfig, TcpServerConfig
+from conduit import Transceiver, TcpClientConfig, TcpServerConfig, ConduitError
 from . import random_asterix
 from . import random_asterix_alt
 
@@ -122,6 +122,8 @@ def send_server_message(tx, rng):
             msg = random_asterix_alt.random_cat253(rng)
             print(f"[SEND] Cat253Record")
             tx.send(msg)
+    except ConduitError as e:
+        print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 
@@ -146,6 +148,8 @@ def send_client_message(tx, peer_id, rng):
             msg = random_asterix.random_cat253(rng)
             print(f"[SEND] {asterix_msgs.Cat253Record.TYPE_NAME}")
             tx.send(peer_id, msg)
+    except ConduitError as e:
+        print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
 

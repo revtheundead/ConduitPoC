@@ -931,14 +931,31 @@ public final class RandomAsterix {
             it.i025 = i025;
         }
         if (randBool(rng)) it.i030 = randU16(rng);
-        if (randBool(rng)) it.i040 = new Cat253I040();
+        if (randBool(rng)) {
+            Cat253I040 i040 = new Cat253I040();
+            i040.pi = randEnum(rng, Cat253Priority.class);
+            i040.d = randEnum(rng, Cat253Direction.class);
+            i040.mit = randEnum(rng, Cat253MsgType.class);
+            it.i040 = i040;
+        }
         if (randBool(rng)) {
             Cat253I050 i050 = new Cat253I050();
             randFillSequences(rng, i050);
             it.i050 = i050;
         }
-        if (randBool(rng)) it.i035 = new Cat253I035();
-        if (randBool(rng)) it.i060 = new Cat253I060();
+        if (randBool(rng)) {
+            Cat253I035 i035 = new Cat253I035();
+            i035.oac = randU8(rng);
+            i035.oic = randU8(rng);
+            i035.localId = randU8(rng);
+            it.i035 = i035;
+        }
+        if (randBool(rng)) {
+            Cat253I060 i060 = new Cat253I060();
+            i060.tnb = randU8(rng);
+            i060.bn = randU8(rng);
+            it.i060 = i060;
+        }
         // I080 + I100 are linked: I100 choice dispatches on I080's start-index
         if (randBool(rng)) {
             int variant = rng.nextInt(3);
@@ -961,7 +978,14 @@ public final class RandomAsterix {
             }
             it.i100 = i100;
         } else if (randBool(rng)) {
-            it.i080 = new Cat253I080();
+            Cat253I080 i080 = new Cat253I080();
+            i080.startIndex = 0;
+            i080.count = 0;
+            i080.stale = randEnum(rng, Cat253StaleInd.class);
+            i080.sim = randEnum(rng, SimIndicator.class);
+            i080.localCtrl = randEnum(rng, Cat253LocalCtrl.class);
+            i080.dataIncluded = Cat253DataIncl.NO_DATA;
+            it.i080 = i080;
         }
         if (randBool(rng)) it.i090 = new Cat253I090();
 
