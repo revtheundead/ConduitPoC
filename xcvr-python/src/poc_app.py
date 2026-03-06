@@ -37,6 +37,17 @@ from generated.sessions import AsterixDataBlockSession
 
 running = True
 
+_STATE_NAMES = {
+    0: "Disconnected",
+    1: "Connecting",
+    2: "Connected",
+    3: "Reconnecting",
+    4: "Failed",
+}
+
+def _state_name(state):
+    return _STATE_NAMES.get(state, f"Unknown({state})")
+
 
 def signal_handler(sig, frame):
     global running
@@ -105,7 +116,7 @@ def main():
         # ── State change callback (mirrors C++ tx.on_state_change()) ─
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         # ── Error callback (mirrors C++ tx.on_error()) ───────────────
 
@@ -147,7 +158,13 @@ def main():
                     print(f"[SEND] {Cat253Record.TYPE_NAME}")
                     tx.send(peer_id, msg)
             except ConduitError as e:
-                if e.code != -4:  # -4 = no peer connected
+                if e.code == -4:
+                    print("[SEND] no peers connected", file=sys.stderr)
+                elif e.code == -5:
+                    print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+                elif e.code == -6:
+                    print(f"[SEND REJECTED] {e}", file=sys.stderr)
+                else:
                     print(f"[SEND ERROR] {e}", file=sys.stderr)
             except Exception as e:
                 traceback.print_exc(file=sys.stderr)

@@ -38,6 +38,17 @@ from generated.sessions import AsterixDataBlockSession as AsterixSession
 
 running = True
 
+_STATE_NAMES = {
+    0: "Disconnected",
+    1: "Connecting",
+    2: "Connected",
+    3: "Reconnecting",
+    4: "Failed",
+}
+
+def _state_name(state):
+    return _STATE_NAMES.get(state, f"Unknown({state})")
+
 
 def signal_handler(sig, frame):
     global running
@@ -124,7 +135,11 @@ def send_server_message(tx, rng):
             tx.send(msg)
     except ConduitError as e:
         if e.code == -4:
-            pass  # no peer connected yet
+            print("[SEND] no peers connected", file=sys.stderr)
+        elif e.code == -5:
+            print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+        elif e.code == -6:
+            print(f"[SEND REJECTED] {e}", file=sys.stderr)
         else:
             print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
@@ -153,7 +168,11 @@ def send_client_message(tx, peer_id, rng):
             tx.send(peer_id, msg)
     except ConduitError as e:
         if e.code == -4:
-            pass  # no peer connected yet
+            print("[SEND] no peers connected", file=sys.stderr)
+        elif e.code == -5:
+            print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+        elif e.code == -6:
+            print(f"[SEND REJECTED] {e}", file=sys.stderr)
         else:
             print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
@@ -241,7 +260,7 @@ def run_server(args, interval_s):
         register_server_handlers(tx, alt_msgs)
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         tx.on_error(lambda peer, peer_name, code, msg:
             print(f"[ERROR] peer={peer_name} code={code} {msg}",
@@ -291,7 +310,7 @@ def run_client(args, interval_s):
         register_client_handlers(tx)
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         tx.on_error(lambda peer, peer_name, code, msg:
             print(f"[ERROR] peer={peer_name} code={code} {msg}",
