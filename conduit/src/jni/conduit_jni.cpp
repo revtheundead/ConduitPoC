@@ -567,7 +567,8 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
     jobjectArray jtypeNames,
     jintArray jreceiveOnly) {
 
-    const char* name = env->GetStringUTFChars(jname, nullptr);
+    const char* name = jname ? env->GetStringUTFChars(jname, nullptr) : nullptr;
+    if (!name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     conduit_frame_config_t frame_config;
     memset(&frame_config, 0, sizeof(frame_config));
@@ -589,6 +590,12 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
     // Type metadata
     jsize typeCount = jtypeIds ? env->GetArrayLength(jtypeIds) : 0;
     jlong* typeIds = typeCount > 0 ? env->GetLongArrayElements(jtypeIds, nullptr) : nullptr;
+    if (typeCount > 0 && !typeIds) {
+        // GetLongArrayElements failed (e.g. OutOfMemoryError pending)
+        if (syncBytes) env->ReleaseByteArrayElements(jsyncPattern, syncBytes, JNI_ABORT);
+        env->ReleaseStringUTFChars(jname, name);
+        return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
     jint* receiveOnly = (jreceiveOnly && typeCount > 0) ? env->GetIntArrayElements(jreceiveOnly, nullptr) : nullptr;
 
     auto* type_ids_c = new uint64_t[typeCount];
@@ -599,7 +606,9 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
     for (jsize i = 0; i < typeCount; i++) {
         type_ids_c[i] = static_cast<uint64_t>(typeIds[i]);
         jstrings[i] = static_cast<jstring>(env->GetObjectArrayElement(jtypeNames, i));
-        type_names_c[i] = env->GetStringUTFChars(jstrings[i], nullptr);
+        // Guard against null String elements in the typeNames array: GetStringUTFChars
+        // on a null jstring is undefined behaviour and typically crashes.
+        type_names_c[i] = jstrings[i] ? env->GetStringUTFChars(jstrings[i], nullptr) : "";
         recv_only_c[i] = receiveOnly ? receiveOnly[i] : 0;
     }
 
@@ -610,8 +619,10 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
 
     // Release all JNI resources
     for (jsize i = 0; i < typeCount; i++) {
-        env->ReleaseStringUTFChars(jstrings[i], type_names_c[i]);
-        env->DeleteLocalRef(jstrings[i]);
+        if (jstrings[i]) {
+            env->ReleaseStringUTFChars(jstrings[i], type_names_c[i]);
+            env->DeleteLocalRef(jstrings[i]);
+        }
     }
     delete[] type_ids_c;
     delete[] type_names_c;

@@ -201,8 +201,14 @@ public class DummyPeer {
 
         try (var tx = new Transceiver()) {
             // Configure message logging (mirrors C++ cfg.message_log)
-            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
-                    logDir, logPrefix, null, null, null, false);
+            var logCfg = new Transceiver.MessageLogConfig();
+            logCfg.enabled = true;
+            logCfg.mode    = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+            logCfg.output  = Transceiver.MessageLogOutput.FILE;
+            logCfg.directory = logDir;
+            logCfg.prefix    = logPrefix;
+            logCfg.includeMessageContent = false;
+            tx.setMessageLogConfig(logCfg);
 
             // Register the session (Java uses passthrough mode — codec runs in Java)
             tx.registerSession(sessionName, new asterix_alt.AsterixDataBlockSession());
@@ -270,8 +276,14 @@ public class DummyPeer {
 
         try (var tx = new Transceiver()) {
             // Configure message logging (mirrors C++ cfg.message_log)
-            tx.setMessageLogConfig(true, 1 /* SeparateDirection */, 0 /* File */,
-                    logDir, logPrefix, null, null, null, false);
+            var logCfg = new Transceiver.MessageLogConfig();
+            logCfg.enabled = true;
+            logCfg.mode    = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+            logCfg.output  = Transceiver.MessageLogOutput.FILE;
+            logCfg.directory = logDir;
+            logCfg.prefix    = logPrefix;
+            logCfg.includeMessageContent = false;
+            tx.setMessageLogConfig(logCfg);
 
             // Register the session (Java uses passthrough mode — codec runs in Java)
             tx.registerSession(sessionName, new asterix.AsterixDataBlockSession());

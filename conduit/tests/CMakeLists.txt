@@ -66,6 +66,17 @@ if(CONDUIT_BUILD_BGEN)
         NAMESPACE direction_qualified
     )
 
+    # Also generate choice_protocol here so it is available to both
+    # conduit_codec_cabi_test (CONDUIT_BUILD_CODEC_CABI) and
+    # conduit_cabi_test (CONDUIT_BUILD_CABI), either of which may be
+    # enabled independently.
+    bgen_generate(
+        TARGET    test_choice_protocol
+        INPUT     ${CMAKE_SOURCE_DIR}/bgen/tests/fixtures/choice_protocol.bmdl.xml
+        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/choice_protocol
+        NAMESPACE choice_test
+    )
+
     list(APPEND CONDUIT_TEST_SOURCES
         test_transceiver_config.cpp
         test_integration_sentry_link.cpp
@@ -89,14 +100,6 @@ catch_discover_tests(conduit_tests)
 # ============================================================================
 
 if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
-    # Generate choice_protocol for CABI tests
-    bgen_generate(
-        TARGET    test_choice_protocol
-        INPUT     ${CMAKE_SOURCE_DIR}/bgen/tests/fixtures/choice_protocol.bmdl.xml
-        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/choice_protocol
-        NAMESPACE choice_test
-    )
-
     # Build test codec CABI with sessions registered
     add_library(conduit_codec_cabi_test SHARED
         ${CMAKE_SOURCE_DIR}/src/cabi/conduit_codec_cabi.cpp
