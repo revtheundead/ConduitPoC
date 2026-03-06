@@ -17,11 +17,12 @@ import signal
 import time
 import random
 import argparse
+import traceback
 
 # Ensure the asterix generated package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 
-from conduit import Transceiver, TcpClientConfig, MessageLogMode, MessageLogOutput
+from conduit import Transceiver, TcpClientConfig, MessageLogMode, MessageLogOutput, ConduitError
 from . import random_asterix
 
 # Import generated message classes and session for handler registration
@@ -35,6 +36,17 @@ from generated.messages import (
 from generated.sessions import AsterixDataBlockSession
 
 running = True
+
+_STATE_NAMES = {
+    0: "Disconnected",
+    1: "Connecting",
+    2: "Connected",
+    3: "Reconnecting",
+    4: "Failed",
+}
+
+def _state_name(state):
+    return _STATE_NAMES.get(state, f"Unknown({state})")
 
 
 def signal_handler(sig, frame):
@@ -104,7 +116,7 @@ def main():
         # ── State change callback (mirrors C++ tx.on_state_change()) ─
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         # ── Error callback (mirrors C++ tx.on_error()) ───────────────
 
@@ -145,8 +157,17 @@ def main():
                     msg = random_asterix.random_cat253(rng)
                     print(f"[SEND] {Cat253Record.TYPE_NAME}")
                     tx.send(peer_id, msg)
+            except ConduitError as e:
+                if e.code == -4:
+                    print("[SEND] no peers connected", file=sys.stderr)
+                elif e.code == -5:
+                    print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+                elif e.code == -6:
+                    print(f"[SEND REJECTED] {e}", file=sys.stderr)
+                else:
+                    print(f"[SEND ERROR] {e}", file=sys.stderr)
             except Exception as e:
-                print(f"[SEND ERROR] {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
 
         # ── Stop & stats (mirrors C++ tx.stop() + tx.stats().snapshot()) ──
 

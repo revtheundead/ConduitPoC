@@ -1,6 +1,6 @@
 """Conduit - Python bindings for the Conduit binary protocol library."""
 
-from conduit.transceiver import Transceiver
+from conduit.transceiver import Transceiver, ConduitError
 from conduit.codec_binding import CodecSession, CodecFramer
 from conduit.types import (
     TransportType, TransportConfig,
@@ -9,7 +9,7 @@ from conduit.types import (
 )
 
 __all__ = [
-    "Transceiver",
+    "Transceiver", "ConduitError",
     "CodecSession", "CodecFramer",
     "TransportType", "TransportConfig",
     "UdpConfig", "TcpClientConfig", "TcpServerConfig",

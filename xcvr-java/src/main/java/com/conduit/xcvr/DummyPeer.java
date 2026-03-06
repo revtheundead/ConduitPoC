@@ -16,6 +16,7 @@ package com.conduit.xcvr;
 
 import asterix.*;
 import asterix_alt.*;
+import io.conduit.ConduitError;
 import io.conduit.Transceiver;
 import io.conduit.TransportConfig;
 
@@ -24,6 +25,15 @@ import java.util.Random;
 public class DummyPeer {
 
     private static volatile boolean running = true;
+
+    private static final String[] STATE_NAMES = {
+        "Disconnected", "Connecting", "Connected", "Reconnecting", "Failed"
+    };
+
+    private static String stateName(int state) {
+        return (state >= 0 && state < STATE_NAMES.length)
+                ? STATE_NAMES[state] : "Unknown(" + state + ")";
+    }
 
     // ── Server-mode handlers (receives uplinks, asterix_alt perspective) ──
 
@@ -85,6 +95,8 @@ public class DummyPeer {
                     tx.send(msg);
                 }
             }
+        } catch (ConduitError e) {
+            handleSendError(e);
         } catch (Exception e) {
             System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         }
@@ -118,6 +130,8 @@ public class DummyPeer {
                     tx.send(peerId, msg);
                 }
             }
+        } catch (ConduitError e) {
+            handleSendError(e);
         } catch (Exception e) {
             System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         }
@@ -220,7 +234,7 @@ public class DummyPeer {
             registerServerHandlers(tx);
 
             tx.onStateChange((peer, newState) ->
-                    System.out.printf("[STATE] peer=%d -> %d%n", peer, newState));
+                    System.out.printf("[STATE] peer=%d -> %s%n", peer, stateName(newState)));
 
             tx.onError((peer, peerName, errorCode, errorMsg) ->
                     System.err.printf("[ERROR] peer=%s code=%d %s%n",
@@ -295,7 +309,7 @@ public class DummyPeer {
             registerClientHandlers(tx);
 
             tx.onStateChange((peer, newState) ->
-                    System.out.printf("[STATE] peer=%d -> %d%n", peer, newState));
+                    System.out.printf("[STATE] peer=%d -> %s%n", peer, stateName(newState)));
 
             tx.onError((peer, peerName, errorCode, errorMsg) ->
                     System.err.printf("[ERROR] peer=%s code=%d %s%n",
@@ -320,6 +334,15 @@ public class DummyPeer {
         } catch (Exception e) {
             System.err.printf("[ERROR] Failed to start: %s%n", e.getMessage());
             System.exit(1);
+        }
+    }
+
+    private static void handleSendError(ConduitError e) {
+        switch (e.code()) {
+            case -4 -> System.err.println("[SEND] no peers connected");
+            case -5 -> System.err.printf("[SEND BLOCKED] %s%n", e.getMessage());
+            case -6 -> System.err.printf("[SEND REJECTED] %s%n", e.getMessage());
+            default -> System.err.printf("[SEND ERROR] %s%n", e.getMessage());
         }
     }
 }

@@ -283,13 +283,17 @@ jobs:
           $BuildDir = "${{ github.workspace }}\build-conduit\Release"
           $JniLib = "$BuildDir\conduit_jni.dll"
 
+          # Add build dir to PATH so Windows can find conduit_cabi.dll
+          # (dependent DLL of conduit_jni.dll) during library loading
+          $env:PATH = "$BuildDir;$env:PATH"
+
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
             -ArgumentList @(
               "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunDummyPeer",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.jni.path=$JniLib",
-              "-Dexec.appArgs=server --port 15001 --interval-ms 500"
+              '"-Dexec.appArgs=server --port 15001 --interval-ms 500"'
             ) `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput server_out.txt `
@@ -303,7 +307,7 @@ jobs:
               "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunPocApp",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.jni.path=$JniLib",
-              "-Dexec.appArgs=127.0.0.1 15001 --interval-ms 500"
+              '"-Dexec.appArgs=127.0.0.1 15001 --interval-ms 500"'
             ) `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput client_out.txt `
@@ -375,6 +379,8 @@ jobs:
         run: mvn package -q -f xcvr-java/pom.xml
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
+        env:
+          MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           BUILD_DIR=${{ github.workspace }}/conduit/build
           CABI_PATH=$BUILD_DIR/libconduit_cabi.so
@@ -447,13 +453,16 @@ jobs:
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
       - name: Build xcvr-java
-        run: >
-          mvn package -q -f xcvr-java/pom.xml
-          -Dconduit.build.dir=${{ github.workspace }}/conduit/build/Release
-          -Dconduit.cabi.path=${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+        shell: pwsh
+        run: |
+          $buildDir = "${{ github.workspace }}\conduit\build\Release"
+          $cabiPath = "$buildDir\conduit_cabi.dll"
+          mvn package -q -f xcvr-java/pom.xml "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
         shell: pwsh
+        env:
+          MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           $BuildDir = "${{ github.workspace }}\conduit\build\Release"
           $CabiPath = "$BuildDir\conduit_cabi.dll"
@@ -464,7 +473,7 @@ jobs:
               "exec:java", "-f", "xcvr-java/pom.xml", "-PrunDummyPeer",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.cabi.path=$CabiPath",
-              "-Dexec.appArgs=server --port 15002 --interval-ms 500"
+              '"-Dexec.appArgs=server --port 15002 --interval-ms 500"'
             ) `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput server_out.txt `
@@ -478,7 +487,7 @@ jobs:
               "exec:java", "-f", "xcvr-java/pom.xml", "-PrunPocApp",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.cabi.path=$CabiPath",
-              "-Dexec.appArgs=127.0.0.1 15002 --interval-ms 500"
+              '"-Dexec.appArgs=127.0.0.1 15002 --interval-ms 500"'
             ) `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput client_out.txt `
@@ -549,6 +558,7 @@ jobs:
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/libconduit_cabi.so
+          PYTHONUNBUFFERED: "1"
         run: |
           cd xcvr-python
 
@@ -617,6 +627,7 @@ jobs:
         shell: pwsh
         env:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+          PYTHONUNBUFFERED: "1"
         run: |
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "python" `

@@ -20,12 +20,13 @@ import signal
 import time
 import random
 import argparse
+import traceback
 
 # Ensure both generated packages are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'asterix-alt'))
 
-from conduit import Transceiver, TcpClientConfig, TcpServerConfig
+from conduit import Transceiver, TcpClientConfig, TcpServerConfig, ConduitError
 from . import random_asterix
 from . import random_asterix_alt
 
@@ -36,6 +37,17 @@ from generated.sessions import AsterixDataBlockSession as AsterixSession
 # Server perspective (asterix_alt) -- loaded by random_asterix_alt under generated_alt/
 
 running = True
+
+_STATE_NAMES = {
+    0: "Disconnected",
+    1: "Connecting",
+    2: "Connected",
+    3: "Reconnecting",
+    4: "Failed",
+}
+
+def _state_name(state):
+    return _STATE_NAMES.get(state, f"Unknown({state})")
 
 
 def signal_handler(sig, frame):
@@ -121,8 +133,17 @@ def send_server_message(tx, rng):
             msg = random_asterix_alt.random_cat253(rng)
             print(f"[SEND] Cat253Record")
             tx.send(msg)
+    except ConduitError as e:
+        if e.code == -4:
+            print("[SEND] no peers connected", file=sys.stderr)
+        elif e.code == -5:
+            print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+        elif e.code == -6:
+            print(f"[SEND REJECTED] {e}", file=sys.stderr)
+        else:
+            print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
 
 
 def send_client_message(tx, peer_id, rng):
@@ -145,8 +166,17 @@ def send_client_message(tx, peer_id, rng):
             msg = random_asterix.random_cat253(rng)
             print(f"[SEND] {asterix_msgs.Cat253Record.TYPE_NAME}")
             tx.send(peer_id, msg)
+    except ConduitError as e:
+        if e.code == -4:
+            print("[SEND] no peers connected", file=sys.stderr)
+        elif e.code == -5:
+            print(f"[SEND BLOCKED] {e}", file=sys.stderr)
+        elif e.code == -6:
+            print(f"[SEND REJECTED] {e}", file=sys.stderr)
+        else:
+            print(f"[SEND ERROR] {e}", file=sys.stderr)
     except Exception as e:
-        print(f"[SEND ERROR] {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
 
 
 # ── Stats ────────────────────────────────────────────────────────────────
@@ -173,7 +203,7 @@ def main():
                         help="Run as 'server' or 'client'")
     parser.add_argument("host", nargs="?", default="127.0.0.1",
                         help="Host (client mode, default: 127.0.0.1)")
-    parser.add_argument("port", nargs="?", type=int, default=5000,
+    parser.add_argument("--port", type=int, default=5000,
                         help="Port (default: 5000)")
     parser.add_argument("--interval-ms", type=int, default=1000,
                         help="Send interval in milliseconds (default: 1000)")
@@ -230,7 +260,7 @@ def run_server(args, interval_s):
         register_server_handlers(tx, alt_msgs)
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         tx.on_error(lambda peer, peer_name, code, msg:
             print(f"[ERROR] peer={peer_name} code={code} {msg}",
@@ -280,7 +310,7 @@ def run_client(args, interval_s):
         register_client_handlers(tx)
 
         tx.on_state_change(lambda peer, state:
-            print(f"[STATE] peer={peer} -> {state}"))
+            print(f"[STATE] peer={peer} -> {_state_name(state)}"))
 
         tx.on_error(lambda peer, peer_name, code, msg:
             print(f"[ERROR] peer={peer_name} code={code} {msg}",

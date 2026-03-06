@@ -12,6 +12,7 @@ package com.conduit.xcvr;
 // Usage: java PocApp [host] [port] [--interval-ms N] [--session NAME]
 
 import asterix.*;
+import io.conduit.ConduitError;
 import io.conduit.Transceiver;
 import io.conduit.TransportConfig;
 
@@ -20,6 +21,15 @@ import java.util.Random;
 public class PocApp {
 
     private static volatile boolean running = true;
+
+    private static final String[] STATE_NAMES = {
+        "Disconnected", "Connecting", "Connected", "Reconnecting", "Failed"
+    };
+
+    private static String stateName(int state) {
+        return (state >= 0 && state < STATE_NAMES.length)
+                ? STATE_NAMES[state] : "Unknown(" + state + ")";
+    }
 
     public static void main(String[] args) {
         String host = "127.0.0.1";
@@ -90,7 +100,7 @@ public class PocApp {
             // ── State change callback (mirrors C++ tx.on_state_change()) ─
 
             tx.onStateChange((peer, newState) ->
-                    System.out.printf("[STATE] peer=%d -> %d%n", peer, newState));
+                    System.out.printf("[STATE] peer=%d -> %s%n", peer, stateName(newState)));
 
             // ── Error callback (mirrors C++ tx.on_error()) ───────────────
 
@@ -136,6 +146,8 @@ public class PocApp {
                             tx.send(peerId, msg);
                         }
                     }
+                } catch (ConduitError e) {
+                    handleSendError(e);
                 } catch (Exception e) {
                     System.err.printf("[SEND ERROR] %s%n", e.getMessage());
                 }
@@ -162,5 +174,14 @@ public class PocApp {
         }
 
         System.out.println("[poc_app] Done.");
+    }
+
+    private static void handleSendError(ConduitError e) {
+        switch (e.code()) {
+            case -4 -> System.err.println("[SEND] no peers connected");
+            case -5 -> System.err.printf("[SEND BLOCKED] %s%n", e.getMessage());
+            case -6 -> System.err.printf("[SEND REJECTED] %s%n", e.getMessage());
+            default -> System.err.printf("[SEND ERROR] %s%n", e.getMessage());
+        }
     }
 }
