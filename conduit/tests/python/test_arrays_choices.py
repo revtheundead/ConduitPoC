@@ -522,16 +522,16 @@ class TestFallbackBodyStruct:
 # ---------------------------------------------------------------------------
 class TestChoiceMsgIdempotent:
 
-    @pytest.mark.parametrize("type_code,body_factory", [
-        (1, lambda: _make_type_a_body(Constants.SUB_X)),
-        (1, lambda: _make_type_a_body(Constants.SUB_Y)),
-        (2, lambda: _make_type_b_body()),
-        (99, lambda: _make_fallback_body()),
+    @pytest.mark.parametrize("type_code,body_factory,body_len", [
+        (1, lambda: _make_type_a_body(Constants.SUB_X), 5),  # sub_type(1) + SubX(4)
+        (1, lambda: _make_type_a_body(Constants.SUB_Y), 5),  # sub_type(1) + SubY(4)
+        (2, lambda: _make_type_b_body(), 4),                  # TypeBBody(4)
+        (99, lambda: _make_fallback_body(), 4),               # FallbackBody(4)
     ])
-    def test_encode_decode_encode_stable(self, type_code, body_factory):
+    def test_encode_decode_encode_stable(self, type_code, body_factory, body_len):
         msg = ChoiceMsg()
         msg.msg_type = type_code
-        msg.length = 0
+        msg.length = body_len
         msg.body = body_factory()
 
         data1 = msg.encode_bytes()

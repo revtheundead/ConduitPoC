@@ -9,7 +9,7 @@ class ConstraintMsg:
     __slots__ = ('magic', 'percent', 'deferred_val', 'payload')
 
     def __init__(self) -> None:
-        self.magic = 0
+        self.magic = 0xBEEF
         self.percent = 0
         self.deferred_val = 0
         self.payload = 0
@@ -18,7 +18,9 @@ class ConstraintMsg:
     def decode(r: 'BitReader') -> 'ConstraintMsg':
         result = ConstraintMsg()
         result.magic = r.read_u16(True)
+        if result.magic != 0xBEEF: raise ConstraintError('magic constraint violation: expected 0xBEEF')
         result.percent = r.read_u8()
+        if result.percent > 100: raise ConstraintError('percent exceeds max 100')
         result.deferred_val = r.read_u16(True)
         result.payload = r.read_u32(True)
         return result
@@ -40,4 +42,10 @@ class ConstraintMsg:
 
     def __repr__(self) -> str:
         return f'ConstraintMsg(magic={self.magic}, percent={self.percent}, deferred_val={self.deferred_val}, payload={self.payload})'
+
+    def validate(self) -> None:
+        if self.magic != 0xBEEF:
+            raise ConstraintError('magic: expected 0xBEEF')
+        if self.percent > 100:
+            raise ConstraintError('percent exceeds max 100')
 

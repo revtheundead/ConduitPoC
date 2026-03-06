@@ -4,6 +4,226 @@ from enum import IntEnum
 from .bit_io import BitReader, BitWriter, ConstraintError, DecodeError
 
 
+class Uint8:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint8':
+        raw = r.read_bits(8)
+        return Uint8(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 8)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint8) and self._raw == o._raw
+
+
+class Uint16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint16':
+        raw = r.read_bits(16)
+        return Uint16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint16) and self._raw == o._raw
+
+
+class Uint32:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint32':
+        raw = r.read_bits(32)
+        return Uint32(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 32)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint32) and self._raw == o._raw
+
+
+class Uint64:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Uint64':
+        raw = r.read_bits(64)
+        return Uint64(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 64)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Uint64) and self._raw == o._raw
+
+
+class Int8:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Int8':
+        raw = r.read_signed_bits(8)
+        return Int8(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_signed_bits(self._raw, 8)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Int8) and self._raw == o._raw
+
+
+class Int16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Int16':
+        raw = r.read_signed_bits(16)
+        return Int16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_signed_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Int16) and self._raw == o._raw
+
+
+class Int32:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Int32':
+        raw = r.read_signed_bits(32)
+        return Int32(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_signed_bits(self._raw, 32)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Int32) and self._raw == o._raw
+
+
+class Float32:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Float32':
+        raw = r.read_bits(32)
+        return Float32(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 32)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Float32) and self._raw == o._raw
+
+
+class Float64:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Float64':
+        raw = r.read_bits(64)
+        return Float64(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 64)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Float64) and self._raw == o._raw
+
+
+class Bool8:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'Bool8':
+        raw = r.read_bits(8)
+        return Bool8(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 8)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, Bool8) and self._raw == o._raw
+
+
 class AsciiStr:
     __slots__ = ('_value',)
     WIRE_SIZE = 10
@@ -54,6 +274,50 @@ class Utf8Str:
         return isinstance(o, Utf8Str) and self._value == o._value
 
 
+class LeUint16:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'LeUint16':
+        raw = r.read_bits(16)
+        return LeUint16(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 16)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, LeUint16) and self._raw == o._raw
+
+
+class LeUint32:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'LeUint32':
+        raw = r.read_bits(32)
+        return LeUint32(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 32)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, LeUint32) and self._raw == o._raw
+
+
 class ScaledTemp:
     __slots__ = ('_raw',)
     SCALE = 0.01
@@ -82,6 +346,28 @@ class ScaledTemp:
 
     def __eq__(self, o: object) -> bool:
         return isinstance(o, ScaledTemp) and self._raw == o._raw
+
+
+class HexId:
+    __slots__ = ('_raw',)
+
+    def __init__(self, raw: int = 0) -> None: self._raw = raw
+
+    @property
+    def value(self) -> int: return self._raw
+    @property
+    def raw(self) -> int: return self._raw
+
+    @staticmethod
+    def decode(r: BitReader) -> 'HexId':
+        raw = r.read_bits(32)
+        return HexId(raw)
+
+    def encode(self, w: BitWriter) -> None:
+        w.write_bits(self._raw, 32)
+
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, HexId) and self._raw == o._raw
 
 
 class ColorEnum(IntEnum):

@@ -51,34 +51,55 @@ class PacketSession:
         try:
             frame = Packet.decode_bytes(data)
         except Exception:
-            return None
+            return []
         msg = frame.payload
         messages = [{'type_id': msg.TYPE_ID, 'type_name': msg.TYPE_NAME, 'payload': msg, 'raw': data}]
         return messages
 
     def encode_wrap(self, type_id: int, payload) -> Optional[dict]:
         if type_id == 0x0ad7bb3ecc473399:
+            _auto_fields = []
             frame = Packet.wrap(payload)
-            frame.seq = self._seq & 65535
+            _seq_val = self._seq & 65535
+            frame.seq = _seq_val
             self._seq += 1
+            _auto_fields.append(('seq', str(_seq_val)))
+            _auto_fields.append(('msg-id', str(PingBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0x29d16b9e73f85835:
+            _auto_fields = []
             frame = Packet.wrap(payload)
-            frame.seq = self._seq & 65535
+            _seq_val = self._seq & 65535
+            frame.seq = _seq_val
             self._seq += 1
+            _auto_fields.append(('seq', str(_seq_val)))
+            _auto_fields.append(('msg-id', str(DataBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0xcc431e5e357bc2e6:
+            _auto_fields = []
             frame = Packet.wrap(payload)
-            frame.seq = self._seq & 65535
+            _seq_val = self._seq & 65535
+            frame.seq = _seq_val
             self._seq += 1
+            _auto_fields.append(('seq', str(_seq_val)))
+            _auto_fields.append(('msg-id', str(AckBody.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         else:
             return None
 
     def format_message(self, type_id: int, payload) -> str:
+        if type_id == 0x0ad7bb3ecc473399:
+            return repr(payload)
+        elif type_id == 0x29d16b9e73f85835:
+            return repr(payload)
+        elif type_id == 0xcc431e5e357bc2e6:
+            return repr(payload)
+        return ''
+
+    def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:
         if type_id == 0x0ad7bb3ecc473399:
             return repr(payload)
         elif type_id == 0x29d16b9e73f85835:

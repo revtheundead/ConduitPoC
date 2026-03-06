@@ -1030,11 +1030,24 @@ class TestStringFeaturesRoundtrip:
 
         msg = MaxLenMsg()
         msg.id = 1
-        msg.data = "A" * 32  # exactly 32 chars
+        msg.data = "A" * 16  # max-length constraint is 16
 
         data = msg.encode_bytes()
         msg2 = MaxLenMsg.decode_bytes(data)
-        assert msg2.data == "A" * 32
+        assert msg2.data == "A" * 16
+
+    def test_max_len_msg_exceeds_constraint(self):
+        """Data exceeding max-length=16 should raise ConstraintError on decode."""
+        from string_features import MaxLenMsg
+        from string_features.bit_io import ConstraintError
+
+        msg = MaxLenMsg()
+        msg.id = 1
+        msg.data = "A" * 32  # exceeds max-length=16
+
+        data = msg.encode_bytes()
+        with pytest.raises(ConstraintError, match="max length"):
+            MaxLenMsg.decode_bytes(data)
 
     def test_name_str_wire_size(self):
         from string_features.types import NameStr

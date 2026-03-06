@@ -6,7 +6,7 @@ from .structs import *
 from .constants import Constants
 
 class FixedArrayMsg:
-    __slots__ = ('points')
+    __slots__ = ('points',)
 
     def __init__(self) -> None:
         self.points: list = []
@@ -75,12 +75,13 @@ class ChoiceMsg:
         result = ChoiceMsg()
         result.msg_type = r.read_u8()
         result.length = r.read_u16(True)
+        _cr = r.sub_reader(int(result.length))
         if result.msg_type == Constants.TYPE_A:
-            result.body = TypeABody.decode(r)
+            result.body = TypeABody.decode(_cr)
         elif result.msg_type == Constants.TYPE_B:
-            result.body = TypeBBody.decode(r)
+            result.body = TypeBBody.decode(_cr)
         else:
-            result.body = FallbackBody.decode(r)
+            result.body = FallbackBody.decode(_cr)
         return result
 
     @staticmethod
@@ -100,21 +101,21 @@ class ChoiceMsg:
     def __repr__(self) -> str:
         return f'ChoiceMsg(msg_type={self.msg_type}, length={self.length}, body={self.body})'
 
-class Alpha:
-    __slots__ = ('a_val')
+class NestedChoiceMsgTypedAlpha:
+    __slots__ = ('a_val',)
 
     def __init__(self) -> None:
         self.a_val = 0
 
     @staticmethod
-    def decode(r: 'BitReader') -> 'Alpha':
-        result = Alpha()
+    def decode(r: 'BitReader') -> 'NestedChoiceMsgTypedAlpha':
+        result = NestedChoiceMsgTypedAlpha()
         result.a_val = r.read_u16(True)
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'Alpha':
-        return Alpha.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'NestedChoiceMsgTypedAlpha':
+        return NestedChoiceMsgTypedAlpha.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         w.write_u16(self.a_val, True)
@@ -125,23 +126,23 @@ class Alpha:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'Alpha(a_val={self.a_val})'
+        return f'NestedChoiceMsgTypedAlpha(a_val={self.a_val})'
 
-class Beta:
-    __slots__ = ('b_val')
+class NestedChoiceMsgTypedBeta:
+    __slots__ = ('b_val',)
 
     def __init__(self) -> None:
         self.b_val = 0
 
     @staticmethod
-    def decode(r: 'BitReader') -> 'Beta':
-        result = Beta()
+    def decode(r: 'BitReader') -> 'NestedChoiceMsgTypedBeta':
+        result = NestedChoiceMsgTypedBeta()
         result.b_val = r.read_u32(True)
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'Beta':
-        return Beta.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'NestedChoiceMsgTypedBeta':
+        return NestedChoiceMsgTypedBeta.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         w.write_u32(self.b_val, True)
@@ -152,26 +153,28 @@ class Beta:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'Beta(b_val={self.b_val})'
+        return f'NestedChoiceMsgTypedBeta(b_val={self.b_val})'
 
-class Typed:
-    __slots__ = ('detail')
+class NestedChoiceMsgTyped:
+    __slots__ = ('detail',)
 
     def __init__(self) -> None:
         self.detail = None
 
     @staticmethod
-    def decode(r: 'BitReader', sub_type) -> 'Typed':
-        result = Typed()
+    def decode(r: 'BitReader', sub_type) -> 'NestedChoiceMsgTyped':
+        result = NestedChoiceMsgTyped()
         if sub_type == Constants.SUB_X:
-            result.detail = Alpha.decode(r)
+            result.detail = NestedChoiceMsgTypedAlpha.decode(r)
         elif sub_type == Constants.SUB_Y:
-            result.detail = Beta.decode(r)
+            result.detail = NestedChoiceMsgTypedBeta.decode(r)
+        else:
+            raise DecodeError("choice 'detail': no case matched switch value")
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'Typed':
-        return Typed.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'NestedChoiceMsgTyped':
+        return NestedChoiceMsgTyped.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         if self.detail is not None: self.detail.encode(w)
@@ -182,23 +185,23 @@ class Typed:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'Typed(detail={self.detail})'
+        return f'NestedChoiceMsgTyped(detail={self.detail})'
 
-class Simple:
-    __slots__ = ('data')
+class NestedChoiceMsgSimple:
+    __slots__ = ('data',)
 
     def __init__(self) -> None:
         self.data = 0
 
     @staticmethod
-    def decode(r: 'BitReader') -> 'Simple':
-        result = Simple()
+    def decode(r: 'BitReader') -> 'NestedChoiceMsgSimple':
+        result = NestedChoiceMsgSimple()
         result.data = r.read_u32(True)
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'Simple':
-        return Simple.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'NestedChoiceMsgSimple':
+        return NestedChoiceMsgSimple.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         w.write_u32(self.data, True)
@@ -209,7 +212,7 @@ class Simple:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'Simple(data={self.data})'
+        return f'NestedChoiceMsgSimple(data={self.data})'
 
 class NestedChoiceMsg:
     __slots__ = ('msg_type', 'sub_type', 'body')
@@ -225,9 +228,11 @@ class NestedChoiceMsg:
         result.msg_type = r.read_u8()
         result.sub_type = r.read_u8()
         if result.msg_type == 1:
-            result.body = Typed.decode(r, result.sub_type)
+            result.body = NestedChoiceMsgTyped.decode(r, result.sub_type)
         elif result.msg_type == 2:
-            result.body = Simple.decode(r)
+            result.body = NestedChoiceMsgSimple.decode(r)
+        else:
+            raise DecodeError("choice 'body': no case matched switch value")
         return result
 
     @staticmethod
@@ -247,21 +252,21 @@ class NestedChoiceMsg:
     def __repr__(self) -> str:
         return f'NestedChoiceMsg(msg_type={self.msg_type}, sub_type={self.sub_type}, body={self.body})'
 
-class L3:
-    __slots__ = ('value')
+class DeepNestedMsgL1L2L3:
+    __slots__ = ('value',)
 
     def __init__(self) -> None:
         self.value = 0
 
     @staticmethod
-    def decode(r: 'BitReader') -> 'L3':
-        result = L3()
+    def decode(r: 'BitReader') -> 'DeepNestedMsgL1L2L3':
+        result = DeepNestedMsgL1L2L3()
         result.value = r.read_u32(True)
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'L3':
-        return L3.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'DeepNestedMsgL1L2L3':
+        return DeepNestedMsgL1L2L3.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         w.write_u32(self.value, True)
@@ -272,24 +277,26 @@ class L3:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'L3(value={self.value})'
+        return f'DeepNestedMsgL1L2L3(value={self.value})'
 
-class L2:
-    __slots__ = ('inner')
+class DeepNestedMsgL1L2:
+    __slots__ = ('inner',)
 
     def __init__(self) -> None:
         self.inner = None
 
     @staticmethod
-    def decode(r: 'BitReader', type_c) -> 'L2':
-        result = L2()
+    def decode(r: 'BitReader', type_c) -> 'DeepNestedMsgL1L2':
+        result = DeepNestedMsgL1L2()
         if type_c == Constants.SUB_Y:
-            result.inner = L3.decode(r)
+            result.inner = DeepNestedMsgL1L2L3.decode(r)
+        else:
+            raise DecodeError("choice 'inner': no case matched switch value")
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'L2':
-        return L2.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'DeepNestedMsgL1L2':
+        return DeepNestedMsgL1L2.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         if self.inner is not None: self.inner.encode(w)
@@ -300,24 +307,26 @@ class L2:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'L2(inner={self.inner})'
+        return f'DeepNestedMsgL1L2(inner={self.inner})'
 
-class L1:
-    __slots__ = ('mid')
+class DeepNestedMsgL1:
+    __slots__ = ('mid',)
 
     def __init__(self) -> None:
         self.mid = None
 
     @staticmethod
-    def decode(r: 'BitReader', type_b, type_c) -> 'L1':
-        result = L1()
+    def decode(r: 'BitReader', type_b, type_c) -> 'DeepNestedMsgL1':
+        result = DeepNestedMsgL1()
         if type_b == Constants.SUB_X:
-            result.mid = L2.decode(r, type_c)
+            result.mid = DeepNestedMsgL1L2.decode(r, type_c)
+        else:
+            raise DecodeError("choice 'mid': no case matched switch value")
         return result
 
     @staticmethod
-    def decode_bytes(data: bytes) -> 'L1':
-        return L1.decode(BitReader(data))
+    def decode_bytes(data: bytes) -> 'DeepNestedMsgL1':
+        return DeepNestedMsgL1.decode(BitReader(data))
 
     def encode(self, w: 'BitWriter') -> None:
         if self.mid is not None: self.mid.encode(w)
@@ -328,7 +337,7 @@ class L1:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'L1(mid={self.mid})'
+        return f'DeepNestedMsgL1(mid={self.mid})'
 
 class DeepNestedMsg:
     __slots__ = ('type_a', 'type_b', 'type_c', 'outer')
@@ -346,7 +355,9 @@ class DeepNestedMsg:
         result.type_b = r.read_u8()
         result.type_c = r.read_u8()
         if result.type_a == 1:
-            result.outer = L1.decode(r, result.type_b, result.type_c)
+            result.outer = DeepNestedMsgL1.decode(r, result.type_b, result.type_c)
+        else:
+            raise DecodeError("choice 'outer': no case matched switch value")
         return result
 
     @staticmethod

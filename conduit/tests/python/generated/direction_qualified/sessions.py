@@ -47,28 +47,48 @@ class FrameSession:
         try:
             frame = Frame.decode_bytes(data)
         except Exception:
-            return None
+            return []
         msg = frame.payload
         messages = [{'type_id': msg.TYPE_ID, 'type_name': msg.TYPE_NAME, 'payload': msg, 'raw': data}]
+        import sys
+        for dm in messages:
+            tid = dm['type_id']
+            if tid == 0x43eb816dac19f83e:
+                print(f"WARNING: Received send-only message type 'UplinkPayload'", file=sys.stderr)
         return messages
 
     def encode_wrap(self, type_id: int, payload) -> Optional[dict]:
         if type_id == 0x43eb816dac19f83e:
+            _auto_fields = []
             frame = Frame.wrap(payload)
+            _auto_fields.append(('tag', str(UplinkPayload.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0x1b0d6d132ec96e89:
+            _auto_fields = []
             frame = Frame.wrap(payload)
+            _auto_fields.append(('tag', str(DownlinkPayload.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         elif type_id == 0xd99b6c6485bfb782:
+            _auto_fields = []
             frame = Frame.wrap(payload)
+            _auto_fields.append(('tag', str(CommonPayload.ID_VALUE)))
             data = frame.encode_bytes()
-            return {'bytes': data, 'type_id': type_id}
+            return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}
         else:
             return None
 
     def format_message(self, type_id: int, payload) -> str:
+        if type_id == 0x43eb816dac19f83e:
+            return repr(payload)
+        elif type_id == 0x1b0d6d132ec96e89:
+            return repr(payload)
+        elif type_id == 0xd99b6c6485bfb782:
+            return repr(payload)
+        return ''
+
+    def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:
         if type_id == 0x43eb816dac19f83e:
             return repr(payload)
         elif type_id == 0x1b0d6d132ec96e89:

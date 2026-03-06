@@ -9,9 +9,12 @@ class AlphaBody:
     TYPE_ID = 0x24395aaf5388c853
     TYPE_NAME = 'AlphaBody'
     ID_VALUE = 1
-    __slots__ = ('x', 'y')
+    __slots__ = ('sync', 'message_type', 'length', 'x', 'y')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.message_type = 0
+        self.length = 0
         self.x = 0
         self.y = 0
 
@@ -36,15 +39,18 @@ class AlphaBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'AlphaBody(x={self.x}, y={self.y})'
+        return f'AlphaBody(sync={self.sync}, message_type={self.message_type}, length={self.length}, x={self.x}, y={self.y})'
 
 class BetaBody:
     TYPE_ID = 0x8b968b89bfd16bff
     TYPE_NAME = 'BetaBody'
     ID_VALUE = 2
-    __slots__ = ('payload_size', 'tag')
+    __slots__ = ('sync', 'message_type', 'length', 'payload_size', 'tag')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.message_type = 0
+        self.length = 0
         self.payload_size = 0
         self.tag = 0
 
@@ -69,7 +75,7 @@ class BetaBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'BetaBody(payload_size={self.payload_size}, tag={self.tag})'
+        return f'BetaBody(sync={self.sync}, message_type={self.message_type}, length={self.length}, payload_size={self.payload_size}, tag={self.tag})'
 
 class Frame:
     __slots__ = ('sync', 'message_type', 'length', 'payload')
@@ -115,8 +121,14 @@ class Frame:
         _payload_r = r.sub_reader(int(result.length) - 5)
         if result.message_type == 1:
             result.payload = AlphaBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.message_type = result.message_type
+            result.payload.length = result.length
         elif result.message_type == 2:
             result.payload = BetaBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.message_type = result.message_type
+            result.payload.length = result.length
         return result
 
     @staticmethod

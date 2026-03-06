@@ -9,9 +9,13 @@ class HeartbeatBody:
     TYPE_ID = 0xd960403cb7f2944f
     TYPE_NAME = 'HeartbeatBody'
     ID_VALUE = 1
-    __slots__ = ('timestamp', 'uptime_hours', 'status', 'cpu_load')
+    __slots__ = ('sync', 'msg_type', 'length', 'sequence', 'timestamp', 'uptime_hours', 'status', 'cpu_load')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.msg_type = 0
+        self.length = 0
+        self.sequence = 0
         self.timestamp = 0
         self.uptime_hours = 0
         self.status = DeviceStatus.ONLINE
@@ -24,6 +28,7 @@ class HeartbeatBody:
         result.uptime_hours = r.read_u16(True)
         result.status = DeviceStatus.decode(r)
         result.cpu_load = r.read_u8()
+        if result.cpu_load > 100: raise ConstraintError('cpu-load exceeds max 100')
         return result
 
     @staticmethod
@@ -42,15 +47,23 @@ class HeartbeatBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'HeartbeatBody(timestamp={self.timestamp}, uptime_hours={self.uptime_hours}, status={self.status}, cpu_load={self.cpu_load})'
+        return f'HeartbeatBody(sync={self.sync}, msg_type={self.msg_type}, length={self.length}, sequence={self.sequence}, timestamp={self.timestamp}, uptime_hours={self.uptime_hours}, status={self.status}, cpu_load={self.cpu_load})'
+
+    def validate(self) -> None:
+        if self.cpu_load > 100:
+            raise ConstraintError('cpu-load exceeds max 100')
 
 class SensorBody:
     TYPE_ID = 0x8a09fcedca7e9de3
     TYPE_NAME = 'SensorBody'
     ID_VALUE = 2
-    __slots__ = ('sensor_id', 'timestamp', 'flags', 'raw_value', 'unit_code')
+    __slots__ = ('sync', 'msg_type', 'length', 'sequence', 'sensor_id', 'timestamp', 'flags', 'raw_value', 'unit_code')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.msg_type = 0
+        self.length = 0
+        self.sequence = 0
         self.sensor_id = 0
         self.timestamp = 0
         self.flags = None
@@ -85,15 +98,19 @@ class SensorBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'SensorBody(sensor_id={self.sensor_id}, timestamp={self.timestamp}, flags={self.flags}, raw_value={self.raw_value}, unit_code={self.unit_code})'
+        return f'SensorBody(sync={self.sync}, msg_type={self.msg_type}, length={self.length}, sequence={self.sequence}, sensor_id={self.sensor_id}, timestamp={self.timestamp}, flags={self.flags}, raw_value={self.raw_value}, unit_code={self.unit_code})'
 
 class ConfigBody:
     TYPE_ID = 0xe2792bc0a389ea7f
     TYPE_NAME = 'ConfigBody'
     ID_VALUE = 3
-    __slots__ = ('device_name', 'firmware', 'mode', 'log_level', 'auto_report', 'compression', 'sample_rate')
+    __slots__ = ('sync', 'msg_type', 'length', 'sequence', 'device_name', 'firmware', 'mode', 'log_level', 'auto_report', 'compression', 'sample_rate')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.msg_type = 0
+        self.length = 0
+        self.sequence = 0
         self.device_name = ''
         self.firmware = None
         self.mode = None
@@ -136,15 +153,19 @@ class ConfigBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'ConfigBody(device_name={self.device_name}, firmware={self.firmware}, mode={self.mode}, log_level={self.log_level}, auto_report={self.auto_report}, compression={self.compression}, sample_rate={self.sample_rate})'
+        return f'ConfigBody(sync={self.sync}, msg_type={self.msg_type}, length={self.length}, sequence={self.sequence}, device_name={self.device_name}, firmware={self.firmware}, mode={self.mode}, log_level={self.log_level}, auto_report={self.auto_report}, compression={self.compression}, sample_rate={self.sample_rate})'
 
 class AlertBody:
     TYPE_ID = 0x34ebed7f49293589
     TYPE_NAME = 'AlertBody'
     ID_VALUE = 4
-    __slots__ = ('timestamp', 'source_id', 'severity', 'category', 'alert_code', 'message')
+    __slots__ = ('sync', 'msg_type', 'length', 'sequence', 'timestamp', 'source_id', 'severity', 'category', 'alert_code', 'message')
 
     def __init__(self) -> None:
+        self.sync = 0
+        self.msg_type = 0
+        self.length = 0
+        self.sequence = 0
         self.timestamp = 0
         self.source_id = 0
         self.severity = SeverityLevel.INFO
@@ -182,7 +203,7 @@ class AlertBody:
         return w.to_bytes()
 
     def __repr__(self) -> str:
-        return f'AlertBody(timestamp={self.timestamp}, source_id={self.source_id}, severity={self.severity}, category={self.category}, alert_code={self.alert_code}, message={self.message})'
+        return f'AlertBody(sync={self.sync}, msg_type={self.msg_type}, length={self.length}, sequence={self.sequence}, timestamp={self.timestamp}, source_id={self.source_id}, severity={self.severity}, category={self.category}, alert_code={self.alert_code}, message={self.message})'
 
 class Frame:
     __slots__ = ('sync', 'msg_type', 'length', 'sequence', 'payload')
@@ -235,12 +256,28 @@ class Frame:
         _payload_r = r.sub_reader(int(result.length) - 6)
         if result.msg_type == 1:
             result.payload = HeartbeatBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.msg_type = result.msg_type
+            result.payload.length = result.length
+            result.payload.sequence = result.sequence
         elif result.msg_type == 2:
             result.payload = SensorBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.msg_type = result.msg_type
+            result.payload.length = result.length
+            result.payload.sequence = result.sequence
         elif result.msg_type == 3:
             result.payload = ConfigBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.msg_type = result.msg_type
+            result.payload.length = result.length
+            result.payload.sequence = result.sequence
         elif result.msg_type == 4:
             result.payload = AlertBody.decode(_payload_r)
+            result.payload.sync = result.sync
+            result.payload.msg_type = result.msg_type
+            result.payload.length = result.length
+            result.payload.sequence = result.sequence
         return result
 
     @staticmethod

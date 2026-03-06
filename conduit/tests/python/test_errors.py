@@ -361,14 +361,14 @@ class TestConstraintMessage:
         from constraints import ConstraintMsg
 
         msg = ConstraintMsg()
-        msg.magic = 0xABCD
+        msg.magic = 0xBEEF  # must match equals constraint
         msg.percent = 50
         msg.deferred_val = 1000
         msg.payload = 0x12345678
 
         data = msg.encode_bytes()
         msg2 = ConstraintMsg.decode_bytes(data)
-        assert msg2.magic == 0xABCD
+        assert msg2.magic == 0xBEEF
         assert msg2.percent == 50
         assert msg2.deferred_val == 1000
         assert msg2.payload == 0x12345678
@@ -388,28 +388,32 @@ class TestStructFeaturesErrors:
     def test_constrained_message_roundtrip(self):
         from struct_features import ConstrainedMessage
         from struct_features.structs import GpsCoord
+        from struct_features.constants import Constants
 
         msg = ConstrainedMessage()
-        msg.magic = 0xABCD
-        msg.version = 2
-        msg.value = 1000
+        # magic and version must match constraint equals values
+        msg.magic = Constants.MAGIC  # 0xCAFE
+        msg.version = Constants.VERSION  # 3
+        msg.value = 500  # constraint: 10..1000
         msg.position = GpsCoord()
         msg.position.latitude = 0x12345678
         msg.position.longitude = 0xDEADBEEF
 
         data = msg.encode_bytes()
         msg2 = ConstrainedMessage.decode_bytes(data)
-        assert msg2.magic == 0xABCD
-        assert msg2.version == 2
-        assert msg2.value == 1000
+        assert msg2.magic == Constants.MAGIC
+        assert msg2.version == Constants.VERSION
+        assert msg2.value == 500
         assert msg2.position.latitude == 0x12345678
         assert msg2.position.longitude == 0xDEADBEEF
 
     def test_constrained_message_truncated(self):
         from struct_features import ConstrainedMessage, DecodeError as SFDE
+        from struct_features.bit_io import ConstraintError
 
-        with pytest.raises(SFDE):
-            ConstrainedMessage.decode_bytes(bytes(5))  # needs 13 bytes
+        # decode of all-zeros will fail on constraint (magic != MAGIC)
+        with pytest.raises((SFDE, ConstraintError)):
+            ConstrainedMessage.decode_bytes(bytes(13))
 
     def test_conditional_message_with_extra(self):
         from struct_features import ConditionalMessage

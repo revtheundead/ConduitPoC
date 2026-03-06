@@ -5,7 +5,13 @@ public final class Protocol {
     public static final String NAME = "arrays_choices";
     public static final String VERSION = "2.0";
 
-    public record TypeInfo(long typeId, String typeName) {}
+    public static final class TypeInfo {
+        private final long typeId;
+        private final String typeName;
+        public TypeInfo(long typeId, String typeName) { this.typeId = typeId; this.typeName = typeName; }
+        public long typeId() { return typeId; }
+        public String typeName() { return typeName; }
+    }
 
     public static final TypeInfo[] TYPES = {
     };
