@@ -283,6 +283,10 @@ jobs:
           $BuildDir = "${{ github.workspace }}\build-conduit\Release"
           $JniLib = "$BuildDir\conduit_jni.dll"
 
+          # Add build dir to PATH so Windows can find conduit_cabi.dll
+          # (dependent DLL of conduit_jni.dll) during library loading
+          $env:PATH = "$BuildDir;$env:PATH"
+
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
             -ArgumentList @(
