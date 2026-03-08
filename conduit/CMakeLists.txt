@@ -22,6 +22,7 @@ option(CONDUIT_BUILD_CABI            "Build full Transceiver C ABI shared lib"  
 option(CONDUIT_BUILD_PYTHON_BINDINGS "Build Python bindings (requires CABI)"    OFF)
 option(CONDUIT_BUILD_JAVA_BINDINGS   "Build Java bindings (requires CABI)"      OFF)
 option(CONDUIT_BUILD_JNI             "Build JNI shared libraries for Java 11+"  OFF)
+option(CONDUIT_BUILD_JAVA_JAR        "Build conduit-java JAR and compile Java tests" OFF)
 
 # ============================================================================
 # Compiler warnings
@@ -281,6 +282,108 @@ if(CONDUIT_BUILD_JNI)
             CXX_VISIBILITY_PRESET hidden
             VISIBILITY_INLINES_HIDDEN ON
         )
+    endif()
+endif()
+
+# ============================================================================
+# Java JAR build (optional)
+# ============================================================================
+
+if(CONDUIT_BUILD_JAVA_JAR)
+    find_program(JAVAC_EXECUTABLE javac)
+    find_program(JAR_EXECUTABLE jar)
+    if(NOT JAVAC_EXECUTABLE OR NOT JAR_EXECUTABLE)
+        message(FATAL_ERROR "CONDUIT_BUILD_JAVA_JAR requires javac and jar on PATH")
+    endif()
+
+    # Detect JDK version to decide whether to include Panama sources
+    execute_process(
+        COMMAND ${JAVAC_EXECUTABLE} -version
+        OUTPUT_VARIABLE _javac_version_out
+        ERROR_VARIABLE _javac_version_out
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    string(REGEX MATCH "[0-9]+" _java_major "${_javac_version_out}")
+    message(STATUS "Detected JDK major version: ${_java_major}")
+
+    set(_java_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/src/main/java")
+    set(_java_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/java-classes")
+    set(_java_jar "${CMAKE_CURRENT_BINARY_DIR}/conduit-java-0.1.0.jar")
+
+    # Collect Java sources — always include the core (non-Panama) files
+    file(GLOB _java_core_sources "${_java_src_dir}/io/conduit/*.java")
+    set(_java_sources ${_java_core_sources})
+
+    # Set compiler release level and filter Panama sources for JDK < 21
+    set(_javac_flags -d "${_java_classes_dir}")
+    if(_java_major GREATER_EQUAL 21)
+        list(APPEND _javac_flags --release 21 --enable-preview)
+    else()
+        list(APPEND _javac_flags --release 11)
+        # Exclude Panama-specific files that require JDK 21+
+        list(FILTER _java_sources EXCLUDE REGEX "CabiBindings\\.java$")
+        list(FILTER _java_sources EXCLUDE REGEX "CodecBindings\\.java$")
+        list(FILTER _java_sources EXCLUDE REGEX "PanamaNativeBinding\\.java$")
+        list(FILTER _java_sources EXCLUDE REGEX "PanamaCodecBinding\\.java$")
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_java_jar}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_classes_dir}"
+        COMMAND ${JAVAC_EXECUTABLE} ${_javac_flags} ${_java_sources}
+        COMMAND ${JAR_EXECUTABLE} cf "${_java_jar}" -C "${_java_classes_dir}" .
+        DEPENDS ${_java_sources}
+        COMMENT "Building conduit-java-0.1.0.jar"
+        VERBATIM
+    )
+    add_custom_target(conduit_java_jar ALL DEPENDS "${_java_jar}")
+
+    # ---- Java test compilation (requires bgen + fixtures) ----
+    if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_TESTS)
+        set(_java_test_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/java-test-generated")
+        set(_java_test_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/java-test-classes")
+        set(_java_test_fixtures
+            struct_features
+            constraints
+            field_scale
+            sentry_link
+        )
+
+        # Generate Java code from each test fixture
+        set(_java_test_gen_stamps "")
+        foreach(_fix ${_java_test_fixtures})
+            set(_fix_input "${CMAKE_CURRENT_SOURCE_DIR}/bgen/tests/fixtures/${_fix}.bmdl.xml")
+            set(_stamp "${_java_test_gen_dir}/${_fix}/.stamp")
+            add_custom_command(
+                OUTPUT "${_stamp}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_test_gen_dir}/${_fix}"
+                COMMAND $<TARGET_FILE:bgen> --input "${_fix_input}"
+                    --output "${_java_test_gen_dir}/${_fix}" --language java
+                COMMAND ${CMAKE_COMMAND} -E touch "${_stamp}"
+                DEPENDS bgen "${_fix_input}"
+                COMMENT "bgen: generating Java test code for ${_fix}"
+                VERBATIM
+            )
+            list(APPEND _java_test_gen_stamps "${_stamp}")
+        endforeach()
+
+        add_custom_target(java_test_codegen DEPENDS ${_java_test_gen_stamps})
+
+        # Compile all generated Java test sources
+        add_custom_command(
+            OUTPUT "${_java_test_classes_dir}/.compiled"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_test_classes_dir}"
+            COMMAND ${CMAKE_COMMAND} -E echo "Compiling generated Java test sources..."
+            COMMAND find "${_java_test_gen_dir}" -name "*.java" | xargs
+                ${JAVAC_EXECUTABLE} --release 11
+                -cp "${_java_jar}"
+                -d "${_java_test_classes_dir}"
+            COMMAND ${CMAKE_COMMAND} -E touch "${_java_test_classes_dir}/.compiled"
+            DEPENDS conduit_java_jar java_test_codegen
+            COMMENT "Compiling Java test classes"
+            VERBATIM
+        )
+        add_custom_target(java_test_compile DEPENDS "${_java_test_classes_dir}/.compiled")
     endif()
 endif()
 

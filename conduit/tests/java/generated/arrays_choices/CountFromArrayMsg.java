@@ -10,6 +10,11 @@ public final class CountFromArrayMsg {
     public int numItems = 0;
     public java.util.List<Point> items = new java.util.ArrayList<>();
 
+    public int getNumItems() { return numItems; }
+    public void setNumItems(int v) { numItems = v; }
+    public java.util.List<Point> getItems() { return items; }
+    public void setItems(java.util.List<Point> v) { items = v; }
+
     public static CountFromArrayMsg decode(BitReader r) {
         CountFromArrayMsg result = new CountFromArrayMsg();
         result.numItems = r.readU8();

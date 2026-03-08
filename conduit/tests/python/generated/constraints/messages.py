@@ -14,6 +14,14 @@ class ConstraintMsg:
         self.deferred_val = 0
         self.payload = 0
 
+    def set_magic(self, v):
+        if v != 0xBEEF: raise ConstraintError('magic constraint: expected 0xBEEF')
+        self.magic = v
+
+    def set_percent(self, v):
+        if v > 100: raise ConstraintError('percent exceeds max 100')
+        self.percent = v
+
     @staticmethod
     def decode(r: 'BitReader') -> 'ConstraintMsg':
         result = ConstraintMsg()

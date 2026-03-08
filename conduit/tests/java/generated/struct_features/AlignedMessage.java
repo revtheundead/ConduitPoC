@@ -9,6 +9,11 @@ public final class AlignedMessage {
     public int flag = 0;
     public int data = 0;
 
+    public int getFlag() { return flag; }
+    public void setFlag(int v) { flag = v; }
+    public int getData() { return data; }
+    public void setData(int v) { data = v; }
+
     public static AlignedMessage decode(BitReader r) {
         AlignedMessage result = new AlignedMessage();
         result.flag = r.readU8();

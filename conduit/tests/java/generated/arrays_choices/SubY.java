@@ -9,6 +9,11 @@ public final class SubY {
     public int a = 0;
     public int b = 0;
 
+    public int getA() { return a; }
+    public void setA(int v) { a = v; }
+    public int getB() { return b; }
+    public void setB(int v) { b = v; }
+
     public static SubY decode(BitReader r) {
         SubY result = new SubY();
         result.a = r.readU16(true);

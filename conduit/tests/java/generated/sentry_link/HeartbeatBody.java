@@ -19,6 +19,18 @@ public final class HeartbeatBody {
     public DeviceStatus status = online;
     public int cpuLoad = 0;
 
+    public int getTimestamp() { return timestamp; }
+    public void setTimestamp(int v) { timestamp = v; }
+    public int getUptimeHours() { return uptimeHours; }
+    public void setUptimeHours(int v) { uptimeHours = v; }
+    public DeviceStatus getStatus() { return status; }
+    public void setStatus(DeviceStatus v) { status = v; }
+    public int getCpuLoad() { return cpuLoad; }
+    public void setCpuLoad(int v) {
+        if (v > 100) throw new ConduitCodecException("cpu-load exceeds max 100");
+        cpuLoad = v;
+    }
+
     public static HeartbeatBody decode(BitReader r) {
         HeartbeatBody result = new HeartbeatBody();
         result.timestamp = r.readU32(true);

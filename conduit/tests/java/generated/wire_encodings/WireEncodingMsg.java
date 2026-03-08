@@ -14,6 +14,21 @@ public final class WireEncodingMsg {
     public int inlineBcd = 0;
     public int inlineBnrs = 0;
 
+    public int getBcdAlt() { return bcdAlt; }
+    public void setBcdAlt(int v) { bcdAlt = v; }
+    public int getBcdHdg() { return bcdHdg; }
+    public void setBcdHdg(int v) { bcdHdg = v; }
+    public int getSmOffset() { return smOffset; }
+    public void setSmOffset(int v) { smOffset = v; }
+    public int getCb2Val() { return cb2Val; }
+    public void setCb2Val(int v) { cb2Val = v; }
+    public int getBnrVal() { return bnrVal; }
+    public void setBnrVal(int v) { bnrVal = v; }
+    public int getInlineBcd() { return inlineBcd; }
+    public void setInlineBcd(int v) { inlineBcd = v; }
+    public int getInlineBnrs() { return inlineBnrs; }
+    public void setInlineBnrs(int v) { inlineBnrs = v; }
+
     public static WireEncodingMsg decode(BitReader r) {
         WireEncodingMsg result = new WireEncodingMsg();
         result.bcdAlt = (int) (int) r.readBcd(16);

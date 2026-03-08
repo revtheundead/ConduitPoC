@@ -31,6 +31,45 @@ public final class AllTypesMessage {
     public ColorEnum color = null;
     public StatusFlags status = null;
 
+    public int getU8() { return u8; }
+    public void setU8(int v) { u8 = v; }
+    public int getU16() { return u16; }
+    public void setU16(int v) { u16 = v; }
+    public int getU32() { return u32; }
+    public void setU32(int v) { u32 = v; }
+    public long getU64() { return u64; }
+    public void setU64(long v) { u64 = v; }
+    public int getI8() { return i8; }
+    public void setI8(int v) { i8 = v; }
+    public int getI16() { return i16; }
+    public void setI16(int v) { i16 = v; }
+    public int getI32() { return i32; }
+    public void setI32(int v) { i32 = v; }
+    public float getF32() { return f32; }
+    public void setF32(float v) { f32 = v; }
+    public double getF64() { return f64; }
+    public void setF64(double v) { f64 = v; }
+    public boolean getFlag() { return flag; }
+    public void setFlag(boolean v) { flag = v; }
+    public AsciiStr getAscii() { return ascii; }
+    public void setAscii(AsciiStr v) { ascii = v; }
+    public Utf8Str getUtf8() { return utf8; }
+    public void setUtf8(Utf8Str v) { utf8 = v; }
+    public long getRaw() { return raw; }
+    public void setRaw(long v) { raw = v; }
+    public int getLe16() { return le16; }
+    public void setLe16(int v) { le16 = v; }
+    public int getLe32() { return le32; }
+    public void setLe32(int v) { le32 = v; }
+    public ScaledTemp getTemp() { return temp; }
+    public void setTemp(ScaledTemp v) { temp = v; }
+    public int getHex() { return hex; }
+    public void setHex(int v) { hex = v; }
+    public ColorEnum getColor() { return color; }
+    public void setColor(ColorEnum v) { color = v; }
+    public StatusFlags getStatus() { return status; }
+    public void setStatus(StatusFlags v) { status = v; }
+
     public static AllTypesMessage decode(BitReader r) {
         AllTypesMessage result = new AllTypesMessage();
         result.u8 = r.readU8();

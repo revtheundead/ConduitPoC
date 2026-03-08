@@ -9,6 +9,11 @@ public final class Point {
     public int x = 0;
     public int y = 0;
 
+    public int getX() { return x; }
+    public void setX(int v) { x = v; }
+    public int getY() { return y; }
+    public void setY(int v) { y = v; }
+
     public static Point decode(BitReader r) {
         Point result = new Point();
         result.x = r.readU16(true);

@@ -11,6 +11,13 @@ public final class InlineStringMsg {
     public NameStr inlineName = null;
     public int prefixStr = 0;
 
+    public int getId() { return id; }
+    public void setId(int v) { id = v; }
+    public NameStr getInlineName() { return inlineName; }
+    public void setInlineName(NameStr v) { inlineName = v; }
+    public int getPrefixStr() { return prefixStr; }
+    public void setPrefixStr(int v) { prefixStr = v; }
+
     public static InlineStringMsg decode(BitReader r) {
         InlineStringMsg result = new InlineStringMsg();
         result.id = r.readU8();

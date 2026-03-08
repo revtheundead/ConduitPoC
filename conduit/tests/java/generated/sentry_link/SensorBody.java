@@ -20,6 +20,19 @@ public final class SensorBody {
     public double rawValue = 0.0;
     public int unitCode = 0;
 
+    public int getSensorId() { return sensorId; }
+    public void setSensorId(int v) { sensorId = v; }
+    public int getTimestamp() { return timestamp; }
+    public void setTimestamp(int v) { timestamp = v; }
+    public SensorFlags getFlags() { return flags; }
+    public void setFlags(SensorFlags v) { flags = v; }
+    public double getRawValue() { return rawValue; }
+    public void setRawValue(double v) { rawValue = v; }
+    public int getRawValueRaw() { return (int)(rawValue / 0.01); }
+    public void setRawValueRaw(int v) { rawValue = (double)(v) * 0.01 + 0.0; }
+    public int getUnitCode() { return unitCode; }
+    public void setUnitCode(int v) { unitCode = v; }
+
     public static SensorBody decode(BitReader r) {
         SensorBody result = new SensorBody();
         result.sensorId = r.readU16(true);

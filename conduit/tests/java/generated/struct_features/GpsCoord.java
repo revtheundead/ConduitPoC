@@ -9,6 +9,11 @@ public final class GpsCoord {
     public int latitude = 0;
     public int longitude = 0;
 
+    public int getLatitude() { return latitude; }
+    public void setLatitude(int v) { latitude = v; }
+    public int getLongitude() { return longitude; }
+    public void setLongitude(int v) { longitude = v; }
+
     public static GpsCoord decode(BitReader r) {
         GpsCoord result = new GpsCoord();
         result.latitude = r.readU32(true);

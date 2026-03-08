@@ -11,6 +11,15 @@ public final class SensorFlags {
     public int saturated = 0;
     public int valid = 0;
 
+    public int getChannel() { return channel; }
+    public void setChannel(int v) { channel = v; }
+    public int getPrecision() { return precision; }
+    public void setPrecision(int v) { precision = v; }
+    public int getSaturated() { return saturated; }
+    public void setSaturated(int v) { saturated = v; }
+    public int getValid() { return valid; }
+    public void setValid(int v) { valid = v; }
+
     public static SensorFlags decode(BitReader r) {
         SensorFlags result = new SensorFlags();
         result.channel = (int) r.readBits(4);

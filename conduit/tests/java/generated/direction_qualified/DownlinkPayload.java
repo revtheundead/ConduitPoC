@@ -12,6 +12,9 @@ public final class DownlinkPayload {
     public int tag = 0;
     public int rxData = 0;
 
+    public int getRxData() { return rxData; }
+    public void setRxData(int v) { rxData = v; }
+
     public static DownlinkPayload decode(BitReader r) {
         DownlinkPayload result = new DownlinkPayload();
         result.rxData = r.readU32(true);

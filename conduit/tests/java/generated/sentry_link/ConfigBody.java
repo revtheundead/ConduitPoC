@@ -23,6 +23,21 @@ public final class ConfigBody {
     public int compression = 0;
     public int sampleRate = 0;
 
+    public String getDeviceName() { return deviceName; }
+    public void setDeviceName(String v) { deviceName = v; }
+    public FirmwareVersion getFirmware() { return firmware; }
+    public void setFirmware(FirmwareVersion v) { firmware = v; }
+    public DeviceMode getMode() { return mode; }
+    public void setMode(DeviceMode v) { mode = v; }
+    public int getLogLevel() { return logLevel; }
+    public void setLogLevel(int v) { logLevel = v; }
+    public int getAutoReport() { return autoReport; }
+    public void setAutoReport(int v) { autoReport = v; }
+    public int getCompression() { return compression; }
+    public void setCompression(int v) { compression = v; }
+    public int getSampleRate() { return sampleRate; }
+    public void setSampleRate(int v) { sampleRate = v; }
+
     public static ConfigBody decode(BitReader r) {
         ConfigBody result = new ConfigBody();
         result.deviceName = r.readString(16);

@@ -11,6 +11,15 @@ public final class MixedMsg {
     public int be32 = 0;
     public int le32 = 0;
 
+    public int getBe16() { return be16; }
+    public void setBe16(int v) { be16 = v; }
+    public int getLe16() { return le16; }
+    public void setLe16(int v) { le16 = v; }
+    public int getBe32() { return be32; }
+    public void setBe32(int v) { be32 = v; }
+    public int getLe32() { return le32; }
+    public void setLe32(int v) { le32 = v; }
+
     public static MixedMsg decode(BitReader r) {
         MixedMsg result = new MixedMsg();
         result.be16 = r.readU16(true);

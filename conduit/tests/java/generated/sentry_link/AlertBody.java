@@ -21,6 +21,19 @@ public final class AlertBody {
     public int alertCode = 0;
     public String message = "";
 
+    public int getTimestamp() { return timestamp; }
+    public void setTimestamp(int v) { timestamp = v; }
+    public int getSourceId() { return sourceId; }
+    public void setSourceId(int v) { sourceId = v; }
+    public SeverityLevel getSeverity() { return severity; }
+    public void setSeverity(SeverityLevel v) { severity = v; }
+    public int getCategory() { return category; }
+    public void setCategory(int v) { category = v; }
+    public int getAlertCode() { return alertCode; }
+    public void setAlertCode(int v) { alertCode = v; }
+    public String getMessage() { return message; }
+    public void setMessage(String v) { message = v; }
+
     public static AlertBody decode(BitReader r) {
         AlertBody result = new AlertBody();
         result.timestamp = r.readU32(true);

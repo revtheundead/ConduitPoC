@@ -8,6 +8,9 @@ public final class SubX {
 
     public int val = 0;
 
+    public int getVal() { return val; }
+    public void setVal(int v) { val = v; }
+
     public static SubX decode(BitReader r) {
         SubX result = new SubX();
         result.val = r.readU32(true);

@@ -8,6 +8,9 @@ public final class FallbackBody {
 
     public int raw = 0;
 
+    public int getRaw() { return raw; }
+    public void setRaw(int v) { raw = v; }
+
     public static FallbackBody decode(BitReader r) {
         FallbackBody result = new FallbackBody();
         result.raw = r.readU32(true);

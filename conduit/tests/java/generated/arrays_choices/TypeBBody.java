@@ -8,6 +8,9 @@ public final class TypeBBody {
 
     public int tag = 0;
 
+    public int getTag() { return tag; }
+    public void setTag(int v) { tag = v; }
+
     public static TypeBBody decode(BitReader r) {
         TypeBBody result = new TypeBBody();
         result.tag = r.readU32(true);

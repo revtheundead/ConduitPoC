@@ -18,6 +18,19 @@ public final class StringMsg {
     public PackedStr packed = null;
     public TermStr term = null;
 
+    public int getId() { return id; }
+    public void setId(int v) { id = v; }
+    public NameStr getName() { return name; }
+    public void setName(NameStr v) { name = v; }
+    public LabelStr getLabel() { return label; }
+    public void setLabel(LabelStr v) { label = v; }
+    public BoundedStr getBounded() { return bounded; }
+    public void setBounded(BoundedStr v) { bounded = v; }
+    public PackedStr getPacked() { return packed; }
+    public void setPacked(PackedStr v) { packed = v; }
+    public TermStr getTerm() { return term; }
+    public void setTerm(TermStr v) { term = v; }
+
     public static StringMsg decode(BitReader r) {
         StringMsg result = new StringMsg();
         result.id = r.readU16(true);

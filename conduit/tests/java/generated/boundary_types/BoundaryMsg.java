@@ -22,6 +22,33 @@ public final class BoundaryMsg {
     public ScaledTemp temp = null;
     public NybbleEnum level = null;
 
+    public int getFlag() { return flag; }
+    public void setFlag(int v) { flag = v; }
+    public int getSmall() { return small; }
+    public void setSmall(int v) { small = v; }
+    public int getMedium() { return medium; }
+    public void setMedium(int v) { medium = v; }
+    public int getByteVal() { return byteVal; }
+    public void setByteVal(int v) { byteVal = v; }
+    public int getWord() { return word; }
+    public void setWord(int v) { word = v; }
+    public int getDword() { return dword; }
+    public void setDword(int v) { dword = v; }
+    public long getQword() { return qword; }
+    public void setQword(long v) { qword = v; }
+    public int getSignedByte() { return signedByte; }
+    public void setSignedByte(int v) { signedByte = v; }
+    public int getSignedWord() { return signedWord; }
+    public void setSignedWord(int v) { signedWord = v; }
+    public int getSignedDword() { return signedDword; }
+    public void setSignedDword(int v) { signedDword = v; }
+    public long getSignedQword() { return signedQword; }
+    public void setSignedQword(long v) { signedQword = v; }
+    public ScaledTemp getTemp() { return temp; }
+    public void setTemp(ScaledTemp v) { temp = v; }
+    public NybbleEnum getLevel() { return level; }
+    public void setLevel(NybbleEnum v) { level = v; }
+
     public static BoundaryMsg decode(BitReader r) {
         BoundaryMsg result = new BoundaryMsg();
         result.flag = (int) r.readBits(1);

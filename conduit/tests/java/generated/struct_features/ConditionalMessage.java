@@ -10,6 +10,15 @@ public final class ConditionalMessage {
     public int baseValue = 0;
     public Integer extraValue = null;
 
+    public int getHasExtra() { return hasExtra; }
+    public void setHasExtra(int v) { hasExtra = v; }
+    public int getBaseValue() { return baseValue; }
+    public void setBaseValue(int v) { baseValue = v; }
+    public Integer getExtraValue() { return extraValue; }
+    public void setExtraValue(Integer v) { extraValue = v; }
+    public boolean hasExtraValue() { return extraValue != null; }
+    public void clearExtraValue() { extraValue = null; }
+
     public static ConditionalMessage decode(BitReader r) {
         ConditionalMessage result = new ConditionalMessage();
         result.hasExtra = r.readU8();

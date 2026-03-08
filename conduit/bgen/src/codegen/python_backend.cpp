@@ -1852,6 +1852,24 @@ struct PyFieldDef {
     std::string default_val;
     model::DisplayFormat format = model::DisplayFormat::Decimal;
     bool is_numeric = false;  // true for simple int fields (not struct/enum/string/bytes)
+    // Constraint & accessor info (matching C++ emit_plain_accessors / emit_setter_constraint_checks)
+    const model::Constraint* constraint = nullptr;
+    bool is_signed = false;
+    bool is_optional = false;        // FX / bitmap / present-when (nullable)
+    bool is_enum = false;
+    bool is_struct = false;
+    bool is_string = false;
+    bool is_bytes = false;
+    bool is_bool = false;
+    std::optional<int> max_length;
+    // Scaled field raw accessors
+    bool has_scale = false;
+    double scale = 1.0;
+    double offset = 0.0;
+    int raw_bits = 0;
+    bool raw_signed = false;
+    // Source BMDL name for accessor naming
+    std::string bmdl_name;
 };
 
 void collect_py_fields(const std::vector<model::StructChild>& children,
@@ -1865,7 +1883,13 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             // Inline enum field: enum_values populated, type_ref empty
             if (!f->enum_values.empty() && f->type_ref.empty() && !parent_class_name.empty()) {
                 std::string enum_name = parent_class_name + py_class(f->name);
-                fields.push_back({py_field(f->name), enum_name, "None"});
+                PyFieldDef ef;
+                ef.name = py_field(f->name);
+                ef.py_type = enum_name;
+                ef.default_val = "None";
+                ef.bmdl_name = f->name;
+                ef.is_enum = true;
+                fields.push_back(ef);
                 continue;
             }
             auto fi = py_resolve_field(*f, index);
@@ -1895,13 +1919,48 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             if (!f->default_value && f->constraint && f->constraint->equals) {
                 pf.default_val = py_qualify_const(*f->constraint->equals);
             }
+            // Populate constraint & accessor metadata (matching C++ collect_fields)
+            pf.bmdl_name = f->name;
+            pf.is_optional = optional;
+            pf.is_signed = fi.is_signed;
+            pf.is_enum = fi.is_enum;
+            pf.is_struct = fi.is_struct;
+            pf.is_string = fi.is_string;
+            pf.is_bytes = fi.is_bytes;
+            pf.is_bool = fi.is_bool;
+            pf.max_length = f->max_length;
+            if (f->constraint) pf.constraint = &*f->constraint;
+            pf.has_scale = fi.has_scale;
+            pf.scale = fi.scale;
+            pf.offset = fi.offset;
+            pf.raw_bits = fi.raw_bits;
+            pf.raw_signed = fi.raw_signed;
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            fields.push_back({py_field(sd->name), py_inline_class(sd->name, name_map), "None"});
+            PyFieldDef sdf;
+            sdf.name = py_field(sd->name);
+            sdf.py_type = py_inline_class(sd->name, name_map);
+            sdf.default_val = "None";
+            sdf.bmdl_name = sd->name;
+            sdf.is_struct = true;
+            sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
+            fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
-            fields.push_back({py_field(ad->name), "list", "None"});
+            PyFieldDef adf;
+            adf.name = py_field(ad->name);
+            adf.py_type = "list";
+            adf.default_val = "None";
+            adf.bmdl_name = ad->name;
+            adf.is_optional = in_fx || ad->present_when != nullptr || ad->bit.has_value();
+            fields.push_back(adf);
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
-            fields.push_back({py_field(cd->name), "object", "None"});
+            PyFieldDef cdf;
+            cdf.name = py_field(cd->name);
+            cdf.py_type = "object";
+            cdf.default_val = "None";
+            cdf.bmdl_name = cd->name;
+            cdf.is_optional = true;
+            fields.push_back(cdf);
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             collect_py_fields(fx->children, index, fields, name_map, parent_class_name, true);
         }
@@ -2042,6 +2101,69 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     }
     ctx.dedent();
     ctx.line();
+
+    // Accessors for bitmap fields (all nullable/optional)
+    for (const auto& bf : bfields) {
+        std::string m = py_field(bf.name);
+
+        // has / clear
+        ctx.line("def has_" + m + "(self) -> bool: return self." + m + " is not None");
+        ctx.line("def clear_" + m + "(self) -> None: self." + m + " = None");
+
+        // Validated setter
+        bool has_constraint = bf.source_field && bf.source_field->constraint
+            && bf.source_field->constraint->validate != model::ValidateTiming::Deferred
+            && (bf.source_field->constraint->equals || bf.source_field->constraint->min ||
+                bf.source_field->constraint->max);
+        bool has_ml = bf.source_field && bf.source_field->max_length.has_value();
+
+        if (has_constraint || has_ml) {
+            ctx.line("def set_" + m + "(self, v):");
+            ctx.indent();
+            if (has_constraint) {
+                const auto& con = *bf.source_field->constraint;
+                if (con.equals)
+                    ctx.line("if v != " + py_qualify_const(*con.equals) +
+                             ": raise ConstraintError('" + bf.name +
+                             " constraint: expected " + *con.equals + "')");
+                if (con.max)
+                    ctx.line("if v > " + py_qualify_const(*con.max) +
+                             ": raise ConstraintError('" + bf.name +
+                             " exceeds max " + *con.max + "')");
+                if (con.min && (*con.min != "0" || bf.is_signed))
+                    ctx.line("if v < " + py_qualify_const(*con.min) +
+                             ": raise ConstraintError('" + bf.name +
+                             " below min " + *con.min + "')");
+            }
+            if (has_ml) {
+                int ml = *bf.source_field->max_length;
+                ctx.line("if len(v) > " + std::to_string(ml) +
+                         ": raise ConstraintError('" + bf.name +
+                         " exceeds max length " + std::to_string(ml) + "')");
+            }
+            ctx.line("self." + m + " = v");
+            ctx.dedent();
+            ctx.line();
+        }
+
+        // Raw accessors for scaled bitmap fields
+        if (bf.has_scale) {
+            std::string scale_s = double_literal(bf.scale);
+            std::string offset_s = double_literal(bf.offset);
+            if (bf.offset != 0.0) {
+                ctx.line("def get_" + m + "_raw(self) -> int: return int((self." +
+                         m + " - " + offset_s + ") / " + scale_s +
+                         ") if self." + m + " is not None else 0");
+            } else {
+                ctx.line("def get_" + m + "_raw(self) -> int: return int(self." +
+                         m + " / " + scale_s +
+                         ") if self." + m + " is not None else 0");
+            }
+            ctx.line("def set_" + m + "_raw(self, v: int) -> None: self." +
+                     m + " = float(v) * " + scale_s + " + " + offset_s);
+            ctx.line();
+        }
+    }
 
     // Build outer-scope decode parameters
     auto osp_it = scope_map.find(sd.name);
@@ -2456,6 +2578,87 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     }
     ctx.dedent();
     ctx.line();
+
+    // Accessors (matching C++ emit_plain_accessors / emit_setter_constraint_checks)
+    for (const auto& f : fields) {
+        if (f.bmdl_name.empty()) continue; // extra fields without bmdl_name
+
+        // Determine if setter needs constraint validation
+        bool has_immediate_constraint = f.constraint
+            && f.constraint->validate != model::ValidateTiming::Deferred
+            && (f.constraint->equals || f.constraint->min || f.constraint->max);
+        bool needs_validation = has_immediate_constraint || f.max_length.has_value();
+
+        if (needs_validation) {
+            ctx.line("def set_" + f.name + "(self, v):");
+            ctx.indent();
+            if (has_immediate_constraint && f.is_bytes) {
+                bool need_numeric = f.constraint->equals || f.constraint->max ||
+                    (f.constraint->min && (*f.constraint->min != "0" || f.is_signed));
+                if (need_numeric) {
+                    ctx.line("_raw = int.from_bytes(v, 'big')");
+                    if (f.constraint->equals)
+                        ctx.line("if _raw != " + py_qualify_const(*f.constraint->equals) +
+                                 ": raise ConstraintError('" + f.bmdl_name +
+                                 " constraint: expected " + *f.constraint->equals + "')");
+                    if (f.constraint->max)
+                        ctx.line("if _raw > " + py_qualify_const(*f.constraint->max) +
+                                 ": raise ConstraintError('" + f.bmdl_name +
+                                 " exceeds max " + *f.constraint->max + "')");
+                    if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
+                        ctx.line("if _raw < " + py_qualify_const(*f.constraint->min) +
+                                 ": raise ConstraintError('" + f.bmdl_name +
+                                 " below min " + *f.constraint->min + "')");
+                }
+            } else if (has_immediate_constraint) {
+                if (f.constraint->equals)
+                    ctx.line("if v != " + py_qualify_const(*f.constraint->equals) +
+                             ": raise ConstraintError('" + f.bmdl_name +
+                             " constraint: expected " + *f.constraint->equals + "')");
+                if (f.constraint->max)
+                    ctx.line("if v > " + py_qualify_const(*f.constraint->max) +
+                             ": raise ConstraintError('" + f.bmdl_name +
+                             " exceeds max " + *f.constraint->max + "')");
+                if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
+                    ctx.line("if v < " + py_qualify_const(*f.constraint->min) +
+                             ": raise ConstraintError('" + f.bmdl_name +
+                             " below min " + *f.constraint->min + "')");
+            }
+            if (f.max_length) {
+                ctx.line("if len(v) > " + std::to_string(*f.max_length) +
+                         ": raise ConstraintError('" + f.bmdl_name +
+                         " exceeds max length " + std::to_string(*f.max_length) + "')");
+            }
+            ctx.line("self." + f.name + " = v");
+            ctx.dedent();
+            ctx.line();
+        }
+
+        // Raw accessors for scaled fields
+        if (f.has_scale) {
+            std::string scale_s = double_literal(f.scale);
+            std::string offset_s = double_literal(f.offset);
+            if (f.offset != 0.0) {
+                ctx.line("def get_" + f.name + "_raw(self) -> int: return int((self." +
+                         f.name + " - " + offset_s + ") / " + scale_s + ")");
+            } else {
+                ctx.line("def get_" + f.name + "_raw(self) -> int: return int(self." +
+                         f.name + " / " + scale_s + ")");
+            }
+            ctx.line("def set_" + f.name + "_raw(self, v: int) -> None: self." +
+                     f.name + " = float(v) * " + scale_s + " + " + offset_s);
+            ctx.line();
+        }
+
+        // Optional field helpers
+        if (f.is_optional) {
+            ctx.line("def has_" + f.name + "(self) -> bool: return self." +
+                     f.name + " is not None");
+            ctx.line("def clear_" + f.name + "(self) -> None: self." +
+                     f.name + " = None");
+            ctx.line();
+        }
+    }
 
     // Build outer-scope decode parameters and context for this class
     auto osp_it = scope_map.find(name);

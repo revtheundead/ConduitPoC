@@ -21,6 +21,10 @@ class HeartbeatBody:
         self.status = DeviceStatus.ONLINE
         self.cpu_load = 0
 
+    def set_cpu_load(self, v):
+        if v > 100: raise ConstraintError('cpu-load exceeds max 100')
+        self.cpu_load = v
+
     @staticmethod
     def decode(r: 'BitReader') -> 'HeartbeatBody':
         result = HeartbeatBody()
@@ -69,6 +73,9 @@ class SensorBody:
         self.flags = None
         self.raw_value = 0.0
         self.unit_code = 0
+
+    def get_raw_value_raw(self) -> int: return int(self.raw_value / 0.01)
+    def set_raw_value_raw(self, v: int) -> None: self.raw_value = float(v) * 0.01 + 0
 
     @staticmethod
     def decode(r: 'BitReader') -> 'SensorBody':

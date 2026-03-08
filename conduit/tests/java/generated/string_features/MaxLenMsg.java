@@ -9,6 +9,14 @@ public final class MaxLenMsg {
     public int id = 0;
     public String data = "";
 
+    public int getId() { return id; }
+    public void setId(int v) { id = v; }
+    public String getData() { return data; }
+    public void setData(String v) {
+        if (v.length() > 16) throw new ConduitCodecException("data exceeds max length 16");
+        data = v;
+    }
+
     public static MaxLenMsg decode(BitReader r) {
         MaxLenMsg result = new MaxLenMsg();
         result.id = r.readU8();

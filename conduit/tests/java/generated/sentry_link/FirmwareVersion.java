@@ -10,6 +10,13 @@ public final class FirmwareVersion {
     public int minor = 0;
     public int patch = 0;
 
+    public int getMajor() { return major; }
+    public void setMajor(int v) { major = v; }
+    public int getMinor() { return minor; }
+    public void setMinor(int v) { minor = v; }
+    public int getPatch() { return patch; }
+    public void setPatch(int v) { patch = v; }
+
     public static FirmwareVersion decode(BitReader r) {
         FirmwareVersion result = new FirmwareVersion();
         result.major = r.readU8();

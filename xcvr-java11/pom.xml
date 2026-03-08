@@ -17,6 +17,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>11</maven.compiler.release>
         <conduit.build.dir>${project.basedir}/../conduit/build</conduit.build.dir>
+        <bgen.path>${conduit.build.dir}/bgen/bgen</bgen.path>
         <exec.appArgs></exec.appArgs>
     </properties>
 
@@ -30,6 +31,54 @@
 
     <build>
         <plugins>
+            <!--
+              bgen code generation: regenerate Java sources from BMDL specs
+              during generate-sources phase. Set -Dbgen.path=... to override
+              the default bgen location.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <id>bgen-asterix</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>${bgen.path}</executable>
+                            <arguments>
+                                <argument>--input</argument>
+                                <argument>${project.basedir}/asterix/asterix.bmdl.xml</argument>
+                                <argument>--output</argument>
+                                <argument>${project.basedir}/asterix/generated</argument>
+                                <argument>--language</argument>
+                                <argument>java</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>bgen-asterix-alt</id>
+                        <phase>generate-sources</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>${bgen.path}</executable>
+                            <arguments>
+                                <argument>--input</argument>
+                                <argument>${project.basedir}/asterix-alt/asterix-alt.bmdl.xml</argument>
+                                <argument>--output</argument>
+                                <argument>${project.basedir}/asterix-alt/generated</argument>
+                                <argument>--language</argument>
+                                <argument>java</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>com.conduit.xcvr.PocApp</mainClass>
+                </configuration>
+            </plugin>
+
             <!-- Add bgen-generated source directories -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -56,16 +105,6 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>11</release>
-                </configuration>
-            </plugin>
-
-            <!-- exec:java for running the apps -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.4.1</version>
-                <configuration>
-                    <mainClass>com.conduit.xcvr.PocApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>

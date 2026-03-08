@@ -12,6 +12,25 @@ public final class ConstrainedMessage {
     public int value = 0;
     public GpsCoord position = null;
 
+    public int getMagic() { return magic; }
+    public void setMagic(int v) {
+        if (v != (int) Constants.MAGIC) throw new ConduitCodecException("magic constraint: expected MAGIC");
+        magic = v;
+    }
+    public int getVersion() { return version; }
+    public void setVersion(int v) {
+        if (v != (int) Constants.VERSION) throw new ConduitCodecException("version constraint: expected VERSION");
+        version = v;
+    }
+    public int getValue() { return value; }
+    public void setValue(int v) {
+        if (v > 1000) throw new ConduitCodecException("value exceeds max 1000");
+        if (v < 10) throw new ConduitCodecException("value below min 10");
+        value = v;
+    }
+    public GpsCoord getPosition() { return position; }
+    public void setPosition(GpsCoord v) { position = v; }
+
     public static ConstrainedMessage decode(BitReader r) {
         ConstrainedMessage result = new ConstrainedMessage();
         result.magic = r.readU16(true);

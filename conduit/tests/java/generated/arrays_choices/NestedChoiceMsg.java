@@ -10,6 +10,15 @@ public final class NestedChoiceMsg {
     public int subType = 0;
     public Object body = null;
 
+    public int getMsgType() { return msgType; }
+    public void setMsgType(int v) { msgType = v; }
+    public int getSubType() { return subType; }
+    public void setSubType(int v) { subType = v; }
+    public Object getBody() { return body; }
+    public void setBody(Object v) { body = v; }
+    public boolean hasBody() { return body != null; }
+    public void clearBody() { body = null; }
+
     public static NestedChoiceMsg decode(BitReader r) {
         NestedChoiceMsg result = new NestedChoiceMsg();
         result.msgType = r.readU8();

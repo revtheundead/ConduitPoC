@@ -13,6 +13,12 @@ class ScaleMsg:
         self.temp = 0.0
         self.plain = 0
 
+    def get_fl_raw(self) -> int: return int(self.fl / 0.25)
+    def set_fl_raw(self, v: int) -> None: self.fl = float(v) * 0.25 + 0
+
+    def get_temp_raw(self) -> int: return int((self.temp - -40) / 0.01)
+    def set_temp_raw(self, v: int) -> None: self.temp = float(v) * 0.01 + -40
+
     @staticmethod
     def decode(r: 'BitReader') -> 'ScaleMsg':
         result = ScaleMsg()

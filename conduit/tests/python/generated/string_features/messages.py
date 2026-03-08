@@ -93,6 +93,10 @@ class MaxLenMsg:
         self.id = 0
         self.data = ''
 
+    def set_data(self, v):
+        if len(v) > 16: raise ConstraintError('data exceeds max length 16')
+        self.data = v
+
     @staticmethod
     def decode(r: 'BitReader') -> 'MaxLenMsg':
         result = MaxLenMsg()

@@ -12,6 +12,9 @@ public final class CommonPayload {
     public int tag = 0;
     public int commonData = 0;
 
+    public int getCommonData() { return commonData; }
+    public void setCommonData(int v) { commonData = v; }
+
     public static CommonPayload decode(BitReader r) {
         CommonPayload result = new CommonPayload();
         result.commonData = r.readU8();

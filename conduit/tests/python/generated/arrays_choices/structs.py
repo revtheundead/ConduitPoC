@@ -98,6 +98,9 @@ class TypeABody:
         self.sub_type = 0
         self.sub_body = None
 
+    def has_sub_body(self) -> bool: return self.sub_body is not None
+    def clear_sub_body(self) -> None: self.sub_body = None
+
     @staticmethod
     def decode(r: 'BitReader') -> 'TypeABody':
         result = TypeABody()

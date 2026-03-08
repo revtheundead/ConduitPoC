@@ -9,6 +9,13 @@ public final class TypeABody {
     public int subType = 0;
     public Object subBody = null;
 
+    public int getSubType() { return subType; }
+    public void setSubType(int v) { subType = v; }
+    public Object getSubBody() { return subBody; }
+    public void setSubBody(Object v) { subBody = v; }
+    public boolean hasSubBody() { return subBody != null; }
+    public void clearSubBody() { subBody = null; }
+
     public static TypeABody decode(BitReader r) {
         TypeABody result = new TypeABody();
         result.subType = r.readU8();

@@ -14,6 +14,19 @@ class ConstrainedMessage:
         self.value = 0
         self.position = None
 
+    def set_magic(self, v):
+        if v != Constants.MAGIC: raise ConstraintError('magic constraint: expected MAGIC')
+        self.magic = v
+
+    def set_version(self, v):
+        if v != Constants.VERSION: raise ConstraintError('version constraint: expected VERSION')
+        self.version = v
+
+    def set_value(self, v):
+        if v > 1000: raise ConstraintError('value exceeds max 1000')
+        if v < 10: raise ConstraintError('value below min 10')
+        self.value = v
+
     @staticmethod
     def decode(r: 'BitReader') -> 'ConstrainedMessage':
         result = ConstrainedMessage()
@@ -96,6 +109,9 @@ class ConditionalMessage:
         self.has_extra = 0
         self.base_value = 0
         self.extra_value = None
+
+    def has_extra_value(self) -> bool: return self.extra_value is not None
+    def clear_extra_value(self) -> None: self.extra_value = None
 
     @staticmethod
     def decode(r: 'BitReader') -> 'ConditionalMessage':

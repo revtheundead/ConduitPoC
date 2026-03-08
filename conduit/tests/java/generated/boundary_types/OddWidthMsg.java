@@ -10,6 +10,13 @@ public final class OddWidthMsg {
     public int u20 = 0;
     public int s12 = 0;
 
+    public int getU12() { return u12; }
+    public void setU12(int v) { u12 = v; }
+    public int getU20() { return u20; }
+    public void setU20(int v) { u20 = v; }
+    public int getS12() { return s12; }
+    public void setS12(int v) { s12 = v; }
+
     public static OddWidthMsg decode(BitReader r) {
         OddWidthMsg result = new OddWidthMsg();
         result.u12 = (int) r.readBits(12);

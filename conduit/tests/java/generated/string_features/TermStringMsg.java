@@ -11,6 +11,15 @@ public final class TermStringMsg {
     public String newlineTerm = "";
     public String crlfTerm = "";
 
+    public int getId() { return id; }
+    public void setId(int v) { id = v; }
+    public String getNullTerm() { return nullTerm; }
+    public void setNullTerm(String v) { nullTerm = v; }
+    public String getNewlineTerm() { return newlineTerm; }
+    public void setNewlineTerm(String v) { newlineTerm = v; }
+    public String getCrlfTerm() { return crlfTerm; }
+    public void setCrlfTerm(String v) { crlfTerm = v; }
+
     public static TermStringMsg decode(BitReader r) {
         TermStringMsg result = new TermStringMsg();
         result.id = r.readU8();

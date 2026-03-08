@@ -11,6 +11,17 @@ public final class DeepNestedMsg {
     public int typeC = 0;
     public Object outer = null;
 
+    public int getTypeA() { return typeA; }
+    public void setTypeA(int v) { typeA = v; }
+    public int getTypeB() { return typeB; }
+    public void setTypeB(int v) { typeB = v; }
+    public int getTypeC() { return typeC; }
+    public void setTypeC(int v) { typeC = v; }
+    public Object getOuter() { return outer; }
+    public void setOuter(Object v) { outer = v; }
+    public boolean hasOuter() { return outer != null; }
+    public void clearOuter() { outer = null; }
+
     public static DeepNestedMsg decode(BitReader r) {
         DeepNestedMsg result = new DeepNestedMsg();
         result.typeA = r.readU8();

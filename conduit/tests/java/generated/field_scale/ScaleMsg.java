@@ -10,6 +10,17 @@ public final class ScaleMsg {
     public double temp = 0.0;
     public int plain = 0;
 
+    public double getFl() { return fl; }
+    public void setFl(double v) { fl = v; }
+    public int getFlRaw() { return (int)(fl / 0.25); }
+    public void setFlRaw(int v) { fl = (double)(v) * 0.25 + 0.0; }
+    public double getTemp() { return temp; }
+    public void setTemp(double v) { temp = v; }
+    public int getTempRaw() { return (int)((temp - -40.0) / 0.01); }
+    public void setTempRaw(int v) { temp = (double)(v) * 0.01 + -40.0; }
+    public int getPlain() { return plain; }
+    public void setPlain(int v) { plain = v; }
+
     public static ScaleMsg decode(BitReader r) {
         ScaleMsg result = new ScaleMsg();
         result.fl = r.readSignedBits(12) * 0.25;

@@ -50,6 +50,12 @@ tasks.register('generateCode') {
     description = 'Regenerate Java sources from BMDL protocol definitions via bgen'
 }
 
+// Wire code generation into the Java compilation pipeline so that
+// './gradlew build' automatically runs bgen when sources are stale.
+tasks.named('compileJava') {
+    dependsOn 'generateCode'
+}
+
 sourceSets {
     main {
         java {

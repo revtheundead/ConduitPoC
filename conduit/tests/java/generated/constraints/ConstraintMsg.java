@@ -11,6 +11,21 @@ public final class ConstraintMsg {
     public int deferredVal = 0;
     public int payload = 0;
 
+    public int getMagic() { return magic; }
+    public void setMagic(int v) {
+        if (v != 0xBEEF) throw new ConduitCodecException("magic constraint: expected 0xBEEF");
+        magic = v;
+    }
+    public int getPercent() { return percent; }
+    public void setPercent(int v) {
+        if (v > 100) throw new ConduitCodecException("percent exceeds max 100");
+        percent = v;
+    }
+    public int getDeferredVal() { return deferredVal; }
+    public void setDeferredVal(int v) { deferredVal = v; }
+    public int getPayload() { return payload; }
+    public void setPayload(int v) { payload = v; }
+
     public static ConstraintMsg decode(BitReader r) {
         ConstraintMsg result = new ConstraintMsg();
         result.magic = r.readU16(true);

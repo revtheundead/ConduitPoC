@@ -10,6 +10,15 @@ public final class ChoiceMsg {
     public int length = 0;
     public Object body = null;
 
+    public int getMsgType() { return msgType; }
+    public void setMsgType(int v) { msgType = v; }
+    public int getLength() { return length; }
+    public void setLength(int v) { length = v; }
+    public Object getBody() { return body; }
+    public void setBody(Object v) { body = v; }
+    public boolean hasBody() { return body != null; }
+    public void clearBody() { body = null; }
+
     public static ChoiceMsg decode(BitReader r) {
         ChoiceMsg result = new ChoiceMsg();
         result.msgType = r.readU8();

@@ -12,6 +12,9 @@ public final class UplinkPayload {
     public int tag = 0;
     public int txData = 0;
 
+    public int getTxData() { return txData; }
+    public void setTxData(int v) { txData = v; }
+
     public static UplinkPayload decode(BitReader r) {
         UplinkPayload result = new UplinkPayload();
         result.txData = r.readU16(true);

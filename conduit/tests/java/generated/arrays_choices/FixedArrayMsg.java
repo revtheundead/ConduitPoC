@@ -9,6 +9,9 @@ public final class FixedArrayMsg {
 
     public java.util.List<Point> points = new java.util.ArrayList<>();
 
+    public java.util.List<Point> getPoints() { return points; }
+    public void setPoints(java.util.List<Point> v) { points = v; }
+
     public static FixedArrayMsg decode(BitReader r) {
         FixedArrayMsg result = new FixedArrayMsg();
         for (int _i=0; _i<3; _i++) result.points.add(Point.decode(r));

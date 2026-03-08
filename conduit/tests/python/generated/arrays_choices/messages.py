@@ -70,6 +70,9 @@ class ChoiceMsg:
         self.length = 0
         self.body = None
 
+    def has_body(self) -> bool: return self.body is not None
+    def clear_body(self) -> None: self.body = None
+
     @staticmethod
     def decode(r: 'BitReader') -> 'ChoiceMsg':
         result = ChoiceMsg()
@@ -161,6 +164,9 @@ class NestedChoiceMsgTyped:
     def __init__(self) -> None:
         self.detail = None
 
+    def has_detail(self) -> bool: return self.detail is not None
+    def clear_detail(self) -> None: self.detail = None
+
     @staticmethod
     def decode(r: 'BitReader', sub_type) -> 'NestedChoiceMsgTyped':
         result = NestedChoiceMsgTyped()
@@ -221,6 +227,9 @@ class NestedChoiceMsg:
         self.msg_type = 0
         self.sub_type = 0
         self.body = None
+
+    def has_body(self) -> bool: return self.body is not None
+    def clear_body(self) -> None: self.body = None
 
     @staticmethod
     def decode(r: 'BitReader') -> 'NestedChoiceMsg':
@@ -285,6 +294,9 @@ class DeepNestedMsgL1L2:
     def __init__(self) -> None:
         self.inner = None
 
+    def has_inner(self) -> bool: return self.inner is not None
+    def clear_inner(self) -> None: self.inner = None
+
     @staticmethod
     def decode(r: 'BitReader', type_c) -> 'DeepNestedMsgL1L2':
         result = DeepNestedMsgL1L2()
@@ -314,6 +326,9 @@ class DeepNestedMsgL1:
 
     def __init__(self) -> None:
         self.mid = None
+
+    def has_mid(self) -> bool: return self.mid is not None
+    def clear_mid(self) -> None: self.mid = None
 
     @staticmethod
     def decode(r: 'BitReader', type_b, type_c) -> 'DeepNestedMsgL1':
@@ -347,6 +362,9 @@ class DeepNestedMsg:
         self.type_b = 0
         self.type_c = 0
         self.outer = None
+
+    def has_outer(self) -> bool: return self.outer is not None
+    def clear_outer(self) -> None: self.outer = None
 
     @staticmethod
     def decode(r: 'BitReader') -> 'DeepNestedMsg':
