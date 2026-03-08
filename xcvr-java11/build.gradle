@@ -23,11 +23,29 @@ dependencies {
 // Code generation
 // bgen --language java writes files into <output>/<pkg>/ so the srcDirs below
 // must point to the source roots (one level above the package directory).
-// Run: ./gradlew generateCode   (requires conduit/build/bgen to exist)
+// Run: ./gradlew generateCode   (requires conduit/build/bgen/bgen to exist)
+// Override bgen location: BGEN_PATH env var, -Pbgen.path=..., or edit the default.
+def bgenBuildDir = "${rootProject.projectDir}/../conduit/build/bgen"
 def bgenExe = System.getenv('BGEN_PATH') ?:
-    "${rootProject.projectDir}/../conduit/build/bgen"
+    (project.hasProperty('bgen.path') ? project.property('bgen.path') : null)
+
+// Auto-detect: try common locations (single-config, then multi-config generators)
+if (bgenExe == null) {
+    def candidates = [
+        "${bgenBuildDir}/bgen",
+        "${bgenBuildDir}/bgen.exe",
+        "${bgenBuildDir}/Release/bgen.exe",
+        "${bgenBuildDir}/Release/bgen",
+        "${bgenBuildDir}/Debug/bgen.exe",
+        "${bgenBuildDir}/Debug/bgen",
+    ]
+    bgenExe = candidates.find { new File(it).exists() } ?: "${bgenBuildDir}/bgen"
+}
+
+def bgenFile = new File(bgenExe)
 
 tasks.register('generateAsterix', Exec) {
+    onlyIf { bgenFile.exists() && bgenFile.canExecute() }
     commandLine bgenExe,
         '--input',    "${projectDir}/asterix/asterix.bmdl.xml",
         '--output',   "${projectDir}/asterix/generated",
@@ -37,6 +55,7 @@ tasks.register('generateAsterix', Exec) {
 }
 
 tasks.register('generateAsterixAlt', Exec) {
+    onlyIf { bgenFile.exists() && bgenFile.canExecute() }
     commandLine bgenExe,
         '--input',    "${projectDir}/asterix-alt/asterix-alt.bmdl.xml",
         '--output',   "${projectDir}/asterix-alt/generated",
@@ -52,6 +71,8 @@ tasks.register('generateCode') {
 
 // Wire code generation into the Java compilation pipeline so that
 // './gradlew build' automatically runs bgen when sources are stale.
+// If bgen is not found, codegen tasks are skipped gracefully and
+// the build proceeds with any previously generated sources.
 tasks.named('compileJava') {
     dependsOn 'generateCode'
 }
