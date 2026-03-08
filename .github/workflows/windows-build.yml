@@ -193,6 +193,7 @@ jobs:
       - name: Build xcvr-java11
         run: >
           mvn package -q -f xcvr-java11/pom.xml
+          -Dskip.bgen=true
           -Dconduit.build.dir=${{ github.workspace }}/build-conduit
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
@@ -274,7 +275,7 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\build-conduit\Release"
-          mvn package -q -f xcvr-java11/pom.xml "-Dconduit.build.dir=$buildDir"
+          mvn package -q -f xcvr-java11/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir"
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         shell: pwsh
@@ -376,7 +377,7 @@ jobs:
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
       - name: Build xcvr-java
-        run: mvn package -q -f xcvr-java/pom.xml
+        run: mvn package -q -f xcvr-java/pom.xml -Dskip.bgen=true
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
         env:
@@ -457,7 +458,7 @@ jobs:
         run: |
           $buildDir = "${{ github.workspace }}\conduit\build\Release"
           $cabiPath = "$buildDir\conduit_cabi.dll"
-          mvn package -q -f xcvr-java/pom.xml "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
+          mvn package -q -f xcvr-java/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
         shell: pwsh

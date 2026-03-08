@@ -1,96 +1,116 @@
-# Plan: Bridge the Conduit UX Gap Between C++ and Java/Python
+# Plan: Fix Codegen Validations and Build System
 
-## Goal
-Make using Conduit in Java and Python feel identical to C++. Users should only
-deal with **typed message objects** — never raw bytes, type IDs, or manual
-serialization. Error handling, statistics, and observability should also match.
+## Issue 1: Java/Python codegen missing setter/getter/validation parity with C++
 
-## Current State
+### Current State
 
-### What C++ delivers
-```cpp
-// Send — typed, zero boilerplate
-PingBody msg; msg.timestamp = 42;
-transceiver.send<PingBody>(msg);
+**C++ backend** generates for each struct/message field:
+- `foo()` - const getter (by value for bool/enum, by const ref otherwise)
+- `mutable_foo()` - mutable reference accessor
+- `set_foo(v)` - setter with constraint validation; returns `conduit::VoidResult` when constrained, `void` otherwise
+  - Checks `constraint equals`, `constraint max`, `constraint min` (skips `min="0"` for unsigned)
+  - Checks `max_length` for string/bytes fields
+  - Skips deferred constraints (validate="deferred")
+- `foo_raw()` / `set_foo_raw(v)` - for scaled fields (expose underlying integer)
 
-// Receive — typed callback, auto-deserialized
-transceiver.on<PingBody>([](const PingBody& m) {
-    std::cout << m.timestamp << std::endl;
-});
+**Java backend** currently:
+- Uses bare `public` fields (e.g., `public int value = 0;`) — NO getters/setters at all
+- Has `validate()` method that checks constraints but only as a manual call
+- Has NO setter-level constraint enforcement
+- Has NO raw accessors for scaled fields
 
-// Stats, error callbacks, state changes — all available
-auto snap = transceiver.stats().snapshot();
-transceiver.on_error([](const ErrorEvent& e) { ... });
-```
+**Python backend** currently:
+- Uses bare instance attributes (`self.value = 0`) — NO property-based getters/setters
+- Has `validate()` method that checks constraints but only as a manual call
+- Has NO setter-level constraint enforcement
+- Has NO raw accessors for scaled struct fields (types do have raw, but struct fields don't)
 
-### What Java/Python currently deliver
-- `send()` is a **stub** that always returns an error
-- Message callbacks receive **nullptr/empty bytes** (raw bytes lost in dispatch)
-- No statistics API
-- Error/state callbacks work but are the only functional advanced feature
+### Changes
 
-## Architecture
+#### A. Java backend (`java_backend.cpp`) — in `generate_j_class()`
 
-```
-┌──────────────────────────────────────────┐
-│  Layer 4: Python/Java Typed API          │  Users live here
-│  t.send(peer, msg)                       │
-│  @t.on(PingBody) def handle(peer, msg)   │
-├──────────────────────────────────────────┤
-│  Layer 3: Python/Java Bindings           │  Auto-marshal via bgen classes
-│  Auto-encode on send, auto-decode on recv│
-├──────────────────────────────────────────┤
-│  Layer 2: C ABI                          │  Raw bytes cross FFI boundary
-│  conduit_send(xcvr, peer, tid, data, len)│
-│  conduit_stats(xcvr, &snapshot)          │
-├──────────────────────────────────────────┤
-│  Layer 1: C++ Transceiver                │  New raw-bytes entry points
-│  send_raw(peer, type_id, bytes)          │
-│  Raw bytes flow through dispatch         │
-└──────────────────────────────────────────┘
-```
+After emitting public fields, add accessor methods:
 
----
+1. **For each field**, emit:
+   - `public <Type> get<Name>() { return <field>; }` — getter
+   - `public void set<Name>(<Type> v) { <field> = v; }` — plain setter (no constraints)
+   - OR validated setter that throws `ConduitCodecException` on constraint violation
 
-## Layer 1: C++ Transceiver — Raw-Bytes Paths
+2. **Constraint checks in setters** (matching C++ `emit_setter_constraint_checks`):
+   - `constraint equals`: `if (v != <val>) throw new ConduitCodecException(...);`
+   - `constraint max`: `if (v > <val>) throw new ConduitCodecException(...);`
+   - `constraint min`: `if (v < <val>) throw new ConduitCodecException(...);` — skip when `min="0"` and unsigned
+   - `max_length`: `if (v.length() > N) throw ...` (string) or `if (v.length > N) throw ...` (byte[])
+   - Skip deferred constraints (validate="deferred")
+   - For byte[] fields with constraints: convert to numeric before checking
 
-### 1a. `send_raw()` method
-Add to Transceiver a raw-bytes send that wraps payload in `std::any(vector<uint8_t>)` and
-calls `send_impl()`. The generated `encode_wrap()` already handles the `vector<uint8_t>`
-fallback path.
+3. **Raw accessors for scaled fields**:
+   - `public <RawType> get<Name>Raw() { ... }`
+   - `public void set<Name>Raw(<RawType> v) { ... }`
 
-### 1b. Extended dispatch with raw bytes
-Add a raw-aware catch-all signature and dispatch overload so raw bytes flow through to
-the C ABI callback layer. Modify worker_loop to pass `DecodedMessage::raw` alongside payload.
+4. **Optional field accessors** (FX/bitmap-controlled nullable fields):
+   - `public boolean has<Name>() { return <field> != null; }`
+   - `public void clear<Name>() { <field> = null; }`
 
----
+#### B. Python backend (`python_backend.cpp`) — in `generate_py_class()`
 
-## Layer 2: C ABI — Complete the Implementation
+After emitting `__init__`, add setter methods (not properties, to keep backward compat):
 
-### 2a. Fix `conduit_send()` — call `send_raw()` instead of returning stub error
-### 2b. Fix message callbacks — deliver raw bytes via the new raw catch-all
-### 2c. Add stats API — `conduit_stats()` and `conduit_stats_reset()`
+1. **For each constrained field**, emit:
+   - `def set_<name>(self, v)` — setter with constraint validation
+   - Raises `ConstraintError` on violation
 
----
+2. **Raw accessors for scaled fields**:
+   - `def get_<name>_raw(self)` / `def set_<name>_raw(self, v)`
 
-## Layer 3: Python Bindings — Typed Message API
+3. **Optional field helpers**:
+   - `def has_<name>(self) -> bool`
+   - `def clear_<name>(self) -> None`
 
-### 3a. Typed send: `t.send(peer_id, msg)` auto-serializes via `msg.encode_bytes()`
-### 3b. Typed on: `@t.on(PingBody)` auto-deserializes via `PingBody.decode_bytes(data)`
-### 3c. Stats: `t.stats()` returns a `Stats` namedtuple
-### 3d. Keep backward-compatible raw API
+### Tracking constraint info through field collection
+
+Add constraint/scale info to `JFieldDef` and `PyFieldDef` structs. Populate from source `model::Field`.
 
 ---
 
-## Layer 4: Java Bindings — Typed Message API
+## Issue 2: CMake doesn't build conduit-java JAR or Java tests
 
-### 4a. Typed send via reflection on TYPE_ID and encodeBytes()
-### 4b. Typed onMessage via Class<T> with auto-decode
-### 4c. Stats: `t.stats()` returns StatsSnapshot
-### 4d. Keep backward-compatible raw API
+### Changes
+
+In `conduit/CMakeLists.txt`:
+
+1. **Add option `CONDUIT_BUILD_JAVA_JAR`** (default OFF) that:
+   - Finds `javac` and `jar` executables
+   - Compiles `conduit/bindings/java/src/main/java/io/conduit/*.java` into class files
+   - Packages them into `conduit-java-0.1.0.jar`
+   - Optionally installs to local Maven repo
+
+2. **Add Java test targets** in `conduit/tests/CMakeLists.txt`:
+   - Use bgen to generate Java test code from fixture BMDL files
+   - Compile generated Java + test harness against conduit-java JAR
+   - Add CTest targets to run Java tests
 
 ---
 
-## Tests
+## Issue 3: No automated bgen codegen in Maven
 
-Comprehensive happy-path and error-path tests for both Python and Java.
+### Changes
+
+#### A. Maven (`pom.xml`) — add `exec-maven-plugin` for bgen
+
+Add executions during `generate-sources` phase in `xcvr-java/pom.xml` and `xcvr-java11/pom.xml`.
+
+#### B. Gradle — wire `generateCode` into `compileJava`
+
+Add `compileJava.dependsOn generateCode` to `xcvr-java/build.gradle`.
+
+---
+
+## Implementation Order
+
+1. Java codegen accessors & validations (java_backend.cpp)
+2. Python codegen accessors & validations (python_backend.cpp)
+3. Regenerate test fixtures for Java and Python
+4. CMake Java JAR build (CMakeLists.txt)
+5. Maven bgen integration (pom.xml files)
+6. Gradle compileJava dependency (build.gradle)

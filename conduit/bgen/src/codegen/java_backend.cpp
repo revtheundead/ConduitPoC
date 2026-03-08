@@ -871,6 +871,24 @@ struct JFieldDef {
     std::string init;
     model::DisplayFormat format = model::DisplayFormat::Decimal;
     bool is_numeric = false;  // true for simple int/long fields (not struct/enum/string/bytes)
+    // Constraint & accessor info (matching C++ emit_plain_accessors / emit_setter_constraint_checks)
+    const model::Constraint* constraint = nullptr;
+    bool is_signed = false;
+    bool is_optional = false;        // FX / bitmap / present-when (nullable)
+    bool is_enum = false;
+    bool is_struct = false;
+    bool is_string = false;
+    bool is_bytes = false;
+    bool is_bool = false;
+    std::optional<int> max_length;
+    // Scaled field raw accessors
+    bool has_scale = false;
+    double scale = 1.0;
+    double offset = 0.0;
+    int raw_bits = 0;
+    bool raw_signed = false;
+    // Source BMDL name for accessor naming (PascalCase)
+    std::string bmdl_name;
 };
 
 // Helper: return Java encoding constant string for a field (0=ASCII, 1=IA5, 2=EBCDIC)
@@ -934,7 +952,13 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             // Inline enum field: enum_values populated, type_ref empty
             if (!f->enum_values.empty() && f->type_ref.empty() && !parent_class_name.empty()) {
                 std::string enum_name = parent_class_name + j_class(f->name);
-                fields.push_back({j_field(f->name), enum_name, "null"});
+                JFieldDef ef;
+                ef.name = j_field(f->name);
+                ef.j_type = enum_name;
+                ef.init = "null";
+                ef.bmdl_name = f->name;
+                ef.is_enum = true;
+                fields.push_back(ef);
                 continue;
             }
             auto fi = j_resolve_field(*f, index);
@@ -968,18 +992,55 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             if (!f->default_value && f->constraint && f->constraint->equals) {
                 jf.init = j_qualify_const(*f->constraint->equals);
             }
+            // Populate constraint & accessor metadata (matching C++ collect_fields)
+            jf.bmdl_name = f->name;
+            jf.is_optional = optional;
+            jf.is_signed = fi.is_signed;
+            jf.is_enum = fi.is_enum;
+            jf.is_struct = fi.is_struct;
+            jf.is_string = fi.is_string;
+            jf.is_bytes = fi.is_bytes;
+            jf.is_bool = fi.is_bool;
+            jf.max_length = f->max_length;
+            if (f->constraint) jf.constraint = &*f->constraint;
+            // Scaled field raw accessor info
+            jf.has_scale = fi.has_scale;
+            jf.scale = fi.scale;
+            jf.offset = fi.offset;
+            jf.raw_bits = fi.raw_bits;
+            jf.raw_signed = fi.raw_signed;
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
-            fields.push_back({j_field(sd->name), j_inline_class(sd->name, name_map), "null"});
+            JFieldDef sdf;
+            sdf.name = j_field(sd->name);
+            sdf.j_type = j_inline_class(sd->name, name_map);
+            sdf.init = "null";
+            sdf.bmdl_name = sd->name;
+            sdf.is_struct = true;
+            sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
+            fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
+            JFieldDef adf;
+            adf.name = j_field(ad->name);
+            adf.bmdl_name = ad->name;
+            adf.is_optional = in_fx || ad->present_when != nullptr || ad->bit.has_value();
             if (in_fx) {
-                fields.push_back({j_field(ad->name), "java.util.List<" + elem + ">", "null"});
+                adf.j_type = "java.util.List<" + elem + ">";
+                adf.init = "null";
             } else {
-                fields.push_back({j_field(ad->name), "java.util.List<" + elem + ">", "new java.util.ArrayList<>()"});
+                adf.j_type = "java.util.List<" + elem + ">";
+                adf.init = "new java.util.ArrayList<>()";
             }
+            fields.push_back(adf);
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
-            fields.push_back({j_field(cd->name), "Object", "null"});
+            JFieldDef cdf;
+            cdf.name = j_field(cd->name);
+            cdf.j_type = "Object";
+            cdf.init = "null";
+            cdf.bmdl_name = cd->name;
+            cdf.is_optional = true;
+            fields.push_back(cdf);
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             collect_j_fields(fx->children, index, fields, name_map, parent_class_name, true);
         }
@@ -1870,6 +1931,79 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     }
     ctx.line();
 
+    // Accessors for bitmap fields (all nullable/optional, matching C++ emit_optional_accessors)
+    for (const auto& bf : bfields) {
+        std::string acc = j_class(bf.name);
+        std::string m = j_field(bf.name);
+
+        // Getter
+        ctx.line("public " + bf.j_type + " get" + acc + "() { return " + m + "; }");
+        // has / clear
+        ctx.line("public boolean has" + acc + "() { return " + m + " != null; }");
+        ctx.line("public void clear" + acc + "() { " + m + " = null; }");
+
+        // Setter — check constraints if the source field has them
+        bool has_constraint = bf.source_field && bf.source_field->constraint
+            && bf.source_field->constraint->validate != model::ValidateTiming::Deferred
+            && (bf.source_field->constraint->equals || bf.source_field->constraint->min ||
+                bf.source_field->constraint->max);
+        bool has_ml = bf.source_field && bf.source_field->max_length.has_value();
+
+        if (has_constraint || has_ml) {
+            ctx.line("public void set" + acc + "(" + bf.j_type + " v) {");
+            ctx.indent();
+            if (has_constraint) {
+                const auto& con = *bf.source_field->constraint;
+                if (con.equals)
+                    ctx.line("if (v != " + j_qualify_const(*con.equals) +
+                             ") throw new ConduitCodecException(\"" + bf.name +
+                             " constraint: expected " + *con.equals + "\");");
+                if (con.max)
+                    ctx.line("if (v > " + j_qualify_const(*con.max) +
+                             ") throw new ConduitCodecException(\"" + bf.name +
+                             " exceeds max " + *con.max + "\");");
+                if (con.min && (*con.min != "0" || bf.is_signed))
+                    ctx.line("if (v < " + j_qualify_const(*con.min) +
+                             ") throw new ConduitCodecException(\"" + bf.name +
+                             " below min " + *con.min + "\");");
+            }
+            if (has_ml) {
+                int ml = *bf.source_field->max_length;
+                if (bf.is_string)
+                    ctx.line("if (v.length() > " + std::to_string(ml) +
+                             ") throw new ConduitCodecException(\"" + bf.name +
+                             " exceeds max length " + std::to_string(ml) + "\");");
+                else if (bf.is_bytes)
+                    ctx.line("if (v.length > " + std::to_string(ml) +
+                             ") throw new ConduitCodecException(\"" + bf.name +
+                             " exceeds max length " + std::to_string(ml) + "\");");
+            }
+            ctx.line(m + " = v;");
+            ctx.dedent();
+            ctx.line("}");
+        } else {
+            ctx.line("public void set" + acc + "(" + bf.j_type + " v) { " + m + " = v; }");
+        }
+
+        // Raw accessors for scaled bitmap fields
+        if (bf.has_scale) {
+            std::string raw_type = (bf.raw_bits <= 32) ? "int" : "long";
+            std::string scale_s = j_double(bf.scale);
+            std::string offset_s = j_double(bf.offset);
+            if (bf.offset != 0.0) {
+                ctx.line("public " + raw_type + " get" + acc + "Raw() { return " + m +
+                         " != null ? (" + raw_type + ")((" + m + " - " + offset_s + ") / " +
+                         scale_s + ") : 0; }");
+            } else {
+                ctx.line("public " + raw_type + " get" + acc + "Raw() { return " + m +
+                         " != null ? (" + raw_type + ")(" + m + " / " + scale_s + ") : 0; }");
+            }
+            ctx.line("public void set" + acc + "Raw(" + raw_type + " v) { " + m +
+                     " = (double)(v) * " + scale_s + " + " + offset_s + "; }");
+        }
+    }
+    ctx.line();
+
     // Build outer-scope decode parameters
     auto osp_it = scope_map.find(sd.name);
     std::string decode_params;
@@ -2325,6 +2459,99 @@ std::string generate_j_class(const std::string& name,
     // Fields
     for (const auto& f : fields)
         ctx.line("public " + f.j_type + " " + f.name + " = " + f.init + ";");
+    ctx.line();
+
+    // Accessors (matching C++ emit_plain_accessors / emit_optional_accessors)
+    for (const auto& f : fields) {
+        std::string acc = j_class(f.bmdl_name); // PascalCase accessor suffix
+        if (acc.empty()) continue; // extra fields without bmdl_name (frame fields)
+
+        // Getter
+        ctx.line("public " + f.j_type + " get" + acc + "() { return " + f.name + "; }");
+
+        // Determine if setter needs constraint validation
+        bool has_immediate_constraint = f.constraint
+            && f.constraint->validate != model::ValidateTiming::Deferred
+            && (f.constraint->equals || f.constraint->min || f.constraint->max);
+        bool needs_validation = has_immediate_constraint || f.max_length.has_value();
+
+        if (needs_validation) {
+            ctx.line("public void set" + acc + "(" + f.j_type + " v) {");
+            ctx.indent();
+            if (has_immediate_constraint && f.is_bytes) {
+                // Byte-array fields: convert to numeric value before checking constraints
+                bool need_numeric = f.constraint->equals || f.constraint->max ||
+                    (f.constraint->min && (*f.constraint->min != "0" || f.is_signed));
+                if (need_numeric) {
+                    ctx.line("long _raw = 0;");
+                    ctx.line("for (int i = 0; i < v.length; i++) _raw = (_raw << 8) | (v[i] & 0xFF);");
+                    if (f.constraint->equals)
+                        ctx.line("if (_raw != " + j_qualify_const(*f.constraint->equals) +
+                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                                 " constraint: expected " + *f.constraint->equals + "\");");
+                    if (f.constraint->max)
+                        ctx.line("if (_raw > " + j_qualify_const(*f.constraint->max) +
+                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                                 " exceeds max " + *f.constraint->max + "\");");
+                    if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
+                        ctx.line("if (_raw < " + j_qualify_const(*f.constraint->min) +
+                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                                 " below min " + *f.constraint->min + "\");");
+                }
+            } else if (has_immediate_constraint) {
+                if (f.constraint->equals)
+                    ctx.line("if (v != " + j_qualify_const(*f.constraint->equals) +
+                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                             " constraint: expected " + *f.constraint->equals + "\");");
+                if (f.constraint->max)
+                    ctx.line("if (v > " + j_qualify_const(*f.constraint->max) +
+                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                             " exceeds max " + *f.constraint->max + "\");");
+                if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
+                    ctx.line("if (v < " + j_qualify_const(*f.constraint->min) +
+                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                             " below min " + *f.constraint->min + "\");");
+            }
+            if (f.max_length) {
+                if (f.is_string)
+                    ctx.line("if (v.length() > " + std::to_string(*f.max_length) +
+                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                             " exceeds max length " + std::to_string(*f.max_length) + "\");");
+                else if (f.is_bytes)
+                    ctx.line("if (v.length > " + std::to_string(*f.max_length) +
+                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
+                             " exceeds max length " + std::to_string(*f.max_length) + "\");");
+            }
+            ctx.line(f.name + " = v;");
+            ctx.dedent();
+            ctx.line("}");
+        } else {
+            ctx.line("public void set" + acc + "(" + f.j_type + " v) { " + f.name + " = v; }");
+        }
+
+        // Raw accessors for scaled fields (matching C++ emit_plain_accessors raw section)
+        if (f.has_scale) {
+            std::string raw_type = (f.raw_bits <= 32 && !f.raw_signed) ? "int" :
+                                   (f.raw_bits <= 32 && f.raw_signed)  ? "int" : "long";
+            std::string scale_s = j_double(f.scale);
+            std::string offset_s = j_double(f.offset);
+            if (f.offset != 0.0) {
+                ctx.line("public " + raw_type + " get" + acc + "Raw() { return (" + raw_type +
+                         ")((" + f.name + " - " + offset_s + ") / " + scale_s + "); }");
+            } else {
+                ctx.line("public " + raw_type + " get" + acc + "Raw() { return (" + raw_type +
+                         ")(" + f.name + " / " + scale_s + "); }");
+            }
+            ctx.line("public void set" + acc + "Raw(" + raw_type + " v) { " + f.name +
+                     " = (double)(v) * " + scale_s + " + " + offset_s + "; }");
+        }
+
+        // Optional field helpers (matching C++ has_foo / clear_foo)
+        if (f.is_optional) {
+            ctx.line("public boolean has" + acc + "() { return " + f.name + " != null; }");
+            ctx.line("public void clear" + acc + "() { " + f.name + " = null; }");
+        }
+    }
     ctx.line();
 
     // Build outer-scope decode parameters and context for this class
