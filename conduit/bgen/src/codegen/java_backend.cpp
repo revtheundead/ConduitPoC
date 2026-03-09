@@ -405,8 +405,21 @@ std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
             case model::ExprOp::Gte:    return "(" + l + " >= " + r + ")";
             case model::ExprOp::LogAnd: return "(" + l + " && " + r + ")";
             case model::ExprOp::LogOr:  return "(" + l + " || " + r + ")";
-            case model::ExprOp::BitAnd: return "(" + l + " & " + r + ")";
-            case model::ExprOp::BitOr:  return "(" + l + " | " + r + ")";
+            case model::ExprOp::BitAnd:    return "(" + l + " & " + r + ")";
+            case model::ExprOp::BitOr:     return "(" + l + " | " + r + ")";
+            case model::ExprOp::BitXor:    return "(" + l + " ^ " + r + ")";
+            case model::ExprOp::ShiftLeft: return "(" + l + " << " + r + ")";
+            case model::ExprOp::ShiftRight:return "(" + l + " >> " + r + ")";
+            default: break;
+        }
+    }
+    // Unary operators: left child only, no right child
+    if (e.left && !e.right) {
+        std::string operand = j_expr_ctx(*e.left, obj, outer_ctx);
+        switch (e.op) {
+            case model::ExprOp::Negate: return "(-" + operand + ")";
+            case model::ExprOp::BitNot: return "(~" + operand + ")";
+            case model::ExprOp::LogNot: return "(!" + operand + ")";
             default: break;
         }
     }
@@ -450,8 +463,8 @@ bool j_needs_int_cast(const JFieldInfo& fi) {
 }
 
 std::string j_read_expr(const JFieldInfo& fi) {
-    if (fi.wire_enc == model::WireEncoding::BCD) return "(int) r.readBcd(" + std::to_string(fi.bits) + ")";
-    if (fi.wire_enc == model::WireEncoding::BCD_S) return "(int) r.readBcdSigned(" + std::to_string(fi.bits) + ")";
+    if (fi.wire_enc == model::WireEncoding::BCD) return std::string(fi.bits > 32 ? "(long)" : "(int)") + " r.readBcd(" + std::to_string(fi.bits) + ")";
+    if (fi.wire_enc == model::WireEncoding::BCD_S) return std::string(fi.bits > 32 ? "(long)" : "(int)") + " r.readBcdSigned(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.readSignMagnitude(" + std::to_string(fi.bits) + ")";
     bool be = (fi.endian == model::Endian::Big);
     if (fi.is_float) {
@@ -1061,7 +1074,8 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                              const std::string& len_ref_target = "",
                              const model::Field* auto_len_ref_field = nullptr,
                              const JInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {});
+                             const std::string& parent_class_name = {},
+                             const JOuterContext& outer_ctx = {});
 
 // Emit Java decode for field
 void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
@@ -1187,7 +1201,9 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
 // Emit Java encode for field
 void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
-                          const std::string& parent_class_name = {}) {
+                          const std::string& parent_class_name = {},
+                          const JOuterContext& outer_ctx = {}) {
+    (void)outer_ctx;
     // Inline enum field: enum_values populated, type_ref empty
     if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
         std::string m = pfx + "." + j_field(f.name);
@@ -1639,7 +1655,8 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                              const std::string& len_ref_target,
                              const model::Field* auto_len_ref_field,
                              const JInlineNameMap& name_map,
-                             const std::string& parent_class_name) {
+                             const std::string& parent_class_name,
+                             const JOuterContext& outer_ctx) {
     // Get the BMDL name from a StructChild
     auto get_child_name = [](const model::StructChild& child) -> std::string {
         return std::visit([](const auto& c) -> std::string {
@@ -1699,9 +1716,9 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
 
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
-                ctx.line("if (" + j_expr(*f->present_when, pfx) + ") {");
-                ctx.indent(); emit_j_field_encode(ctx, *f, index, pfx, parent_class_name); ctx.dedent(); ctx.line("}");
-            } else emit_j_field_encode(ctx, *f, index, pfx, parent_class_name);
+                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
+                ctx.indent(); emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx); ctx.dedent(); ctx.line("}");
+            } else emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + j_field(sd->name);
             if (sd->present_when) {
@@ -2083,7 +2100,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 }
                 ctx.line(std::string(first_case ? "if (" : "} else if (") + cond + ") {");
                 ctx.indent();
-                std::string et = cs.type_ref.empty() ? j_class(cs.name) : j_class(cs.type_ref);
+                std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
                 std::string case_args;
                 auto child_osp = scope_map.find(cs.type_ref.empty() ? cs.name : cs.type_ref);
                 if (child_osp != scope_map.end()) {
@@ -2098,7 +2115,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 ctx.line("} else {");
                 ctx.indent();
                 std::string et = bf.choice_def->otherwise->type_ref.empty()
-                    ? j_class(bf.choice_def->otherwise->name)
+                    ? j_inline_class(bf.choice_def->otherwise->name, name_map)
                     : j_class(bf.choice_def->otherwise->type_ref);
                 ctx.line(m + " = " + et + ".decode(r);");
                 ctx.dedent();
@@ -2148,15 +2165,15 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 ctx.line(m + " = r.readBytes(r.remainingBytes());");
             }
         } else if (bf.is_bool) {
-            ctx.line(m + " = r.readBits(1) != 0;");
+            ctx.line(m + " = r.readBits(" + std::to_string(bf.bits) + ") != 0;");
         } else {
             // Primitive integer
             std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
             std::string read;
             if (bf.wire_enc == model::WireEncoding::BCD) {
-                read = "(int) r.readBcd(" + std::to_string(bf.bits) + ")";
+                read = std::string(bf.bits > 32 ? "(long)" : "(int)") + " r.readBcd(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BCD_S) {
-                read = "(int) r.readBcdSigned(" + std::to_string(bf.bits) + ")";
+                read = std::string(bf.bits > 32 ? "(long)" : "(int)") + " r.readBcdSigned(" + std::to_string(bf.bits) + ")";
             } else if (bf.wire_enc == model::WireEncoding::BNR_S) {
                 read = "r.readSignMagnitude(" + std::to_string(bf.bits) + ")";
             } else if (bf.is_signed || bf.wire_enc == model::WireEncoding::CB2) {
@@ -2247,8 +2264,21 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             }
         } else if (bf.is_string) {
             int pad = 0;
-            if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space)
-                pad = 0x20;
+            if (bf.source_field && bf.source_field->padding && *bf.source_field->padding == model::StringPadding::Space) {
+                bool is_ebcdic = (bf.source_field->encoding && *bf.source_field->encoding == model::StringEncoding::Ebcdic);
+                if (!is_ebcdic && !bf.source_field->type_ref.empty()) {
+                    auto it = index.types.find(bf.source_field->type_ref);
+                    if (it != index.types.end() && it->second->encoding == model::StringEncoding::Ebcdic)
+                        is_ebcdic = true;
+                }
+                pad = is_ebcdic ? 0x40 : 0x20;
+            } else if (bf.source_field && !bf.source_field->padding && !bf.source_field->type_ref.empty()) {
+                auto it = index.types.find(bf.source_field->type_ref);
+                if (it != index.types.end() && it->second->padding == model::StringPadding::Space) {
+                    bool is_ebcdic = (it->second->encoding == model::StringEncoding::Ebcdic);
+                    pad = is_ebcdic ? 0x40 : 0x20;
+                }
+            }
             bool has_enc = bf.source_field && j_field_needs_encoding(*bf.source_field);
             std::string enc_arg = has_enc ? ", " + j_encoding_const(*bf.source_field) : "";
             std::string write_fn = has_enc ? "writeStringEncoded" : "writeString";
@@ -2259,7 +2289,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         } else if (bf.is_bytes) {
             ctx.line("w.writeBytes(" + m + ");");
         } else if (bf.is_bool) {
-            ctx.line("w.writeBits(" + m + " ? 1 : 0, 1);");
+            ctx.line("w.writeBits(" + m + " ? 1 : 0, " + std::to_string(bf.bits) + ");");
         } else {
             std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
             if (bf.is_float) {
@@ -2678,13 +2708,13 @@ std::string generate_j_class(const std::string& name,
     // validate()
     {
         bool has_any = false;
-        // Check if any field has an immediate constraint
+        // Check if any field has a deferred constraint
         std::function<bool(const std::vector<model::StructChild>&)> has_constraints =
             [&](const std::vector<model::StructChild>& cs) -> bool {
             for (const auto& c : cs) {
                 if (auto* f = std::get_if<model::Field>(&c)) {
                     if (f->constraint &&
-                        f->constraint->validate != model::ValidateTiming::Deferred &&
+                        f->constraint->validate == model::ValidateTiming::Deferred &&
                         (f->constraint->equals || f->constraint->min || f->constraint->max))
                         return true;
                 } else if (auto* fx = std::get_if<model::FxBlock>(&c)) {
@@ -2704,7 +2734,7 @@ std::string generate_j_class(const std::string& name,
                     if (auto* f = std::get_if<model::Field>(&child)) {
                         if (!f->constraint) continue;
                         const auto& con = *f->constraint;
-                        if (con.validate == model::ValidateTiming::Deferred) continue;
+                        if (con.validate != model::ValidateTiming::Deferred) continue;
                         if (!con.equals && !con.min && !con.max) continue;
                         // Skip non-numeric fields (struct, enum, string, bytes)
                         auto fi = j_resolve_field(*f, index);
@@ -4061,7 +4091,13 @@ bool JavaBackend::generate(
 
                 if (is_string && t.length) {
                     // String type wrapper class
-                    int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
+                    bool type_has_enc = (t.encoding == model::StringEncoding::Ia5 || t.encoding == model::StringEncoding::Ebcdic);
+                    std::string type_enc_arg;
+                    if (type_has_enc) {
+                        type_enc_arg = (t.encoding == model::StringEncoding::Ia5) ? ", 1" : ", 2";
+                    }
+                    bool is_ebcdic = (t.encoding == model::StringEncoding::Ebcdic);
+                    int pad = (t.padding == model::StringPadding::Space) ? (is_ebcdic ? 0x40 : 0x20) : 0;
                     tctx.line("import java.nio.charset.StandardCharsets;");
                     tctx.line();
                     tctx.line("public final class " + name + " {");
@@ -4077,6 +4113,8 @@ bool JavaBackend::generate(
                     tctx.indent();
                     if (t.char_bits) {
                         tctx.line("String s = r.readPackedChars(" + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ");");
+                    } else if (type_has_enc) {
+                        tctx.line("String s = r.readStringEncoded(" + std::to_string(*t.length) + type_enc_arg + ");");
                     } else {
                         tctx.line("String s = r.readString(" + std::to_string(*t.length) + ");");
                     }
@@ -4097,6 +4135,8 @@ bool JavaBackend::generate(
                     tctx.line();
                     if (t.char_bits) {
                         tctx.line("public void encode(BitWriter w) { w.writePackedChars(value, " + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ", " + std::to_string(pad) + "); }");
+                    } else if (type_has_enc) {
+                        tctx.line("public void encode(BitWriter w) { w.writeStringEncoded(value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + type_enc_arg + "); }");
                     } else {
                         tctx.line("public void encode(BitWriter w) { w.writeString(value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + "); }");
                     }
