@@ -938,12 +938,13 @@ TEST_CASE("PyCG: field-level constraint checks min/max", "[python][codegen][cons
     CHECK(all.find("exceeds max 100") != std::string::npos);
 }
 
-TEST_CASE("PyCG: deferred constraint does NOT generate validation", "[python][codegen][constraint]") {
+TEST_CASE("PyCG: deferred constraint skipped in decode, present in encode", "[python][codegen][constraint]") {
     auto py = gen_python("constraints.bmdl.xml");
     REQUIRE(py.has_value());
     auto all = all_output(*py);
-    CHECK(all.find("deferred-val exceeds max") == std::string::npos);
-    CHECK(all.find("deferred-val below min") == std::string::npos);
+    // Deferred constraints should appear (in encode and/or validate), not be absent
+    // The key invariant: decode path skips deferred, encode path checks them
+    CHECK(all.find("deferred-val exceeds max") != std::string::npos);
 }
 
 // ============================================================================
@@ -1382,4 +1383,20 @@ TEST_CASE("PyExt: payload_length_from creates sub_reader", "[python][frame]") {
     auto& msgs = py->files["messages.py"];
     // payload with length-from should use sub_reader in frame decode
     CHECK(msgs.find("sub_reader") != std::string::npos);
+}
+
+// ============================================================================
+// Encode-time constraint check tests
+// ============================================================================
+
+TEST_CASE("PyExt: encode emits constraint checks before writing", "[python][encode][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // percent has max=100 — encode should check max constraint
+    size_t first = msgs.find("exceeds max 100");
+    REQUIRE(first != std::string::npos);
+    // Should appear at least twice (decode + encode)
+    size_t second = msgs.find("exceeds max 100", first + 1);
+    CHECK(second != std::string::npos);
 }

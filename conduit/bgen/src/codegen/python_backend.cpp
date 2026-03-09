@@ -1446,6 +1446,18 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
             return;
         }
     }
+    // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
+    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+        if (f.constraint->equals) {
+            ctx.line("if " + m + " != " + *f.constraint->equals + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
+        }
+        if (f.constraint->max) {
+            ctx.line("if " + m + " > " + *f.constraint->max + ": raise ValueError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+        }
+        if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
+            ctx.line("if " + m + " < " + *f.constraint->min + ": raise ValueError('" + f.name + " below min " + *f.constraint->min + "')");
+        }
+    }
     if (fi.is_enum) {
         // Handle None default for non-optional enums: write zero bits
         if (fi.bits > 0) {

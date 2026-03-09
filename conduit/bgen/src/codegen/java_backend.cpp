@@ -1249,6 +1249,19 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         ctx.line(j_write_stmt("ID_VALUE", fi) + ";");
         return;
     }
+    // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
+    // Skip for struct, enum, bytes fields — constraints don't apply to those at encode time
+    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+        if (f.constraint->equals) {
+            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint: expected " + *f.constraint->equals + "\");");
+        }
+        if (f.constraint->max) {
+            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
+        }
+        if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
+            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
+        }
+    }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); return; }
     if (fi.is_string) {
         bool has_enc = j_field_needs_encoding(f);

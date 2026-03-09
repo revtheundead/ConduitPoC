@@ -1429,3 +1429,21 @@ TEST_CASE("JExt: validate method checks deferred constraints", "[java][validatio
     // validate method should exist
     CHECK(all.find("validate()") != std::string::npos);
 }
+
+// ============================================================================
+// Encode-time constraint check tests
+// ============================================================================
+
+TEST_CASE("JExt: encode emits constraint checks before writing", "[java][encode][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // The encode() method should contain constraint checks for constrained fields
+    // percent has min=0, max=100 — max check should appear in encode path
+    // Find "exceeds max 100" in the encode output (appears in both decode and encode)
+    size_t first = all.find("exceeds max 100");
+    REQUIRE(first != std::string::npos);
+    // There should be at least two occurrences (decode + encode)
+    size_t second = all.find("exceeds max 100", first + 1);
+    CHECK(second != std::string::npos);
+}
