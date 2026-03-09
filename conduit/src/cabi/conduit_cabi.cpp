@@ -804,6 +804,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
     size_t type_count) {
 
     if (!name || !frame_config) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    if (type_count > 0 && (!type_ids || !type_names)) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     // Build the passthrough config
     auto config = std::make_shared<PassthroughConfigEntry>();

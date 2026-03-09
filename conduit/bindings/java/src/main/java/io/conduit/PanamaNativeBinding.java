@@ -699,7 +699,7 @@ public final class PanamaNativeBinding implements NativeBinding {
 
         @SuppressWarnings("unused")
         public void dispatch(int peerId, int newState, MemorySegment userData) {
-            callback.onStateChange(peerId, newState);
+            callback.onStateChange(peerId, Transceiver.ConnectionState.fromValue(newState));
         }
     }
 
