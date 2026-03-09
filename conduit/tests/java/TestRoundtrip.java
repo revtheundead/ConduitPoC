@@ -526,10 +526,10 @@ public class TestRoundtrip {
     @Test
     @DisplayName("ColorEnum: standalone encode/decode roundtrip")
     void colorEnumStandaloneRoundtrip() {
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         all_types.ColorEnum.BLUE.encode(w);
         byte[] data = w.toBytes();
-        all_types.BitReader r = new all_types.BitReader(data);
+        all_types.codec.BitReader r = new all_types.codec.BitReader(data);
         all_types.ColorEnum decoded = all_types.ColorEnum.decode(r);
         assertEquals(all_types.ColorEnum.BLUE, decoded);
     }
@@ -545,10 +545,10 @@ public class TestRoundtrip {
         flags.setActive(true);
         flags.setError(true);
         flags.setReady(true);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         byte[] data = w.toBytes();
-        all_types.BitReader r = new all_types.BitReader(data);
+        all_types.codec.BitReader r = new all_types.codec.BitReader(data);
         all_types.StatusFlags decoded = all_types.StatusFlags.decode(r);
         assertTrue(decoded.active());
         assertTrue(decoded.error());
@@ -559,10 +559,10 @@ public class TestRoundtrip {
     @DisplayName("StatusFlags: no flags set roundtrip")
     void statusFlagsNoneSet() {
         all_types.StatusFlags flags = new all_types.StatusFlags();
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         byte[] data = w.toBytes();
-        all_types.BitReader r = new all_types.BitReader(data);
+        all_types.codec.BitReader r = new all_types.codec.BitReader(data);
         all_types.StatusFlags decoded = all_types.StatusFlags.decode(r);
         assertFalse(decoded.active());
         assertFalse(decoded.error());
@@ -620,10 +620,10 @@ public class TestRoundtrip {
     @DisplayName("ScaledTemp: roundtrip encode/decode")
     void scaledTempRoundtrip() {
         all_types.ScaledTemp temp = new all_types.ScaledTemp(8000);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         temp.encode(w);
         byte[] data = w.toBytes();
-        all_types.BitReader r = new all_types.BitReader(data);
+        all_types.codec.BitReader r = new all_types.codec.BitReader(data);
         all_types.ScaledTemp decoded = all_types.ScaledTemp.decode(r);
         assertEquals(8000, decoded.raw());
         assertEquals(temp.value(), decoded.value(), 0.001);
@@ -767,10 +767,10 @@ public class TestRoundtrip {
     @DisplayName("BcdScaled: roundtrip encode/decode")
     void bcdScaledRoundtrip() {
         wire_encodings.BcdScaled s = new wire_encodings.BcdScaled(500);
-        wire_encodings.BitWriter w = new wire_encodings.BitWriter();
+        wire_encodings.codec.BitWriter w = new wire_encodings.codec.BitWriter();
         s.encode(w);
         byte[] data = w.toBytes();
-        wire_encodings.BitReader r = new wire_encodings.BitReader(data);
+        wire_encodings.codec.BitReader r = new wire_encodings.codec.BitReader(data);
         wire_encodings.BcdScaled decoded = wire_encodings.BcdScaled.decode(r);
         assertEquals(500, decoded.raw());
     }

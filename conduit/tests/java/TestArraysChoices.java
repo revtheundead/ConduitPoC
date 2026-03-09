@@ -243,7 +243,7 @@ public class TestArraysChoices {
     @DisplayName("ChoiceMsg: Fallback choice for unknown msgType")
     void choiceMsgFallback() {
         // Build the raw bytes manually for an unknown msgType
-        arrays_choices.BitWriter w = new arrays_choices.BitWriter();
+        arrays_choices.codec.BitWriter w = new arrays_choices.codec.BitWriter();
         w.writeU8(99);          // unknown msgType
         w.writeU16(0, true);    // length
         w.writeU32(0xDEADBEEF, true); // raw data for FallbackBody
@@ -297,7 +297,7 @@ public class TestArraysChoices {
     @Test
     @DisplayName("TypeABody: unknown subType results in null subBody")
     void typeABodyUnknownSubType() {
-        arrays_choices.BitWriter w = new arrays_choices.BitWriter();
+        arrays_choices.codec.BitWriter w = new arrays_choices.codec.BitWriter();
         w.writeU8(99);  // unknown subType
         byte[] data = w.toBytes();
         arrays_choices.TypeABody decoded = arrays_choices.TypeABody.decodeBytes(data);

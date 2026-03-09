@@ -376,6 +376,33 @@ if(CONDUIT_BUILD_JAVA_JAR)
                 struct_features
                 constraints
                 field_scale
+                session_protocol
+                all_types
+                arrays_choices
+                choice_protocol
+                wire_encodings
+                direction_qualified
+                sentry_link
+                expr_features
+                inline_enum
+                constants_everywhere
+                constraints_extended
+                format_binary
+                auto_count
+                auto_struct_length
+                bitmap_advanced
+                fx_block
+                fx_advanced
+                fx_choice
+                frame_basic
+                frame_footer
+                frame_direction
+                frame_array
+                frame_config
+                bytes_numeric
+                outer_scope
+                string_features
+                boundary_types
             )
 
             # Generate Java code from each test fixture
@@ -398,16 +425,45 @@ if(CONDUIT_BUILD_JAVA_JAR)
 
             add_custom_target(java_test_codegen DEPENDS ${_java_test_gen_stamps})
 
+            # JUnit 5 standalone console runner for test execution
+            set(_junit_version "1.11.4")
+            set(_junit_jar "${CMAKE_CURRENT_BINARY_DIR}/junit-platform-console-standalone-${_junit_version}.jar")
+            set(_junit_url "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${_junit_version}/junit-platform-console-standalone-${_junit_version}.jar")
+
+            # Download JUnit if not present
+            if(NOT EXISTS "${_junit_jar}")
+                message(STATUS "Downloading JUnit Platform Console Standalone ${_junit_version}...")
+                file(DOWNLOAD "${_junit_url}" "${_junit_jar}" STATUS _dl_status)
+                list(GET _dl_status 0 _dl_rc)
+                if(NOT _dl_rc EQUAL 0)
+                    message(WARNING "Failed to download JUnit JAR (rc=${_dl_rc}). "
+                        "Java JUnit tests will not be available. "
+                        "Download manually from ${_junit_url}")
+                endif()
+            endif()
+
+            # Java test source directory
+            set(_java_test_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/tests/java")
+
+            # Classpath separator: semicolon on Windows, colon elsewhere
+            if(WIN32)
+                set(_cp_sep ";")
+            else()
+                set(_cp_sep ":")
+            endif()
+
             # Collect generated Java sources at build time using a cmake -P script
             # (avoids the POSIX-only 'find' command for cross-platform support)
             set(_java_test_compile_script "${CMAKE_CURRENT_BINARY_DIR}/java_test_compile.cmake")
             file(WRITE "${_java_test_compile_script}" "
-file(GLOB_RECURSE _src \"${_java_test_gen_dir}/*.java\")
-list(JOIN _src \"\\n\" _src_list)
+file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
+file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
+list(APPEND _all_src \${_gen_src} \${_test_src})
+list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
 execute_process(
     COMMAND ${JAVAC_EXECUTABLE} --release 11
-        -cp \"${_java_jar}\"
+        -cp \"${_java_jar}${_cp_sep}${_junit_jar}\"
         -d \"${_java_test_classes_dir}\"
         \"@${_java_test_classes_dir}/sources.txt\"
     RESULT_VARIABLE _rc
@@ -423,10 +479,29 @@ endif()
                 COMMAND ${CMAKE_COMMAND} -P "${_java_test_compile_script}"
                 COMMAND ${CMAKE_COMMAND} -E touch "${_java_test_classes_dir}/.compiled"
                 DEPENDS conduit_java_jar java_test_codegen
-                COMMENT "Compiling Java test classes"
+                COMMENT "Compiling Java test classes (generated + JUnit tests)"
                 VERBATIM
             )
             add_custom_target(java_test_compile DEPENDS "${_java_test_classes_dir}/.compiled")
+
+            # Run target: execute JUnit tests via the console launcher
+            if(EXISTS "${_junit_jar}")
+                find_program(_java_exe java)
+                if(_java_exe)
+                    add_custom_target(java_test_run
+                        COMMAND ${_java_exe}
+                            -jar "${_junit_jar}"
+                            --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
+                            --scan-class-path "${_java_test_classes_dir}"
+                            --include-classname "^Test.*"
+                            --exclude-classname ".*Transceiver.*"
+                            --exclude-classname ".*CodecCabi.*"
+                        DEPENDS java_test_compile
+                        COMMENT "Running Java JUnit tests"
+                        VERBATIM
+                    )
+                endif()
+            endif()
         endif()
     endif()
 endif()

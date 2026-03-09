@@ -18,7 +18,7 @@ public class TestFxBlockDepth {
     @DisplayName("FX decode: FX=1 with partial item1 data fails")
     void fxDecodePartialItem1() {
         // header(8) + FX=1(1) + only 8 bits of item1 (needs 16)
-        fx_block.BitWriter w = new fx_block.BitWriter();
+        fx_block.codec.BitWriter w = new fx_block.codec.BitWriter();
         w.writeU8(0x00);      // header
         w.writeBits(1, 1);    // FX bit = 1
         w.writeU8(0xAA);      // only 1 byte of item1 (needs 2)
