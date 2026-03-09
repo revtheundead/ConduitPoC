@@ -779,9 +779,10 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.dedent();
     ctx.line("}");
     // Packed character write: writes char_bits per character with IA5 6-bit mapping
-    ctx.line("public void writePackedChars(String s, int count, int charBits) {");
+    ctx.line("public void writePackedChars(String s, int count, int charBits) { writePackedChars(s, count, charBits, 0x20); }");
+    ctx.line("public void writePackedChars(String s, int count, int charBits, int pad) {");
     ctx.indent();
-    ctx.line("for (int i=0;i<count;i++) { int c=i<s.length()?(s.charAt(i)&0xFF):0x20; if (charBits<7 && c>='a' && c<='z') c-=32; writeBits(c>=0x40?c-0x40:c, charBits); }");
+    ctx.line("for (int i=0;i<count;i++) { int c=i<s.length()?(s.charAt(i)&0xFF):pad; if (charBits<7 && c>='a' && c<='z') c-=32; writeBits(c>=0x40?c-0x40:c, charBits); }");
     ctx.dedent();
     ctx.line("}");
     // Terminated string write
