@@ -47,9 +47,33 @@ public class Transceiver implements AutoCloseable {
         void onMessage(int peerId, T msg);
     }
 
+    /** Connection state enum (mirrors C++ {@code conduit::net::ConnectionState}). */
+    public enum ConnectionState {
+        DISCONNECTED(0),
+        CONNECTING(1),
+        CONNECTED(2),
+        RECONNECTING(3),
+        FAILED(4);
+
+        public final int value;
+        ConnectionState(int v) { this.value = v; }
+
+        /** Convert a raw integer state to the enum. */
+        public static ConnectionState fromValue(int v) {
+            switch (v) {
+                case 0: return DISCONNECTED;
+                case 1: return CONNECTING;
+                case 2: return CONNECTED;
+                case 3: return RECONNECTING;
+                case 4: return FAILED;
+                default: return DISCONNECTED;
+            }
+        }
+    }
+
     @FunctionalInterface
     public interface StateCallback {
-        void onStateChange(int peerId, int newState);
+        void onStateChange(int peerId, ConnectionState newState);
     }
 
     @FunctionalInterface
@@ -380,8 +404,8 @@ public class Transceiver implements AutoCloseable {
     }
 
     /** Get the connection state of a peer. */
-    public int peerState(int peerId) {
-        return binding.peerState(handle, peerId);
+    public ConnectionState peerState(int peerId) {
+        return ConnectionState.fromValue(binding.peerState(handle, peerId));
     }
 
     /** Get the sole peer ID (when only one exists). */

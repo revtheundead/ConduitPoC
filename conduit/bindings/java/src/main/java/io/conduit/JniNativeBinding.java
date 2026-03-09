@@ -142,7 +142,7 @@ public final class JniNativeBinding implements NativeBinding {
     private static void dispatchStateChange(int callbackKey, int peerId, int newState) {
         Transceiver.StateCallback cb = stateCallbacks.get(callbackKey);
         if (cb != null) {
-            cb.onStateChange(peerId, newState);
+            cb.onStateChange(peerId, Transceiver.ConnectionState.fromValue(newState));
         }
     }
 

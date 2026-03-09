@@ -26,13 +26,8 @@ public class DummyPeer {
 
     private static volatile boolean running = true;
 
-    private static final String[] STATE_NAMES = {
-        "Disconnected", "Connecting", "Connected", "Reconnecting", "Failed"
-    };
-
-    private static String stateName(int state) {
-        return (state >= 0 && state < STATE_NAMES.length)
-                ? STATE_NAMES[state] : "Unknown(" + state + ")";
+    private static String stateName(Transceiver.ConnectionState state) {
+        return state.name();
     }
 
     // ── Server-mode handlers (receives uplinks, asterix_alt perspective) ──
