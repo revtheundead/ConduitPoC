@@ -10,8 +10,8 @@ import io.conduit.TransportConfig;
 import io.conduit.ConduitError;
 import io.conduit.JniNativeBinding;
 
-import session_protocol.PingBody;
-import session_protocol.DataBody;
+import session_test.PingBody;
+import session_test.DataBody;
 
 import java.util.ArrayList;
 import java.util.List;

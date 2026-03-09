@@ -16,8 +16,8 @@ import io.conduit.Transceiver.StatsSnapshot;
 import io.conduit.TransportConfig;
 import io.conduit.ConduitError;
 
-import session_protocol.PingBody;
-import session_protocol.DataBody;
+import session_test.PingBody;
+import session_test.DataBody;
 
 /**
  * Comprehensive tests for the Conduit Transceiver C ABI bindings via Project Panama.

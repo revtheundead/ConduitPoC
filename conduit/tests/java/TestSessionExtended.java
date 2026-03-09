@@ -97,7 +97,7 @@ public class TestSessionExtended {
     @DisplayName("direction: decode shared discriminator produces receive variant (DownlinkPayload)")
     void directionDecodeProducesReceiveVariant() {
         // Build wire: tag=1 (shared ID for uplink/downlink) + uint32 rx-data
-        direction_qualified.BitWriter w = new direction_qualified.BitWriter();
+        direction_qualified.codec.BitWriter w = new direction_qualified.codec.BitWriter();
         w.writeU8(direction_qualified.DownlinkPayload.ID_VALUE);  // tag = 1
         w.writeU32(0xAABBCCDD, true);
         byte[] bytes = w.toBytes();
@@ -111,7 +111,7 @@ public class TestSessionExtended {
     @DisplayName("direction: decode shared discriminator never produces send variant (UplinkPayload)")
     void directionDecodeNeverProducesSendVariant() {
         // tag=1 is shared by UplinkPayload (send) and DownlinkPayload (receive)
-        direction_qualified.BitWriter w = new direction_qualified.BitWriter();
+        direction_qualified.codec.BitWriter w = new direction_qualified.codec.BitWriter();
         w.writeU8(1);  // shared ID
         w.writeU32(0x12345678, true);
         byte[] bytes = w.toBytes();
@@ -194,7 +194,7 @@ public class TestSessionExtended {
     @DisplayName("direction: decode_frame extracts receive variant from shared discriminator")
     void directionDecodeFrameExtractsReceiveVariant() {
         // Wire bytes for DownlinkPayload (receive): tag=1, u32 data
-        direction_qualified.BitWriter w = new direction_qualified.BitWriter();
+        direction_qualified.codec.BitWriter w = new direction_qualified.codec.BitWriter();
         w.writeU8(direction_qualified.DownlinkPayload.ID_VALUE);
         w.writeU32(0xCAFEBABE, true);
         byte[] bytes = w.toBytes();

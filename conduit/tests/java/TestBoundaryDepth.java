@@ -197,21 +197,21 @@ public class TestBoundaryDepth {
     @DisplayName("ChoiceMsg: SubX roundtrip")
     void choiceMsgSubXRoundtrip() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
-        msg.tag = (int) arrays_choices.Constants.TAG_X;
+        msg.msgType = (int) arrays_choices.Constants.TYPE_A;
         arrays_choices.SubX subX = new arrays_choices.SubX();
-        subX.value = 0xDEADBEEF;
+        subX.val = 0xDEADBEEF;
         msg.body = subX;
         byte[] encoded = msg.encodeBytes();
         arrays_choices.ChoiceMsg decoded = arrays_choices.ChoiceMsg.decodeBytes(encoded);
         assertInstanceOf(arrays_choices.SubX.class, decoded.body);
-        assertEquals(0xDEADBEEF, ((arrays_choices.SubX) decoded.body).value);
+        assertEquals(0xDEADBEEF, ((arrays_choices.SubX) decoded.body).val);
     }
 
     @Test
     @DisplayName("ChoiceMsg: SubY roundtrip")
     void choiceMsgSubYRoundtrip() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
-        msg.tag = (int) arrays_choices.Constants.TAG_Y;
+        msg.msgType = (int) arrays_choices.Constants.TYPE_B;
         arrays_choices.SubY subY = new arrays_choices.SubY();
         subY.a = 0x1234;
         subY.b = 0x5678;
@@ -227,9 +227,9 @@ public class TestBoundaryDepth {
     @DisplayName("ChoiceMsg: double-encode produces identical bytes")
     void choiceMsgDoubleEncode() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
-        msg.tag = (int) arrays_choices.Constants.TAG_X;
+        msg.msgType = (int) arrays_choices.Constants.TYPE_A;
         arrays_choices.SubX subX = new arrays_choices.SubX();
-        subX.value = 42;
+        subX.val = 42;
         msg.body = subX;
         byte[] first = msg.encodeBytes();
         byte[] second = msg.encodeBytes();
@@ -244,12 +244,18 @@ public class TestBoundaryDepth {
     @DisplayName("FixedArrayMsg: all max values roundtrip")
     void fixedArrayMaxValues() {
         arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
-        msg.values = new long[] { 0xFFFFFFFFL, 0xFFFFFFFFL, 0xFFFFFFFFL };
+        for (int i = 0; i < 3; i++) {
+            arrays_choices.Point p = new arrays_choices.Point();
+            p.x = 0xFFFF;
+            p.y = 0xFFFF;
+            msg.points.add(p);
+        }
         byte[] encoded = msg.encodeBytes();
         arrays_choices.FixedArrayMsg decoded = arrays_choices.FixedArrayMsg.decodeBytes(encoded);
-        assertEquals(3, decoded.values.length);
+        assertEquals(3, decoded.points.size());
         for (int i = 0; i < 3; i++) {
-            assertEquals(0xFFFFFFFFL, decoded.values[i]);
+            assertEquals(0xFFFF, decoded.points.get(i).x);
+            assertEquals(0xFFFF, decoded.points.get(i).y);
         }
     }
 
@@ -257,12 +263,18 @@ public class TestBoundaryDepth {
     @DisplayName("FixedArrayMsg: all zero values roundtrip")
     void fixedArrayZeroValues() {
         arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
-        msg.values = new long[] { 0, 0, 0 };
+        for (int i = 0; i < 3; i++) {
+            arrays_choices.Point p = new arrays_choices.Point();
+            p.x = 0;
+            p.y = 0;
+            msg.points.add(p);
+        }
         byte[] encoded = msg.encodeBytes();
         arrays_choices.FixedArrayMsg decoded = arrays_choices.FixedArrayMsg.decodeBytes(encoded);
-        assertEquals(3, decoded.values.length);
+        assertEquals(3, decoded.points.size());
         for (int i = 0; i < 3; i++) {
-            assertEquals(0, decoded.values[i]);
+            assertEquals(0, decoded.points.get(i).x);
+            assertEquals(0, decoded.points.get(i).y);
         }
     }
 
@@ -270,9 +282,14 @@ public class TestBoundaryDepth {
     @DisplayName("FixedArrayMsg: wire size is 12 bytes (3 * 4)")
     void fixedArrayWireSize() {
         arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
-        msg.values = new long[] { 1, 2, 3 };
+        for (int i = 0; i < 3; i++) {
+            arrays_choices.Point p = new arrays_choices.Point();
+            p.x = i + 1;
+            p.y = i + 1;
+            msg.points.add(p);
+        }
         byte[] encoded = msg.encodeBytes();
-        assertEquals(12, encoded.length, "3 u32 values = 12 bytes");
+        assertEquals(12, encoded.length, "3 Points (u16+u16 each) = 12 bytes");
     }
 
     // ========================================================================

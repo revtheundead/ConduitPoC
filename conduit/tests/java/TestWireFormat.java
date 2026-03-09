@@ -92,7 +92,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("Big-endian U16: 0xABCD encoded as AB CD")
     void bigEndianU16() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU16(0xABCD, true);  // big-endian
         byte[] data = w.toBytes();
         assertEquals(2, data.length);
@@ -103,7 +103,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("Little-endian U16: 0xABCD encoded as CD AB")
     void littleEndianU16() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU16(0xABCD, false);  // little-endian
         byte[] data = w.toBytes();
         assertEquals(2, data.length);
@@ -114,7 +114,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("Big-endian U32: 0x12345678 encoded as 12 34 56 78")
     void bigEndianU32() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU32(0x12345678, true);
         byte[] data = w.toBytes();
         assertEquals(4, data.length);
@@ -127,7 +127,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("Little-endian U32: 0x12345678 encoded as 78 56 34 12")
     void littleEndianU32() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU32(0x12345678, false);
         byte[] data = w.toBytes();
         assertEquals(4, data.length);
@@ -141,7 +141,7 @@ public class TestWireFormat {
     @DisplayName("Big-endian U16 readback: AB CD -> 0xABCD")
     void bigEndianU16Read() {
         byte[] data = new byte[] { (byte)0xAB, (byte)0xCD };
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0xABCD, r.readU16(true));
     }
 
@@ -149,7 +149,7 @@ public class TestWireFormat {
     @DisplayName("Little-endian U16 readback: CD AB -> 0xABCD")
     void littleEndianU16Read() {
         byte[] data = new byte[] { (byte)0xCD, (byte)0xAB };
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0xABCD, r.readU16(false));
     }
 
@@ -157,7 +157,7 @@ public class TestWireFormat {
     @DisplayName("Big-endian U32 readback: 12 34 56 78 -> 0x12345678")
     void bigEndianU32Read() {
         byte[] data = new byte[] { 0x12, 0x34, 0x56, 0x78 };
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0x12345678, r.readU32(true));
     }
 
@@ -165,7 +165,7 @@ public class TestWireFormat {
     @DisplayName("Little-endian U32 readback: 78 56 34 12 -> 0x12345678")
     void littleEndianU32Read() {
         byte[] data = new byte[] { 0x78, 0x56, 0x34, 0x12 };
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0x12345678, r.readU32(false));
     }
 
@@ -187,7 +187,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("Big-endian U64 write/read roundtrip")
     void bigEndianU64Roundtrip() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU64(0x123456789ABCDEF0L, true);
         byte[] data = w.toBytes();
         assertEquals(8, data.length);
@@ -195,14 +195,14 @@ public class TestWireFormat {
         assertEquals((byte)0x34, data[1]);
         assertEquals((byte)0x56, data[2]);
         assertEquals((byte)0x78, data[3]);
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0x123456789ABCDEF0L, r.readU64(true));
     }
 
     @Test
     @DisplayName("Little-endian U64 write/read roundtrip")
     void littleEndianU64Roundtrip() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeU64(0x123456789ABCDEF0L, false);
         byte[] data = w.toBytes();
         assertEquals(8, data.length);
@@ -215,7 +215,7 @@ public class TestWireFormat {
         assertEquals((byte)0x56, data[5]);
         assertEquals((byte)0x34, data[6]);
         assertEquals((byte)0x12, data[7]);
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(0x123456789ABCDEF0L, r.readU64(false));
     }
 
@@ -445,7 +445,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("ColorEnum RED encodes as byte 0x01")
     void colorEnumRedEncoding() {
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         all_types.ColorEnum.RED.encode(w);
         byte[] data = w.toBytes();
         assertEquals(1, data.length);
@@ -455,7 +455,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("ColorEnum GREEN encodes as byte 0x02")
     void colorEnumGreenEncoding() {
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         all_types.ColorEnum.GREEN.encode(w);
         byte[] data = w.toBytes();
         assertEquals((byte)0x02, data[0]);
@@ -464,7 +464,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("ColorEnum BLUE encodes as byte 0x03")
     void colorEnumBlueEncoding() {
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         all_types.ColorEnum.BLUE.encode(w);
         byte[] data = w.toBytes();
         assertEquals((byte)0x03, data[0]);
@@ -479,7 +479,7 @@ public class TestWireFormat {
     void statusFlagsActiveOnlyEncoding() {
         all_types.StatusFlags flags = new all_types.StatusFlags();
         flags.setActive(true);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         assertEquals((byte)0x01, w.toBytes()[0]);
     }
@@ -489,7 +489,7 @@ public class TestWireFormat {
     void statusFlagsErrorOnlyEncoding() {
         all_types.StatusFlags flags = new all_types.StatusFlags();
         flags.setError(true);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         assertEquals((byte)0x02, w.toBytes()[0]);
     }
@@ -499,7 +499,7 @@ public class TestWireFormat {
     void statusFlagsReadyOnlyEncoding() {
         all_types.StatusFlags flags = new all_types.StatusFlags();
         flags.setReady(true);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         assertEquals((byte)0x04, w.toBytes()[0]);
     }
@@ -511,7 +511,7 @@ public class TestWireFormat {
         flags.setActive(true);
         flags.setError(true);
         flags.setReady(true);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         flags.encode(w);
         assertEquals((byte)0x07, w.toBytes()[0]);
     }
@@ -524,7 +524,7 @@ public class TestWireFormat {
     @DisplayName("ScaledTemp: raw=0 encodes as 2 zero bytes")
     void scaledTempZeroEncoding() {
         all_types.ScaledTemp temp = new all_types.ScaledTemp(0);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         temp.encode(w);
         byte[] data = w.toBytes();
         assertEquals(2, data.length);
@@ -536,7 +536,7 @@ public class TestWireFormat {
     @DisplayName("ScaledTemp: raw=0x1234 encodes correctly")
     void scaledTempNonZeroEncoding() {
         all_types.ScaledTemp temp = new all_types.ScaledTemp(0x1234);
-        all_types.BitWriter w = new all_types.BitWriter();
+        all_types.codec.BitWriter w = new all_types.codec.BitWriter();
         temp.encode(w);
         byte[] data = w.toBytes();
         assertEquals(2, data.length);
@@ -552,7 +552,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("WriteBits/ReadBits: 3-bit value roundtrip")
     void bitLevelThreeBit() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeBits(5, 3);  // 0b101
         w.writeBits(3, 3);  // 0b011
         w.writeBits(0, 2);  // 0b00
@@ -565,7 +565,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("WriteBits/ReadBits: multi-byte bit packing")
     void bitLevelMultiByte() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeBits(0xFF, 8);
         w.writeBits(0x0, 4);
         w.writeBits(0xF, 4);
@@ -578,30 +578,30 @@ public class TestWireFormat {
     @Test
     @DisplayName("SignedBits: write -1 in 8 bits, read back as -1")
     void signedBitsNegOne() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeSignedBits(-1, 8);
         byte[] data = w.toBytes();
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(-1, r.readSignedBits(8));
     }
 
     @Test
     @DisplayName("SignedBits: write -128 in 8 bits, read back as -128")
     void signedBitsMin8() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeSignedBits(-128, 8);
         byte[] data = w.toBytes();
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(-128, r.readSignedBits(8));
     }
 
     @Test
     @DisplayName("SignedBits: write 127 in 8 bits, read back as 127")
     void signedBitsMax8() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeSignedBits(127, 8);
         byte[] data = w.toBytes();
-        session_test.BitReader r = new session_test.BitReader(data);
+        session_test.codec.BitReader r = new session_test.codec.BitReader(data);
         assertEquals(127, r.readSignedBits(8));
     }
 
@@ -612,7 +612,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("F32: 1.0f encodes as 3F800000 in big-endian")
     void f32OneWireFormat() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeF32(1.0f, true);
         byte[] data = w.toBytes();
         assertEquals(4, data.length);
@@ -625,7 +625,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("F64: 1.0 encodes as 3FF0000000000000 in big-endian")
     void f64OneWireFormat() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeF64(1.0, true);
         byte[] data = w.toBytes();
         assertEquals(8, data.length);
@@ -646,7 +646,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("String: write 'AB' padded to 4 with NUL")
     void stringNulPadded() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeString("AB", 4, 0);
         byte[] data = w.toBytes();
         assertEquals(4, data.length);
@@ -659,7 +659,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("String: write 'Hi' padded to 4 with space (0x20)")
     void stringSpacePadded() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeString("Hi", 4, 32);
         byte[] data = w.toBytes();
         assertEquals(4, data.length);
@@ -691,7 +691,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("BitWriter: sizeBytes reports correct size")
     void bitWriterSizeBytes() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         assertEquals(0, w.sizeBytes());
         w.writeU8(0);
         assertEquals(1, w.sizeBytes());
@@ -704,7 +704,7 @@ public class TestWireFormat {
     @Test
     @DisplayName("BitWriter: sizeBytes with bit-level writes")
     void bitWriterSizeBytesPartial() {
-        session_test.BitWriter w = new session_test.BitWriter();
+        session_test.codec.BitWriter w = new session_test.codec.BitWriter();
         w.writeBits(1, 1);
         assertEquals(1, w.sizeBytes());  // 1 bit rounds up to 1 byte
         w.writeBits(0, 7);
