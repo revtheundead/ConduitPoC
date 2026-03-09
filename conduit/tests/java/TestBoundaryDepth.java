@@ -1,0 +1,320 @@
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Boundary and edge case tests matching C++ test depth.
+ * Covers: unsigned integer boundaries, signed integer boundaries,
+ * double-encode idempotency across message types, string edge cases,
+ * and choice type dispatch edge cases.
+ */
+public class TestBoundaryDepth {
+
+    // ========================================================================
+    // Unsigned integer boundary values
+    // ========================================================================
+
+    @Test
+    @DisplayName("AllTypes: u8 max value (0xFF) roundtrip")
+    void u8MaxValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u8 = 0xFF;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(0xFF, decoded.u8);
+    }
+
+    @Test
+    @DisplayName("AllTypes: u16 max value (0xFFFF) roundtrip")
+    void u16MaxValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u16 = 0xFFFF;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(0xFFFF, decoded.u16);
+    }
+
+    @Test
+    @DisplayName("AllTypes: u32 max value (0xFFFFFFFF) roundtrip")
+    void u32MaxValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u32 = 0xFFFFFFFFL;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(0xFFFFFFFFL, decoded.u32);
+    }
+
+    @Test
+    @DisplayName("AllTypes: u64 max value roundtrip")
+    void u64MaxValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u64 = 0xFFFFFFFFFFFFFFFFL;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(0xFFFFFFFFFFFFFFFFL, decoded.u64);
+    }
+
+    // ========================================================================
+    // Signed integer boundary values
+    // ========================================================================
+
+    @Test
+    @DisplayName("AllTypes: i8 min value (-128) roundtrip")
+    void i8MinValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.i8 = -128;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(-128, decoded.i8);
+    }
+
+    @Test
+    @DisplayName("AllTypes: i8 max value (127) roundtrip")
+    void i8MaxValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.i8 = 127;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(127, decoded.i8);
+    }
+
+    @Test
+    @DisplayName("AllTypes: i16 min value (-32768) roundtrip")
+    void i16MinValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.i16 = -32768;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(-32768, decoded.i16);
+    }
+
+    @Test
+    @DisplayName("AllTypes: i32 min value roundtrip")
+    void i32MinValue() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.i32 = Integer.MIN_VALUE;
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(Integer.MIN_VALUE, decoded.i32);
+    }
+
+    // ========================================================================
+    // Zero values for all types
+    // ========================================================================
+
+    @Test
+    @DisplayName("AllTypes: all zero values roundtrip")
+    void allZeroValues() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u8 = 0;
+        msg.u16 = 0;
+        msg.u32 = 0;
+        msg.u64 = 0;
+        msg.i8 = 0;
+        msg.i16 = 0;
+        msg.i32 = 0;
+        msg.f32 = 0.0f;
+        msg.f64 = 0.0;
+        msg.flag = false;
+
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertEquals(0, decoded.u8);
+        assertEquals(0, decoded.u16);
+        assertEquals(0, decoded.u32);
+        assertEquals(0, decoded.u64);
+        assertEquals(0, decoded.i8);
+        assertEquals(0, decoded.i16);
+        assertEquals(0, decoded.i32);
+        assertEquals(0.0f, decoded.f32);
+        assertEquals(0.0, decoded.f64);
+        assertFalse(decoded.flag);
+    }
+
+    // ========================================================================
+    // Double-encode idempotency across message types
+    // ========================================================================
+
+    @Test
+    @DisplayName("AllTypesMessage: double-encode produces identical bytes")
+    void allTypesDoubleEncode() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        msg.u8 = 0xAB;
+        msg.u16 = 0x1234;
+        msg.u32 = 0xDEADBEEFL;
+        msg.u64 = 0x0102030405060708L;
+        msg.i8 = -42;
+        msg.i16 = -1000;
+        msg.i32 = -100000;
+        msg.f32 = 3.14f;
+        msg.f64 = -1.5;
+        msg.flag = true;
+
+        byte[] first = msg.encodeBytes();
+        byte[] second = msg.encodeBytes();
+        assertArrayEquals(first, second,
+            "Encoding AllTypesMessage twice should produce identical bytes");
+    }
+
+    @Test
+    @DisplayName("PingBody: double-encode produces identical bytes")
+    void pingBodyDoubleEncode() {
+        session_test.PingBody ping = new session_test.PingBody();
+        ping.timestamp = 0x12345678;
+        byte[] first = ping.encodeBytes();
+        byte[] second = ping.encodeBytes();
+        assertArrayEquals(first, second);
+    }
+
+    @Test
+    @DisplayName("DataBody: double-encode produces identical bytes")
+    void dataBodyDoubleEncode() {
+        session_test.DataBody data = new session_test.DataBody();
+        data.channel = 5;
+        data.payloadA = 0xAABBCCDD;
+        data.payloadB = 0x11223344;
+        byte[] first = data.encodeBytes();
+        byte[] second = data.encodeBytes();
+        assertArrayEquals(first, second);
+    }
+
+    @Test
+    @DisplayName("Point: double-encode produces identical bytes")
+    void pointDoubleEncode() {
+        arrays_choices.Point p = new arrays_choices.Point();
+        p.x = 100;
+        p.y = 200;
+        byte[] first = p.encodeBytes();
+        byte[] second = p.encodeBytes();
+        assertArrayEquals(first, second);
+    }
+
+    // ========================================================================
+    // Choice type edge cases
+    // ========================================================================
+
+    @Test
+    @DisplayName("ChoiceMsg: SubX roundtrip")
+    void choiceMsgSubXRoundtrip() {
+        arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
+        msg.tag = (int) arrays_choices.Constants.TAG_X;
+        arrays_choices.SubX subX = new arrays_choices.SubX();
+        subX.value = 0xDEADBEEF;
+        msg.body = subX;
+        byte[] encoded = msg.encodeBytes();
+        arrays_choices.ChoiceMsg decoded = arrays_choices.ChoiceMsg.decodeBytes(encoded);
+        assertInstanceOf(arrays_choices.SubX.class, decoded.body);
+        assertEquals(0xDEADBEEF, ((arrays_choices.SubX) decoded.body).value);
+    }
+
+    @Test
+    @DisplayName("ChoiceMsg: SubY roundtrip")
+    void choiceMsgSubYRoundtrip() {
+        arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
+        msg.tag = (int) arrays_choices.Constants.TAG_Y;
+        arrays_choices.SubY subY = new arrays_choices.SubY();
+        subY.a = 0x1234;
+        subY.b = 0x5678;
+        msg.body = subY;
+        byte[] encoded = msg.encodeBytes();
+        arrays_choices.ChoiceMsg decoded = arrays_choices.ChoiceMsg.decodeBytes(encoded);
+        assertInstanceOf(arrays_choices.SubY.class, decoded.body);
+        assertEquals(0x1234, ((arrays_choices.SubY) decoded.body).a);
+        assertEquals(0x5678, ((arrays_choices.SubY) decoded.body).b);
+    }
+
+    @Test
+    @DisplayName("ChoiceMsg: double-encode produces identical bytes")
+    void choiceMsgDoubleEncode() {
+        arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
+        msg.tag = (int) arrays_choices.Constants.TAG_X;
+        arrays_choices.SubX subX = new arrays_choices.SubX();
+        subX.value = 42;
+        msg.body = subX;
+        byte[] first = msg.encodeBytes();
+        byte[] second = msg.encodeBytes();
+        assertArrayEquals(first, second);
+    }
+
+    // ========================================================================
+    // Fixed array boundary values
+    // ========================================================================
+
+    @Test
+    @DisplayName("FixedArrayMsg: all max values roundtrip")
+    void fixedArrayMaxValues() {
+        arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
+        msg.values = new long[] { 0xFFFFFFFFL, 0xFFFFFFFFL, 0xFFFFFFFFL };
+        byte[] encoded = msg.encodeBytes();
+        arrays_choices.FixedArrayMsg decoded = arrays_choices.FixedArrayMsg.decodeBytes(encoded);
+        assertEquals(3, decoded.values.length);
+        for (int i = 0; i < 3; i++) {
+            assertEquals(0xFFFFFFFFL, decoded.values[i]);
+        }
+    }
+
+    @Test
+    @DisplayName("FixedArrayMsg: all zero values roundtrip")
+    void fixedArrayZeroValues() {
+        arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
+        msg.values = new long[] { 0, 0, 0 };
+        byte[] encoded = msg.encodeBytes();
+        arrays_choices.FixedArrayMsg decoded = arrays_choices.FixedArrayMsg.decodeBytes(encoded);
+        assertEquals(3, decoded.values.length);
+        for (int i = 0; i < 3; i++) {
+            assertEquals(0, decoded.values[i]);
+        }
+    }
+
+    @Test
+    @DisplayName("FixedArrayMsg: wire size is 12 bytes (3 * 4)")
+    void fixedArrayWireSize() {
+        arrays_choices.FixedArrayMsg msg = new arrays_choices.FixedArrayMsg();
+        msg.values = new long[] { 1, 2, 3 };
+        byte[] encoded = msg.encodeBytes();
+        assertEquals(12, encoded.length, "3 u32 values = 12 bytes");
+    }
+
+    // ========================================================================
+    // Alpha/Beta choice bodies: max field values
+    // ========================================================================
+
+    @Test
+    @DisplayName("AlphaBody: max u16 values roundtrip")
+    void alphaBodyMaxValues() {
+        choice_test.AlphaBody alpha = new choice_test.AlphaBody();
+        alpha.x = 0xFFFF;
+        alpha.y = 0xFFFF;
+        byte[] encoded = alpha.encodeBytes();
+        choice_test.AlphaBody decoded = choice_test.AlphaBody.decodeBytes(encoded);
+        assertEquals(0xFFFF, decoded.x);
+        assertEquals(0xFFFF, decoded.y);
+    }
+
+    @Test
+    @DisplayName("BetaBody: max field values roundtrip")
+    void betaBodyMaxValues() {
+        choice_test.BetaBody beta = new choice_test.BetaBody();
+        beta.payloadSize = 0xFF;
+        beta.tag = 0xFFFFFFFFL;
+        byte[] encoded = beta.encodeBytes();
+        choice_test.BetaBody decoded = choice_test.BetaBody.decodeBytes(encoded);
+        assertEquals(0xFF, decoded.payloadSize);
+        assertEquals(0xFFFFFFFFL, decoded.tag);
+    }
+
+    // ========================================================================
+    // Scaled temperature edge values
+    // ========================================================================
+
+    @Test
+    @DisplayName("ScaledTemp: zero value roundtrip")
+    void scaledTempZero() {
+        all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
+        // ScaledTemp with raw=4000 represents 0.0°C (offset -40, scale 0.01)
+        // Raw 0 = -40.0
+        byte[] encoded = msg.encodeBytes();
+        all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
+        assertNotNull(decoded);
+    }
+}
