@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bit_alignment</namespace>
+    <endian>big</endian>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+  </types>
+  <messages>
+    <!-- A 3-bit flag followed by a 5-bit value, then a 16-bit field.
+         After the 3-bit flag, reader is NOT byte-aligned.
+         After the 5-bit value (3+5=8), reader IS byte-aligned.
+         This tests that the code generator correctly tracks alignment. -->
+    <message name="BitAlignedMsg">
+      <field name="flags" base="uint" bits="3"/>
+      <field name="priority" base="uint" bits="5"/>
+      <field name="value" type="uint16"/>
+      <field name="trailer" type="uint8"/>
+    </message>
+    <!-- 7-bit field followed by 16-bit: NOT byte-aligned at read_u16 position -->
+    <message name="MisalignedMsg">
+      <field name="header-bits" base="uint" bits="7"/>
+      <field name="data" type="uint16"/>
+      <field name="tail" type="uint8"/>
+    </message>
+    <!-- 4-bit + 4-bit = 8-bit (byte-aligned), then 32-bit -->
+    <message name="NibbleAlignedMsg">
+      <field name="hi" base="uint" bits="4"/>
+      <field name="lo" base="uint" bits="4"/>
+      <field name="payload" type="uint32"/>
+    </message>
+  </messages>
+</bmdl>

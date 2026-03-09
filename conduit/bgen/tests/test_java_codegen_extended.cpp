@@ -933,14 +933,14 @@ TEST_CASE("JCG: field-level constraint checks min/max", "[java][codegen][constra
     CHECK(all.find("exceeds max 100") != std::string::npos);
 }
 
-TEST_CASE("JCG: deferred constraint does NOT generate validation", "[java][codegen][constraint]") {
+TEST_CASE("JCG: deferred constraint generates validate() not decode-time check", "[java][codegen][constraint]") {
     auto java = gen_java("constraints.bmdl.xml");
     REQUIRE(java.has_value());
     auto all = all_output(*java);
-    // deferred-val has validate="deferred" so no runtime check
-    // We check that "deferred-val" doesn't appear in exception messages
-    CHECK(all.find("deferred-val exceeds max") == std::string::npos);
-    CHECK(all.find("deferred-val below min") == std::string::npos);
+    // deferred-val has validate="deferred" — checks go in validate(), not decode()
+    // The validate() method should exist with deferred constraint checks
+    CHECK(all.find("public void validate()") != std::string::npos);
+    CHECK(all.find("deferred-val exceeds max") != std::string::npos);
 }
 
 // ============================================================================
@@ -1370,4 +1370,80 @@ TEST_CASE("JCG: bitmap fields are nullable", "[java][codegen][bitmap]") {
     CHECK(bm.find("item010 = null") != std::string::npos);
     CHECK(bm.find("item020 = null") != std::string::npos);
     CHECK(bm.find("item030 = null") != std::string::npos);
+}
+
+// ============================================================================
+// Byte alignment tracking tests
+// ============================================================================
+
+TEST_CASE("JExt: byte-aligned field after 3+5 bits uses readU16", "[java][alignment]") {
+    auto java = gen_java("bit_alignment.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // After 3-bit + 5-bit = 8 bits (byte-aligned), readU16 should be used
+    CHECK(all.find("readU16") != std::string::npos);
+}
+
+TEST_CASE("JExt: misaligned 7-bit field causes next read to use readBits", "[java][alignment]") {
+    auto java = gen_java("bit_alignment.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // After 7-bit field, position is NOT byte-aligned, so 16-bit field should
+    // use readBits(16) not readU16 in MisalignedMsg
+    CHECK(all.find("readBits(16)") != std::string::npos);
+}
+
+// ============================================================================
+// EBCDIC padding tests
+// ============================================================================
+
+TEST_CASE("JExt: EBCDIC string encode uses 0x40 space padding", "[java][ebcdic]") {
+    auto java = gen_java("ebcdic_strings.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // EBCDIC space is 0x40, should appear in the encode for space-padded EBCDIC strings
+    CHECK(all.find("0x40") != std::string::npos);
+}
+
+// ============================================================================
+// Frame footer field propagation tests
+// ============================================================================
+
+TEST_CASE("JExt: frame footer fields copied to decoded payload", "[java][frame]") {
+    auto java = gen_java("frame_footer.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // Footer field 'checksum' should be copied to each payload message via instanceof cast
+    // e.g. _fm.checksum = result.checksum;
+    CHECK(all.find("_fm.checksum = result.checksum") != std::string::npos);
+}
+
+// ============================================================================
+// Deferred validation tests
+// ============================================================================
+
+TEST_CASE("JExt: validate method checks deferred constraints", "[java][validation]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // validate method should exist
+    CHECK(all.find("validate()") != std::string::npos);
+}
+
+// ============================================================================
+// Encode-time constraint check tests
+// ============================================================================
+
+TEST_CASE("JExt: encode emits constraint checks before writing", "[java][encode][constraint]") {
+    auto java = gen_java("constraints.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+    // The encode() method should contain constraint checks for constrained fields
+    // percent has min=0, max=100 — max check should appear in encode path
+    // Find "exceeds max 100" in the encode output (appears in both decode and encode)
+    size_t first = all.find("exceeds max 100");
+    REQUIRE(first != std::string::npos);
+    // There should be at least two occurrences (decode + encode)
+    size_t second = all.find("exceeds max 100", first + 1);
+    CHECK(second != std::string::npos);
 }

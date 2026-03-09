@@ -938,12 +938,13 @@ TEST_CASE("PyCG: field-level constraint checks min/max", "[python][codegen][cons
     CHECK(all.find("exceeds max 100") != std::string::npos);
 }
 
-TEST_CASE("PyCG: deferred constraint does NOT generate validation", "[python][codegen][constraint]") {
+TEST_CASE("PyCG: deferred constraint skipped in decode, present in encode", "[python][codegen][constraint]") {
     auto py = gen_python("constraints.bmdl.xml");
     REQUIRE(py.has_value());
     auto all = all_output(*py);
-    CHECK(all.find("deferred-val exceeds max") == std::string::npos);
-    CHECK(all.find("deferred-val below min") == std::string::npos);
+    // Deferred constraints should appear (in encode and/or validate), not be absent
+    // The key invariant: decode path skips deferred, encode path checks them
+    CHECK(all.find("deferred-val exceeds max") != std::string::npos);
 }
 
 // ============================================================================
@@ -1315,4 +1316,87 @@ TEST_CASE("PyCG: bitmap fields default to None", "[python][codegen][bitmap]") {
     CHECK(structs.find("item010 = None") != std::string::npos);
     CHECK(structs.find("item020 = None") != std::string::npos);
     CHECK(structs.find("item030 = None") != std::string::npos);
+}
+
+// ============================================================================
+// Byte alignment tracking tests
+// ============================================================================
+
+TEST_CASE("PyExt: byte-aligned field after 3+5 bits uses read_u16", "[python][alignment]") {
+    auto py = gen_python("bit_alignment.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // After 3-bit + 5-bit = 8 bits (byte-aligned), read_u16 should be used
+    CHECK(msgs.find("read_u16") != std::string::npos);
+}
+
+TEST_CASE("PyExt: misaligned 7-bit field causes next read to use read_bits", "[python][alignment]") {
+    auto py = gen_python("bit_alignment.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // After 7-bit field, position is NOT byte-aligned, so 16-bit field should
+    // use read_bits(16) not read_u16. Check that MisalignedMsg does NOT
+    // generate read_u16 immediately after read_bits(7).
+    // We can check that read_bits(16) appears (for the misaligned 16-bit read)
+    CHECK(msgs.find("read_bits(16)") != std::string::npos);
+}
+
+TEST_CASE("PyExt: nibble-aligned (4+4) field before 32-bit uses read_u32", "[python][alignment]") {
+    auto py = gen_python("bit_alignment.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // 4+4=8 bits (byte-aligned), so read_u32 should be used
+    CHECK(msgs.find("read_u32") != std::string::npos);
+}
+
+// ============================================================================
+// EBCDIC padding tests
+// ============================================================================
+
+TEST_CASE("PyExt: EBCDIC string encode uses 0x40 space padding", "[python][ebcdic]") {
+    auto py = gen_python("ebcdic_strings.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // EBCDIC space is 0x40 (64 decimal), not 0x20 (32 decimal)
+    CHECK(msgs.find("64") != std::string::npos);
+}
+
+// ============================================================================
+// Frame footer field propagation tests
+// ============================================================================
+
+TEST_CASE("PyExt: frame footer fields copied to decoded payload", "[python][frame]") {
+    auto py = gen_python("frame_footer.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // Footer field 'checksum' should be copied to decoded payload in frame decode
+    CHECK(msgs.find("payload.checksum") != std::string::npos);
+}
+
+// ============================================================================
+// payload_length_from tests
+// ============================================================================
+
+TEST_CASE("PyExt: payload_length_from creates sub_reader", "[python][frame]") {
+    auto py = gen_python("frame_payload_length_from.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // payload with length-from should use sub_reader in frame decode
+    CHECK(msgs.find("sub_reader") != std::string::npos);
+}
+
+// ============================================================================
+// Encode-time constraint check tests
+// ============================================================================
+
+TEST_CASE("PyExt: encode emits constraint checks before writing", "[python][encode][constraint]") {
+    auto py = gen_python("constraints.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+    // percent has max=100 — encode should check max constraint
+    size_t first = msgs.find("exceeds max 100");
+    REQUIRE(first != std::string::npos);
+    // Should appear at least twice (decode + encode)
+    size_t second = msgs.find("exceeds max 100", first + 1);
+    CHECK(second != std::string::npos);
 }

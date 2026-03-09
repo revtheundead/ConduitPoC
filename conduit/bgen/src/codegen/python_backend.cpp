@@ -273,6 +273,35 @@ PyFieldInfo py_resolve_element_type(const model::ArrayDef& ad, const analyzer::T
     return py_resolve_field(tmp, index);
 }
 
+// Byte alignment tracker for code generation (mirrors C++ StructEmitter::bit_mod8_).
+// Tracks cumulative bit offset mod 8 so byte-optimized reads/writes are only
+// emitted when the reader/writer is known to be byte-aligned.
+static constexpr int BITS_PER_BYTE = 8;
+
+struct PyBitTracker {
+    int bit_mod8 = 0; // -1 means unknown alignment
+
+    bool is_byte_aligned() const { return bit_mod8 == 0; }
+
+    void advance_bits(int bits) {
+        if (bit_mod8 < 0) return; // already unknown
+        bit_mod8 = (bit_mod8 + bits) % BITS_PER_BYTE;
+    }
+
+    void advance_bits_variable() {
+        if (bit_mod8 != 0) bit_mod8 = -1;
+        // else: stays 0 (byte-aligned -> still byte-aligned after whole-byte field)
+    }
+
+    void advance_field(const PyFieldInfo& fi) {
+        if (fi.is_struct || fi.is_string || fi.is_bytes) {
+            advance_bits_variable();
+        } else {
+            advance_bits(fi.bits);
+        }
+    }
+};
+
 // ============================================================================
 // Outer-scope analysis for nested choices (Python)
 // ============================================================================
@@ -1135,21 +1164,26 @@ std::string generate_py_types(const model::Protocol& protocol,
 // Field read/write helpers
 // ============================================================================
 
-std::string py_read_expr(const PyFieldInfo& fi) {
+std::string py_read_expr(const PyFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BCD) return "r.read_bcd(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "r.read_bcd_signed(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.read_sign_magnitude(" + std::to_string(fi.bits) + ")";
     std::string be = (fi.endian == model::Endian::Big) ? "True" : "False";
     if (fi.is_float) return (fi.bits <= 32) ? "r.read_f32(" + be + ")" : "r.read_f64(" + be + ")";
-    if (fi.bits == 8 && !fi.is_signed) return "r.read_u8()";
-    if (fi.bits == 16 && !fi.is_signed) return "r.read_u16(" + be + ")";
-    if (fi.bits == 32 && !fi.is_signed) return "r.read_u32(" + be + ")";
-    if (fi.bits == 64 && !fi.is_signed) return "r.read_u64(" + be + ")";
+    // Byte-optimized reads (read_u8, read_u16, etc.) auto-align to byte
+    // boundaries, which corrupts data when the reader is mid-byte.
+    // Only use them when we know the position is byte-aligned.
+    if (byte_aligned) {
+        if (fi.bits == 8 && !fi.is_signed) return "r.read_u8()";
+        if (fi.bits == 16 && !fi.is_signed) return "r.read_u16(" + be + ")";
+        if (fi.bits == 32 && !fi.is_signed) return "r.read_u32(" + be + ")";
+        if (fi.bits == 64 && !fi.is_signed) return "r.read_u64(" + be + ")";
+    }
     if (fi.is_signed) return "r.read_signed_bits(" + std::to_string(fi.bits) + ")";
     return "r.read_bits(" + std::to_string(fi.bits) + ")";
 }
 
-std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi) {
+std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BCD) return "w.write_bcd(" + val + ", " + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "w.write_bcd_signed(" + val + ", " + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "w.write_sign_magnitude(" + val + ", " + std::to_string(fi.bits) + ")";
@@ -1157,10 +1191,12 @@ std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi) {
     if (fi.is_float) return (fi.bits <= 32) ? "w.write_f32(" + val + ", " + be + ")" : "w.write_f64(" + val + ", " + be + ")";
     // bool must be checked before bit-width checks for correct encoding
     if (fi.is_bool) return "w.write_bits(1 if " + val + " else 0, " + std::to_string(fi.bits) + ")";
-    if (fi.bits == 8 && !fi.is_signed) return "w.write_u8(" + val + ")";
-    if (fi.bits == 16 && !fi.is_signed) return "w.write_u16(" + val + ", " + be + ")";
-    if (fi.bits == 32 && !fi.is_signed) return "w.write_u32(" + val + ", " + be + ")";
-    if (fi.bits == 64 && !fi.is_signed) return "w.write_u64(" + val + ", " + be + ")";
+    if (byte_aligned) {
+        if (fi.bits == 8 && !fi.is_signed) return "w.write_u8(" + val + ")";
+        if (fi.bits == 16 && !fi.is_signed) return "w.write_u16(" + val + ", " + be + ")";
+        if (fi.bits == 32 && !fi.is_signed) return "w.write_u32(" + val + ", " + be + ")";
+        if (fi.bits == 64 && !fi.is_signed) return "w.write_u64(" + val + ", " + be + ")";
+    }
     if (fi.is_signed) return "w.write_signed_bits(" + val + ", " + std::to_string(fi.bits) + ")";
     return "w.write_bits(" + val + ", " + std::to_string(fi.bits) + ")";
 }
@@ -1220,12 +1256,14 @@ void emit_py_field_trim(EmitContext& ctx, const std::string& m, const model::Fie
 // Forward declarations for mutual recursion with inline struct handling
 void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             PyBitTracker& tracker,
                              const PyOuterScopeMap& scope_map = {},
                              const PyOuterContext& outer_ctx = {},
                              const PyInlineNameMap& name_map = {},
                              const std::string& parent_class_name = {});
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             PyBitTracker& tracker,
                              const std::string& len_ref_target = {},
                              const model::Field* auto_len_ref_field = nullptr,
                              const PyInlineNameMap& name_map = {},
@@ -1233,6 +1271,7 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
 
 void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          PyBitTracker& tracker,
                           const PyOuterContext& outer_ctx = {},
                           const std::string& parent_class_name = {}) {
     // Inline enum field: enum_values populated, type_ref empty
@@ -1240,6 +1279,8 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         std::string enum_name = parent_class_name + py_class(f.name);
         std::string m = pfx + "." + py_field(f.name);
         ctx.line(m + " = " + enum_name + ".decode(r)");
+        if (f.bits) tracker.advance_bits(*f.bits);
+        else tracker.advance_bits_variable();
         return;
     }
     auto fi = py_resolve_field(f, index);
@@ -1248,16 +1289,16 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     if (f.is_inline && !f.type_ref.empty()) {
         auto sit = index.structs.find(f.type_ref);
         if (sit != index.structs.end()) {
-            emit_py_decode_children(ctx, sit->second->children, index, pfx);
+            emit_py_decode_children(ctx, sit->second->children, index, pfx, tracker);
             return;
         }
         auto mit = index.messages.find(f.type_ref);
         if (mit != index.messages.end()) {
-            emit_py_decode_children(ctx, mit->second->children, index, pfx);
+            emit_py_decode_children(ctx, mit->second->children, index, pfx, tracker);
             return;
         }
     }
-    if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.py_type + ".decode(r)"); return; }
+    if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.py_type + ".decode(r)"); tracker.advance_field(fi); return; }
     if (fi.is_string) {
         bool has_enc = py_field_needs_encoding(f);
         std::string enc_arg = has_enc ? (", " + py_encoding_const(f)) : "";
@@ -1307,6 +1348,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.max_length) {
             ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.is_bytes) {
@@ -1317,6 +1359,7 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.max_length) {
             ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.has_scale) {
@@ -1325,12 +1368,14 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         std::string ve = "_raw";
         if (fi.scale != 1.0) ve += " * " + py_double(fi.scale);
         if (fi.offset != 0.0) ve += " + " + py_double(fi.offset);
-        ctx.line("_raw = " + py_read_expr(raw_fi));
+        ctx.line("_raw = " + py_read_expr(raw_fi, tracker.is_byte_aligned()));
         ctx.line(m + " = " + ve);
+        tracker.advance_bits(raw_fi.bits);
         return;
     }
-    if (fi.is_bool) { ctx.line(m + " = (" + py_read_expr(fi) + " != 0)"); return; }
-    ctx.line(m + " = " + py_read_expr(fi));
+    if (fi.is_bool) { ctx.line(m + " = (" + py_read_expr(fi, tracker.is_byte_aligned()) + " != 0)"); tracker.advance_field(fi); return; }
+    ctx.line(m + " = " + py_read_expr(fi, tracker.is_byte_aligned()));
+    tracker.advance_field(fi);
     // Field-level constraint checks (matching C++ emit_constraint_check)
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
@@ -1349,11 +1394,14 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
 
 void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          PyBitTracker& tracker,
                           const std::string& parent_class_name = {}) {
     // Inline enum field: enum_values populated, type_ref empty
     if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
         std::string m = pfx + "." + py_field(f.name);
         ctx.line(m + ".encode(w)");
+        if (f.bits) tracker.advance_bits(*f.bits);
+        else tracker.advance_bits_variable();
         return;
     }
     auto fi = py_resolve_field(f, index);
@@ -1362,35 +1410,52 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     if (f.is_inline && !f.type_ref.empty()) {
         auto sit = index.structs.find(f.type_ref);
         if (sit != index.structs.end()) {
-            emit_py_encode_children(ctx, sit->second->children, index, pfx);
+            PyBitTracker inline_tracker;
+            emit_py_encode_children(ctx, sit->second->children, index, pfx, inline_tracker);
             return;
         }
         auto mit = index.messages.find(f.type_ref);
         if (mit != index.messages.end()) {
-            emit_py_encode_children(ctx, mit->second->children, index, pfx);
+            PyBitTracker inline_tracker;
+            emit_py_encode_children(ctx, mit->second->children, index, pfx, inline_tracker);
             return;
         }
     }
     if (f.auto_expr) {
         if (f.auto_expr->kind == model::AutoKind::Length) {
             ctx.line("_len_pos = w.size_bytes()");
-            ctx.line(py_write_stmt("0", fi));
+            ctx.line(py_write_stmt("0", fi, tracker.is_byte_aligned()));
+            tracker.advance_field(fi);
             return;
         }
         if (f.auto_expr->kind == model::AutoKind::Count) {
             // Auto-count: write the length of the referenced array
             std::string ref_name = f.auto_expr->field_ref.empty() ? "" : py_field(f.auto_expr->field_ref);
             if (!ref_name.empty()) {
-                ctx.line(py_write_stmt("len(" + pfx + "." + ref_name + ")", fi));
+                ctx.line(py_write_stmt("len(" + pfx + "." + ref_name + ")", fi, tracker.is_byte_aligned()));
             } else {
-                ctx.line(py_write_stmt("0", fi));
+                ctx.line(py_write_stmt("0", fi, tracker.is_byte_aligned()));
             }
+            tracker.advance_field(fi);
             return;
         }
         if (f.auto_expr->kind == model::AutoKind::Id) {
             // Auto-id: write the ID_VALUE constant
-            ctx.line(py_write_stmt(pfx + ".ID_VALUE", fi));
+            ctx.line(py_write_stmt(pfx + ".ID_VALUE", fi, tracker.is_byte_aligned()));
+            tracker.advance_field(fi);
             return;
+        }
+    }
+    // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
+    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+        if (f.constraint->equals) {
+            ctx.line("if " + m + " != " + *f.constraint->equals + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
+        }
+        if (f.constraint->max) {
+            ctx.line("if " + m + " > " + *f.constraint->max + ": raise ValueError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+        }
+        if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
+            ctx.line("if " + m + " < " + *f.constraint->min + ": raise ValueError('" + f.name + " below min " + *f.constraint->min + "')");
         }
     }
     if (fi.is_enum) {
@@ -1400,6 +1465,7 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
         } else {
             ctx.line(m + ".encode(w)");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.is_struct) {
@@ -1410,6 +1476,7 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
         } else {
             ctx.line(m + ".encode(w)");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.is_string) {
@@ -1433,7 +1500,11 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
                 ctx.line("w.write_terminated_string(" + m + ", " + term + ")");
             }
         } else if (f.length) {
-            int pad = (f.padding && *f.padding == model::StringPadding::Space) ? 0x20 : 0;
+            // Use EBCDIC space (0x40) for EBCDIC-encoded space-padded strings
+            int pad = 0;
+            if (f.padding && *f.padding == model::StringPadding::Space) {
+                pad = (f.encoding && *f.encoding == model::StringEncoding::Ebcdic) ? 0x40 : 0x20;
+            }
             ctx.line("w.write_string(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(pad) + enc_arg + ")");
         } else if (f.length_prefix) {
             auto pti = resolve_prefix_type(*f.length_prefix, index);
@@ -1447,23 +1518,27 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
         } else {
             ctx.line("w.write_string(" + m + ", len(" + m + ")" + enc_arg + ")");
         }
+        tracker.advance_field(fi);
         return;
     }
-    if (fi.is_bytes) { ctx.line("w.write_bytes(" + m + ")"); return; }
+    if (fi.is_bytes) { ctx.line("w.write_bytes(" + m + ")"); tracker.advance_field(fi); return; }
     if (fi.has_scale) {
         std::string inv = m;
         if (fi.offset != 0.0) inv = "(" + inv + " - " + py_double(fi.offset) + ")";
         if (fi.scale != 1.0) inv = "(" + inv + " / " + py_double(fi.scale) + ")";
         PyFieldInfo raw_fi = fi; raw_fi.bits = fi.raw_bits; raw_fi.is_signed = fi.raw_signed;
         raw_fi.is_float = false; raw_fi.has_scale = false;
-        ctx.line(py_write_stmt("int(" + inv + ")", raw_fi));
+        ctx.line(py_write_stmt("int(" + inv + ")", raw_fi, tracker.is_byte_aligned()));
+        tracker.advance_bits(raw_fi.bits);
         return;
     }
-    ctx.line(py_write_stmt(m, fi));
+    ctx.line(py_write_stmt(m, fi, tracker.is_byte_aligned()));
+    tracker.advance_field(fi);
 }
 
 void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             PyBitTracker& tracker,
                              const PyOuterScopeMap& scope_map,
                              const PyOuterContext& outer_ctx,
                              const PyInlineNameMap& name_map,
@@ -1497,9 +1572,11 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             if (f->present_when) {
                 ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
                 ctx.indent();
-                emit_py_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
+                emit_py_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
                 ctx.dedent();
-            } else emit_py_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
+                // present_when field makes alignment unknown at compile time
+                tracker.advance_bits_variable();
+            } else emit_py_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             std::string resolved = py_inline_class(sd->name, name_map);
@@ -1507,7 +1584,11 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             if (sd->present_when) {
                 ctx.line("if " + py_expr_ctx(*sd->present_when, pfx, outer_ctx) + ":");
                 ctx.indent(); ctx.line(m + " = " + resolved + ".decode(r" + args + ")"); ctx.dedent();
-            } else ctx.line(m + " = " + resolved + ".decode(r" + args + ")");
+                tracker.advance_bits_variable();
+            } else {
+                ctx.line(m + " = " + resolved + ".decode(r" + args + ")");
+                tracker.advance_bits_variable();
+            }
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
             std::string elem = ad->type_ref.empty() ? py_inline_class(ad->name, name_map) : py_class(ad->type_ref);
@@ -1516,6 +1597,12 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
                 } else if (ad->count_from) {
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr_ctx(*ad->count_from, pfx, outer_ctx) + "))]");
+                } else if (ad->length_from) {
+                    // Bounded array: create sub-reader limited to length_from bytes
+                    ctx.line("_ar = r.sub_reader(int(" + py_expr_ctx(*ad->length_from, pfx, outer_ctx) + "))");
+                    ctx.line(m + " = []");
+                    ctx.line("while _ar.remaining_bytes() > 0:");
+                    ctx.indent(); ctx.line(m + ".append(" + elem + ".decode(_ar))"); ctx.dedent();
                 } else {
                     ctx.line(m + " = []");
                     ctx.line("while r.remaining_bytes() > 0:");
@@ -1528,6 +1615,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             } else {
                 emit_array_decode();
             }
+            tracker.advance_bits_variable();
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = py_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
@@ -1618,15 +1706,19 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             } else {
                 emit_choice_decode();
             }
+            tracker.advance_bits_variable();
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skip_bits(" + std::to_string(res->bits) + ")");
+            tracker.advance_bits(res->bits);
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.align_to(" + std::to_string(al->to) + ")");
+            tracker.bit_mod8 = 0; // alignment resets to byte-aligned
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             // FX extension: read continuation bit, conditionally decode children
             ctx.line("if r.read_bits(1) != 0:");
+            tracker.advance_bits(1); // FX bit
             ctx.indent();
-            emit_py_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            emit_py_decode_children(ctx, fx->children, index, pfx, tracker, scope_map, outer_ctx, name_map, parent_class_name);
             // Read terminal FX=0 bit if this FX extent has no nested FxBlock
             {
                 bool has_nested_fx = false;
@@ -1807,6 +1899,7 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
 
 void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             PyBitTracker& tracker,
                              const std::string& len_ref_target,
                              const model::Field* auto_len_ref_field,
                              const PyInlineNameMap& name_map,
@@ -1869,13 +1962,15 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
         if (auto* f = std::get_if<model::Field>(&child)) {
             if (f->present_when) {
                 ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
-                ctx.indent(); emit_py_field_encode(ctx, *f, index, pfx, parent_class_name); ctx.dedent();
-            } else emit_py_field_encode(ctx, *f, index, pfx, parent_class_name);
+                ctx.indent(); emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name); ctx.dedent();
+                tracker.advance_bits_variable();
+            } else emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             if (sd->present_when) {
                 ctx.line("if " + m + " is not None: " + m + ".encode(w)");
             } else ctx.line(m + ".encode(w)");
+            tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
             if (ad->present_when) {
@@ -1884,13 +1979,17 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             } else {
                 ctx.line("for _item in " + m + ": _item.encode(w)");
             }
+            tracker.advance_bits_variable();
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + py_field(cd->name);
             ctx.line("if " + m + " is not None: " + m + ".encode(w)");
+            tracker.advance_bits_variable();
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.write_bits(0, " + std::to_string(res->bits) + ")");
+            tracker.advance_bits(res->bits);
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("w.align_to(" + std::to_string(al->to) + ")");
+            tracker.bit_mod8 = 0;
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             // FX extension: check if any children are set, write FX bit, conditionally encode
             ctx.line("_fx_continue = False");
@@ -2774,7 +2873,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.line("def decode(r: 'BitReader'" + decode_params + ") -> '" + cn + "':");
     ctx.indent();
     ctx.line("result = " + cn + "()");
-    emit_py_decode_children(ctx, children, index, "result", scope_map, outer_ctx, name_map, cn);
+    { PyBitTracker decode_tracker;
+    emit_py_decode_children(ctx, children, index, "result", decode_tracker, scope_map, outer_ctx, name_map, cn); }
     ctx.line("return result");
     ctx.dedent();
     ctx.line();
@@ -2810,7 +2910,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             ctx.line("_struct_start = w.size_bytes()");
         }
         std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
-        emit_py_encode_children(ctx, children, index, "self", len_ref_target, auto_len_ref_field, name_map, cn);
+        PyBitTracker encode_tracker;
+        emit_py_encode_children(ctx, children, index, "self", encode_tracker, len_ref_target, auto_len_ref_field, name_map, cn);
         // Auto-length backpatching (struct-level only: auto="length" with no field_ref)
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
@@ -3394,6 +3495,9 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
     } else if (footer_bits > 0 && si.length_field_name.empty() && si.count_field_name.empty()) {
         ctx.line("_payload_r = r.sub_reader(r.remaining_bytes() - " + std::to_string(footer_bytes) + ")");
         use_sub_reader = true;
+    } else if (si.payload_length_from) {
+        ctx.line("_payload_r = r.sub_reader(int(" + py_expr(*si.payload_length_from, "result") + "))");
+        use_sub_reader = true;
     }
 
     std::string reader_name = use_sub_reader ? "_payload_r" : "r";
@@ -3468,6 +3572,25 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line(m + " = (" + py_read_expr(ff.fi) + " != 0)");
         } else {
             ctx.line(m + " = " + py_read_expr(ff.fi));
+        }
+    }
+
+    // Copy footer fields into decoded payload messages (matching C++)
+    if (!footer_fields.empty()) {
+        if (si.payload_is_array) {
+            ctx.line("for _item in result.payload:");
+            ctx.indent();
+            for (const auto& ff : footer_fields) {
+                ctx.line("_item." + ff.py_name + " = result." + ff.py_name);
+            }
+            ctx.dedent();
+        } else {
+            ctx.line("if result.payload is not None:");
+            ctx.indent();
+            for (const auto& ff : footer_fields) {
+                ctx.line("result.payload." + ff.py_name + " = result." + ff.py_name);
+            }
+            ctx.dedent();
         }
     }
 
