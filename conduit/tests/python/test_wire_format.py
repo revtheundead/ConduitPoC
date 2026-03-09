@@ -355,9 +355,12 @@ class TestStringFeaturesWireFormat:
         w = BitWriter()
         s.encode(w)
         data = w.to_bytes()
-        assert len(data) == 8
-        assert data[:2] == b"PK"
-        assert data[2:] == bytes(6)
+        # 8 chars * 6 bits = 48 bits = 6 bytes
+        assert len(data) == 6
+        # Verify roundtrip
+        r = BitReader(data)
+        s2 = PackedStr.decode(r)
+        assert s2.value == "PK"
 
 
 # ---------------------------------------------------------------------------

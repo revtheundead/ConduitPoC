@@ -208,6 +208,7 @@ struct PyFieldInfo {
     bool is_struct = false;
     bool is_enum = false;
     bool is_string = false;
+    bool is_string_struct = false; // struct type wrapping a string (e.g. AsciiStr)
     bool is_bytes = false;
     bool is_float = false;
     bool is_bool = false;
@@ -247,7 +248,29 @@ PyFieldInfo py_resolve_field(const model::Field& f, const analyzer::TypeIndex& i
     else if (pi.is_float || pi.has_scale) pi.py_type = "float";
     else if (pi.is_enum || pi.is_struct) pi.py_type = py_class(f.type_ref);
     else pi.py_type = "int";
+
+    // Detect string-based struct types (e.g. AsciiStr wrapping a string)
+    if (pi.is_struct && !f.type_ref.empty()) {
+        auto resolved = index.find(f.type_ref);
+        if (resolved) {
+            std::visit([&pi](const auto* def) {
+                using T = std::decay_t<decltype(*def)>;
+                if constexpr (std::is_same_v<T, model::TypeDef>) {
+                    if (def->base == model::PrimitiveBase::String)
+                        pi.is_string_struct = true;
+                }
+            }, *resolved);
+        }
+    }
+
     return pi;
+}
+
+// Helper: resolve element type info for an array definition
+PyFieldInfo py_resolve_element_type(const model::ArrayDef& ad, const analyzer::TypeIndex& index) {
+    model::Field tmp;
+    tmp.type_ref = ad.type_ref;
+    return py_resolve_field(tmp, index);
 }
 
 // ============================================================================
@@ -744,9 +767,9 @@ class BitWriter:
         for i in range(length):
             self.write_u8(b[i] if i < len(b) else pad)
 
-    def write_packed_chars(self, s: str, count: int, char_bits: int) -> None:
+    def write_packed_chars(self, s: str, count: int, char_bits: int, pad: int = 0) -> None:
         for i in range(count):
-            c = ord(s[i]) if i < len(s) else 0x20
+            c = ord(s[i]) if i < len(s) else pad
             if char_bits < 7 and ord('a') <= c <= ord('z'):
                 c -= 32
             self.write_bits(c - 0x40 if c >= 0x40 else c, char_bits)
@@ -1001,7 +1024,11 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("class " + name + ":");
             ctx.indent();
             ctx.line("__slots__ = ('_value',)");
-            ctx.line("WIRE_SIZE = " + std::to_string(*t.length));
+            {
+                int wire_bits = t.char_bits ? (*t.length * *t.char_bits) : (*t.length * 8);
+                int wire_bytes = (wire_bits + 7) / 8;
+                ctx.line("WIRE_SIZE = " + std::to_string(wire_bytes));
+            }
             ctx.line();
             ctx.line("def __init__(self, value: str = '') -> None: self._value = value");
             ctx.line();
@@ -1014,7 +1041,10 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
             ctx.indent();
-            {
+            if (t.char_bits) {
+                // Packed character decode (e.g., ICAO 6-bit chars)
+                ctx.line("s = r.read_packed_chars(" + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ")");
+            } else {
                 std::string enc_suffix;
                 if (t.encoding == model::StringEncoding::Ia5) enc_suffix = ", 1";
                 else if (t.encoding == model::StringEncoding::Ebcdic) enc_suffix = ", 2";
@@ -1030,8 +1060,12 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("def encode(self, w: BitWriter) -> None:");
             ctx.indent();
-            int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
-            {
+            if (t.char_bits) {
+                // Packed character encode
+                int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
+                ctx.line("w.write_packed_chars(self._value, " + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ", " + std::to_string(pad) + ")");
+            } else {
+                int pad = (t.padding == model::StringPadding::Space) ? 0x20 : 0;
                 std::string enc_suffix;
                 if (t.encoding == model::StringEncoding::Ia5) enc_suffix = ", encoding=1";
                 else if (t.encoding == model::StringEncoding::Ebcdic) enc_suffix = ", encoding=2";
@@ -1041,8 +1075,15 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("def __eq__(self, o: object) -> bool:");
             ctx.indent();
+            ctx.line("if isinstance(o, str): return self._value == o");
             ctx.line("return isinstance(o, " + name + ") and self._value == o._value");
             ctx.dedent();
+            ctx.line();
+            ctx.line("def __str__(self) -> str: return self._value");
+            ctx.line("def __repr__(self) -> str: return self._value");
+            ctx.line("def __len__(self) -> int: return len(self._value)");
+            ctx.line("def __getitem__(self, key): return self._value[key]");
+            ctx.line("def __hash__(self) -> int: return hash(self._value)");
             ctx.dedent();
             ctx.line();
         } else if (t.constraint || (!is_enum && !is_flags && !has_scale && !is_string)) {
@@ -1352,13 +1393,32 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
             return;
         }
     }
-    if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w)"); return; }
+    if (fi.is_enum) {
+        // Handle None default for non-optional enums: write zero bits
+        if (fi.bits > 0) {
+            ctx.line(m + ".encode(w) if " + m + " is not None else w.write_bits(0, " + std::to_string(fi.bits) + ")");
+        } else {
+            ctx.line(m + ".encode(w)");
+        }
+        return;
+    }
+    if (fi.is_struct) {
+        if (fi.is_string_struct) {
+            // Handle both raw string and wrapper type assignment
+            std::string type = py_class(f.type_ref);
+            ctx.line("(" + type + "(" + m + ") if isinstance(" + m + ", str) else " + m + ").encode(w)");
+        } else {
+            ctx.line(m + ".encode(w)");
+        }
+        return;
+    }
     if (fi.is_string) {
         bool has_enc = py_field_needs_encoding(f);
         std::string enc_arg = has_enc ? (", encoding=" + py_encoding_const(f)) : "";
         if (f.char_bits && f.length) {
             // Packed character encode
-            ctx.line("w.write_packed_chars(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ")");
+            int pad = (f.padding == model::StringPadding::Space) ? 0x20 : 0;
+            ctx.line("w.write_packed_chars(" + m + ", " + std::to_string(*f.length) + ", " + std::to_string(*f.char_bits) + ", " + std::to_string(pad) + ")");
         } else if (f.terminated) {
             // Terminated string encode
             if (*f.terminated == "crlf") {
@@ -1645,16 +1705,24 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
             } else if (fi.is_struct && !fi.is_string && !fi.is_bytes) {
                 // Struct: encode if present, else default-construct and encode
                 std::string stype = f->type_ref.empty() ? py_inline_class(f->name, name_map) : py_class(f->type_ref);
-                ctx.line("if " + m + " is not None:");
-                ctx.indent(); ctx.line(m + ".encode(w)"); ctx.dedent();
-                ctx.line("else:");
-                ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
+                if (fi.is_string_struct) {
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent(); ctx.line("(" + stype + "(" + m + ") if isinstance(" + m + ", str) else " + m + ").encode(w)"); ctx.dedent();
+                    ctx.line("else:");
+                    ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
+                } else {
+                    ctx.line("if " + m + " is not None:");
+                    ctx.indent(); ctx.line(m + ".encode(w)"); ctx.dedent();
+                    ctx.line("else:");
+                    ctx.indent(); ctx.line(stype + "().encode(w)"); ctx.dedent();
+                }
             } else if (fi.is_string) {
                 // String: write empty string with proper padding when absent
                 if (f->char_bits && f->length) {
                     // Packed character encode (e.g., ICAO 6-bit chars)
+                    int pad = (f->padding && *f->padding == model::StringPadding::Space) ? 0x20 : 0;
                     ctx.line("w.write_packed_chars(" + m + " if " + m + " is not None else '', " +
-                             std::to_string(*f->length) + ", " + std::to_string(*f->char_bits) + ")");
+                             std::to_string(*f->length) + ", " + std::to_string(*f->char_bits) + ", " + std::to_string(pad) + ")");
                 } else if (f->length) {
                     int pad = (f->padding && *f->padding == model::StringPadding::Space) ? 0x20 : 0;
                     bool has_enc = py_field_needs_encoding(*f);
@@ -1701,6 +1769,15 @@ void emit_py_encode_fx_children(EmitContext& ctx, const std::vector<model::Struc
             std::string m = pfx + "." + py_field(ad->name);
             ctx.line("if " + m + " is not None:");
             ctx.indent(); ctx.line("for _item in " + m + ": _item.encode(w)"); ctx.dedent();
+            // For fixed-count arrays in FX blocks, write zero-fill when absent
+            if (ad->fixed_count) {
+                auto elem_fi = py_resolve_element_type(*ad, index);
+                if (elem_fi.bits > 0) {
+                    int total_bits = *ad->fixed_count * elem_fi.bits;
+                    ctx.line("else:");
+                    ctx.indent(); ctx.line("w.write_bits(0, " + std::to_string(total_bits) + ")"); ctx.dedent();
+                }
+            }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + py_field(cd->name);
             ctx.line("if " + m + " is not None: " + m + ".encode(w)");
@@ -1859,6 +1936,7 @@ struct PyFieldDef {
     bool is_enum = false;
     bool is_struct = false;
     bool is_string = false;
+    bool is_string_struct = false;   // struct wrapping a string type
     bool is_bytes = false;
     bool is_bool = false;
     std::optional<int> max_length;
@@ -1900,7 +1978,25 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             pf.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
                             !fi.is_float && !fi.has_scale && (fi.bits > 0);
             bool optional = in_fx || (f->present_when != nullptr || f->bit.has_value());
-            if (optional || fi.is_struct || fi.is_enum) pf.default_val = "None";
+            if (optional) pf.default_val = "None";
+            else if (fi.is_enum) {
+                // Non-optional enum: default to first enum value (not None)
+                pf.default_val = "None";  // fallback
+                if (!f->type_ref.empty()) {
+                    auto resolved = index.find(f->type_ref);
+                    if (resolved) {
+                        std::visit([&pf, &f](const auto* def) {
+                            using T = std::decay_t<decltype(*def)>;
+                            if constexpr (std::is_same_v<T, model::TypeDef>) {
+                                if (!def->enum_values.empty()) {
+                                    pf.default_val = py_class(f->type_ref) + "." + py_enum_val(def->enum_values[0].name);
+                                }
+                            }
+                        }, *resolved);
+                    }
+                }
+            }
+            else if (fi.is_struct) pf.default_val = pf.py_type + "()";
             else if (fi.is_string) pf.default_val = "''";
             else if (fi.is_bytes) pf.default_val = "b''";
             else if (fi.is_float || fi.has_scale) pf.default_val = "0.0";
@@ -1926,6 +2022,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             pf.is_enum = fi.is_enum;
             pf.is_struct = fi.is_struct;
             pf.is_string = fi.is_string;
+            pf.is_string_struct = fi.is_string_struct;
             pf.is_bytes = fi.is_bytes;
             pf.is_bool = fi.is_bool;
             pf.max_length = f->max_length;
@@ -1940,18 +2037,19 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             PyFieldDef sdf;
             sdf.name = py_field(sd->name);
             sdf.py_type = py_inline_class(sd->name, name_map);
-            sdf.default_val = "None";
             sdf.bmdl_name = sd->name;
             sdf.is_struct = true;
             sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
+            sdf.default_val = sdf.is_optional ? "None" : sdf.py_type + "()";
             fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             PyFieldDef adf;
             adf.name = py_field(ad->name);
             adf.py_type = "list";
-            adf.default_val = "None";
             adf.bmdl_name = ad->name;
             adf.is_optional = in_fx || ad->present_when != nullptr || ad->bit.has_value();
+            // FX arrays default to None (absence indicator); present_when arrays default to []
+            adf.default_val = in_fx ? "None" : "[]";
             fields.push_back(adf);
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             PyFieldDef cdf;
@@ -2571,7 +2669,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (fields.empty()) ctx.line("pass");
     else for (const auto& f : fields) {
-        if (f.default_val == "None" && f.py_type == "list")
+        if (f.default_val == "None" && f.py_type == "list" && !f.is_optional)
             ctx.line("self." + f.name + ": list = []");
         else
             ctx.line("self." + f.name + " = " + f.default_val);
@@ -3352,6 +3450,12 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
             }
             ctx.dedent();
             first = false;
+        }
+        if (!first) {
+            ctx.line("else:");
+            ctx.indent();
+            ctx.line("raise DecodeError(f'unknown message id: {" + id_member + "}')");
+            ctx.dedent();
         }
     }
 

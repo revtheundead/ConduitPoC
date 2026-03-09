@@ -115,45 +115,53 @@ class TestAllZeroValues:
 
 class TestChoiceEdgeCases:
 
-    def test_choice_msg_subx_roundtrip(self):
-        from arrays_choices import ChoiceMsg, SubX
+    def test_choice_msg_type_a_roundtrip(self):
+        from arrays_choices import ChoiceMsg, TypeABody, SubX
         from arrays_choices.constants import Constants
 
         msg = ChoiceMsg()
-        msg.tag = Constants.TAG_X
+        msg.msg_type = Constants.TYPE_A
+        body = TypeABody()
+        body.sub_type = Constants.SUB_X
         sub_x = SubX()
-        sub_x.value = 0xDEADBEEF
-        msg.body = sub_x
+        sub_x.val = 0xDEADBEEF
+        body.sub_body = sub_x
+        msg.body = body
+        msg.length = 5  # 1 byte sub_type + 4 bytes val
 
         decoded = ChoiceMsg.decode_bytes(msg.encode_bytes())
-        assert isinstance(decoded.body, SubX)
-        assert decoded.body.value == 0xDEADBEEF
+        assert isinstance(decoded.body, TypeABody)
+        assert isinstance(decoded.body.sub_body, SubX)
+        assert decoded.body.sub_body.val == 0xDEADBEEF
 
-    def test_choice_msg_suby_roundtrip(self):
-        from arrays_choices import ChoiceMsg, SubY
+    def test_choice_msg_type_b_roundtrip(self):
+        from arrays_choices import ChoiceMsg, TypeBBody
         from arrays_choices.constants import Constants
 
         msg = ChoiceMsg()
-        msg.tag = Constants.TAG_Y
-        sub_y = SubY()
-        sub_y.a = 0x1234
-        sub_y.b = 0x5678
-        msg.body = sub_y
+        msg.msg_type = Constants.TYPE_B
+        body = TypeBBody()
+        body.tag = 0x12345678
+        msg.body = body
+        msg.length = 4  # 4 bytes tag
 
         decoded = ChoiceMsg.decode_bytes(msg.encode_bytes())
-        assert isinstance(decoded.body, SubY)
-        assert decoded.body.a == 0x1234
-        assert decoded.body.b == 0x5678
+        assert isinstance(decoded.body, TypeBBody)
+        assert decoded.body.tag == 0x12345678
 
     def test_choice_msg_double_encode(self):
-        from arrays_choices import ChoiceMsg, SubX
+        from arrays_choices import ChoiceMsg, TypeABody, SubX
         from arrays_choices.constants import Constants
 
         msg = ChoiceMsg()
-        msg.tag = Constants.TAG_X
+        msg.msg_type = Constants.TYPE_A
+        body = TypeABody()
+        body.sub_type = Constants.SUB_X
         sub_x = SubX()
-        sub_x.value = 42
-        msg.body = sub_x
+        sub_x.val = 42
+        body.sub_body = sub_x
+        msg.body = body
+        msg.length = 5
 
         first = msg.encode_bytes()
         second = msg.encode_bytes()
@@ -167,32 +175,49 @@ class TestChoiceEdgeCases:
 class TestFixedArrayBoundaries:
 
     def test_all_max_values(self):
-        from arrays_choices import FixedArrayMsg
+        from arrays_choices import FixedArrayMsg, Point
 
         msg = FixedArrayMsg()
-        msg.values = [0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF]
+        msg.points = []
+        for _ in range(3):
+            p = Point()
+            p.x = 0xFFFF
+            p.y = 0xFFFF
+            msg.points.append(p)
         decoded = FixedArrayMsg.decode_bytes(msg.encode_bytes())
-        assert len(decoded.values) == 3
-        for v in decoded.values:
-            assert v == 0xFFFFFFFF
+        assert len(decoded.points) == 3
+        for p in decoded.points:
+            assert p.x == 0xFFFF
+            assert p.y == 0xFFFF
 
     def test_all_zero_values(self):
-        from arrays_choices import FixedArrayMsg
+        from arrays_choices import FixedArrayMsg, Point
 
         msg = FixedArrayMsg()
-        msg.values = [0, 0, 0]
+        msg.points = []
+        for _ in range(3):
+            p = Point()
+            p.x = 0
+            p.y = 0
+            msg.points.append(p)
         decoded = FixedArrayMsg.decode_bytes(msg.encode_bytes())
-        assert len(decoded.values) == 3
-        for v in decoded.values:
-            assert v == 0
+        assert len(decoded.points) == 3
+        for p in decoded.points:
+            assert p.x == 0
+            assert p.y == 0
 
     def test_wire_size_is_12_bytes(self):
-        from arrays_choices import FixedArrayMsg
+        from arrays_choices import FixedArrayMsg, Point
 
         msg = FixedArrayMsg()
-        msg.values = [1, 2, 3]
+        msg.points = []
+        for i in range(3):
+            p = Point()
+            p.x = i + 1
+            p.y = (i + 1) * 10
+            msg.points.append(p)
         encoded = msg.encode_bytes()
-        assert len(encoded) == 12, "3 u32 values = 12 bytes"
+        assert len(encoded) == 12, "3 Point structs (2 u16 each) = 12 bytes"
 
 
 # ---------------------------------------------------------------------------

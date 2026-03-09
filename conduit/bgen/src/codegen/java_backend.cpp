@@ -983,7 +983,8 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else if (fi.is_bool) jf.init = "false";
             else if (fi.j_type == "float") jf.init = "0.0f";
             else if (fi.j_type == "double") jf.init = "0.0";
-            else if (fi.is_struct || fi.is_enum) jf.init = "null";
+            else if (fi.is_enum) jf.init = "null";
+            else if (fi.is_struct) jf.init = "new " + jf.j_type + "()";
             else if (fi.j_type == "long") jf.init = "0L";
             else jf.init = "0";
             // Apply explicit default value from BMDL spec (matching C++/Python)
@@ -1014,10 +1015,10 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             JFieldDef sdf;
             sdf.name = j_field(sd->name);
             sdf.j_type = j_inline_class(sd->name, name_map);
-            sdf.init = "null";
             sdf.bmdl_name = sd->name;
             sdf.is_struct = true;
             sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
+            sdf.init = sdf.is_optional ? "null" : "new " + sdf.j_type + "()";
             fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
@@ -3293,7 +3294,13 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             ctx.dedent();
             first = false;
         }
-        if (!first) ctx.line("}");
+        if (!first) {
+            ctx.line("} else {");
+            ctx.indent();
+            ctx.line("throw new ConduitCodecException(\"unknown message id: \" + " + id_field + ");");
+            ctx.dedent();
+            ctx.line("}");
+        }
     }
 
     // Read footer fields
@@ -4067,7 +4074,11 @@ bool JavaBackend::generate(
                     tctx.line();
                     tctx.line("public static " + name + " decode(BitReader r) {");
                     tctx.indent();
-                    tctx.line("String s = r.readString(" + std::to_string(*t.length) + ");");
+                    if (t.char_bits) {
+                        tctx.line("String s = r.readPackedChars(" + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ");");
+                    } else {
+                        tctx.line("String s = r.readString(" + std::to_string(*t.length) + ");");
+                    }
                     // Apply trim settings
                     if (t.trim == model::StringTrim::Right || t.trim == model::StringTrim::Both) {
                         std::string ch = (t.padding == model::StringPadding::Space) ? " " : "\\0";
@@ -4083,7 +4094,11 @@ bool JavaBackend::generate(
                     tctx.dedent();
                     tctx.line("}");
                     tctx.line();
-                    tctx.line("public void encode(BitWriter w) { w.writeString(value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + "); }");
+                    if (t.char_bits) {
+                        tctx.line("public void encode(BitWriter w) { w.writePackedChars(value, " + std::to_string(*t.length) + ", " + std::to_string(*t.char_bits) + ", " + std::to_string(pad) + "); }");
+                    } else {
+                        tctx.line("public void encode(BitWriter w) { w.writeString(value, " + std::to_string(*t.length) + ", " + std::to_string(pad) + "); }");
+                    }
                     tctx.dedent();
                     tctx.line("}");
                 } else if (is_enum) {
