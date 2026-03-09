@@ -598,7 +598,7 @@ class TestStringFeaturesExtended:
         msg.name = NameStr("Hello")
         msg.label = LabelStr("World")
         msg.bounded = BoundedStr("Test data here")
-        msg.packed = PackedStr("Pack")
+        msg.packed = PackedStr("PACK")
         msg.term = TermStr("Terminated")
 
         data = msg.encode_bytes()
@@ -607,7 +607,7 @@ class TestStringFeaturesExtended:
         assert msg2.name == NameStr("Hello")
         assert msg2.label == LabelStr("World")
         assert msg2.bounded == BoundedStr("Test data here")
-        assert msg2.packed == PackedStr("Pack")
+        assert msg2.packed == PackedStr("PACK")
         assert msg2.term == TermStr("Terminated")
 
     def test_name_str_null_padded(self):
@@ -667,7 +667,7 @@ class TestStringFeaturesExtended:
         assert NameStr.WIRE_SIZE == 20
         assert LabelStr.WIRE_SIZE == 16
         assert BoundedStr.WIRE_SIZE == 32
-        assert PackedStr.WIRE_SIZE == 8
+        assert PackedStr.WIRE_SIZE == 6  # 8 chars * 6 bits = 48 bits = 6 bytes
         assert TermStr.WIRE_SIZE == 64
 
     def test_max_len_msg_roundtrip(self):

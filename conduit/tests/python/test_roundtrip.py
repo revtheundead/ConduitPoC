@@ -981,7 +981,7 @@ class TestStringFeaturesRoundtrip:
         msg.name = NameStr("TestName")
         msg.label = LabelStr("MyLabel")
         msg.bounded = BoundedStr("BoundedValue")
-        msg.packed = PackedStr("Pack")
+        msg.packed = PackedStr("PACK")
         msg.term = TermStr("Terminated")
 
         data = msg.encode_bytes()
@@ -990,7 +990,7 @@ class TestStringFeaturesRoundtrip:
         assert msg2.name.value == "TestName"
         assert msg2.label.value == "MyLabel"
         assert msg2.bounded.value == "BoundedValue"
-        assert msg2.packed.value == "Pack"
+        assert msg2.packed.value == "PACK"
         assert msg2.term.value == "Terminated"
 
     def test_string_msg_empty_strings(self):
