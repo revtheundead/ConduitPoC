@@ -814,12 +814,20 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("public void writeBytes(byte[] data) { for (byte b:data) writeU8(b&0xFF); }");
     ctx.line("public void writeBcd(long val, int bits) {");
     ctx.indent();
+    ctx.line("int digits=bits/4; long limit=1; for(int i=0;i<digits;i++) limit*=10;");
+    ctx.line("if (Math.abs(val)>=limit) throw new ConduitCodecException(\"BCD value \"+val+\" exceeds capacity of \"+digits+\" digits\");");
     ctx.line("long raw=0; long v=Math.abs(val);");
     ctx.line("for (int i=0;i<bits/4;i++) { raw|=(v%10)<<(i*4); v/=10; }");
     ctx.line("writeBits(raw, bits);");
     ctx.dedent();
     ctx.line("}");
-    ctx.line("public void writeBcdSigned(long val, int bits) { writeBits(val<0?1:0,1); writeBcd(Math.abs(val),bits-1); }");
+    ctx.line("public void writeBcdSigned(long val, int bits) {");
+    ctx.indent();
+    ctx.line("int digits=(bits-1)/4; long limit=1; for(int i=0;i<digits;i++) limit*=10;");
+    ctx.line("if (Math.abs(val)>=limit) throw new ConduitCodecException(\"BCD signed value \"+val+\" exceeds capacity of \"+digits+\" digits\");");
+    ctx.line("writeBits(val<0?1:0,1); writeBcd(Math.abs(val),bits-1);");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line("public void writeSignMagnitude(long val, int bits) { writeBits(val<0?1:0,1); writeBits(Math.abs(val),bits-1); }");
     ctx.line("public int sizeBytes() { return (bitPos+7)/8; }");
     ctx.line("public byte[] toBytes() { return Arrays.copyOf(buf, sizeBytes()); }");
@@ -997,15 +1005,31 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else if (fi.is_bool) jf.init = "false";
             else if (fi.j_type == "float") jf.init = "0.0f";
             else if (fi.j_type == "double") jf.init = "0.0";
-            else if (fi.is_enum) jf.init = "null";
+            else if (fi.is_enum) {
+                // Default non-optional enum fields to the first enum value
+                auto tit = index.types.find(f->type_ref);
+                if (tit != index.types.end() && !tit->second->enum_values.empty()) {
+                    jf.init = fi.j_type + "." + j_const(tit->second->enum_values[0].name);
+                } else {
+                    jf.init = "null";
+                }
+            }
             else if (fi.is_struct) jf.init = "new " + jf.j_type + "()";
             else if (fi.j_type == "long") jf.init = "0L";
             else jf.init = "0";
             // Apply explicit default value from BMDL spec (matching C++/Python)
-            if (f->default_value) jf.init = j_qualify_const(*f->default_value);
+            if (f->default_value) {
+                if (fi.is_enum)
+                    jf.init = fi.j_type + "." + j_const(*f->default_value);
+                else
+                    jf.init = j_qualify_const(*f->default_value);
+            }
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
-                jf.init = j_qualify_const(*f->constraint->equals);
+                if (fi.is_enum)
+                    jf.init = fi.j_type + "." + j_const(*f->constraint->equals);
+                else
+                    jf.init = j_qualify_const(*f->constraint->equals);
             }
             // Populate constraint & accessor metadata (matching C++ collect_fields)
             jf.bmdl_name = f->name;
@@ -1251,7 +1275,9 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     }
     // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
     // Skip for struct, enum, bytes fields — constraints don't apply to those at encode time
-    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+    // Skip deferred constraints (validated externally, not at encode time)
+    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred
+        && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
         if (f.constraint->equals) {
             ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint: expected " + *f.constraint->equals + "\");");
         }
@@ -1384,6 +1410,8 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             std::string m = pfx + "." + j_field(ad->name);
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
             auto emit_array_decode = [&]() {
+                // Initialize list if null (e.g. optional/FX arrays)
+                ctx.line("if (" + m + " == null) " + m + " = new java.util.ArrayList<>();");
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->count_from) {
@@ -1401,6 +1429,18 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
+            // If the switch field is an enum, compare using .value (raw int)
+            if (cd->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sib : children) {
+                    if (auto* sf = std::get_if<model::Field>(&sib)) {
+                        if (sf->name == cd->switch_expr->name) {
+                            auto sfi = j_resolve_field(*sf, index);
+                            if (sfi.is_enum) sv += ".value";
+                            break;
+                        }
+                    }
+                }
+            }
             std::string m = pfx + "." + j_field(cd->name);
 
             // Create bounded sub-reader if choice has length/length_from
@@ -1632,7 +1672,35 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
             ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + j_field(cd->name);
-            ctx.line("if (" + m + " != null) { " + m + ".encode(w); }");
+            // Use instanceof dispatch (payload is Object, not a concrete type)
+            ctx.line("if (" + m + " != null) {");
+            ctx.indent();
+            {
+                bool first = true;
+                for (const auto& cs : cd->cases) {
+                    std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
+                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + et + ") {");
+                    ctx.indent();
+                    ctx.line(et + " _cv = (" + et + ") " + m + ";");
+                    ctx.line("_cv.encode(w);");
+                    ctx.dedent();
+                    first = false;
+                }
+                if (cd->otherwise) {
+                    std::string ow_type = cd->otherwise->type_ref.empty()
+                        ? j_inline_class(cd->otherwise->name, name_map)
+                        : j_class(cd->otherwise->type_ref);
+                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + ") {");
+                    ctx.indent();
+                    ctx.line(ow_type + " _cv = (" + ow_type + ") " + m + ";");
+                    ctx.line("_cv.encode(w);");
+                    ctx.dedent();
+                    first = false;
+                }
+                if (!first) ctx.line("}");
+            }
+            ctx.dedent();
+            ctx.line("}");
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
         } else if (auto* al = std::get_if<model::Align>(&child)) {
@@ -2086,6 +2154,15 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         if (bf.is_choice && bf.choice_def && bf.choice_def->switch_expr) {
             // Choice decode based on switch expression
             std::string sv = "result." + j_field(bf.choice_def->switch_expr->name);
+            // If the switch field is an enum, compare using .value (raw int)
+            if (bf.choice_def->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sbf : bfields) {
+                    if (sbf.name == bf.choice_def->switch_expr->name && sbf.is_enum) {
+                        sv += ".value";
+                        break;
+                    }
+                }
+            }
             bool first_case = true;
             for (const auto& cs : bf.choice_def->cases) {
                 std::string cond;

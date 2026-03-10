@@ -152,8 +152,8 @@ public class TestFrameExtendedDepth {
 
         frame_array.ArrayFrame decoded = frame_array.ArrayFrame.decodeBytes(encoded);
         assertEquals(1, decoded.payload.size());
-        assertEquals(1, decoded.payload.get(0).key);
-        assertEquals(1000, decoded.payload.get(0).value);
+        assertEquals(1, ((frame_array.Record) decoded.payload.get(0)).key);
+        assertEquals(1000, ((frame_array.Record) decoded.payload.get(0)).value);
     }
 
     @Test
@@ -175,8 +175,8 @@ public class TestFrameExtendedDepth {
         frame_array.ArrayFrame decoded = frame_array.ArrayFrame.decodeBytes(encoded);
         assertEquals(5, decoded.payload.size());
         for (int i = 0; i < 5; i++) {
-            assertEquals(i, decoded.payload.get(i).key);
-            assertEquals(i * 100, decoded.payload.get(i).value);
+            assertEquals(i, ((frame_array.Record) decoded.payload.get(i)).key);
+            assertEquals(i * 100, ((frame_array.Record) decoded.payload.get(i)).value);
         }
     }
 

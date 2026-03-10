@@ -321,8 +321,8 @@ public class TestSessionExtended {
         Map<String, Object> wrap256 = session.encodeWrap(
             sentry_link.HeartbeatBody.TYPE_ID, hb);
         byte[] frame256 = (byte[]) wrap256.get("bytes");
-        // Sequence byte is at offset 2 (after sync: 2 bytes)
-        assertEquals(0, frame256[2] & 0xFF,
+        // Sequence byte is at offset 5 (sync:2 + msg_type:1 + length:2)
+        assertEquals(0, frame256[5] & 0xFF,
             "Sequence byte should wrap to 0 at 256th message");
     }
 

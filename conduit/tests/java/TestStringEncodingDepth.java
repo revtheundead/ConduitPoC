@@ -19,11 +19,11 @@ public class TestStringEncodingDepth {
     void nullPaddedPreservesTrailingSpaces() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.name = "Hello   ";  // 8 chars, 3 trailing spaces
+        msg.name = new string_features.NameStr("Hello   ");  // 8 chars, 3 trailing spaces
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("Hello   ", decoded.name);
+        assertEquals("Hello   ", decoded.name.value());
     }
 
     @Test
@@ -31,11 +31,11 @@ public class TestStringEncodingDepth {
     void nullPaddedPreservesSingleTrailingSpace() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.name = "Test ";
+        msg.name = new string_features.NameStr("Test ");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("Test ", decoded.name);
+        assertEquals("Test ", decoded.name.value());
     }
 
     @Test
@@ -43,11 +43,11 @@ public class TestStringEncodingDepth {
     void nullPaddedWithoutTrailingSpaces() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.name = "Hello";
+        msg.name = new string_features.NameStr("Hello");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("Hello", decoded.name);
+        assertEquals("Hello", decoded.name.value());
     }
 
     @Test
@@ -55,11 +55,11 @@ public class TestStringEncodingDepth {
     void boundedStrPreservesTrailingSpaces() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.bounded = "Data   ";
+        msg.bounded = new string_features.BoundedStr("Data   ");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("Data   ", decoded.bounded);
+        assertEquals("Data   ", decoded.bounded.value());
     }
 
     // ========================================================================
@@ -72,11 +72,11 @@ public class TestStringEncodingDepth {
     void spacePaddedBasicRoundtrip() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.label = "Test";
+        msg.label = new string_features.LabelStr("Test");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("Test", decoded.label);
+        assertEquals("Test", decoded.label.value());
     }
 
     // ========================================================================
@@ -89,13 +89,13 @@ public class TestStringEncodingDepth {
     void packed6BitLowercaseToUppercase() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.packed = "abcd";
+        msg.packed = new string_features.PackedStr("abcd");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
         // 6-bit IA-5 standard converts lowercase to uppercase
-        assertTrue(decoded.packed.startsWith("ABCD"),
-            "Lowercase input should be converted to uppercase, got: " + decoded.packed);
+        assertTrue(decoded.packed.value().startsWith("ABCD"),
+            "Lowercase input should be converted to uppercase, got: " + decoded.packed.value());
     }
 
     @Test
@@ -103,14 +103,14 @@ public class TestStringEncodingDepth {
     void packed6BitMixedCase() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.packed = "AbCd";
+        msg.packed = new string_features.PackedStr("AbCd");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals('A', decoded.packed.charAt(0));
-        assertEquals('B', decoded.packed.charAt(1));
-        assertEquals('C', decoded.packed.charAt(2));
-        assertEquals('D', decoded.packed.charAt(3));
+        assertEquals('A', decoded.packed.value().charAt(0));
+        assertEquals('B', decoded.packed.value().charAt(1));
+        assertEquals('C', decoded.packed.value().charAt(2));
+        assertEquals('D', decoded.packed.value().charAt(3));
     }
 
     @Test
@@ -118,11 +118,11 @@ public class TestStringEncodingDepth {
     void packed6BitUppercaseRoundtrip() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 0;
-        msg.packed = "ABCD1234";
+        msg.packed = new string_features.PackedStr("ABCD1234");
 
         byte[] encoded = msg.encodeBytes();
         string_features.StringMsg decoded = string_features.StringMsg.decodeBytes(encoded);
-        assertEquals("ABCD1234", decoded.packed);
+        assertEquals("ABCD1234", decoded.packed.value());
     }
 
     // ========================================================================
@@ -167,10 +167,10 @@ public class TestStringEncodingDepth {
     void stringMsgDoubleEncode() {
         string_features.StringMsg msg = new string_features.StringMsg();
         msg.id = 42;
-        msg.name = "Hello";
-        msg.label = "Test";
-        msg.bounded = "BoundedData";
-        msg.packed = "ABCD1234";
+        msg.name = new string_features.NameStr("Hello");
+        msg.label = new string_features.LabelStr("Test");
+        msg.bounded = new string_features.BoundedStr("BoundedData");
+        msg.packed = new string_features.PackedStr("ABCD1234");
 
         byte[] first = msg.encodeBytes();
         byte[] second = msg.encodeBytes();

@@ -375,8 +375,8 @@ public class TestTransceiverJni {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("sensor", "session_protocol",
                 TransportConfig.udp("0.0.0.0:10100"));
-            int state = t.peerState(peerId);
-            assertEquals(0, state, "Initial peer state should be 0 (disconnected)");
+            Transceiver.ConnectionState state = t.peerState(peerId);
+            assertEquals(Transceiver.ConnectionState.DISCONNECTED, state, "Initial peer state should be DISCONNECTED");
         }
     }
 

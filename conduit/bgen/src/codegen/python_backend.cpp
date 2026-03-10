@@ -1447,15 +1447,17 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
         }
     }
     // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
-    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+    // Skip deferred constraints (validated externally, not at encode time)
+    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred
+        && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
         if (f.constraint->equals) {
-            ctx.line("if " + m + " != " + *f.constraint->equals + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
+            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
         }
         if (f.constraint->max) {
-            ctx.line("if " + m + " > " + *f.constraint->max + ": raise ValueError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ValueError('" + f.name + " exceeds max " + *f.constraint->max + "')");
         }
         if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
-            ctx.line("if " + m + " < " + *f.constraint->min + ": raise ValueError('" + f.name + " below min " + *f.constraint->min + "')");
+            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ValueError('" + f.name + " below min " + *f.constraint->min + "')");
         }
     }
     if (fi.is_enum) {
@@ -2673,7 +2675,6 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         for (const auto& child : sd.children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
                 if (f->constraint &&
-                    f->constraint->validate != model::ValidateTiming::Deferred &&
                     (f->constraint->equals || f->constraint->min || f->constraint->max)) {
                     has_any = true; break;
                 }
@@ -2687,7 +2688,6 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (!f->constraint) continue;
                     const auto& con = *f->constraint;
-                    if (con.validate == model::ValidateTiming::Deferred) continue;
                     if (!con.equals && !con.min && !con.max) continue;
                     auto fi = py_resolve_field(*f, index);
                     if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
@@ -3001,7 +3001,6 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             for (const auto& c : cs) {
                 if (auto* f = std::get_if<model::Field>(&c)) {
                     if (f->constraint &&
-                        f->constraint->validate != model::ValidateTiming::Deferred &&
                         (f->constraint->equals || f->constraint->min || f->constraint->max))
                         return true;
                 } else if (auto* fx = std::get_if<model::FxBlock>(&c)) {
@@ -3021,7 +3020,6 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                     if (auto* f = std::get_if<model::Field>(&child)) {
                         if (!f->constraint) continue;
                         const auto& con = *f->constraint;
-                        if (con.validate == model::ValidateTiming::Deferred) continue;
                         if (!con.equals && !con.min && !con.max) continue;
                         auto fi = py_resolve_field(*f, index);
                         if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
@@ -4052,7 +4050,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         for (const auto& hc : si.frame->header_fields) {
                             if (auto* f = std::get_if<model::Field>(&hc)) {
                                 if (f->constraint && f->constraint->equals) {
-                                    ctx.line("frame." + py_field(f->name) + " = " + *f->constraint->equals);
+                                    ctx.line("frame." + py_field(f->name) + " = " + py_qualify_const(*f->constraint->equals));
                                 }
                             }
                         }

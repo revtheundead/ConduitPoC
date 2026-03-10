@@ -455,6 +455,11 @@ if(CONDUIT_BUILD_JAVA_JAR)
             # Collect generated Java sources at build time using a cmake -P script
             # (avoids the POSIX-only 'find' command for cross-platform support)
             set(_java_test_compile_script "${CMAKE_CURRENT_BINARY_DIR}/java_test_compile.cmake")
+            if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
+                set(_java_test_release_flags "--release 21 --enable-preview")
+            else()
+                set(_java_test_release_flags "--release 11")
+            endif()
             file(WRITE "${_java_test_compile_script}" "
 file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
@@ -462,7 +467,7 @@ list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} --release 11
+    COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
         -cp \"${_java_jar}${_cp_sep}${_junit_jar}\"
         -d \"${_java_test_classes_dir}\"
         \"@${_java_test_classes_dir}/sources.txt\"
@@ -488,8 +493,14 @@ endif()
             if(EXISTS "${_junit_jar}")
                 find_program(_java_exe java)
                 if(_java_exe)
+                    if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
+                        set(_java_test_jvm_flags --enable-preview --enable-native-access=ALL-UNNAMED)
+                    else()
+                        set(_java_test_jvm_flags "")
+                    endif()
                     add_custom_target(java_test_run
                         COMMAND ${_java_exe}
+                            ${_java_test_jvm_flags}
                             -jar "${_junit_jar}"
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"

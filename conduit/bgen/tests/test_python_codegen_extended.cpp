@@ -938,12 +938,13 @@ TEST_CASE("PyCG: field-level constraint checks min/max", "[python][codegen][cons
     CHECK(all.find("exceeds max 100") != std::string::npos);
 }
 
-TEST_CASE("PyCG: deferred constraint skipped in decode, present in encode", "[python][codegen][constraint]") {
+TEST_CASE("PyCG: deferred constraint skipped in decode/encode, present in validate", "[python][codegen][constraint]") {
     auto py = gen_python("constraints.bmdl.xml");
     REQUIRE(py.has_value());
     auto all = all_output(*py);
-    // Deferred constraints should appear (in encode and/or validate), not be absent
-    // The key invariant: decode path skips deferred, encode path checks them
+    // Deferred constraints should appear in validate(), not in decode or encode
+    CHECK(all.find("deferred_val") != std::string::npos);
+    // The validate() method should include deferred constraint checks
     CHECK(all.find("deferred-val exceeds max") != std::string::npos);
 }
 
