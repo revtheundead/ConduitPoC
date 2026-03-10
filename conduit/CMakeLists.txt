@@ -6,6 +6,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Threading support — required for std::mutex across all platforms.
+# On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
+# Threads::Threads target (no -pthread flag).  We patch it to always
+# carry -pthread so that __gthread_active_p() returns true and std::mutex
+# works correctly on every toolchain (older glibc, musl, macOS, MinGW).
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+if(CMAKE_USE_PTHREADS_INIT AND NOT CMAKE_THREAD_LIBS_INIT)
+    set_property(TARGET Threads::Threads
+        PROPERTY INTERFACE_COMPILE_OPTIONS "-pthread")
+    set_property(TARGET Threads::Threads
+        PROPERTY INTERFACE_LINK_LIBRARIES  "-pthread")
+endif()
+
 # ============================================================================
 # Options
 # ============================================================================
@@ -166,10 +181,7 @@ if(CONDUIT_BUILD_CODEC_CABI OR CONDUIT_BUILD_CABI)
     set_target_properties(conduit_codec PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-if(UNIX)
-    find_package(Threads REQUIRED)
-    target_link_libraries(conduit_codec PUBLIC Threads::Threads)
-endif()
+target_link_libraries(conduit_codec PUBLIC Threads::Threads)
 
 # ============================================================================
 # conduit — full library (depends on conduit_codec, adds transport + threading)
@@ -225,7 +237,7 @@ endif()
 
 if(CONDUIT_BUILD_CODEC_CABI)
     add_library(conduit_codec_cabi SHARED src/cabi/conduit_codec_cabi.cpp)
-    target_link_libraries(conduit_codec_cabi PRIVATE conduit_codec conduit_warnings)
+    target_link_libraries(conduit_codec_cabi PRIVATE conduit_codec conduit_warnings Threads::Threads)
     target_include_directories(conduit_codec_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -238,7 +250,7 @@ endif()
 
 if(CONDUIT_BUILD_CABI)
     add_library(conduit_cabi SHARED src/cabi/conduit_cabi.cpp)
-    target_link_libraries(conduit_cabi PRIVATE conduit conduit_warnings)
+    target_link_libraries(conduit_cabi PRIVATE conduit conduit_warnings Threads::Threads)
     target_include_directories(conduit_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -259,7 +271,7 @@ if(CONDUIT_BUILD_JNI)
     if(CONDUIT_BUILD_CODEC_CABI)
         add_library(conduit_codec_jni SHARED src/jni/conduit_codec_jni.cpp)
         target_link_libraries(conduit_codec_jni PRIVATE
-            conduit_codec_cabi conduit_warnings ${JNI_LIBRARIES})
+            conduit_codec_cabi conduit_warnings Threads::Threads ${JNI_LIBRARIES})
         target_include_directories(conduit_codec_jni PRIVATE
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -274,7 +286,7 @@ if(CONDUIT_BUILD_JNI)
     if(CONDUIT_BUILD_CABI)
         add_library(conduit_jni SHARED src/jni/conduit_jni.cpp)
         target_link_libraries(conduit_jni PRIVATE
-            conduit_cabi conduit_warnings ${JNI_LIBRARIES})
+            conduit_cabi conduit_warnings Threads::Threads ${JNI_LIBRARIES})
         target_include_directories(conduit_jni PRIVATE
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
