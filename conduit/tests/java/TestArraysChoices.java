@@ -246,13 +246,13 @@ public class TestArraysChoices {
         arrays_choices.codec.BitWriter w = new arrays_choices.codec.BitWriter();
         w.writeU8(99);          // unknown msgType
         w.writeU16(4, true);    // length = 4 bytes for FallbackBody
-        w.writeU32(0xDEADBEEF, true); // raw data for FallbackBody
+        w.writeU32((int) 0xDEADBEEFL, true); // raw data for FallbackBody
         byte[] data = w.toBytes();
 
         arrays_choices.ChoiceMsg decoded = arrays_choices.ChoiceMsg.decodeBytes(data);
         assertEquals(99, decoded.msgType);
         assertInstanceOf(arrays_choices.FallbackBody.class, decoded.body);
-        assertEquals(0xDEADBEEF, ((arrays_choices.FallbackBody) decoded.body).raw);
+        assertEquals((int) 0xDEADBEEFL, ((arrays_choices.FallbackBody) decoded.body).raw);
     }
 
     // ========================================================================

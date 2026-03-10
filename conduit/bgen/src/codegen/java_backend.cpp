@@ -837,15 +837,20 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("public void writeBytes(byte[] data) { for (byte b:data) writeU8(b&0xFF); }");
     ctx.line("public void writeBcd(long val, int bits) {");
     ctx.indent();
-    ctx.line("long v=Math.abs(val); int digits=bits/4; long max=1;");
-    ctx.line("for(int i=0;i<digits;i++) max*=10; max--;");
-    ctx.line("if(v>max) throw new ConduitCodecException(\"BCD overflow: \"+v+\" exceeds \"+digits+\"-digit max \"+max);");
-    ctx.line("long raw=0;");
-    ctx.line("for (int i=0;i<digits;i++) { raw|=(v%10)<<(i*4); v/=10; }");
+    ctx.line("int digits=bits/4; long limit=1; for(int i=0;i<digits;i++) limit*=10;");
+    ctx.line("if (Math.abs(val)>=limit) throw new ConduitCodecException(\"BCD value \"+val+\" exceeds capacity of \"+digits+\" digits\");");
+    ctx.line("long raw=0; long v=Math.abs(val);");
+    ctx.line("for (int i=0;i<bits/4;i++) { raw|=(v%10)<<(i*4); v/=10; }");
     ctx.line("writeBits(raw, bits);");
     ctx.dedent();
     ctx.line("}");
-    ctx.line("public void writeBcdSigned(long val, int bits) { writeBits(val<0?1:0,1); writeBcd(Math.abs(val),bits-1); }");
+    ctx.line("public void writeBcdSigned(long val, int bits) {");
+    ctx.indent();
+    ctx.line("int digits=(bits-1)/4; long limit=1; for(int i=0;i<digits;i++) limit*=10;");
+    ctx.line("if (Math.abs(val)>=limit) throw new ConduitCodecException(\"BCD signed value \"+val+\" exceeds capacity of \"+digits+\" digits\");");
+    ctx.line("writeBits(val<0?1:0,1); writeBcd(Math.abs(val),bits-1);");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line("public void writeSignMagnitude(long val, int bits) { writeBits(val<0?1:0,1); writeBits(Math.abs(val),bits-1); }");
     ctx.line("public int sizeBytes() { return (bitPos+7)/8; }");
     ctx.line("public byte[] toBytes() { return Arrays.copyOf(buf, sizeBytes()); }");
@@ -1027,7 +1032,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
                 // Non-optional enum: use first enum value as default
                 auto it = index.types.find(f->type_ref);
                 if (it != index.types.end() && !it->second->enum_values.empty()) {
-                    jf.init = jf.j_type + "." + j_const(it->second->enum_values[0].name);
+                    jf.init = fi.j_type + "." + j_const(it->second->enum_values[0].name);
                 } else {
                     jf.init = "null";
                 }
@@ -1039,14 +1044,17 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             if (f->default_value) {
                 if (fi.is_enum) {
                     // Enum defaults: qualify with enum type name and UPPER_CASE value
-                    jf.init = jf.j_type + "." + j_const(*f->default_value);
+                    jf.init = fi.j_type + "." + j_const(*f->default_value);
                 } else {
                     jf.init = j_qualify_const(*f->default_value, fi.j_type == "long" || jf.j_type == "Long");
                 }
             }
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
-                jf.init = j_qualify_const(*f->constraint->equals, fi.j_type == "long" || jf.j_type == "Long");
+                if (fi.is_enum)
+                    jf.init = fi.j_type + "." + j_const(*f->constraint->equals);
+                else
+                    jf.init = j_qualify_const(*f->constraint->equals, fi.j_type == "long" || jf.j_type == "Long");
             }
             // Populate constraint & accessor metadata (matching C++ collect_fields)
             jf.bmdl_name = f->name;
@@ -1292,7 +1300,9 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     }
     // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
     // Skip for struct, enum, bytes fields — constraints don't apply to those at encode time
-    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+    // Skip deferred constraints (validated externally, not at encode time)
+    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred
+        && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
         if (f.constraint->equals) {
             ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint: expected " + *f.constraint->equals + "\");");
         }
@@ -1444,6 +1454,18 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
+            // If the switch field is an enum, compare using .value (raw int)
+            if (cd->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sib : children) {
+                    if (auto* sf = std::get_if<model::Field>(&sib)) {
+                        if (sf->name == cd->switch_expr->name) {
+                            auto sfi = j_resolve_field(*sf, index);
+                            if (sfi.is_enum) sv += ".value";
+                            break;
+                        }
+                    }
+                }
+            }
             std::string m = pfx + "." + j_field(cd->name);
 
             // Check if the switch expression field is an enum type.
@@ -2177,6 +2199,15 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         if (bf.is_choice && bf.choice_def && bf.choice_def->switch_expr) {
             // Choice decode based on switch expression
             std::string sv = "result." + j_field(bf.choice_def->switch_expr->name);
+            // If the switch field is an enum, compare using .value (raw int)
+            if (bf.choice_def->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sbf : bfields) {
+                    if (sbf.name == bf.choice_def->switch_expr->name && sbf.is_enum) {
+                        sv += ".value";
+                        break;
+                    }
+                }
+            }
             bool first_case = true;
             for (const auto& cs : bf.choice_def->cases) {
                 std::string cond;

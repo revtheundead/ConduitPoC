@@ -23,6 +23,31 @@
 #include <unordered_map>
 
 // ============================================================================
+// Exception guards for extern "C" functions.
+// C++ exceptions must never propagate through a C ABI boundary (undefined
+// behaviour).  These macros catch all exceptions and return a safe fallback.
+// ============================================================================
+
+#define CABI_TRY try {
+
+#define CABI_CATCH_ERR                                                      \
+    } catch (const std::exception& e) {                                     \
+        LOG_ERROR(std::string("CABI: ") + e.what());                        \
+        return CONDUIT_XCVR_ERR_UNKNOWN;                                    \
+    } catch (...) { return CONDUIT_XCVR_ERR_UNKNOWN; }
+
+#define CABI_CATCH_VOID                                                     \
+    } catch (const std::exception& e) {                                     \
+        LOG_ERROR(std::string("CABI: ") + e.what());                        \
+    } catch (...) { }
+
+#define CABI_CATCH_RET(val)                                                 \
+    } catch (const std::exception& e) {                                     \
+        LOG_ERROR(std::string("CABI: ") + e.what());                        \
+        return (val);                                                       \
+    } catch (...) { return (val); }
+
+// ============================================================================
 // Session registry
 // ============================================================================
 
@@ -125,38 +150,45 @@ struct TransceiverWrapper {
 extern "C" {
 
 CONDUIT_CABI_API conduit_transceiver_t* conduit_create(void) {
+    CABI_TRY
     auto* wrapper = new (std::nothrow) TransceiverWrapper{};
     if (!wrapper) return nullptr;
     return reinterpret_cast<conduit_transceiver_t*>(wrapper);
+    CABI_CATCH_RET(nullptr)
 }
 
 CONDUIT_CABI_API void conduit_destroy(conduit_transceiver_t* xcvr) {
     if (!xcvr) return;
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
-    if (wrapper->xcvr.is_running()) {
-        wrapper->xcvr.stop();
-    }
+    try { if (wrapper->xcvr.is_running()) wrapper->xcvr.stop(); }
+    catch (...) { }
     delete wrapper;
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_start(conduit_transceiver_t* xcvr) {
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     auto result = wrapper->xcvr.start();
     if (!result) return map_xcvr_error(result.error());
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API void conduit_stop(conduit_transceiver_t* xcvr) {
     if (!xcvr) return;
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     wrapper->xcvr.stop();
+    CABI_CATCH_VOID
 }
 
 CONDUIT_CABI_API int conduit_is_running(const conduit_transceiver_t* xcvr) {
     if (!xcvr) return 0;
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     return wrapper->xcvr.is_running() ? 1 : 0;
+    CABI_CATCH_RET(0)
 }
 
 // ============================================================================
@@ -173,6 +205,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     if (!xcvr || !name || !session_name || !transport || !out_peer_id)
         return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     // Look up session factory
@@ -331,6 +364,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
         *out_peer_id = result->value();
     }
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_peer_by_name(
@@ -341,11 +375,13 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_peer_by_name(
     if (!xcvr || !name || !out_peer_id)
         return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     auto result = wrapper->xcvr.peer(name);
     if (!result) return map_xcvr_error(result.error());
     *out_peer_id = result->value();
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_sole_peer(
@@ -355,11 +391,13 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_sole_peer(
     if (!xcvr || !out_peer_id)
         return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     auto result = wrapper->xcvr.sole_peer();
     if (!result) return map_xcvr_error(result.error());
     *out_peer_id = result->value();
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 // ============================================================================
@@ -375,12 +413,14 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send(
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     if (!data && len > 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     auto result = wrapper->xcvr.send_raw(
         conduit::transceiver::PeerId{peer}, type_id,
         std::span<const uint8_t>(data, len));
     if (!result) return map_xcvr_error(result.error());
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
@@ -392,12 +432,14 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     if (count > 0 && (!payloads || !lens)) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     auto result = wrapper->xcvr.send_raw_batch(
         conduit::transceiver::PeerId{peer}, type_id,
         payloads, lens, count);
     if (!result) return map_xcvr_error(result.error());
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 // ============================================================================
@@ -412,6 +454,7 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_message(
 
     if (!xcvr || !callback) return 0;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     std::lock_guard lock(wrapper->msg_cb_mutex);
@@ -420,6 +463,7 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_message(
     wrapper->ensure_raw_catch_all();
 
     return id;
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API conduit_callback_id conduit_on_any_message(
@@ -435,6 +479,8 @@ CONDUIT_CABI_API int conduit_remove_handler(
     uint64_t type_id) {
 
     if (!xcvr) return 0;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     std::lock_guard lock(wrapper->msg_cb_mutex);
@@ -444,6 +490,7 @@ CONDUIT_CABI_API int conduit_remove_handler(
     bool removed = (it != wrapper->msg_callbacks.end());
     wrapper->msg_callbacks.erase(it, wrapper->msg_callbacks.end());
     return removed ? 1 : 0;
+    CABI_CATCH_RET(0)
 }
 
 // ============================================================================
@@ -456,6 +503,8 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_state_change(
     void* user_data) {
 
     if (!xcvr || !callback) return 0;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     auto cb_id = wrapper->xcvr.on_state_change(
@@ -466,6 +515,7 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_state_change(
         });
 
     return static_cast<uint32_t>(cb_id);
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API int conduit_remove_state_change(
@@ -473,9 +523,12 @@ CONDUIT_CABI_API int conduit_remove_state_change(
     conduit_callback_id id) {
 
     if (!xcvr) return 0;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     return wrapper->xcvr.remove_state_change(
         static_cast<conduit::transceiver::CallbackId>(id)) ? 1 : 0;
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API conduit_callback_id conduit_on_error(
@@ -484,6 +537,8 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_error(
     void* user_data) {
 
     if (!xcvr || !callback) return 0;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     auto cb_id = wrapper->xcvr.on_error(
@@ -496,6 +551,7 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_error(
         });
 
     return static_cast<uint32_t>(cb_id);
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API int conduit_remove_error_callback(
@@ -503,9 +559,12 @@ CONDUIT_CABI_API int conduit_remove_error_callback(
     conduit_callback_id id) {
 
     if (!xcvr) return 0;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     return wrapper->xcvr.remove_error_callback(
         static_cast<conduit::transceiver::CallbackId>(id)) ? 1 : 0;
+    CABI_CATCH_RET(0)
 }
 
 // ============================================================================
@@ -514,16 +573,20 @@ CONDUIT_CABI_API int conduit_remove_error_callback(
 
 CONDUIT_CABI_API size_t conduit_peer_count(const conduit_transceiver_t* xcvr) {
     if (!xcvr) return 0;
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     return wrapper->xcvr.peer_count();
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API int32_t conduit_peer_state(
     const conduit_transceiver_t* xcvr, conduit_peer_id peer) {
     if (!xcvr) return -1;
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     return static_cast<int32_t>(
         wrapper->xcvr.peer_state(conduit::transceiver::PeerId{peer}));
+    CABI_CATCH_RET(-1)
 }
 
 // ============================================================================
@@ -536,6 +599,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats(
 
     if (!xcvr || !out) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<const TransceiverWrapper*>(xcvr);
     auto snap = wrapper->xcvr.stats().snapshot();
 
@@ -549,6 +613,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats(
     out->bytes_sent         = snap.bytes_sent;
 
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
@@ -556,10 +621,12 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     wrapper->xcvr.stats_reset();
 
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 // ============================================================================
@@ -569,9 +636,11 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_stats_reset(
 CONDUIT_CABI_API void conduit_xcvr_register_session(
     const char* name, conduit_session_factory_t factory) {
     if (!name || !factory) return;
+    CABI_TRY
     auto& reg = XcvrSessionRegistry::instance();
     std::lock_guard lock(reg.mutex);
     reg.factories[name] = factory;
+    CABI_CATCH_VOID
 }
 
 // ============================================================================
@@ -585,6 +654,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
     double back_pressure_threshold) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     conduit::transceiver::QueueConfig cfg;
@@ -599,6 +670,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
 
     wrapper->xcvr.set_queue_config(std::move(cfg));
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
@@ -607,6 +679,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
     uint64_t handler_timeout_ms) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     conduit::transceiver::WorkerConfig cfg;
@@ -615,6 +689,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
 
     wrapper->xcvr.set_worker_config(std::move(cfg));
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_shutdown_timeout(
@@ -622,10 +697,13 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_shutdown_timeout(
     uint64_t timeout_ms) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     wrapper->xcvr.set_shutdown_timeout(std::chrono::milliseconds(timeout_ms));
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
@@ -633,6 +711,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
     const conduit_message_log_config_t* config) {
 
     if (!xcvr || !config) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
 
     conduit::transceiver::MessageLogConfig cfg;
@@ -659,6 +739,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
 
     wrapper->xcvr.set_message_log_config(std::move(cfg));
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 // ============================================================================
@@ -790,8 +871,18 @@ struct PassthroughConfigEntry {
     std::vector<PassthroughSession::TypeInfo> types;
 };
 
-std::mutex g_passthrough_configs_mutex;
-std::unordered_map<std::string, std::shared_ptr<PassthroughConfigEntry>> g_passthrough_configs;
+// Construct-on-first-use singleton for passthrough config storage.
+// Avoids file-scope globals whose construction during DLL initialization
+// (DllMain on Windows) can crash when the CRT heap is not yet ready.
+struct PassthroughConfigRegistry {
+    std::mutex mutex;
+    std::unordered_map<std::string, std::shared_ptr<PassthroughConfigEntry>> configs;
+
+    static PassthroughConfigRegistry& instance() {
+        static PassthroughConfigRegistry reg;
+        return reg;
+    }
+};
 
 } // namespace
 
@@ -806,6 +897,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
     if (!name || !frame_config) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     if (type_count > 0 && (!type_ids || !type_names)) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
+    CABI_TRY
     // Build the passthrough config
     auto config = std::make_shared<PassthroughConfigEntry>();
     config->frame_config.min_header_size = frame_config->min_header_size;
@@ -828,8 +920,9 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
     // Store the config
     std::string session_name(name);
     {
-        std::lock_guard lock(g_passthrough_configs_mutex);
-        g_passthrough_configs[session_name] = config;
+        auto& pt = PassthroughConfigRegistry::instance();
+        std::lock_guard lock(pt.mutex);
+        pt.configs[session_name] = config;
     }
 
     // Register a factory that creates PassthroughSession instances.
@@ -841,9 +934,10 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
         reg.factories[session_name] = [session_name]() -> void* {
             std::shared_ptr<PassthroughConfigEntry> cfg;
             {
-                std::lock_guard lock2(g_passthrough_configs_mutex);
-                auto it = g_passthrough_configs.find(session_name);
-                if (it == g_passthrough_configs.end()) return nullptr;
+                auto& pt = PassthroughConfigRegistry::instance();
+                std::lock_guard lock2(pt.mutex);
+                auto it = pt.configs.find(session_name);
+                if (it == pt.configs.end()) return nullptr;
                 cfg = it->second;
             }
             return static_cast<void*>(
@@ -851,6 +945,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
         };
     }
     return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
 }
 
 // ============================================================================
@@ -859,28 +954,38 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
 
 CONDUIT_CABI_API void conduit_set_log_level(int level) {
     if (level < 0 || level > 6) return;
+    CABI_TRY
     conduit::logging::Logger::instance().setLevel(
         static_cast<conduit::logging::Level>(level));
+    CABI_CATCH_VOID
 }
 
 CONDUIT_CABI_API int conduit_get_log_level(void) {
+    CABI_TRY
     return static_cast<int>(conduit::logging::Logger::instance().level());
+    CABI_CATCH_RET(0)
 }
 
 CONDUIT_CABI_API void conduit_log_add_console_sink(int use_stderr, int colorize) {
+    CABI_TRY
     conduit::logging::Logger::instance().addSink(
         std::make_shared<conduit::logging::ConsoleSink>(
             use_stderr != 0, colorize != 0));
+    CABI_CATCH_VOID
 }
 
 CONDUIT_CABI_API void conduit_log_add_file_sink(const char* path, int append) {
     if (!path) return;
+    CABI_TRY
     conduit::logging::Logger::instance().addSink(
         std::make_shared<conduit::logging::FileSink>(path, append != 0));
+    CABI_CATCH_VOID
 }
 
 CONDUIT_CABI_API void conduit_log_clear_sinks(void) {
+    CABI_TRY
     conduit::logging::Logger::instance().clearSinks();
+    CABI_CATCH_VOID
 }
 
 // ============================================================================

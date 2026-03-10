@@ -171,7 +171,7 @@ public class TestBoundaryDepth {
     void dataBodyDoubleEncode() {
         session_test.DataBody data = new session_test.DataBody();
         data.channel = 5;
-        data.payloadA = 0xAABBCCDD;
+        data.payloadA = (int) 0xAABBCCDDL;
         data.payloadB = 0x11223344;
         byte[] first = data.encodeBytes();
         byte[] second = data.encodeBytes();
@@ -202,7 +202,7 @@ public class TestBoundaryDepth {
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_X;
         arrays_choices.SubX subX = new arrays_choices.SubX();
-        subX.val = 0xDEADBEEF;
+        subX.val = (int) 0xDEADBEEFL;
         typeA.subBody = subX;
         msg.body = typeA;
         byte[] encoded = msg.encodeBytes();
@@ -210,7 +210,7 @@ public class TestBoundaryDepth {
         assertInstanceOf(arrays_choices.TypeABody.class, decoded.body);
         arrays_choices.TypeABody decodedA = (arrays_choices.TypeABody) decoded.body;
         assertInstanceOf(arrays_choices.SubX.class, decodedA.subBody);
-        assertEquals(0xDEADBEEF, ((arrays_choices.SubX) decodedA.subBody).val);
+        assertEquals((int) 0xDEADBEEFL, ((arrays_choices.SubX) decodedA.subBody).val);
     }
 
     @Test

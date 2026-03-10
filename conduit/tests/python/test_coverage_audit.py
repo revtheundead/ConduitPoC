@@ -906,7 +906,7 @@ class TestConstraintModule:
         from constraints import ConstraintMsg
 
         msg = ConstraintMsg()
-        msg.magic = 0
+        msg.magic = 0xBEEF  # must match equals constraint
         msg.percent = 0
         msg.deferred_val = 0
         msg.payload = 0

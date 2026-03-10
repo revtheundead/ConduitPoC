@@ -15,7 +15,7 @@ if _generated_dir not in sys.path:
 # ---------------------------------------------------------------------------
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
+_PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", "..", ".."))
 
 
 def resolve_native_lib(env_var: str, base_name: str) -> str:

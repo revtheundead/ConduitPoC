@@ -2675,7 +2675,6 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         for (const auto& child : sd.children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
                 if (f->constraint &&
-                    f->constraint->validate != model::ValidateTiming::Deferred &&
                     (f->constraint->equals || f->constraint->min || f->constraint->max)) {
                     has_any = true; break;
                 }
@@ -2689,7 +2688,6 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (!f->constraint) continue;
                     const auto& con = *f->constraint;
-                    if (con.validate == model::ValidateTiming::Deferred) continue;
                     if (!con.equals && !con.min && !con.max) continue;
                     auto fi = py_resolve_field(*f, index);
                     if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
@@ -3003,7 +3001,6 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             for (const auto& c : cs) {
                 if (auto* f = std::get_if<model::Field>(&c)) {
                     if (f->constraint &&
-                        f->constraint->validate != model::ValidateTiming::Deferred &&
                         (f->constraint->equals || f->constraint->min || f->constraint->max))
                         return true;
                 } else if (auto* fx = std::get_if<model::FxBlock>(&c)) {
@@ -3023,7 +3020,6 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                     if (auto* f = std::get_if<model::Field>(&child)) {
                         if (!f->constraint) continue;
                         const auto& con = *f->constraint;
-                        if (con.validate == model::ValidateTiming::Deferred) continue;
                         if (!con.equals && !con.min && !con.max) continue;
                         auto fi = py_resolve_field(*f, index);
                         if (fi.is_struct || fi.is_enum || fi.is_string || fi.is_bytes) continue;
@@ -4054,7 +4050,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         for (const auto& hc : si.frame->header_fields) {
                             if (auto* f = std::get_if<model::Field>(&hc)) {
                                 if (f->constraint && f->constraint->equals) {
-                                    ctx.line("frame." + py_field(f->name) + " = " + *f->constraint->equals);
+                                    ctx.line("frame." + py_field(f->name) + " = " + py_qualify_const(*f->constraint->equals));
                                 }
                             }
                         }

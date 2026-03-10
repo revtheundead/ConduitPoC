@@ -75,6 +75,10 @@ public class TestFxAdvancedDepth {
         sub.b = 0xBB;
         msg.sub = sub;
 
+        // Inner FX array must also be set when sub is present (same FX block)
+        msg.values = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) msg.values.add(new fx_advanced.Uint8(i + 1));
+
         byte[] encoded = msg.encodeBytes();
         fx_advanced.FxAdvancedMsg decoded = fx_advanced.FxAdvancedMsg.decodeBytes(encoded);
         assertEquals(0x22, decoded.header);
@@ -89,6 +93,8 @@ public class TestFxAdvancedDepth {
         assertNotNull(decoded.sub);
         assertEquals(0xAA, decoded.sub.a);
         assertEquals(0xBB, decoded.sub.b);
+        assertNotNull(decoded.values);
+        assertEquals(4, decoded.values.size());
     }
 
     // ========================================================================
@@ -106,6 +112,10 @@ public class TestFxAdvancedDepth {
         sub.a = 0x11;
         sub.b = 0x22;
         msg.sub = sub;
+
+        // Inner FX array must also be set when sub is present (same FX block)
+        msg.values = new java.util.ArrayList<>();
+        for (int i = 0; i < 4; i++) msg.values.add(new fx_advanced.Uint8(0));
 
         byte[] encoded = msg.encodeBytes();
         fx_advanced.FxAdvancedMsg decoded = fx_advanced.FxAdvancedMsg.decodeBytes(encoded);
