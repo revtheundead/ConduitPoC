@@ -38,7 +38,6 @@ public class TestBoundaryDepth {
     @DisplayName("AllTypes: u32 max value (0xFFFFFFFF) roundtrip")
     void u32MaxValue() {
         all_types.AllTypesMessage msg = new all_types.AllTypesMessage();
-        // u32 is represented as Java int (signed 32-bit); 0xFFFFFFFF == -1 in signed int
         msg.u32 = (int) 0xFFFFFFFFL;
         byte[] encoded = msg.encodeBytes();
         all_types.AllTypesMessage decoded = all_types.AllTypesMessage.decodeBytes(encoded);
@@ -199,7 +198,7 @@ public class TestBoundaryDepth {
     void choiceMsgSubXRoundtrip() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_A;
-        msg.length = 5; // TypeABody: subType(1) + SubX(4) = 5 bytes
+        msg.length = 5; // TypeABody: subType(1) + SubX.val(4)
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_X;
         arrays_choices.SubX subX = new arrays_choices.SubX();
@@ -218,15 +217,22 @@ public class TestBoundaryDepth {
     @DisplayName("ChoiceMsg: SubY roundtrip")
     void choiceMsgSubYRoundtrip() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
-        msg.msgType = (int) arrays_choices.Constants.TYPE_B;
-        msg.length = 4; // TypeBBody: tag(u32) = 4 bytes
-        arrays_choices.TypeBBody typeB = new arrays_choices.TypeBBody();
-        typeB.tag = (int) 0x12345678L;
-        msg.body = typeB;
+        msg.msgType = (int) arrays_choices.Constants.TYPE_A;
+        msg.length = 5; // TypeABody: subType(1) + SubY(2+2)
+        arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
+        typeA.subType = (int) arrays_choices.Constants.SUB_Y;
+        arrays_choices.SubY subY = new arrays_choices.SubY();
+        subY.a = 0x1234;
+        subY.b = 0x5678;
+        typeA.subBody = subY;
+        msg.body = typeA;
         byte[] encoded = msg.encodeBytes();
         arrays_choices.ChoiceMsg decoded = arrays_choices.ChoiceMsg.decodeBytes(encoded);
-        assertInstanceOf(arrays_choices.TypeBBody.class, decoded.body);
-        assertEquals((int) 0x12345678L, ((arrays_choices.TypeBBody) decoded.body).tag);
+        assertInstanceOf(arrays_choices.TypeABody.class, decoded.body);
+        arrays_choices.TypeABody decodedA = (arrays_choices.TypeABody) decoded.body;
+        assertInstanceOf(arrays_choices.SubY.class, decodedA.subBody);
+        assertEquals(0x1234, ((arrays_choices.SubY) decodedA.subBody).a);
+        assertEquals(0x5678, ((arrays_choices.SubY) decodedA.subBody).b);
     }
 
     @Test
@@ -234,7 +240,7 @@ public class TestBoundaryDepth {
     void choiceMsgDoubleEncode() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_A;
-        msg.length = 5; // TypeABody: subType(1) + SubX(4) = 5 bytes
+        msg.length = 5;
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_X;
         arrays_choices.SubX subX = new arrays_choices.SubX();
@@ -323,7 +329,6 @@ public class TestBoundaryDepth {
     void betaBodyMaxValues() {
         choice_test.BetaBody beta = new choice_test.BetaBody();
         beta.payloadSize = 0xFF;
-        // u32 represented as Java int; 0xFFFFFFFF == -1 in signed int
         beta.tag = (int) 0xFFFFFFFFL;
         byte[] encoded = beta.encodeBytes();
         choice_test.BetaBody decoded = choice_test.BetaBody.decodeBytes(encoded);

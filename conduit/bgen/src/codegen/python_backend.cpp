@@ -1448,8 +1448,8 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     }
     // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
     // Skip deferred constraints (validated externally, not at encode time)
-    if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred
-        && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+    if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes
+        && f.constraint->validate != model::ValidateTiming::Deferred) {
         if (f.constraint->equals) {
             ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
         }

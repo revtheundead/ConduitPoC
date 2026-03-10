@@ -93,11 +93,34 @@ std::string j_double(double v) {
 // Qualify bare constant names (uppercase-starting identifiers) with Constants.
 // Constants are emitted as `long` so we add an (int) cast to avoid lossy-conversion
 // errors when the value is used in int field assignments or comparisons.
-std::string j_qualify_const(const std::string& val) {
+std::string j_qualify_const(const std::string& val, bool is_long = false) {
     if (val.empty()) return val;
     char c = val[0];
     if (std::isalpha(static_cast<unsigned char>(c)) && std::isupper(static_cast<unsigned char>(c))) {
         return "(int) Constants." + val;
+    }
+    // For numeric literals, check if they need L suffix for Java long fields
+    bool is_numeric = (c == '-' || std::isdigit(static_cast<unsigned char>(c)));
+    if (is_numeric) {
+        try {
+            // Check if value exceeds signed long max (need unsigned hex representation)
+            if (c != '-') {
+                unsigned long long uv = std::stoull(val);
+                if (uv > 9223372036854775807ULL) {
+                    // Too large for signed long literal; use hex with L suffix
+                    std::ostringstream oss;
+                    oss << "0x" << std::hex << std::uppercase << uv << "L";
+                    return oss.str();
+                }
+                if (uv > 2147483647ULL || is_long) {
+                    return val + "L";
+                }
+            } else if (is_long) {
+                return val + "L";
+            }
+        } catch (...) {
+            // If parsing fails, return as-is
+        }
     }
     return val;
 }
@@ -1006,10 +1029,10 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else if (fi.j_type == "float") jf.init = "0.0f";
             else if (fi.j_type == "double") jf.init = "0.0";
             else if (fi.is_enum) {
-                // Default non-optional enum fields to the first enum value
-                auto tit = index.types.find(f->type_ref);
-                if (tit != index.types.end() && !tit->second->enum_values.empty()) {
-                    jf.init = fi.j_type + "." + j_const(tit->second->enum_values[0].name);
+                // Non-optional enum: use first enum value as default
+                auto it = index.types.find(f->type_ref);
+                if (it != index.types.end() && !it->second->enum_values.empty()) {
+                    jf.init = fi.j_type + "." + j_const(it->second->enum_values[0].name);
                 } else {
                     jf.init = "null";
                 }
@@ -1019,17 +1042,19 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             else jf.init = "0";
             // Apply explicit default value from BMDL spec (matching C++/Python)
             if (f->default_value) {
-                if (fi.is_enum)
+                if (fi.is_enum) {
+                    // Enum defaults: qualify with enum type name and UPPER_CASE value
                     jf.init = fi.j_type + "." + j_const(*f->default_value);
-                else
-                    jf.init = j_qualify_const(*f->default_value);
+                } else {
+                    jf.init = j_qualify_const(*f->default_value, fi.j_type == "long" || jf.j_type == "Long");
+                }
             }
             // constraint equals="X" implies default="X" (matching C++ behavior)
             if (!f->default_value && f->constraint && f->constraint->equals) {
                 if (fi.is_enum)
                     jf.init = fi.j_type + "." + j_const(*f->constraint->equals);
                 else
-                    jf.init = j_qualify_const(*f->constraint->equals);
+                    jf.init = j_qualify_const(*f->constraint->equals, fi.j_type == "long" || jf.j_type == "Long");
             }
             // Populate constraint & accessor metadata (matching C++ collect_fields)
             jf.bmdl_name = f->name;
@@ -1410,7 +1435,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             std::string m = pfx + "." + j_field(ad->name);
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
             auto emit_array_decode = [&]() {
-                // Initialize list if null (e.g. optional/FX arrays)
+                // Initialize null list (e.g. nullable array in FX block) before adding
                 ctx.line("if (" + m + " == null) " + m + " = new java.util.ArrayList<>();");
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
@@ -1442,6 +1467,23 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 }
             }
             std::string m = pfx + "." + j_field(cd->name);
+
+            // Check if the switch expression field is an enum type.
+            // If so, we need to use .value for numeric comparisons with constants.
+            bool switch_is_enum = false;
+            if (cd->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sib : children) {
+                    if (auto* sf = std::get_if<model::Field>(&sib)) {
+                        if (sf->name == cd->switch_expr->name) {
+                            auto sfi = j_resolve_field(*sf, index);
+                            switch_is_enum = sfi.is_enum;
+                            break;
+                        }
+                    }
+                }
+            }
+            // For enum switch fields, use .value to get the numeric value
+            std::string sv_cmp = switch_is_enum ? sv + ".value" : sv;
 
             // Create bounded sub-reader if choice has length/length_from
             bool bounded = cd->length_from != nullptr || cd->length.has_value();
@@ -1483,19 +1525,19 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                         if (index.constants.count(*cs.value)) {
                             val = "Constants." + j_const(*cs.value);
                         }
-                        cond = sv + " == " + val;
+                        cond = sv_cmp + " == " + val;
                     } else if (cs.range) {
                         auto dot_pos = cs.range->find("..");
                         if (dot_pos != std::string::npos) {
                             std::string min_s = cs.range->substr(0, dot_pos);
                             std::string max_s = cs.range->substr(dot_pos + 2);
                             if (min_s == "0") {
-                                cond = sv + " <= " + max_s;
+                                cond = sv_cmp + " <= " + max_s;
                             } else {
-                                cond = sv + " >= " + min_s + " && " + sv + " <= " + max_s;
+                                cond = sv_cmp + " >= " + min_s + " && " + sv_cmp + " <= " + max_s;
                             }
                         } else {
-                            cond = sv + " == " + *cs.range;
+                            cond = sv_cmp + " == " + *cs.range;
                         }
                     } else {
                         continue;
@@ -1669,36 +1711,39 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
             ctx.line("else { new " + stype + "().encode(w); }");
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
-            ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
+            if (ad->fixed_count) {
+                // Fixed-count array: write elements if present, else write zero-filled defaults
+                std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
+                ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
+                ctx.line("else { for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) new " + elem + "().encode(w); }");
+            } else {
+                ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
+            }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + j_field(cd->name);
-            // Use instanceof dispatch (payload is Object, not a concrete type)
+            // Use instanceof checks to cast Object to the correct type for encode()
             ctx.line("if (" + m + " != null) {");
             ctx.indent();
-            {
-                bool first = true;
-                for (const auto& cs : cd->cases) {
-                    std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
-                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + et + ") {");
-                    ctx.indent();
-                    ctx.line(et + " _cv = (" + et + ") " + m + ";");
-                    ctx.line("_cv.encode(w);");
-                    ctx.dedent();
-                    first = false;
-                }
-                if (cd->otherwise) {
-                    std::string ow_type = cd->otherwise->type_ref.empty()
-                        ? j_inline_class(cd->otherwise->name, name_map)
-                        : j_class(cd->otherwise->type_ref);
-                    ctx.line(std::string(first ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + ") {");
-                    ctx.indent();
-                    ctx.line(ow_type + " _cv = (" + ow_type + ") " + m + ";");
-                    ctx.line("_cv.encode(w);");
-                    ctx.dedent();
-                    first = false;
-                }
-                if (!first) ctx.line("}");
+            bool first_case = true;
+            for (const auto& cs : cd->cases) {
+                std::string et = cs.type_ref.empty() ? j_inline_class(cs.name, name_map) : j_class(cs.type_ref);
+                ctx.line(std::string(first_case ? "if" : "} else if") + " (" + m + " instanceof " + et + ") {");
+                ctx.indent();
+                ctx.line("((" + et + ") " + m + ").encode(w);");
+                ctx.dedent();
+                first_case = false;
             }
+            if (cd->otherwise) {
+                std::string ow_type = cd->otherwise->type_ref.empty()
+                    ? j_inline_class(cd->otherwise->name, name_map)
+                    : j_class(cd->otherwise->type_ref);
+                ctx.line(std::string(first_case ? "if" : "} else if") + " (" + m + " instanceof " + ow_type + ") {");
+                ctx.indent();
+                ctx.line("((" + ow_type + ") " + m + ").encode(w);");
+                ctx.dedent();
+                first_case = false;
+            }
+            if (!first_case) ctx.line("}");
             ctx.dedent();
             ctx.line("}");
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
