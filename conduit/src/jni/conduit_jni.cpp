@@ -74,7 +74,9 @@ static void msg_callback_trampoline(
     if (!env || !g_binding_class || !g_dispatch_msg) return;
 
     jstring jtypeName = env->NewStringUTF(type_name ? type_name : "");
+    if (!jtypeName) return; // OOM
     jbyteArray jdata = env->NewByteArray(static_cast<jsize>(len));
+    if (!jdata) { env->DeleteLocalRef(jtypeName); return; } // OOM
     if (data && len > 0) {
         env->SetByteArrayRegion(jdata, 0, static_cast<jsize>(len),
                                 reinterpret_cast<const jbyte*>(data));
@@ -85,6 +87,7 @@ static void msg_callback_trampoline(
         static_cast<jint>(peer),
         static_cast<jlong>(type_id),
         jtypeName, jdata);
+    if (env->ExceptionCheck()) env->ExceptionClear();
 
     env->DeleteLocalRef(jtypeName);
     env->DeleteLocalRef(jdata);
@@ -112,7 +115,9 @@ static void error_callback_trampoline(
     if (!env || !g_binding_class || !g_dispatch_error) return;
 
     jstring jpeerName = env->NewStringUTF(peer_name ? peer_name : "");
+    if (!jpeerName) return; // OOM
     jstring jerrorMsg = env->NewStringUTF(error_message ? error_message : "");
+    if (!jerrorMsg) { env->DeleteLocalRef(jpeerName); return; } // OOM
 
     env->CallStaticVoidMethod(g_binding_class, g_dispatch_error,
         cbd->callback_key,
@@ -120,6 +125,7 @@ static void error_callback_trampoline(
         jpeerName,
         static_cast<jint>(error_code),
         jerrorMsg);
+    if (env->ExceptionCheck()) env->ExceptionClear();
 
     env->DeleteLocalRef(jpeerName);
     env->DeleteLocalRef(jerrorMsg);
@@ -219,10 +225,32 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
-    const char* name        = env->GetStringUTFChars(jname, nullptr);
+    const char* name = env->GetStringUTFChars(jname, nullptr);
+    if (!name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
     const char* sessionName = env->GetStringUTFChars(jsessionName, nullptr);
-    const char* address     = env->GetStringUTFChars(jaddress, nullptr);
-    const char* bindAddress = jbindAddress ? env->GetStringUTFChars(jbindAddress, nullptr) : nullptr;
+    if (!sessionName) {
+        env->ReleaseStringUTFChars(jname, name);
+        return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+
+    const char* address = env->GetStringUTFChars(jaddress, nullptr);
+    if (!address) {
+        env->ReleaseStringUTFChars(jsessionName, sessionName);
+        env->ReleaseStringUTFChars(jname, name);
+        return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+
+    const char* bindAddress = nullptr;
+    if (jbindAddress) {
+        bindAddress = env->GetStringUTFChars(jbindAddress, nullptr);
+        if (!bindAddress) {
+            env->ReleaseStringUTFChars(jaddress, address);
+            env->ReleaseStringUTFChars(jsessionName, sessionName);
+            env->ReleaseStringUTFChars(jname, name);
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        }
+    }
 
     conduit_transport_config_t cfg = {};
     cfg.type                       = static_cast<conduit_transport_type_t>(transportType);
@@ -274,6 +302,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nPeerByName(
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     const char* name = env->GetStringUTFChars(jname, nullptr);
+    if (!name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     conduit_peer_id pid = 0;
     int err = conduit_peer_by_name(
         reinterpret_cast<conduit_transceiver_t*>(handle), name, &pid);
@@ -304,6 +333,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSend(
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     jbyte* data = env->GetByteArrayElements(jdata, nullptr);
+    if (!data) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     int err = conduit_send(
         reinterpret_cast<conduit_transceiver_t*>(handle),
         static_cast<conduit_peer_id>(peerId),
@@ -322,28 +352,37 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     // Build C arrays of pointers and lengths
-    auto** payloads = new const uint8_t*[count];
-    auto* lens = new size_t[count];
-    auto** jbuffers = new jbyte*[count];
-    auto* jarrs = new jbyteArray[count]; // save refs for proper release
+    auto** payloads = new const uint8_t*[count]{};
+    auto* lens = new size_t[count]{};
+    auto** jbuffers = new jbyte*[count]{};
+    auto* jarrs = new jbyteArray[count]{}; // save refs for proper release
 
+    int validCount = 0;
     for (int i = 0; i < count; i++) {
         jarrs[i] = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
+        if (!jarrs[i]) break;
         jbuffers[i] = env->GetByteArrayElements(jarrs[i], nullptr);
+        if (!jbuffers[i]) break;
         payloads[i] = reinterpret_cast<const uint8_t*>(jbuffers[i]);
         lens[i] = static_cast<size_t>(env->GetArrayLength(jarrs[i]));
+        validCount++;
     }
 
-    int err = conduit_send_batch(
-        reinterpret_cast<conduit_transceiver_t*>(handle),
-        static_cast<conduit_peer_id>(peerId),
-        static_cast<uint64_t>(typeId),
-        payloads, lens, static_cast<size_t>(count));
+    int err = CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    if (validCount == count) {
+        err = conduit_send_batch(
+            reinterpret_cast<conduit_transceiver_t*>(handle),
+            static_cast<conduit_peer_id>(peerId),
+            static_cast<uint64_t>(typeId),
+            payloads, lens, static_cast<size_t>(count));
+    }
 
-    // Release all byte arrays using saved references
-    for (int i = 0; i < count; i++) {
+    // Release all successfully acquired byte arrays
+    for (int i = 0; i < validCount; i++) {
         env->ReleaseByteArrayElements(jarrs[i], jbuffers[i], JNI_ABORT);
-        env->DeleteLocalRef(jarrs[i]);
+    }
+    for (int i = 0; i < count; i++) {
+        if (jarrs[i]) env->DeleteLocalRef(jarrs[i]);
     }
     delete[] payloads;
     delete[] lens;
@@ -457,6 +496,7 @@ JNIEXPORT jlongArray JNICALL Java_io_conduit_JniNativeBinding_nStats(
     JNIEnv* env, jclass, jlong handle) {
 
     jlongArray result = env->NewLongArray(8);
+    if (!result) return nullptr; // OOM
     if (handle == 0) return result;
 
     conduit_stats_snapshot_t snap;
@@ -525,11 +565,51 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
-    const char* directory        = jdirectory        ? env->GetStringUTFChars(jdirectory,        nullptr) : nullptr;
-    const char* prefix           = jprefix           ? env->GetStringUTFChars(jprefix,           nullptr) : nullptr;
-    const char* filename         = jfilename         ? env->GetStringUTFChars(jfilename,         nullptr) : nullptr;
-    const char* sentFilename     = jsentFilename     ? env->GetStringUTFChars(jsentFilename,     nullptr) : nullptr;
-    const char* receivedFilename = jreceivedFilename ? env->GetStringUTFChars(jreceivedFilename, nullptr) : nullptr;
+    // Acquire all JNI strings with NULL-return checks and cascading cleanup.
+    const char* directory = nullptr;
+    const char* prefix = nullptr;
+    const char* filename = nullptr;
+    const char* sentFilename = nullptr;
+    const char* receivedFilename = nullptr;
+
+    if (jdirectory) {
+        directory = env->GetStringUTFChars(jdirectory, nullptr);
+        if (!directory) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+    }
+    if (jprefix) {
+        prefix = env->GetStringUTFChars(jprefix, nullptr);
+        if (!prefix) {
+            if (directory) env->ReleaseStringUTFChars(jdirectory, directory);
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        }
+    }
+    if (jfilename) {
+        filename = env->GetStringUTFChars(jfilename, nullptr);
+        if (!filename) {
+            if (prefix) env->ReleaseStringUTFChars(jprefix, prefix);
+            if (directory) env->ReleaseStringUTFChars(jdirectory, directory);
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        }
+    }
+    if (jsentFilename) {
+        sentFilename = env->GetStringUTFChars(jsentFilename, nullptr);
+        if (!sentFilename) {
+            if (filename) env->ReleaseStringUTFChars(jfilename, filename);
+            if (prefix) env->ReleaseStringUTFChars(jprefix, prefix);
+            if (directory) env->ReleaseStringUTFChars(jdirectory, directory);
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        }
+    }
+    if (jreceivedFilename) {
+        receivedFilename = env->GetStringUTFChars(jreceivedFilename, nullptr);
+        if (!receivedFilename) {
+            if (sentFilename) env->ReleaseStringUTFChars(jsentFilename, sentFilename);
+            if (filename) env->ReleaseStringUTFChars(jfilename, filename);
+            if (prefix) env->ReleaseStringUTFChars(jprefix, prefix);
+            if (directory) env->ReleaseStringUTFChars(jdirectory, directory);
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+        }
+    }
 
     conduit_message_log_config_t cfg = {};
     cfg.enabled                 = static_cast<int>(enabled);

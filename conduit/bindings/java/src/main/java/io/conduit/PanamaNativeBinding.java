@@ -588,9 +588,14 @@ public final class PanamaNativeBinding implements NativeBinding {
 
             // Build frame config struct
             var cfg = arena.allocate(FRAME_CONFIG_LAYOUT);
-            var syncBuf = arena.allocateArray(ValueLayout.JAVA_BYTE, syncPattern);
-            cfg.set(ValueLayout.ADDRESS, 0, syncBuf);
-            cfg.set(ValueLayout.JAVA_LONG, 8, (long) syncPattern.length);
+            if (syncPattern.length > 0) {
+                var syncBuf = arena.allocateArray(ValueLayout.JAVA_BYTE, syncPattern);
+                cfg.set(ValueLayout.ADDRESS, 0, syncBuf);
+                cfg.set(ValueLayout.JAVA_LONG, 8, (long) syncPattern.length);
+            } else {
+                cfg.set(ValueLayout.ADDRESS, 0, MemorySegment.NULL);
+                cfg.set(ValueLayout.JAVA_LONG, 8, 0L);
+            }
             cfg.set(ValueLayout.JAVA_LONG, 16, (long) minHeaderSize);
             cfg.set(ValueLayout.JAVA_LONG, 24, (long) lengthSkipBits);
             cfg.set(ValueLayout.JAVA_LONG, 32, (long) lengthFieldBits);
