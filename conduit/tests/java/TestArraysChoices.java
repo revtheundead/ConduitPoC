@@ -204,7 +204,7 @@ public class TestArraysChoices {
     void choiceMsgTypeA() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_A;
-        msg.length = 0;
+        msg.length = 5; // TypeABody: subType(1) + SubX.val(4)
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_X;
         arrays_choices.SubX subX = new arrays_choices.SubX();
@@ -227,7 +227,7 @@ public class TestArraysChoices {
     void choiceMsgTypeB() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_B;
-        msg.length = 0;
+        msg.length = 4; // TypeBBody: tag(4)
         arrays_choices.TypeBBody typeB = new arrays_choices.TypeBBody();
         typeB.tag = 0xABCDEF;
         msg.body = typeB;
@@ -245,7 +245,7 @@ public class TestArraysChoices {
         // Build the raw bytes manually for an unknown msgType
         arrays_choices.codec.BitWriter w = new arrays_choices.codec.BitWriter();
         w.writeU8(99);          // unknown msgType
-        w.writeU16(0, true);    // length
+        w.writeU16(4, true);    // length = 4 bytes for FallbackBody
         w.writeU32(0xDEADBEEF, true); // raw data for FallbackBody
         byte[] data = w.toBytes();
 
@@ -295,14 +295,14 @@ public class TestArraysChoices {
     }
 
     @Test
-    @DisplayName("TypeABody: unknown subType results in null subBody")
+    @DisplayName("TypeABody: unknown subType throws exception")
     void typeABodyUnknownSubType() {
         arrays_choices.codec.BitWriter w = new arrays_choices.codec.BitWriter();
         w.writeU8(99);  // unknown subType
         byte[] data = w.toBytes();
-        arrays_choices.TypeABody decoded = arrays_choices.TypeABody.decodeBytes(data);
-        assertEquals(99, decoded.subType);
-        assertNull(decoded.subBody);
+        assertThrows(arrays_choices.codec.ConduitCodecException.class, () -> {
+            arrays_choices.TypeABody.decodeBytes(data);
+        });
     }
 
     // ========================================================================
@@ -406,7 +406,7 @@ public class TestArraysChoices {
     void deepNestedChoiceSubY() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_A;
-        msg.length = 0;
+        msg.length = 5; // TypeABody: subType(1) + SubY(2+2)
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_Y;
         arrays_choices.SubY sub = new arrays_choices.SubY();
@@ -431,7 +431,7 @@ public class TestArraysChoices {
     void deepNestedChoiceSubXMax() {
         arrays_choices.ChoiceMsg msg = new arrays_choices.ChoiceMsg();
         msg.msgType = (int) arrays_choices.Constants.TYPE_A;
-        msg.length = 0;
+        msg.length = 5; // TypeABody: subType(1) + SubX.val(4)
         arrays_choices.TypeABody typeA = new arrays_choices.TypeABody();
         typeA.subType = (int) arrays_choices.Constants.SUB_X;
         arrays_choices.SubX sub = new arrays_choices.SubX();

@@ -221,7 +221,7 @@ public class TestFxAdvancedDepth {
         msg.item1 = 2000;
         msg.tag = fx_choice.TagType.CASE_B;
         fx_choice.CaseBBody body = new fx_choice.CaseBBody();
-        body.y = 0xDEADBEEFL;
+        body.y = (int) 0xDEADBEEFL;
         msg.payload = body;
         msg.item3 = 7;
 
@@ -230,7 +230,7 @@ public class TestFxAdvancedDepth {
         assertEquals(0x55, decoded.header);
         assertEquals(fx_choice.TagType.CASE_B, decoded.tag);
         assertInstanceOf(fx_choice.CaseBBody.class, decoded.payload);
-        assertEquals(0xDEADBEEFL, ((fx_choice.CaseBBody) decoded.payload).y);
+        assertEquals((int) 0xDEADBEEFL, ((fx_choice.CaseBBody) decoded.payload).y);
         assertEquals((Integer) 7, decoded.item3);
     }
 
