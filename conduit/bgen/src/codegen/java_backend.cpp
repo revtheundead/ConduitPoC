@@ -118,7 +118,7 @@ std::string j_qualify_const(const std::string& val, bool is_long = false) {
             } else if (is_long) {
                 return val + "L";
             }
-        } catch (...) {
+        } catch (...) { // NOLINT(bugprone-empty-catch)
             // If parsing fails, return as-is
         }
     }

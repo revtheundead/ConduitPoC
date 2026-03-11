@@ -244,8 +244,6 @@ void emit_scaled_type(EmitContext& ctx, const model::TypeDef& t) {
     std::string name = to_cpp_type_name(t.name);
     bool is_signed = (t.base == model::PrimitiveBase::Int);
     std::string raw_type = storage_type_for_bits(t.bits, is_signed);
-    std::string wire_size = std::to_string((t.bits + 7) / 8);
-    std::string endian = endian_enum(t.endian);
 
     if (!t.doc.empty()) {
         ctx.comment(t.doc);
@@ -694,7 +692,6 @@ void emit_constrained_type(EmitContext& ctx, const model::TypeDef& t) {
     std::string name = to_cpp_type_name(t.name);
     bool is_signed = (t.base == model::PrimitiveBase::Int);
     std::string raw_type = storage_type_for_bits(t.bits, is_signed);
-    std::string endian = endian_enum(t.endian);
 
     if (!t.doc.empty()) {
         ctx.comment(t.doc);
@@ -757,30 +754,33 @@ void emit_constrained_type(EmitContext& ctx, const model::TypeDef& t) {
     ctx.line(name + " result;");
     ctx.line("result.raw_ = static_cast<" + raw_type + ">(*raw);");
     // Constraint checks
-    if (t.constraint->equals) {
-        ctx.line("if (result.raw_ != static_cast<" + raw_type + ">(" + *t.constraint->equals + ")) {");
-        ctx.indent();
-        ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx.line("    \"" + name + " constraint violation: expected " + *t.constraint->equals + "\"));");
-        ctx.dedent();
-        ctx.line("}");
-    }
-    if (t.constraint->max) {
-        ctx.line("if (result.raw_ > static_cast<" + raw_type + ">(" + *t.constraint->max + ")) {");
-        ctx.indent();
-        ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx.line("    \"" + name + " exceeds max " + *t.constraint->max + "\"));");
-        ctx.dedent();
-        ctx.line("}");
-    }
-    // Skip min=0 for unsigned types (always true, triggers -Wtype-limits)
-    if (t.constraint->min && (*t.constraint->min != "0" || is_signed)) {
-        ctx.line("if (result.raw_ < static_cast<" + raw_type + ">(" + *t.constraint->min + ")) {");
-        ctx.indent();
-        ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx.line("    \"" + name + " below min " + *t.constraint->min + "\"));");
-        ctx.dedent();
-        ctx.line("}");
+    if (t.constraint) {
+        const auto& constraint = *t.constraint;
+        if (constraint.equals) {
+            ctx.line("if (result.raw_ != static_cast<" + raw_type + ">(" + *constraint.equals + ")) {");
+            ctx.indent();
+            ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
+            ctx.line("    \"" + name + " constraint violation: expected " + *constraint.equals + "\"));");
+            ctx.dedent();
+            ctx.line("}");
+        }
+        if (constraint.max) {
+            ctx.line("if (result.raw_ > static_cast<" + raw_type + ">(" + *constraint.max + ")) {");
+            ctx.indent();
+            ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
+            ctx.line("    \"" + name + " exceeds max " + *constraint.max + "\"));");
+            ctx.dedent();
+            ctx.line("}");
+        }
+        // Skip min=0 for unsigned types (always true, triggers -Wtype-limits)
+        if (constraint.min && (*constraint.min != "0" || is_signed)) {
+            ctx.line("if (result.raw_ < static_cast<" + raw_type + ">(" + *constraint.min + ")) {");
+            ctx.indent();
+            ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
+            ctx.line("    \"" + name + " below min " + *constraint.min + "\"));");
+            ctx.dedent();
+            ctx.line("}");
+        }
     }
     ctx.line("return result;");
     ctx.dedent();

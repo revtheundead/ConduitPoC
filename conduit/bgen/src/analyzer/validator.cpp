@@ -1937,7 +1937,7 @@ private:
                                       " exceeds the " + std::to_string(id_field_bits) +
                                       "-bit id field range (max " + std::to_string(max_id_val) + ")");
                             }
-                        } catch (...) {
+                        } catch (...) { // NOLINT(bugprone-empty-catch)
                             // Non-numeric id (e.g., constant ref) — skip range check
                         }
                     }

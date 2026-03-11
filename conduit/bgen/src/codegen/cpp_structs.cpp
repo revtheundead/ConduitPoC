@@ -364,8 +364,6 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
 
     // Find the id field for dispatch
     std::string id_member = to_member_name(session.id_field_name);
-    std::string id_accessor = to_accessor_name(session.id_field_name);
-
     // Resolve id field C++ type for the switch cast
     std::string id_cast_type;
     for (const auto& child : frame.header_fields) {
@@ -1844,7 +1842,6 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
     for (const auto& bf : sorted_fields) {
         int byte_idx = bf.bit / BITS_PER_BYTE;
         int bit_in_byte = bf.bit % BITS_PER_BYTE;
-        std::string acc = to_accessor_name(bf.name);
         std::string member = "result." + to_member_name(bf.name);
 
         ctx_.line("if (fspec_len > " + std::to_string(byte_idx) +

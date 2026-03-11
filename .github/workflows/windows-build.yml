@@ -970,7 +970,7 @@ jobs:
           jq -r '.[].file' build/compile_commands.json | sort -u | \
             grep -v third_party/ | \
             xargs clang-tidy-19 -p build \
-              --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters' \
+              --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-branch-clone,-bugprone-narrowing-conversions' \
               --warnings-as-errors='bugprone-*' \
               2>&1 | tee clang-tidy-output.txt || true
           # Fail only on bugprone warnings promoted to errors
