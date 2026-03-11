@@ -299,9 +299,9 @@ public final class PanamaNativeBinding implements NativeBinding {
     public int logRecvMessage(long handle, int peerId, String typeName,
                               long byteCount, String content) {
         try (var logArena = Arena.ofConfined()) {
-            var cTypeName = logArena.allocateFrom(typeName);
+            var cTypeName = logArena.allocateUtf8String(typeName);
             var cContent = (content != null)
-                ? logArena.allocateFrom(content) : MemorySegment.NULL;
+                ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
             return (int) CabiBindings.conduit_log_recv_message.invokeExact(
                 MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
         } catch (Throwable e) {
@@ -313,9 +313,9 @@ public final class PanamaNativeBinding implements NativeBinding {
     public int logSendMessage(long handle, int peerId, String typeName,
                               long byteCount, String content) {
         try (var logArena = Arena.ofConfined()) {
-            var cTypeName = logArena.allocateFrom(typeName);
+            var cTypeName = logArena.allocateUtf8String(typeName);
             var cContent = (content != null)
-                ? logArena.allocateFrom(content) : MemorySegment.NULL;
+                ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
             return (int) CabiBindings.conduit_log_send_message.invokeExact(
                 MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
         } catch (Throwable e) {

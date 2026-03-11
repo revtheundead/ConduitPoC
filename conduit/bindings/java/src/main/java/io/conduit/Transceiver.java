@@ -654,22 +654,28 @@ public class Transceiver implements AutoCloseable {
         if (sessionFormatMessage == null) return;
         try {
             String tname = (String) sessionTypeName.invoke(javaSession, typeId);
+            if (tname == null) tname = "unknown";
             String content = logIncludeContent
                 ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
                 : null;
             binding.logRecvMessage(handle, peerId, tname, frameBytes, content);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            System.err.println("[conduit] message log error: " + e.getMessage());
+        }
     }
 
     private void logDecodedSend(int peerId, long typeId, Object payload, int frameBytes) {
         if (sessionFormatMessage == null) return;
         try {
             String tname = (String) sessionTypeName.invoke(javaSession, typeId);
+            if (tname == null) tname = "unknown";
             String content = logIncludeContent
                 ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
                 : null;
             binding.logSendMessage(handle, peerId, tname, frameBytes, content);
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            System.err.println("[conduit] message log error: " + e.getMessage());
+        }
     }
 
     // ================================================================
