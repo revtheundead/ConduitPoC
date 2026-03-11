@@ -95,6 +95,18 @@ add_executable(conduit_tests ${CONDUIT_TEST_SOURCES})
 target_link_libraries(conduit_tests PRIVATE ${CONDUIT_TEST_LIBS})
 catch_discover_tests(conduit_tests)
 
+# Place test binary under build/tests/ so build scripts can find it.
+# Per-config overrides prevent MSVC multi-config generators from using
+# the global CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG> (build/lib/).
+set_target_properties(conduit_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(conduit_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/tests"
+    )
+endforeach()
+
 # ============================================================================
 # Test CABI shared libraries with registered sessions (for Python/Java tests)
 # ============================================================================

@@ -241,6 +241,18 @@ target_include_directories(bgen_tests PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
+# Place test binaries under build/bgen/tests/ so build scripts can find them.
+# Per-config overrides prevent MSVC multi-config generators from using
+# the global CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG> (build/lib/).
+set_target_properties(bgen_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bgen/tests"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(bgen_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/bgen/tests"
+    )
+endforeach()
+
 catch_discover_tests(bgen_tests)
 
 # ============================================================================
@@ -262,6 +274,15 @@ target_compile_definitions(bgen_python_tests PRIVATE
     BGEN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
+set_target_properties(bgen_python_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bgen/tests"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(bgen_python_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/bgen/tests"
+    )
+endforeach()
+
 catch_discover_tests(bgen_python_tests)
 
 # ============================================================================
@@ -282,6 +303,15 @@ target_link_libraries(bgen_java_tests PRIVATE
 target_compile_definitions(bgen_java_tests PRIVATE
     BGEN_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
+
+set_target_properties(bgen_java_tests PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bgen/tests"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(bgen_java_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/bgen/tests"
+    )
+endforeach()
 
 catch_discover_tests(bgen_java_tests)
 
