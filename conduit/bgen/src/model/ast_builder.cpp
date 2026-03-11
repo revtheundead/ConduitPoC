@@ -33,7 +33,7 @@ void apply_defaults_to_children(std::vector<StructChild>& children, const Defaul
                 apply_defaults_to_field(c, defaults);
             } else if constexpr (std::is_same_v<T, StructDef>) {
                 apply_defaults_to_struct(c, defaults);
-            } else if constexpr (std::is_same_v<T, ArrayDef>) {
+            } else if constexpr (std::is_same_v<T, ArrayDef> || std::is_same_v<T, FxBlock>) {
                 apply_defaults_to_children(c.children, defaults);
             } else if constexpr (std::is_same_v<T, ChoiceDef>) {
                 for (auto& cs : c.cases) {
@@ -42,8 +42,6 @@ void apply_defaults_to_children(std::vector<StructChild>& children, const Defaul
                 if (c.otherwise) {
                     apply_defaults_to_children(c.otherwise->children, defaults);
                 }
-            } else if constexpr (std::is_same_v<T, FxBlock>) {
-                apply_defaults_to_children(c.children, defaults);
             }
         }, child);
     }

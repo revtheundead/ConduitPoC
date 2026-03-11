@@ -105,7 +105,7 @@ void BitWriter::write_signed_bits(int64_t value, size_t count) {
 // Aviation wire encoding writes
 // ============================================================================
 
-void BitWriter::write_bcd(uint64_t value, size_t bits) { // NOLINT(bugprone-easily-swappable-parameters)
+void BitWriter::write_bcd(uint64_t value, size_t bits) {
     if (error_) return;
     if (bits % 4 != 0) {
         set_error(conduit::ErrorCode::EncodingFailed, "write_bcd: bits not multiple of 4");
@@ -131,7 +131,7 @@ void BitWriter::write_bcd(uint64_t value, size_t bits) { // NOLINT(bugprone-easi
     write_bits(raw, bits);
 }
 
-void BitWriter::write_bcd_signed(int64_t value, size_t bits) { // NOLINT(bugprone-easily-swappable-parameters)
+void BitWriter::write_bcd_signed(int64_t value, size_t bits) {
     if (error_) return;
     if (bits < 5) {
         set_error(conduit::ErrorCode::EncodingFailed, "write_bcd_signed: bits < 5");
@@ -164,7 +164,7 @@ void BitWriter::write_bcd_signed(int64_t value, size_t bits) { // NOLINT(bugpron
     write_bits(raw, bits);
 }
 
-void BitWriter::write_sign_magnitude(int64_t value, size_t bits) { // NOLINT(bugprone-easily-swappable-parameters)
+void BitWriter::write_sign_magnitude(int64_t value, size_t bits) {
     if (error_) return;
     if (bits < 2) {
         set_error(conduit::ErrorCode::EncodingFailed, "write_sign_magnitude: bits < 2");

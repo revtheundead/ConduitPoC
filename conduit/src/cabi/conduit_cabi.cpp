@@ -161,7 +161,7 @@ CONDUIT_CABI_API void conduit_destroy(conduit_transceiver_t* xcvr) {
     if (!xcvr) return;
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     try { if (wrapper->xcvr.is_running()) wrapper->xcvr.stop(); }
-    catch (...) { /* Swallow all exceptions during teardown */ } // NOLINT(bugprone-empty-catch)
+    catch (...) { (void)0; /* Swallow all exceptions during teardown */ }
     delete wrapper;
 }
 
@@ -649,7 +649,7 @@ CONDUIT_CABI_API void conduit_xcvr_register_session(
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
     conduit_transceiver_t* xcvr,
-    size_t capacity,                    // NOLINT(bugprone-easily-swappable-parameters)
+    size_t capacity,
     int drop_policy,
     double back_pressure_threshold) {
 
@@ -675,7 +675,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_queue_config(
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_worker_config(
     conduit_transceiver_t* xcvr,
-    size_t thread_count,                // NOLINT(bugprone-easily-swappable-parameters)
+    size_t thread_count,
     uint64_t handler_timeout_ms) {
 
     if (!xcvr) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;

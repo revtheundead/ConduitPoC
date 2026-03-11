@@ -69,7 +69,7 @@ public:
 
         // Two-character operators
         if (pos_ + 1 < static_cast<int>(input_.size())) {
-            char c2 = input_[static_cast<size_t>(pos_ + 1)];
+            char c2 = input_[static_cast<size_t>(pos_) + 1];
             if (c == '<' && c2 == '<') { pos_ += 2; return Token{TokenKind::ShiftLeft, input_.substr(static_cast<size_t>(start), 2), 0, start}; }
             if (c == '>' && c2 == '>') { pos_ += 2; return Token{TokenKind::ShiftRight, input_.substr(static_cast<size_t>(start), 2), 0, start}; }
             if (c == '=' && c2 == '=') { pos_ += 2; return Token{TokenKind::Eq, input_.substr(static_cast<size_t>(start), 2), 0, start}; }
@@ -126,7 +126,7 @@ private:
         // Check for hex
         if (pos_ + 1 < static_cast<int>(input_.size()) &&
             input_[static_cast<size_t>(pos_)] == '0' &&
-            (input_[static_cast<size_t>(pos_ + 1)] == 'x' || input_[static_cast<size_t>(pos_ + 1)] == 'X')) {
+            (input_[static_cast<size_t>(pos_) + 1] == 'x' || input_[static_cast<size_t>(pos_) + 1] == 'X')) {
             pos_ += 2;
             while (pos_ < static_cast<int>(input_.size()) &&
                    std::isxdigit(static_cast<unsigned char>(input_[static_cast<size_t>(pos_)]))) {
@@ -167,7 +167,7 @@ private:
                 // Hyphen is part of identifier only if next char is alnum/underscore
                 // (maximal munch: total-length is one token, but "x - 3" is subtraction)
                 if (pos_ + 1 < static_cast<int>(input_.size())) {
-                    char next_ch = input_[static_cast<size_t>(pos_ + 1)];
+                    char next_ch = input_[static_cast<size_t>(pos_) + 1];
                     if (std::isalnum(static_cast<unsigned char>(next_ch)) || next_ch == '_') {
                         pos_++;
                     } else {
