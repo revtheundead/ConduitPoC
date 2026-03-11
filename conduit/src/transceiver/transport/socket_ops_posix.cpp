@@ -25,25 +25,47 @@ void cleanup_networking() {
     // No-op on POSIX
 }
 
+namespace {
+// Set close-on-exec flag portably (SOCK_CLOEXEC is Linux-only)
+void set_cloexec([[maybe_unused]] int fd) {
+#ifndef SOCK_CLOEXEC
+    int flags = ::fcntl(fd, F_GETFD);
+    if (flags >= 0) {
+        ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+    }
+#endif
+}
+} // namespace
+
 Result<socket_t> create_tcp_socket() {
+#ifdef SOCK_CLOEXEC
     int s = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+#else
+    int s = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#endif
     if (s < 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
                           "Failed to create TCP socket: " +
                           error_to_string(errno)));
     }
+    set_cloexec(s);
     return s;
 }
 
 Result<socket_t> create_udp_socket() {
+#ifdef SOCK_CLOEXEC
     int s = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, IPPROTO_UDP);
+#else
+    int s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+#endif
     if (s < 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
                           "Failed to create UDP socket: " +
                           error_to_string(errno)));
     }
+    set_cloexec(s);
     return s;
 }
 
@@ -115,11 +137,21 @@ std::string error_to_string(int err) {
 
 Result<WakePipe> create_wake_pipe() {
     int fds[2];
+#ifdef __linux__
     if (::pipe2(fds, O_CLOEXEC) != 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
                           "Failed to create pipe: " + error_to_string(errno)));
     }
+#else
+    if (::pipe(fds) != 0) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::SocketError,
+                          "Failed to create pipe: " + error_to_string(errno)));
+    }
+    set_cloexec(fds[0]);
+    set_cloexec(fds[1]);
+#endif
 
     // Set both ends non-blocking
     for (int i = 0; i < 2; ++i) {
