@@ -940,6 +940,12 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y clang-19 clang-tidy-19
 
+      - name: Set up JDK for JNI headers
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Configure conduit (for compile_commands.json)
         env:
           CC: clang-19
@@ -947,15 +953,15 @@ jobs:
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_TESTS=OFF
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Run clang-tidy on conduit sources
         run: |
-          # Run clang-tidy on all conduit source files (not third-party, generated, or JNI)
+          # Run clang-tidy on all conduit source files (not third-party or generated)
           find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
-            grep -v '/jni/' | \
             xargs clang-tidy-19 -p build \
               --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
               --warnings-as-errors='bugprone-*' \
