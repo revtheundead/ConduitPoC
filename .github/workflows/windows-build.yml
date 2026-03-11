@@ -794,15 +794,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Clang
+      - name: Install Clang 18
         run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          . /etc/lsb-release
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-18.list
           sudo apt-get update -q
-          sudo apt-get install -y clang
+          sudo apt-get install -y clang-18
 
-      - name: Configure conduit (Clang, with tests)
+      - name: Configure conduit (Clang 18, with tests)
         env:
-          CC: clang
-          CXX: clang++
+          CC: clang-18
+          CXX: clang++-18
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
@@ -817,8 +821,8 @@ jobs:
 
       - name: Configure and build xcvr
         env:
-          CC: clang
-          CXX: clang++
+          CC: clang-18
+          CXX: clang++-18
         run: |
           cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
           cmake --build build-xcvr --parallel
@@ -927,15 +931,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang-tidy
+      - name: Install Clang 18 and clang-tidy
         run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          . /etc/lsb-release
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-18.list
           sudo apt-get update -q
-          sudo apt-get install -y clang-tidy clang
+          sudo apt-get install -y clang-18 clang-tidy-18
 
       - name: Configure conduit (for compile_commands.json)
         env:
-          CC: clang
-          CXX: clang++
+          CC: clang-18
+          CXX: clang++-18
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
@@ -947,7 +955,7 @@ jobs:
         run: |
           # Run clang-tidy on all conduit source files (not third-party or generated)
           find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
-            xargs clang-tidy -p build \
+            xargs clang-tidy-18 -p build \
               --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
               --warnings-as-errors='bugprone-*' \
               2>&1 | tee clang-tidy-output.txt
