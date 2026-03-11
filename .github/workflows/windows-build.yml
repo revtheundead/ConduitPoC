@@ -304,8 +304,8 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          # With MSVC multi-config generator, bgen.exe lands in build-conduit/bgen/Release/
-          $bgen = "build-conduit/bgen/Release/bgen.exe"
+          # CMake config flattens all configs into bgen/ (no Release/ subdirectory)
+          $bgen = "build-conduit/bgen/bgen.exe"
           & $bgen --input xcvr-java11/asterix/asterix.bmdl.xml `
                   --output xcvr-java11/asterix/generated --language java
           & $bgen --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
@@ -486,7 +486,7 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/bgen/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/bgen.exe"
           & $bgen --input xcvr-java/asterix/asterix.bmdl.xml `
                   --output xcvr-java/asterix/generated --language java
           & $bgen --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml `
@@ -655,7 +655,7 @@ jobs:
       - name: Generate Python sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/bgen/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/bgen.exe"
           & $bgen --input xcvr-python/asterix/asterix.bmdl.xml `
                   --output xcvr-python/asterix/generated --language python
           & $bgen --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
