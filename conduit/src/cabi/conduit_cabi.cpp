@@ -814,7 +814,6 @@ public:
                        FrameConfig frame_config,
                        std::vector<TypeInfo> types)
         : protocol_(std::move(protocol))
-        , frame_label_(protocol_ + "_frame")
         , frame_config_(std::move(frame_config))
         , types_(std::move(types)) {
         for (const auto& t : types_) {
@@ -829,7 +828,7 @@ public:
         std::vector<conduit::traits::DecodedMessage> messages;
         conduit::traits::DecodedMessage dm;
         dm.type_id = 0; // passthrough: Java does the type routing
-        dm.type_name = frame_label_;
+        dm.type_name = protocol_;
         dm.payload = std::vector<uint8_t>(data.begin(), data.end());
         dm.raw = std::vector<uint8_t>(data.begin(), data.end());
         messages.push_back(std::move(dm));
@@ -908,7 +907,6 @@ public:
 
 private:
     std::string protocol_;
-    std::string frame_label_;
     FrameConfig frame_config_;
     std::vector<TypeInfo> types_;
     std::vector<uint64_t> ids_;
