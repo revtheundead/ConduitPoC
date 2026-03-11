@@ -742,6 +742,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
     CABI_CATCH_ERR
 }
 
+} // extern "C" — suspend for C++ class definitions (PassthroughSession et al.)
+
 // ============================================================================
 // Passthrough session
 //
@@ -885,6 +887,8 @@ struct PassthroughConfigRegistry {
 };
 
 } // namespace
+
+extern "C" {
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
     const char* name,

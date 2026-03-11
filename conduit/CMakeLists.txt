@@ -282,6 +282,11 @@ if(CONDUIT_BUILD_JNI)
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
+        # The JNI wrapper calls CABI functions bundled in the same DLL.
+        # Define the EXPORTS macro so the JNI .cpp sees the functions as
+        # dllexport (matching the CABI .cpp) rather than dllimport, which
+        # avoids unnecessary IAT thunks and linker warning LNK4217.
+        target_compile_definitions(conduit_codec_jni PRIVATE CONDUIT_CODEC_CABI_EXPORTS)
         set_target_properties(conduit_codec_jni PROPERTIES
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
@@ -301,6 +306,11 @@ if(CONDUIT_BUILD_JNI)
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
+        # The JNI wrapper calls CABI functions bundled in the same DLL.
+        # Define the EXPORTS macro so the JNI .cpp sees the functions as
+        # dllexport (matching the CABI .cpp) rather than dllimport, which
+        # avoids unnecessary IAT thunks and linker warning LNK4217.
+        target_compile_definitions(conduit_jni PRIVATE CONDUIT_CABI_EXPORTS)
         set_target_properties(conduit_jni PROPERTIES
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
