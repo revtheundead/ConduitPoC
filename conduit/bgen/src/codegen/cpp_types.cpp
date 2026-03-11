@@ -24,10 +24,6 @@ std::string base_to_string(model::PrimitiveBase base) {
     return "uint";
 }
 
-std::string endian_enum(model::Endian e) {
-    return e == model::Endian::Big ? "conduit::io::Endian::Big" : "conduit::io::Endian::Little";
-}
-
 bool needs_encoding_conversion(model::StringEncoding enc) {
     return enc == model::StringEncoding::Ia5 || enc == model::StringEncoding::Ebcdic;
 }

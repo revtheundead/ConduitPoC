@@ -392,6 +392,49 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
     return err;
 }
 
+// Message logging (passthrough)
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nLogRecvMessage(
+    JNIEnv* env, jclass, jlong handle, jint peerId, jstring jtypeName,
+    jlong byteCount, jstring jcontent) {
+
+    if (handle == 0 || !jtypeName) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    const char* typeName = env->GetStringUTFChars(jtypeName, nullptr);
+    const char* content = jcontent ? env->GetStringUTFChars(jcontent, nullptr) : nullptr;
+
+    int err = conduit_log_recv_message(
+        reinterpret_cast<conduit_transceiver_t*>(handle),
+        static_cast<conduit_peer_id>(peerId),
+        typeName,
+        static_cast<size_t>(byteCount),
+        content);
+
+    env->ReleaseStringUTFChars(jtypeName, typeName);
+    if (content) env->ReleaseStringUTFChars(jcontent, content);
+    return err;
+}
+
+JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nLogSendMessage(
+    JNIEnv* env, jclass, jlong handle, jint peerId, jstring jtypeName,
+    jlong byteCount, jstring jcontent) {
+
+    if (handle == 0 || !jtypeName) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    const char* typeName = env->GetStringUTFChars(jtypeName, nullptr);
+    const char* content = jcontent ? env->GetStringUTFChars(jcontent, nullptr) : nullptr;
+
+    int err = conduit_log_send_message(
+        reinterpret_cast<conduit_transceiver_t*>(handle),
+        static_cast<conduit_peer_id>(peerId),
+        typeName,
+        static_cast<size_t>(byteCount),
+        content);
+
+    env->ReleaseStringUTFChars(jtypeName, typeName);
+    if (content) env->ReleaseStringUTFChars(jcontent, content);
+    return err;
+}
+
 // Handler registration
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nOnMessage(
     JNIEnv*, jclass, jlong handle, jlong typeId, jint callbackKey) {

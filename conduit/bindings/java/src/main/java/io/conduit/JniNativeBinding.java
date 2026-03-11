@@ -87,6 +87,11 @@ public final class JniNativeBinding implements NativeBinding {
     private static native int nSendBatch(long handle, int peerId, long typeId,
                                           byte[][] payloads, int[] lengths, int count);
 
+    private static native int nLogRecvMessage(long handle, int peerId, String typeName,
+                                               long byteCount, String content);
+    private static native int nLogSendMessage(long handle, int peerId, String typeName,
+                                               long byteCount, String content);
+
     private static native int nOnMessage(long handle, long typeId, int callbackKey);
     private static native int nOnAnyMessage(long handle, int callbackKey);
     private static native int nRemoveHandler(long handle, int peerId, long typeId);
@@ -235,6 +240,18 @@ public final class JniNativeBinding implements NativeBinding {
             lengths[i] = arrays[i].length;
         }
         return nSendBatch(handle, peerId, typeId, arrays, lengths, count);
+    }
+
+    @Override
+    public int logRecvMessage(long handle, int peerId, String typeName,
+                              long byteCount, String content) {
+        return nLogRecvMessage(handle, peerId, typeName, byteCount, content);
+    }
+
+    @Override
+    public int logSendMessage(long handle, int peerId, String typeName,
+                              long byteCount, String content) {
+        return nLogSendMessage(handle, peerId, typeName, byteCount, content);
     }
 
     @Override

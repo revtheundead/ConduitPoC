@@ -292,6 +292,38 @@ public final class PanamaNativeBinding implements NativeBinding {
     }
 
     // ================================================================
+    // Message logging (passthrough)
+    // ================================================================
+
+    @Override
+    public int logRecvMessage(long handle, int peerId, String typeName,
+                              long byteCount, String content) {
+        try (var logArena = Arena.ofConfined()) {
+            var cTypeName = logArena.allocateUtf8String(typeName);
+            var cContent = (content != null)
+                ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
+            return (int) CabiBindings.conduit_log_recv_message.invokeExact(
+                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
+        } catch (Throwable e) {
+            throw new RuntimeException("logRecvMessage failed", e);
+        }
+    }
+
+    @Override
+    public int logSendMessage(long handle, int peerId, String typeName,
+                              long byteCount, String content) {
+        try (var logArena = Arena.ofConfined()) {
+            var cTypeName = logArena.allocateUtf8String(typeName);
+            var cContent = (content != null)
+                ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
+            return (int) CabiBindings.conduit_log_send_message.invokeExact(
+                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
+        } catch (Throwable e) {
+            throw new RuntimeException("logSendMessage failed", e);
+        }
+    }
+
+    // ================================================================
     // Handler registration
     // ================================================================
 

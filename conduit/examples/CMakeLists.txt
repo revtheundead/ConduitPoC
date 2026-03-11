@@ -31,6 +31,18 @@ target_include_directories(sentry_link_example
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
+# Place example binaries under build/examples/ instead of the global
+# build/lib/.  Per-config overrides prevent MSVC multi-config generators
+# from appending a config subdirectory.
+set_target_properties(sentry_link_example PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(sentry_link_example PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/examples"
+    )
+endforeach()
+
 # ----------------------------------------------------------------------------
 # Generate ASTERIX protocol code
 # ----------------------------------------------------------------------------
@@ -54,3 +66,12 @@ target_link_libraries(asterix_example
 target_include_directories(asterix_example
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
+
+set_target_properties(asterix_example PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(asterix_example PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/examples"
+    )
+endforeach()

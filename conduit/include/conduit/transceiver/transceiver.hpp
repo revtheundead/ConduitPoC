@@ -190,6 +190,15 @@ public:
     // Reset all statistics counters to zero.
     void stats_reset() noexcept { stats_.reset(); }
 
+    // Log a received message through the message log (for passthrough sessions
+    // where the caller decodes frames and knows the actual message types).
+    void log_recv_message(PeerId peer, std::string_view type_name,
+                          size_t byte_count, const std::string& content);
+
+    // Log a sent message through the message log (for passthrough sessions).
+    void log_send_message(PeerId peer, std::string_view type_name,
+                          size_t byte_count, const std::string& content);
+
     // Access the handler registry (for C ABI raw catch-all installation).
     HandlerRegistry& handlers() noexcept { return handlers_; }
 

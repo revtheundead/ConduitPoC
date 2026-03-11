@@ -443,6 +443,48 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
 }
 
 // ============================================================================
+// Message logging (passthrough)
+// ============================================================================
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content) {
+
+    if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    wrapper->xcvr.log_recv_message(
+        conduit::transceiver::PeerId{peer},
+        type_name, byte_count,
+        content ? std::string(content) : std::string{});
+    return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content) {
+
+    if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    wrapper->xcvr.log_send_message(
+        conduit::transceiver::PeerId{peer},
+        type_name, byte_count,
+        content ? std::string(content) : std::string{});
+    return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
+}
+
+// ============================================================================
 // Handler registration
 // ============================================================================
 
@@ -768,9 +810,11 @@ public:
         bool receive_only;
     };
 
-    PassthroughSession(FrameConfig frame_config,
+    PassthroughSession(std::string protocol,
+                       FrameConfig frame_config,
                        std::vector<TypeInfo> types)
-        : frame_config_(std::move(frame_config))
+        : protocol_(std::move(protocol))
+        , frame_config_(std::move(frame_config))
         , types_(std::move(types)) {
         for (const auto& t : types_) {
             ids_.push_back(t.type_id);
@@ -784,7 +828,7 @@ public:
         std::vector<conduit::traits::DecodedMessage> messages;
         conduit::traits::DecodedMessage dm;
         dm.type_id = 0; // passthrough: Java does the type routing
-        dm.type_name = "raw_frame";
+        dm.type_name = protocol_;
         dm.payload = std::vector<uint8_t>(data.begin(), data.end());
         dm.raw = std::vector<uint8_t>(data.begin(), data.end());
         messages.push_back(std::move(dm));
@@ -854,12 +898,15 @@ public:
     }
 
     [[nodiscard]] std::string_view protocol_name() const override {
-        return "passthrough";
+        return protocol_;
     }
+
+    [[nodiscard]] bool defers_message_logging() const override { return true; }
 
     void reset() override {}
 
 private:
+    std::string protocol_;
     FrameConfig frame_config_;
     std::vector<TypeInfo> types_;
     std::vector<uint64_t> ids_;
@@ -941,7 +988,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
                 cfg = it->second;
             }
             return static_cast<void*>(
-                new PassthroughSession(cfg->frame_config, cfg->types));
+                new PassthroughSession(session_name, cfg->frame_config, cfg->types));
         };
     }
     return CONDUIT_XCVR_OK;

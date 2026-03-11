@@ -51,6 +51,10 @@ public final class CabiBindings {
     public static final MethodHandle conduit_send;
     public static final MethodHandle conduit_send_batch;
 
+    // Message logging (passthrough)
+    public static final MethodHandle conduit_log_recv_message;
+    public static final MethodHandle conduit_log_send_message;
+
     // Handler registration
     public static final MethodHandle conduit_on_message;
     public static final MethodHandle conduit_on_any_message;
@@ -124,6 +128,17 @@ public final class CabiBindings {
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+
+        // conduit_log_recv_message(xcvr, peer, type_name, byte_count, content) -> error
+        conduit_log_recv_message = lookup("conduit_log_recv_message",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        // conduit_log_send_message(xcvr, peer, type_name, byte_count, content) -> error
+        conduit_log_send_message = lookup("conduit_log_send_message",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
 
         // Handler registration: conduit_on_message(xcvr, type_id, callback, user_data) -> callback_id
         conduit_on_message = lookup("conduit_on_message",
