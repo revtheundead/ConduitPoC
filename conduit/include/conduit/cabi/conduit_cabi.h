@@ -183,6 +183,28 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
     const uint8_t** payloads, const size_t* lens, size_t count);
 
 /* ================================================================
+ * Message logging (for passthrough sessions)
+ *
+ * Passthrough sessions defer message logging to the caller because the
+ * C++ side cannot identify message types or format content.  These
+ * functions let Java/Python log individual decoded messages through
+ * the same message log infrastructure.
+ * ================================================================ */
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content);         /* nullable — omitted when include_message_content is off */
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content);         /* nullable */
+
+/* ================================================================
  * Handler registration/removal
  * ================================================================ */
 CONDUIT_CABI_API conduit_callback_id conduit_on_message(

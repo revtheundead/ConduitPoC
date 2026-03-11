@@ -106,6 +106,10 @@ public:
 
     // Return the protocol name (e.g., "asterix", "sentry-link").
     [[nodiscard]] virtual std::string_view protocol_name() const { return "unknown"; }
+
+    // Passthrough sessions defer message logging to the caller (Java/Python)
+    // because the C++ side only sees raw frames and cannot format messages.
+    [[nodiscard]] virtual bool defers_message_logging() const { return false; }
 };
 
 } // namespace conduit::traits

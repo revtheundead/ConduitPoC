@@ -140,6 +140,36 @@ void Transceiver::set_shutdown_timeout(std::chrono::milliseconds timeout) {
     config_.shutdown_timeout = timeout;
 }
 
+void Transceiver::log_recv_message(PeerId peer, std::string_view type_name,
+                                   size_t byte_count, const std::string& content) {
+    if (!message_log_) return;
+    std::shared_lock lock(peers_mutex_);
+    auto* ctx = find_peer(peer);
+    if (!ctx) return;
+    std::string peer_name = ctx->name;
+    std::string remote = ctx->remote_endpoint;
+    std::string protocol = std::string(ctx->session->protocol_name());
+    std::string transport = std::string(ctx->transport->transport_type());
+    lock.unlock();
+    message_log_->log_recv(peer_name, remote, type_name, byte_count,
+                           content, protocol, transport);
+}
+
+void Transceiver::log_send_message(PeerId peer, std::string_view type_name,
+                                   size_t byte_count, const std::string& content) {
+    if (!message_log_) return;
+    std::shared_lock lock(peers_mutex_);
+    auto* ctx = find_peer(peer);
+    if (!ctx) return;
+    std::string peer_name = ctx->name;
+    std::string remote = ctx->remote_endpoint;
+    std::string protocol = std::string(ctx->session->protocol_name());
+    std::string transport = std::string(ctx->transport->transport_type());
+    lock.unlock();
+    message_log_->log_send(peer_name, remote, type_name, byte_count,
+                           content, protocol, transport);
+}
+
 // ============================================================================
 // Peer management
 // ============================================================================
@@ -531,7 +561,7 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
                            ctx->session->encode_wrap(type_id, payload));
         encoded = std::move(enc.bytes);
 
-        if (message_log_) {
+        if (message_log_ && !ctx->session->defers_message_logging()) {
             log_type_name = std::string(ctx->session->type_name(type_id));
             if (config_.message_log.include_message_content) {
                 log_content = ctx->session->format_outbound(
@@ -546,7 +576,7 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
 
     lock.unlock();
 
-    if (message_log_) {
+    if (message_log_ && !log_peer_name.empty()) {
         message_log_->log_send(log_peer_name, log_remote, log_type_name,
                                encoded.size(), log_content, log_protocol,
                                log_transport);
@@ -592,7 +622,7 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
                            ctx->session->encode_batch(type_id, payloads));
         encoded = std::move(enc.bytes);
 
-        if (message_log_) {
+        if (message_log_ && !ctx->session->defers_message_logging()) {
             log_type_name = std::string(ctx->session->type_name(type_id));
             if (config_.message_log.include_message_content) {
                 for (size_t i = 0; i < payloads.size(); ++i) {
@@ -610,7 +640,7 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
 
     lock.unlock();
 
-    if (message_log_) {
+    if (message_log_ && !log_peer_name.empty()) {
         message_log_->log_send(log_peer_name, log_remote, log_type_name,
                                encoded.size(), log_content, log_protocol,
                                log_transport);
@@ -669,7 +699,7 @@ void Transceiver::handle_data_received(PeerId peer,
 
         auto log_decoded_messages = [&](const std::vector<traits::DecodedMessage>& msgs,
                                         size_t frame_bytes) {
-            if (!message_log_) return;
+            if (!message_log_ || ctx->session->defers_message_logging()) return;
             for (const auto& msg : msgs) {
                 RecvLogEntry entry;
                 entry.peer_name = log_peer_name;

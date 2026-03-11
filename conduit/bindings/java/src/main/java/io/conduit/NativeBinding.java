@@ -89,6 +89,18 @@ public interface NativeBinding extends AutoCloseable {
     int sendBatch(long handle, int peerId, long typeId, List<byte[]> payloads);
 
     // ================================================================
+    // Message logging (passthrough)
+    // ================================================================
+
+    /** Log a received message (for passthrough sessions). */
+    int logRecvMessage(long handle, int peerId, String typeName,
+                       long byteCount, String content);
+
+    /** Log a sent message (for passthrough sessions). */
+    int logSendMessage(long handle, int peerId, String typeName,
+                       long byteCount, String content);
+
+    // ================================================================
     // Handler registration
     // ================================================================
 

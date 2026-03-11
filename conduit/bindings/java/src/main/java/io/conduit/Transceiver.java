@@ -226,6 +226,9 @@ public class Transceiver implements AutoCloseable {
     private Object javaSession;
     private java.lang.reflect.Method sessionEncodeWrap;
     private java.lang.reflect.Method sessionDecodeFrame;
+    private java.lang.reflect.Method sessionFormatMessage;
+    private java.lang.reflect.Method sessionTypeName;
+    private volatile boolean logIncludeContent;
     private final ConcurrentHashMap<Long, CopyOnWriteArrayList<TypedMessageCallback<?>>>
         sessionHandlers = new ConcurrentHashMap<>();
 
@@ -312,6 +315,7 @@ public class Transceiver implements AutoCloseable {
                 cfg.filename, cfg.sentFilename, cfg.receivedFilename,
                 cfg.includeMessageContent);
         if (err != 0) throw new ConduitError(err, "Failed to set message log config");
+        this.logIncludeContent = cfg.includeMessageContent;
     }
 
     // ================================================================
@@ -480,6 +484,8 @@ public class Transceiver implements AutoCloseable {
             this.javaSession = session;
             this.sessionEncodeWrap = cls.getMethod("encodeWrap", long.class, Object.class);
             this.sessionDecodeFrame = cls.getMethod("decodeFrame", byte[].class);
+            this.sessionFormatMessage = cls.getMethod("formatMessage", long.class, Object.class);
+            this.sessionTypeName = cls.getMethod("typeName", long.class);
 
             // Install a raw frame dispatcher: PassthroughSession delivers raw
             // frames with type_id=0.  We decode them here and fan out to the
@@ -493,6 +499,10 @@ public class Transceiver implements AutoCloseable {
                     for (Map<String, Object> dm : messages) {
                         long tid = (Long) dm.get("type_id");
                         Object payload = dm.get("payload");
+
+                        // Log each decoded message with its real type name
+                        logDecodedRecv(peerId, tid, payload, data.length);
+
                         CopyOnWriteArrayList<TypedMessageCallback<?>> handlers =
                             sessionHandlers.get(tid);
                         if (handlers != null) {
@@ -581,6 +591,7 @@ public class Transceiver implements AutoCloseable {
                 }
                 byte[] frameBytes = (byte[]) result.get("bytes");
                 sendRaw(peerId, typeId, frameBytes);
+                logDecodedSend(peerId, typeId, msg, frameBytes.length);
             } else {
                 // Original path: encode message bytes, let C++ session wrap them.
                 byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
@@ -633,6 +644,32 @@ public class Transceiver implements AutoCloseable {
         if (err != 0) {
             throw new ConduitError(err, "sendBatch failed");
         }
+    }
+
+    // ================================================================
+    // Message logging helpers (passthrough mode)
+    // ================================================================
+
+    private void logDecodedRecv(int peerId, long typeId, Object payload, int frameBytes) {
+        if (sessionFormatMessage == null) return;
+        try {
+            String tname = (String) sessionTypeName.invoke(javaSession, typeId);
+            String content = logIncludeContent
+                ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
+                : null;
+            binding.logRecvMessage(handle, peerId, tname, frameBytes, content);
+        } catch (Exception ignored) {}
+    }
+
+    private void logDecodedSend(int peerId, long typeId, Object payload, int frameBytes) {
+        if (sessionFormatMessage == null) return;
+        try {
+            String tname = (String) sessionTypeName.invoke(javaSession, typeId);
+            String content = logIncludeContent
+                ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
+                : null;
+            binding.logSendMessage(handle, peerId, tname, frameBytes, content);
+        } catch (Exception ignored) {}
     }
 
     // ================================================================

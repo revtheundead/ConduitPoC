@@ -17,10 +17,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
-#include <iomanip>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -445,6 +443,48 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_send_batch(
 }
 
 // ============================================================================
+// Message logging (passthrough)
+// ============================================================================
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content) {
+
+    if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    wrapper->xcvr.log_recv_message(
+        conduit::transceiver::PeerId{peer},
+        type_name, byte_count,
+        content ? std::string(content) : std::string{});
+    return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
+}
+
+CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
+    conduit_transceiver_t* xcvr,
+    conduit_peer_id peer,
+    const char* type_name,
+    size_t byte_count,
+    const char* content) {
+
+    if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
+
+    CABI_TRY
+    auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    wrapper->xcvr.log_send_message(
+        conduit::transceiver::PeerId{peer},
+        type_name, byte_count,
+        content ? std::string(content) : std::string{});
+    return CONDUIT_XCVR_OK;
+    CABI_CATCH_ERR
+}
+
+// ============================================================================
 // Handler registration
 // ============================================================================
 
@@ -857,23 +897,11 @@ public:
         return false;
     }
 
-    [[nodiscard]] std::string format_message(uint64_t /*type_id*/,
-                                              const std::any& payload) const override {
-        auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
-        if (!raw || raw->empty()) return {};
-        std::ostringstream oss;
-        oss << std::hex << std::setfill('0');
-        for (size_t i = 0; i < raw->size(); ++i) {
-            if (i > 0 && (i % 16) == 0) oss << '\n';
-            else if (i > 0) oss << ' ';
-            oss << std::setw(2) << static_cast<unsigned>((*raw)[i]);
-        }
-        return oss.str();
-    }
-
     [[nodiscard]] std::string_view protocol_name() const override {
         return protocol_;
     }
+
+    [[nodiscard]] bool defers_message_logging() const override { return true; }
 
     void reset() override {}
 
