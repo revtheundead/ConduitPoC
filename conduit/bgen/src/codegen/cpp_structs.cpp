@@ -141,14 +141,15 @@ void emit_frame_field_read(EmitContext& ctx, const model::Field& f,
 // Emit the length backpatch after payload and footer encoding
 void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
                                  const FieldTypeInfo& fti) {
-    bool payload_only = !f.auto_expr->field_ref.empty() && f.auto_expr->field_ref == "payload";
+    const auto& auto_expr = *f.auto_expr;
+    bool payload_only = !auto_expr.field_ref.empty() && auto_expr.field_ref == "payload";
     std::string raw_length;
     if (payload_only) {
         raw_length = "w.size_bytes() - payload_start_pos_";
     } else {
         raw_length = "w.size_bytes() - frame_start_pos_";
     }
-    std::string length_expr = apply_arith(raw_length, f.auto_expr->modifier);
+    std::string length_expr = apply_arith(raw_length, auto_expr.modifier);
     std::string cast_type = storage_type_for_bits(fti.bits, false);
     std::string patch_call;
     if (fti.bits <= 8) {
@@ -807,10 +808,11 @@ void StructEmitter::emit_variant_aliases(const std::vector<model::StructChild>& 
                 }
             }
             if (c->otherwise) {
-                if (!c->otherwise->type_ref.empty()) {
+                const auto& ow = *c->otherwise;
+                if (!ow.type_ref.empty()) {
                     if (!cases_str.empty()) cases_str += ", ";
-                    cases_str += to_cpp_type_name(c->otherwise->type_ref);
-                } else if (!c->otherwise->children.empty()) {
+                    cases_str += to_cpp_type_name(ow.type_ref);
+                } else if (!ow.children.empty()) {
                     if (!cases_str.empty()) cases_str += ", ";
                     cases_str += get_child_class_name(c->name + "Otherwise");
                 }
