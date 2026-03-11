@@ -271,13 +271,16 @@ if(CONDUIT_BUILD_JNI)
     find_package(JNI REQUIRED)
 
     if(CONDUIT_BUILD_CODEC_CABI)
-        # Bundle CABI source directly so the JNI lib is self-contained
+        # Link against the CABI shared library instead of recompiling its
+        # source.  Recompiling conduit_codec_cabi.cpp into this DLL created
+        # duplicate singletons (anonymous-namespace statics) and a
+        # __declspec(dllexport) / __declspec(dllimport) mismatch that
+        # crashed std::mutex on some MSVC toolchains.
         add_library(conduit_codec_jni SHARED
             src/jni/conduit_codec_jni.cpp
-            src/cabi/conduit_codec_cabi.cpp
         )
         target_link_libraries(conduit_codec_jni PRIVATE
-            conduit_codec conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+            conduit_codec_cabi conduit_warnings ${JNI_LIBRARIES})
         target_include_directories(conduit_codec_jni PRIVATE
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -290,13 +293,16 @@ if(CONDUIT_BUILD_JNI)
     endif()
 
     if(CONDUIT_BUILD_CABI)
-        # Bundle CABI source directly so the JNI lib is self-contained
+        # Link against the CABI shared library instead of recompiling its
+        # source.  Recompiling conduit_cabi.cpp into this DLL created
+        # duplicate singletons (anonymous-namespace statics) and a
+        # __declspec(dllexport) / __declspec(dllimport) mismatch that
+        # crashed std::mutex on some MSVC toolchains.
         add_library(conduit_jni SHARED
             src/jni/conduit_jni.cpp
-            src/cabi/conduit_cabi.cpp
         )
         target_link_libraries(conduit_jni PRIVATE
-            conduit conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+            conduit_cabi conduit_warnings ${JNI_LIBRARIES})
         target_include_directories(conduit_jni PRIVATE
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
