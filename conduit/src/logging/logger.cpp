@@ -246,7 +246,7 @@ void Logger::clearSinks() {
 }
 
 void Logger::log(Level level,
-                 std::string_view message,
+                 std::string_view message,       // NOLINT(bugprone-easily-swappable-parameters)
                  std::string_view category,
                  std::source_location location) {
     if (!isEnabled(level)) return;

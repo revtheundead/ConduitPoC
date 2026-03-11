@@ -32,15 +32,15 @@ typedef uint32_t conduit_callback_id;
  * Error codes (mirrors conduit::ErrorCode categories)
  * ================================================================ */
 typedef int32_t conduit_xcvr_error_t;
-#define CONDUIT_XCVR_OK                    0
-#define CONDUIT_XCVR_ERR_INVALID_ARGUMENT -1
-#define CONDUIT_XCVR_ERR_ALREADY_RUNNING  -2
-#define CONDUIT_XCVR_ERR_NOT_RUNNING      -3
-#define CONDUIT_XCVR_ERR_PEER_NOT_FOUND   -4
-#define CONDUIT_XCVR_ERR_SEND_FAILED      -5
-#define CONDUIT_XCVR_ERR_ENCODE_FAILED    -6
-#define CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED -7
-#define CONDUIT_XCVR_ERR_UNKNOWN          -99
+#define CONDUIT_XCVR_OK                      0
+#define CONDUIT_XCVR_ERR_INVALID_ARGUMENT  (-1)
+#define CONDUIT_XCVR_ERR_ALREADY_RUNNING   (-2)
+#define CONDUIT_XCVR_ERR_NOT_RUNNING       (-3)
+#define CONDUIT_XCVR_ERR_PEER_NOT_FOUND    (-4)
+#define CONDUIT_XCVR_ERR_SEND_FAILED       (-5)
+#define CONDUIT_XCVR_ERR_ENCODE_FAILED     (-6)
+#define CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED (-7)
+#define CONDUIT_XCVR_ERR_UNKNOWN           (-99)
 
 /* ================================================================
  * Transport configuration

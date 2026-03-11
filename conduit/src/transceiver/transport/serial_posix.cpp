@@ -252,6 +252,7 @@ VoidResult SerialTransport::Impl::configure_port() {
         case 6: tty.c_cflag |= CS6; break;
         case 7: tty.c_cflag |= CS7; break;
         case 8: tty.c_cflag |= CS8; break;
+        default: tty.c_cflag |= CS8; break;
     }
 
     // Parity

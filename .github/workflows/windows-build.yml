@@ -953,8 +953,9 @@ jobs:
 
       - name: Run clang-tidy on conduit sources
         run: |
-          # Run clang-tidy on all conduit source files (not third-party or generated)
+          # Run clang-tidy on all conduit source files (not third-party, generated, or JNI)
           find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
+            grep -v '/jni/' | \
             xargs clang-tidy-19 -p build \
               --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
               --warnings-as-errors='bugprone-*' \

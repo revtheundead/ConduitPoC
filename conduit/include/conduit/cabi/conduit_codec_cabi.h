@@ -31,14 +31,14 @@ typedef struct conduit_framer conduit_framer_t;
  * Error codes
  * ================================================================ */
 typedef int32_t conduit_error_t;
-#define CONDUIT_OK                  0
-#define CONDUIT_ERR_DECODE_FAILED  -1
-#define CONDUIT_ERR_ENCODE_FAILED  -2
-#define CONDUIT_ERR_UNKNOWN_TYPE   -3
-#define CONDUIT_ERR_UNKNOWN_SESSION -4
-#define CONDUIT_ERR_BUFFER_TOO_SMALL -5
-#define CONDUIT_ERR_BATCH_NOT_SUPPORTED -6
-#define CONDUIT_ERR_UNKNOWN        -99
+#define CONDUIT_OK                       0
+#define CONDUIT_ERR_DECODE_FAILED      (-1)
+#define CONDUIT_ERR_ENCODE_FAILED      (-2)
+#define CONDUIT_ERR_UNKNOWN_TYPE       (-3)
+#define CONDUIT_ERR_UNKNOWN_SESSION    (-4)
+#define CONDUIT_ERR_BUFFER_TOO_SMALL   (-5)
+#define CONDUIT_ERR_BATCH_NOT_SUPPORTED (-6)
+#define CONDUIT_ERR_UNKNOWN            (-99)
 
 /* ================================================================
  * Decoded message (returned from decode)

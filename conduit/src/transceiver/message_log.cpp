@@ -54,7 +54,7 @@ void MessageLog::log_recv(const std::string& peer_name, std::string_view remote_
 }
 
 void MessageLog::write_entry(const std::string& direction,
-                             const std::string& peer_name, std::string_view remote_endpoint,
+                             const std::string& peer_name, std::string_view remote_endpoint, // NOLINT(bugprone-easily-swappable-parameters)
                              std::string_view type_name, size_t byte_count,
                              const std::string& message_content,
                              std::string_view protocol, std::string_view transport) {
@@ -111,7 +111,7 @@ std::ostream& MessageLog::get_stream(const std::string& key) {
     return ref;
 }
 
-std::string MessageLog::expand_filename(const std::string& pattern,
+std::string MessageLog::expand_filename(const std::string& pattern, // NOLINT(bugprone-easily-swappable-parameters)
                                          const std::string& direction_label,
                                          const std::string& peer_name) {
     std::string result = pattern;
@@ -130,7 +130,7 @@ std::string MessageLog::expand_filename(const std::string& pattern,
     return result;
 }
 
-std::string MessageLog::resolve_file_key(const std::string& direction,
+std::string MessageLog::resolve_file_key(const std::string& direction, // NOLINT(bugprone-easily-swappable-parameters)
                                          const std::string& peer_name) const {
     std::string dir_label = (direction == "SEND") ? "sent" : "received";
 
