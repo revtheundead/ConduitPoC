@@ -953,6 +953,8 @@ jobs:
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_CODEC_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_TESTS=OFF
           -DCMAKE_BUILD_TYPE=Release
