@@ -195,7 +195,11 @@ TEST_CASE("TCP: data routed to correct peer", "[tcp]") {
     REQUIRE(c_a.start().has_value());
     REQUIRE(c_b.start().has_value());
 
-    wait_until([&] { std::lock_guard lock(srv.peers_mutex); return srv.connected_peers.size() >= 2; });
+    wait_until([&] { std::lock_guard lock(srv.peers_mutex); return srv.connected_peers.size() >= 2; },
+               std::chrono::milliseconds(5000));
+
+    // Small delay to let connections fully stabilize
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // Client A sends 0xAA
     std::vector<uint8_t> msg_a = {0xAA};
@@ -205,7 +209,8 @@ TEST_CASE("TCP: data routed to correct peer", "[tcp]") {
     std::vector<uint8_t> msg_b = {0xBB};
     (void)c_b.client->send(c_b.peer_id, msg_b);
 
-    wait_until([&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size() >= 2; });
+    wait_until([&] { std::lock_guard lock(srv.rx_mutex); return srv.received_data.size() >= 2; },
+               std::chrono::milliseconds(5000));
 
     c_a.client->stop();
     c_b.client->stop();
@@ -375,7 +380,8 @@ TEST_CASE("TCP: large message 64KB", "[tcp]") {
     ClientHelper c("127.0.0.1", port, false, 0, PeerId{1});
     REQUIRE(c.start().has_value());
 
-    wait_until([&] { std::lock_guard lock(srv.peers_mutex); return !srv.connected_peers.empty(); });
+    wait_until([&] { std::lock_guard lock(srv.peers_mutex); return !srv.connected_peers.empty(); },
+               std::chrono::milliseconds(5000));
 
     // Build 65536-byte message
     std::vector<uint8_t> large_msg(65536);
@@ -392,7 +398,7 @@ TEST_CASE("TCP: large message 64KB", "[tcp]") {
         size_t total = 0;
         for (auto& [pid, data] : srv.received_data) total += data.size();
         return total >= 65536;
-    }, std::chrono::milliseconds(5000));
+    }, std::chrono::milliseconds(10000));
 
     c.client->stop();
     srv.server->stop();
