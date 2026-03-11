@@ -1393,7 +1393,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
             ctx_.line("auto sub = r.sub_reader(sub_len);");
             ctx_.line("if (!sub) return std::unexpected(sub.error()" + choice_ctx + ");");
             ctx_.line("auto& cr = *sub;");
-        } else {
+        } else if (c.length) {
             ctx_.line("auto sub = r.sub_reader(" + std::to_string(*c.length) + ");");
             ctx_.line("if (!sub) return std::unexpected(sub.error()" + choice_ctx + ");");
             ctx_.line("auto& cr = *sub;");

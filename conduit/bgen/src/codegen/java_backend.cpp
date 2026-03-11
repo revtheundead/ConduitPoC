@@ -118,7 +118,7 @@ std::string j_qualify_const(const std::string& val, bool is_long = false) {
             } else if (is_long) {
                 return val + "L";
             }
-        } catch (...) {
+        } catch (...) { // NOLINT(bugprone-empty-catch)
             // If parsing fails, return as-is
         }
     }
@@ -1493,7 +1493,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.indent();
                 if (cd->length_from) {
                     ctx.line("BitReader cr = r.subReader(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx) + ");");
-                } else {
+                } else if (cd->length) {
                     ctx.line("BitReader cr = r.subReader(" + std::to_string(*cd->length) + ");");
                 }
                 reader_var = "cr";

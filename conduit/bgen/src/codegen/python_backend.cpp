@@ -1621,8 +1621,8 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             if (bounded) {
                 if (cd->length_from) {
                     ctx.line("_cr = r.sub_reader(int(" + py_expr_ctx(*cd->length_from, pfx, outer_ctx) + "))");
-                } else {
-                    ctx.line("_cr = r.sub_reader(" + std::to_string(cd->length.value()) + ")");
+                } else if (cd->length) {
+                    ctx.line("_cr = r.sub_reader(" + std::to_string(*cd->length) + ")");
                 }
                 reader_var = "_cr";
             }
