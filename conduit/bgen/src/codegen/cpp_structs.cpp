@@ -141,6 +141,7 @@ void emit_frame_field_read(EmitContext& ctx, const model::Field& f,
 // Emit the length backpatch after payload and footer encoding
 void emit_frame_length_backpatch(EmitContext& ctx, const model::Field& f,
                                  const FieldTypeInfo& fti) {
+    if (!f.auto_expr) return;
     const auto& auto_expr = *f.auto_expr;
     bool payload_only = !auto_expr.field_ref.empty() && auto_expr.field_ref == "payload";
     std::string raw_length;
