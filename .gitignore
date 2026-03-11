@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.class
 build/
+build_*/
 build-*/
 .gradle/
 **/generated/
