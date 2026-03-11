@@ -7,15 +7,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Threading support — required for std::mutex across all platforms.
-# MSVC uses Win32 threads natively; no extra flags are needed and the
-# pthread probe would only produce confusing "not found" messages.
-if(NOT MSVC)
-    # On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
-    # Threads::Threads target (no -pthread flag).  We patch it to always
-    # carry -pthread so that __gthread_active_p() returns true and std::mutex
-    # works correctly on every toolchain (older glibc, musl, macOS, MinGW).
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-endif()
+# On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
+# Threads::Threads target (no -pthread flag).  We patch it to always
+# carry -pthread so that __gthread_active_p() returns true and std::mutex
+# works correctly on every toolchain (older glibc, musl, macOS, MinGW).
+# On MSVC the pthread probe prints harmless "not found" messages during
+# configure — these can be safely ignored; Win32 threads are used instead.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if(CMAKE_USE_PTHREADS_INIT AND NOT CMAKE_THREAD_LIBS_INIT)
