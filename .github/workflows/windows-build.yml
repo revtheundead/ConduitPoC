@@ -120,6 +120,49 @@ jobs:
       - name: Build xcvr (MinGW)
         run: cmake --build build-mingw --parallel
 
+      - name: Smoke-test xcvr apps (MinGW)
+        shell: pwsh
+        run: |
+          $buildDir = "build-mingw"
+
+          # Start server in background
+          $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
+            -ArgumentList "server","--port","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 2
+
+          # Start client in background
+          $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
+            -ArgumentList "127.0.0.1","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server stdout ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stdout ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both MinGW apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            exit 1
+          }
+
   # ── C++ / Linux GCC ────────────────────────────────────────────────────────
   cpp-linux:
     runs-on: ubuntu-latest
@@ -199,7 +242,7 @@ jobs:
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         run: |
           BUILD_DIR=${{ github.workspace }}/build-conduit
-          JNI_LIB=$BUILD_DIR/libconduit_jni.so
+          JNI_LIB=$BUILD_DIR/lib/libconduit_jni.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f xcvr-java11/pom.xml -PrunDummyPeer \
@@ -261,8 +304,8 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          # With MSVC multi-config generator, bgen.exe lands in build-conduit/bgen/Release/
-          $bgen = "build-conduit/bgen/Release/bgen.exe"
+          # CMake config flattens all configs into bgen/ (no Release/ subdirectory)
+          $bgen = "build-conduit/bgen/bgen.exe"
           & $bgen --input xcvr-java11/asterix/asterix.bmdl.xml `
                   --output xcvr-java11/asterix/generated --language java
           & $bgen --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
@@ -274,19 +317,18 @@ jobs:
       - name: Build xcvr-java11
         shell: pwsh
         run: |
-          $buildDir = "${{ github.workspace }}\build-conduit\Release"
+          $buildDir = "${{ github.workspace }}\build-conduit"
           mvn package -q -f xcvr-java11/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir"
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         shell: pwsh
         run: |
-          # conduit_jni.dll lands in build-conduit/Release/ with MSVC
-          $BuildDir = "${{ github.workspace }}\build-conduit\Release"
-          $JniLib = "$BuildDir\conduit_jni.dll"
+          $BuildDir = "${{ github.workspace }}\build-conduit"
+          $JniLib = "$BuildDir\lib\conduit_jni.dll"
 
-          # Add build dir to PATH so Windows can find conduit_cabi.dll
+          # Add lib dir to PATH so Windows can find conduit_cabi.dll
           # (dependent DLL of conduit_jni.dll) during library loading
-          $env:PATH = "$BuildDir;$env:PATH"
+          $env:PATH = "$BuildDir\lib;$env:PATH"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -384,7 +426,7 @@ jobs:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           BUILD_DIR=${{ github.workspace }}/conduit/build
-          CABI_PATH=$BUILD_DIR/libconduit_cabi.so
+          CABI_PATH=$BUILD_DIR/lib/libconduit_cabi.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f xcvr-java/pom.xml -PrunDummyPeer \
@@ -444,7 +486,7 @@ jobs:
       - name: Generate Java sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/bgen/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/bgen.exe"
           & $bgen --input xcvr-java/asterix/asterix.bmdl.xml `
                   --output xcvr-java/asterix/generated --language java
           & $bgen --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml `
@@ -456,8 +498,8 @@ jobs:
       - name: Build xcvr-java
         shell: pwsh
         run: |
-          $buildDir = "${{ github.workspace }}\conduit\build\Release"
-          $cabiPath = "$buildDir\conduit_cabi.dll"
+          $buildDir = "${{ github.workspace }}\conduit\build"
+          $cabiPath = "$buildDir\lib\conduit_cabi.dll"
           mvn package -q -f xcvr-java/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
@@ -465,8 +507,8 @@ jobs:
         env:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
-          $BuildDir = "${{ github.workspace }}\conduit\build\Release"
-          $CabiPath = "$BuildDir\conduit_cabi.dll"
+          $BuildDir = "${{ github.workspace }}\conduit\build"
+          $CabiPath = "$BuildDir\lib\conduit_cabi.dll"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -558,7 +600,7 @@ jobs:
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/libconduit_cabi.so
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/libconduit_cabi.so
           PYTHONUNBUFFERED: "1"
         run: |
           cd xcvr-python
@@ -613,7 +655,7 @@ jobs:
       - name: Generate Python sources from BMDL
         shell: pwsh
         run: |
-          $bgen = "conduit/build/bgen/Release/bgen.exe"
+          $bgen = "conduit/build/bgen/bgen.exe"
           & $bgen --input xcvr-python/asterix/asterix.bmdl.xml `
                   --output xcvr-python/asterix/generated --language python
           & $bgen --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
@@ -627,7 +669,7 @@ jobs:
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         shell: pwsh
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/conduit_cabi.dll
           PYTHONUNBUFFERED: "1"
         run: |
           # Start DummyPeer in server mode in the background
@@ -674,3 +716,251 @@ jobs:
             }
             exit 1
           }
+
+  # ── C++ / Linux GCC Debug ──────────────────────────────────────────────────
+  cpp-linux-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (Debug, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
+  cpp-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / Linux Clang ──────────────────────────────────────────────────────
+  cpp-linux-clang:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang 18
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          . /etc/lsb-release
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update -q
+          sudo apt-get install -y clang-18
+
+      - name: Configure conduit (Clang 18, with tests)
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / Linux ASan + UBSan ───────────────────────────────────────────────
+  cpp-linux-sanitizers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (ASan + UBSan, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCONDUIT_ENABLE_SANITIZERS=ON
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: cd build && ctest --output-on-failure --timeout 180
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug -DCONDUIT_ENABLE_SANITIZERS=ON
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Sanitizer smoke test completed"
+
+  # ── C++ / Linux TSan (Thread Sanitizer) ────────────────────────────────────
+  cpp-linux-tsan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (TSan, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests under TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: cd build && ctest --output-on-failure --timeout 180
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps under TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "TSan smoke test completed"
+
+  # ── C++ / Static Analysis (clang-tidy) ─────────────────────────────────────
+  cpp-clang-tidy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang 18 and clang-tidy
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          . /etc/lsb-release
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update -q
+          sudo apt-get install -y clang-18 clang-tidy-18
+
+      - name: Configure conduit (for compile_commands.json)
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=OFF
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Run clang-tidy on conduit sources
+        run: |
+          # Run clang-tidy on all conduit source files (not third-party or generated)
+          find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
+            xargs clang-tidy-18 -p build \
+              --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
+              --warnings-as-errors='bugprone-*' \
+              2>&1 | tee clang-tidy-output.txt
+          # Fail if clang-tidy reported warnings-as-errors
+          if grep -q 'error:' clang-tidy-output.txt; then
+            echo "clang-tidy found issues"
+            exit 1
+          fi

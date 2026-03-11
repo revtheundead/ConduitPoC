@@ -51,10 +51,18 @@ target_include_directories(bgen PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# Put bgen binary under build/bgen/ for easy discovery
+# Put bgen binary under build/bgen/ for easy discovery.
+# Per-config overrides are needed because the parent project sets global
+# CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG> — without these, the per-config
+# property would override our base RUNTIME_OUTPUT_DIRECTORY.
 set_target_properties(bgen PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bgen"
 )
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(bgen PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/bgen"
+    )
+endforeach()
 
 # bgen tests
 if(CONDUIT_BUILD_TESTS)

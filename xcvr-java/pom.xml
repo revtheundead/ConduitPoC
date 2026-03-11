@@ -17,7 +17,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <conduit.build.dir>${project.basedir}/../conduit/build</conduit.build.dir>
-        <conduit.cabi.path>${conduit.build.dir}/libconduit_cabi.so</conduit.cabi.path>
+        <conduit.cabi.path>${conduit.build.dir}/lib/libconduit_cabi.so</conduit.cabi.path>
         <!-- Override with -Dbgen.path=... for custom bgen locations.
              The default works for single-config generators (Make/Ninja).
              For MSVC multi-config builds, pass the full path including the config subdir,
@@ -140,7 +140,7 @@
                             <systemProperties>
                                 <systemProperty>
                                     <key>java.library.path</key>
-                                    <value>${conduit.build.dir}</value>
+                                    <value>${conduit.build.dir}/lib</value>
                                 </systemProperty>
                                 <systemProperty>
                                     <key>conduit.cabi.path</key>
@@ -175,7 +175,7 @@
                             <systemProperties>
                                 <systemProperty>
                                     <key>java.library.path</key>
-                                    <value>${conduit.build.dir}</value>
+                                    <value>${conduit.build.dir}/lib</value>
                                 </systemProperty>
                                 <systemProperty>
                                     <key>conduit.cabi.path</key>

@@ -136,7 +136,7 @@
                             <systemProperties>
                                 <systemProperty>
                                     <key>java.library.path</key>
-                                    <value>${conduit.build.dir}</value>
+                                    <value>${conduit.build.dir}/lib</value>
                                 </systemProperty>
                             </systemProperties>
                             <commandlineArgs>${exec.appArgs}</commandlineArgs>
@@ -163,7 +163,7 @@
                             <systemProperties>
                                 <systemProperty>
                                     <key>java.library.path</key>
-                                    <value>${conduit.build.dir}</value>
+                                    <value>${conduit.build.dir}/lib</value>
                                 </systemProperty>
                             </systemProperties>
                             <commandlineArgs>${exec.appArgs}</commandlineArgs>
