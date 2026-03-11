@@ -55,7 +55,19 @@ if(MSVC)
     )
     # Prevent windows.h from defining min/max macros (conflicts with std::min/std::max)
     # and reduce windows.h include bloat.
-    target_compile_definitions(conduit_warnings INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN)
+    #
+    # _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR: VS 2022 17.10+ changed std::mutex
+    # to use a constexpr constructor with a new internal layout (_Smtx_t /
+    # SRWLOCK).  When a DLL built with the new toolchain is loaded into a host
+    # process (e.g. a JVM) that already has an older msvcp140.dll, the mutex
+    # is initialized with the new layout but lock/unlock dispatches to the old
+    # DLL which expects _Mtx_t — causing an access violation at NULL.
+    # Defining this macro reverts to the classic non-constexpr constructor so
+    # the mutex is always initialized through the CRT, ensuring binary
+    # compatibility regardless of which msvcp140.dll version is loaded.
+    # See: https://github.com/microsoft/STL/issues/4730
+    target_compile_definitions(conduit_warnings INTERFACE
+        NOMINMAX WIN32_LEAN_AND_MEAN _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 else()
     target_compile_options(conduit_warnings INTERFACE
         -Wall -Wextra -Wpedantic -Wconversion -Wshadow
@@ -282,6 +294,11 @@ if(CONDUIT_BUILD_JNI)
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
+        # The JNI wrapper calls CABI functions bundled in the same DLL.
+        # Define the EXPORTS macro so the JNI .cpp sees the functions as
+        # dllexport (matching the CABI .cpp) rather than dllimport, which
+        # avoids unnecessary IAT thunks and linker warning LNK4217.
+        target_compile_definitions(conduit_codec_jni PRIVATE CONDUIT_CODEC_CABI_EXPORTS)
         set_target_properties(conduit_codec_jni PROPERTIES
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
@@ -301,6 +318,11 @@ if(CONDUIT_BUILD_JNI)
             ${JNI_INCLUDE_DIRS}
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
+        # The JNI wrapper calls CABI functions bundled in the same DLL.
+        # Define the EXPORTS macro so the JNI .cpp sees the functions as
+        # dllexport (matching the CABI .cpp) rather than dllimport, which
+        # avoids unnecessary IAT thunks and linker warning LNK4217.
+        target_compile_definitions(conduit_jni PRIVATE CONDUIT_CABI_EXPORTS)
         set_target_properties(conduit_jni PROPERTIES
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
