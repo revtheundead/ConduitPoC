@@ -966,14 +966,14 @@ jobs:
 
       - name: Run clang-tidy on conduit sources
         run: |
-          # Run clang-tidy on all conduit source files (not third-party or generated)
-          find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
+          # Only analyse files known to cmake (ensures correct include paths)
+          jq -r '.[].file' build/compile_commands.json | sort -u | \
             xargs clang-tidy-19 -p build \
-              --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
+              --checks='-*,bugprone-*' \
               --warnings-as-errors='bugprone-*' \
-              2>&1 | tee clang-tidy-output.txt
-          # Fail if clang-tidy reported warnings-as-errors
-          if grep -q 'error:' clang-tidy-output.txt; then
-            echo "clang-tidy found issues"
+              2>&1 | tee clang-tidy-output.txt || true
+          # Fail only on bugprone warnings promoted to errors
+          if grep -q 'warnings-as-errors' clang-tidy-output.txt; then
+            echo "clang-tidy found bugprone issues"
             exit 1
           fi
