@@ -121,9 +121,9 @@ private:
             auto h2 = std::hash<uint64_t>{}(k.type_id);
             // Boost-style hash combine with size_t-appropriate golden ratio
             if constexpr (sizeof(size_t) >= 8) {
-                h1 ^= h2 * size_t{0x9e3779b97f4a7c15} + (h1 << 6) + (h1 >> 2);
+                h1 ^= h2 * static_cast<size_t>(0x9e3779b97f4a7c15ULL) + (h1 << 6) + (h1 >> 2);
             } else {
-                h1 ^= h2 * size_t{0x9e3779b9} + (h1 << 6) + (h1 >> 2);
+                h1 ^= h2 * static_cast<size_t>(0x9e3779b9U) + (h1 << 6) + (h1 >> 2);
             }
             return h1;
         }

@@ -11,6 +11,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Threads::Threads target (no -pthread flag).  We patch it to always
 # carry -pthread so that __gthread_active_p() returns true and std::mutex
 # works correctly on every toolchain (older glibc, musl, macOS, MinGW).
+# On MSVC the pthread probe prints harmless "not found" messages during
+# configure — these can be safely ignored; Win32 threads are used instead.
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
