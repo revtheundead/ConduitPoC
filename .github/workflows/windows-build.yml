@@ -120,6 +120,49 @@ jobs:
       - name: Build xcvr (MinGW)
         run: cmake --build build-mingw --parallel
 
+      - name: Smoke-test xcvr apps (MinGW)
+        shell: pwsh
+        run: |
+          $buildDir = "build-mingw"
+
+          # Start server in background
+          $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
+            -ArgumentList "server","--port","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 2
+
+          # Start client in background
+          $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
+            -ArgumentList "127.0.0.1","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server stdout ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stdout ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both MinGW apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            exit 1
+          }
+
   # ── C++ / Linux GCC ────────────────────────────────────────────────────────
   cpp-linux:
     runs-on: ubuntu-latest
@@ -673,3 +716,243 @@ jobs:
             }
             exit 1
           }
+
+  # ── C++ / Linux GCC Debug ──────────────────────────────────────────────────
+  cpp-linux-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (Debug, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
+  cpp-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / Linux Clang ──────────────────────────────────────────────────────
+  cpp-linux-clang:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang
+
+      - name: Configure conduit (Clang, with tests)
+        env:
+          CC: clang
+          CXX: clang++
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: cd build && ctest --output-on-failure --timeout 120
+
+      - name: Configure and build xcvr
+        env:
+          CC: clang
+          CXX: clang++
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Smoke test completed"
+
+  # ── C++ / Linux ASan + UBSan ───────────────────────────────────────────────
+  cpp-linux-sanitizers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (ASan + UBSan, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCONDUIT_ENABLE_SANITIZERS=ON
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: cd build && ctest --output-on-failure --timeout 180
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug -DCONDUIT_ENABLE_SANITIZERS=ON
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "Sanitizer smoke test completed"
+
+  # ── C++ / Linux TSan (Thread Sanitizer) ────────────────────────────────────
+  cpp-linux-tsan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure conduit (TSan, with tests)
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests under TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: cd build && ctest --output-on-failure --timeout 180
+
+      - name: Configure and build xcvr
+        run: |
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
+          cmake --build build-xcvr --parallel
+
+      - name: Smoke-test xcvr apps under TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: |
+          cd build-xcvr
+          ./dummy_peer server --port 15000 --interval-ms 500 &
+          SERVER_PID=$!
+          sleep 2
+          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          kill $SERVER_PID 2>/dev/null || true
+          echo "TSan smoke test completed"
+
+  # ── C++ / Static Analysis (clang-tidy) ─────────────────────────────────────
+  cpp-clang-tidy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y clang-tidy clang
+
+      - name: Configure conduit (for compile_commands.json)
+        env:
+          CC: clang
+          CXX: clang++
+        run: >
+          cmake -B build -S conduit
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=OFF
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Run clang-tidy on conduit sources
+        run: |
+          # Run clang-tidy on all conduit source files (not third-party or generated)
+          find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
+            xargs clang-tidy -p build \
+              --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
+              --warnings-as-errors='bugprone-*' \
+              2>&1 | tee clang-tidy-output.txt
+          # Fail if clang-tidy reported warnings-as-errors
+          if grep -q 'error:' clang-tidy-output.txt; then
+            echo "clang-tidy found issues"
+            exit 1
+          fi
