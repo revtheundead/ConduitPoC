@@ -381,13 +381,8 @@ void py_collect_local_names(const std::vector<model::StructChild>& children,
     for (const auto& child : children) {
         std::visit([&names](const auto& c) {
             using T = std::decay_t<decltype(c)>;
-            if constexpr (std::is_same_v<T, model::Field>) {
-                if (!c.name.empty()) names.insert(c.name);
-            } else if constexpr (std::is_same_v<T, model::StructDef>) {
-                if (!c.name.empty()) names.insert(c.name);
-            } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
-                if (!c.name.empty()) names.insert(c.name);
-            } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
+            if constexpr (std::is_same_v<T, model::Field> || std::is_same_v<T, model::StructDef> ||
+                          std::is_same_v<T, model::ArrayDef> || std::is_same_v<T, model::ChoiceDef>) {
                 if (!c.name.empty()) names.insert(c.name);
             } else if constexpr (std::is_same_v<T, model::FxBlock>) {
                 py_collect_local_names(c.children, names);
@@ -1337,9 +1332,6 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                 ctx.line("_pl -= " + std::to_string(get_prefix_bytes(pti)));
             ctx.line(m + " = r.read_string(_pl" + enc_arg + ")");
             emit_py_field_trim(ctx, m, f, index);
-        } else if (f.length_star) {
-            ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
-            emit_py_field_trim(ctx, m, f, index);
         } else {
             ctx.line(m + " = r.read_string(r.remaining_bytes()" + enc_arg + ")");
             emit_py_field_trim(ctx, m, f, index);
@@ -1630,7 +1622,7 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 if (cd->length_from) {
                     ctx.line("_cr = r.sub_reader(int(" + py_expr_ctx(*cd->length_from, pfx, outer_ctx) + "))");
                 } else {
-                    ctx.line("_cr = r.sub_reader(" + std::to_string(*cd->length) + ")");
+                    ctx.line("_cr = r.sub_reader(" + std::to_string(cd->length.value()) + ")");
                 }
                 reader_var = "_cr";
             }
@@ -2580,11 +2572,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         std::string m = "self." + py_field(bf.name);
         ctx.line("if " + m + " is not None:");
         ctx.indent();
-        if (bf.is_choice) {
-            ctx.line(m + ".encode(w)");
-        } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
-            ctx.line(m + ".encode(w)");
-        } else if (bf.is_enum) {
+        if (bf.is_choice || (bf.is_struct && !bf.is_string && !bf.is_bytes) || bf.is_enum) {
             ctx.line(m + ".encode(w)");
         } else if (bf.has_scale) {
             std::string reverse_scale = "int((" + m + " - " + py_double(bf.offset) + ") / " + py_double(bf.scale) + ")";

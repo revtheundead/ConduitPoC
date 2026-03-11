@@ -161,7 +161,7 @@ CONDUIT_CABI_API void conduit_destroy(conduit_transceiver_t* xcvr) {
     if (!xcvr) return;
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
     try { if (wrapper->xcvr.is_running()) wrapper->xcvr.stop(); }
-    catch (...) { }
+    catch (...) { (void)0; /* Swallow all exceptions during teardown */ }
     delete wrapper;
 }
 

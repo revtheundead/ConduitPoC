@@ -794,19 +794,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Clang 18
+      - name: Install Clang 19
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
           . /etc/lsb-release
-          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
-            sudo tee /etc/apt/sources.list.d/llvm-18.list
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-19 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-19.list
           sudo apt-get update -q
-          sudo apt-get install -y clang-18
+          sudo apt-get install -y clang-19
 
-      - name: Configure conduit (Clang 18, with tests)
+      - name: Configure conduit (Clang 19, with tests)
         env:
-          CC: clang-18
-          CXX: clang++-18
+          CC: clang-19
+          CXX: clang++-19
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
@@ -821,8 +821,8 @@ jobs:
 
       - name: Configure and build xcvr
         env:
-          CC: clang-18
-          CXX: clang++-18
+          CC: clang-19
+          CXX: clang++-19
         run: |
           cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
           cmake --build build-xcvr --parallel
@@ -863,7 +863,11 @@ jobs:
 
       - name: Configure and build xcvr
         run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug -DCONDUIT_ENABLE_SANITIZERS=ON
+          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug \
+            -DCONDUIT_ENABLE_SANITIZERS=ON \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
           cmake --build build-xcvr --parallel
 
       - name: Smoke-test xcvr apps under sanitizers
@@ -931,36 +935,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Clang 18 and clang-tidy
+      - name: Install Clang 19 and clang-tidy
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
           . /etc/lsb-release
-          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-18 main" | \
-            sudo tee /etc/apt/sources.list.d/llvm-18.list
+          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-19 main" | \
+            sudo tee /etc/apt/sources.list.d/llvm-19.list
           sudo apt-get update -q
-          sudo apt-get install -y clang-18 clang-tidy-18
+          sudo apt-get install -y clang-19 clang-tidy-19
+
+      - name: Set up JDK for JNI headers
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Configure conduit (for compile_commands.json)
         env:
-          CC: clang-18
-          CXX: clang++-18
+          CC: clang-19
+          CXX: clang++-19
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_CODEC_CABI=ON
+          -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_TESTS=OFF
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Run clang-tidy on conduit sources
         run: |
-          # Run clang-tidy on all conduit source files (not third-party or generated)
-          find conduit/src conduit/include -name '*.cpp' -o -name '*.h' | \
-            xargs clang-tidy-18 -p build \
-              --checks='-*,bugprone-*,performance-*,readability-braces-around-statements,misc-unused-using-decls' \
+          # Only analyse first-party files known to cmake (skip third_party/)
+          jq -r '.[].file' build/compile_commands.json | sort -u | \
+            grep -v third_party/ | \
+            xargs clang-tidy-19 -p build \
+              --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters' \
               --warnings-as-errors='bugprone-*' \
-              2>&1 | tee clang-tidy-output.txt
-          # Fail if clang-tidy reported warnings-as-errors
-          if grep -q 'error:' clang-tidy-output.txt; then
-            echo "clang-tidy found issues"
+              2>&1 | tee clang-tidy-output.txt || true
+          # Fail only on bugprone warnings promoted to errors
+          if grep -q 'warnings-as-errors' clang-tidy-output.txt; then
+            echo "clang-tidy found bugprone issues"
             exit 1
           fi

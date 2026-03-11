@@ -1787,10 +1787,9 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
     auto get_child_name = [](const model::StructChild& child) -> std::string {
         return std::visit([](const auto& c) -> std::string {
             using T = std::decay_t<decltype(c)>;
-            if constexpr (std::is_same_v<T, model::Field>) return c.name;
-            else if constexpr (std::is_same_v<T, model::StructDef>) return c.name;
-            else if constexpr (std::is_same_v<T, model::ArrayDef>) return c.name;
-            else if constexpr (std::is_same_v<T, model::ChoiceDef>) return c.name;
+            if constexpr (std::is_same_v<T, model::Field> || std::is_same_v<T, model::StructDef> ||
+                          std::is_same_v<T, model::ArrayDef> || std::is_same_v<T, model::ChoiceDef>)
+                return c.name;
             else return {};
         }, child);
     };
@@ -2381,9 +2380,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         std::string m = j_field(bf.name);
         ctx.line("if (" + m + " != null) {");
         ctx.indent();
-        if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
-            ctx.line(m + ".encode(w);");
-        } else if (bf.is_enum) {
+        if ((bf.is_struct && !bf.is_string && !bf.is_bytes) || bf.is_enum) {
             ctx.line(m + ".encode(w);");
         } else if (bf.has_scale) {
             std::string be = (bf.raw_endian == model::Endian::Big) ? "true" : "false";
@@ -2770,11 +2767,12 @@ std::string generate_j_class(const std::string& name,
         if (auto_len_field) {
             ctx.line("int _structStart = w.sizeBytes();");
         }
-        std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
+        std::string len_ref_target = (auto_len_ref_field && auto_len_ref_field->auto_expr)
+            ? auto_len_ref_field->auto_expr->field_ref : "";
         emit_j_encode_children(ctx, children, index, "this", len_ref_target, auto_len_ref_field, name_map, cn);
 
         // Backpatch auto-length (whole struct)
-        if (auto_len_field) {
+        if (auto_len_field && auto_len_field->auto_expr) {
             auto al_fi = j_resolve_field(*auto_len_field, index);
             bool be = (al_fi.endian == model::Endian::Big);
             std::string size_expr = "w.sizeBytes() - _structStart";
@@ -3881,7 +3879,6 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             if (!lt.config_fields.empty() && has_config) {
                 for (const auto& cf : lt.config_fields) {
                     std::string cfg_key = cf.key;
-                    std::string cfg_type = (cf.bits > 32) ? "long" : "int";
                     std::string cast = "((Number) config.getOrDefault(\"" + cfg_key + "\", 0))";
                     if (cf.bits <= 32) cast += ".intValue()";
                     else cast += ".longValue()";

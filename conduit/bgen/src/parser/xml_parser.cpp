@@ -439,10 +439,10 @@ public:
         if (type_attr) f.type_ref = type_attr.value();
 
         auto bits = parse_nonneg_int_attr(node, "bits");
-        if (bits) f.bits = *bits;
+        if (bits) f.bits = bits;
 
         auto bytes = parse_nonneg_int_attr(node, "bytes");
-        if (bytes) f.bytes_attr = *bytes;
+        if (bytes) f.bytes_attr = bytes;
 
         auto signed_attr = node.attribute("signed");
         if (signed_attr) f.is_signed = std::string_view(signed_attr.value()) == "true";
@@ -488,7 +488,7 @@ public:
 
         // Presence
         auto bit_attr = parse_int_attr(node, "bit");
-        if (bit_attr) f.bit = *bit_attr;
+        if (bit_attr) f.bit = bit_attr;
 
         f.present_when = parse_expr_attr(node, "present-when");
 
@@ -630,7 +630,7 @@ public:
                 } else {
                     auto ext_val = parse_nonneg_int_attr(bitmap_node, "ext");
                     if (ext_val) {
-                        sd.bitmap_ext = *ext_val;
+                        sd.bitmap_ext = ext_val;
                     } else {
                         error(bitmap_node, "<bitmap> ext attribute must be 'none' or a valid integer, got '" +
                              std::string(v) + "'");
@@ -640,7 +640,7 @@ public:
         }
 
         auto bit_attr = parse_int_attr(node, "bit");
-        if (bit_attr) sd.bit = *bit_attr;
+        if (bit_attr) sd.bit = bit_attr;
         sd.present_when = parse_expr_attr(node, "present-when");
 
         auto type_name_attr = node.attribute("typeName");
@@ -703,7 +703,7 @@ public:
 
         // Presence
         auto bit_attr = parse_int_attr(node, "bit");
-        if (bit_attr) ad.bit = *bit_attr;
+        if (bit_attr) ad.bit = bit_attr;
         ad.present_when = parse_expr_attr(node, "present-when");
 
         // Inline children (if no type attribute)
@@ -750,7 +750,7 @@ public:
 
         // Presence
         auto bit_attr = parse_int_attr(node, "bit");
-        if (bit_attr) cd.bit = *bit_attr;
+        if (bit_attr) cd.bit = bit_attr;
         cd.present_when = parse_expr_attr(node, "present-when");
 
         // Cases
