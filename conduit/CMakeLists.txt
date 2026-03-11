@@ -6,6 +6,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Place all shared libraries (.dll/.so) in a single directory so that
+# downstream consumers (Java apps, Python scripts, xcvr examples) only
+# need one path.  Per-config overrides prevent MSVC multi-config generators
+# from appending a config subdirectory — all libraries land directly in
+# <build>/lib regardless of build type.
+# This also ensures Windows finds dependent DLLs (e.g. conduit_cabi.dll
+# needed by conduit_jni.dll) without extra PATH manipulation.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/lib")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/lib")
+endforeach()
+
 # Threading support — required for std::mutex across all platforms.
 # On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
 # Threads::Threads target (no -pthread flag).  We patch it to always

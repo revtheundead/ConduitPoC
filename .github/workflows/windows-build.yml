@@ -199,7 +199,7 @@ jobs:
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         run: |
           BUILD_DIR=${{ github.workspace }}/build-conduit
-          JNI_LIB=$BUILD_DIR/libconduit_jni.so
+          JNI_LIB=$BUILD_DIR/lib/libconduit_jni.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f xcvr-java11/pom.xml -PrunDummyPeer \
@@ -274,19 +274,18 @@ jobs:
       - name: Build xcvr-java11
         shell: pwsh
         run: |
-          $buildDir = "${{ github.workspace }}\build-conduit\Release"
+          $buildDir = "${{ github.workspace }}\build-conduit"
           mvn package -q -f xcvr-java11/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir"
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         shell: pwsh
         run: |
-          # conduit_jni.dll lands in build-conduit/Release/ with MSVC
-          $BuildDir = "${{ github.workspace }}\build-conduit\Release"
-          $JniLib = "$BuildDir\conduit_jni.dll"
+          $BuildDir = "${{ github.workspace }}\build-conduit"
+          $JniLib = "$BuildDir\lib\conduit_jni.dll"
 
-          # Add build dir to PATH so Windows can find conduit_cabi.dll
+          # Add lib dir to PATH so Windows can find conduit_cabi.dll
           # (dependent DLL of conduit_jni.dll) during library loading
-          $env:PATH = "$BuildDir;$env:PATH"
+          $env:PATH = "$BuildDir\lib;$env:PATH"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -384,7 +383,7 @@ jobs:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           BUILD_DIR=${{ github.workspace }}/conduit/build
-          CABI_PATH=$BUILD_DIR/libconduit_cabi.so
+          CABI_PATH=$BUILD_DIR/lib/libconduit_cabi.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f xcvr-java/pom.xml -PrunDummyPeer \
@@ -456,8 +455,8 @@ jobs:
       - name: Build xcvr-java
         shell: pwsh
         run: |
-          $buildDir = "${{ github.workspace }}\conduit\build\Release"
-          $cabiPath = "$buildDir\conduit_cabi.dll"
+          $buildDir = "${{ github.workspace }}\conduit\build"
+          $cabiPath = "$buildDir\lib\conduit_cabi.dll"
           mvn package -q -f xcvr-java/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
       - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
@@ -465,8 +464,8 @@ jobs:
         env:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
-          $BuildDir = "${{ github.workspace }}\conduit\build\Release"
-          $CabiPath = "$BuildDir\conduit_cabi.dll"
+          $BuildDir = "${{ github.workspace }}\conduit\build"
+          $CabiPath = "$BuildDir\lib\conduit_cabi.dll"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -558,7 +557,7 @@ jobs:
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/libconduit_cabi.so
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/libconduit_cabi.so
           PYTHONUNBUFFERED: "1"
         run: |
           cd xcvr-python
@@ -627,7 +626,7 @@ jobs:
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         shell: pwsh
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/Release/conduit_cabi.dll
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/conduit_cabi.dll
           PYTHONUNBUFFERED: "1"
         run: |
           # Start DummyPeer in server mode in the background
