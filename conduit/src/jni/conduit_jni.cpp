@@ -210,7 +210,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nIsRunning(JNIEnv*, jcla
 }
 
 // Peer management
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
     JNIEnv* env, jclass, jlong handle,
     jstring jname, jstring jsessionName,
@@ -223,6 +223,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
     jlong maxDatagramSize, jlong maxPeers, jlong peerTimeoutS,
     jlong maxClients,
     jint dataBits, jint parity, jint stopBits, jint flowControl) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
@@ -526,10 +527,11 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nStatsReset(
 }
 
 // Pre-start configuration
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetQueueConfig(
     JNIEnv*, jclass, jlong handle, jlong capacity, jint dropPolicy,
     jdouble backPressureThreshold) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     return conduit_set_queue_config(
@@ -539,9 +541,10 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetQueueConfig(
         static_cast<double>(backPressureThreshold));
 }
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetWorkerConfig(
     JNIEnv*, jclass, jlong handle, jlong threadCount, jlong handlerTimeoutMs) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     return conduit_set_worker_config(
@@ -559,13 +562,14 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetShutdownTimeout(
         static_cast<uint64_t>(timeoutMs));
 }
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
     JNIEnv* env, jclass, jlong handle,
     jint enabled, jint mode, jint output,
     jstring jdirectory, jstring jprefix, jstring jfilename,
     jstring jsentFilename, jstring jreceivedFilename,
     jint includeMessageContent) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
@@ -639,7 +643,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
 }
 
 // Passthrough session registration
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSession(
     JNIEnv* env, jclass,
     jstring jname,
@@ -651,6 +655,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
     jlongArray jtypeIds,
     jobjectArray jtypeNames,
     jintArray jreceiveOnly) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     const char* name = jname ? env->GetStringUTFChars(jname, nullptr) : nullptr;
     if (!name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;

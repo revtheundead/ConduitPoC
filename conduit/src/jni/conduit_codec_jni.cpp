@@ -105,10 +105,11 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nDecodeFrame(
 // Encode
 // ============================================================================
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeMessage(
     JNIEnv* env, jclass, jlong session, jlong typeId,
     jbyteArray jpayload, jint payloadLen) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (session == 0) return nullptr;
 
@@ -135,10 +136,11 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeMessage(
     return jresult;
 }
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
     JNIEnv* env, jclass, jlong session, jlong typeId,
     jobjectArray jpayloads, jintArray /*jlens*/, jint count) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (session == 0) return nullptr;
 
@@ -248,10 +250,11 @@ JNIEXPORT jstring JNICALL Java_io_conduit_JniCodecBinding_nSessionProtocolName(
 // Format message
 // ============================================================================
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 JNIEXPORT jstring JNICALL Java_io_conduit_JniCodecBinding_nFormatMessage(
     JNIEnv* env, jclass, jlong session, jlong typeId,
     jbyteArray jpayload, jint payloadLen) {
+// NOLINTEND(bugprone-easily-swappable-parameters)
 
     if (session == 0) return nullptr;
 
