@@ -17,8 +17,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <iomanip>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -768,9 +770,11 @@ public:
         bool receive_only;
     };
 
-    PassthroughSession(FrameConfig frame_config,
+    PassthroughSession(std::string protocol,
+                       FrameConfig frame_config,
                        std::vector<TypeInfo> types)
-        : frame_config_(std::move(frame_config))
+        : protocol_(std::move(protocol))
+        , frame_config_(std::move(frame_config))
         , types_(std::move(types)) {
         for (const auto& t : types_) {
             ids_.push_back(t.type_id);
@@ -784,7 +788,7 @@ public:
         std::vector<conduit::traits::DecodedMessage> messages;
         conduit::traits::DecodedMessage dm;
         dm.type_id = 0; // passthrough: Java does the type routing
-        dm.type_name = "raw_frame";
+        dm.type_name = protocol_ + "_frame";
         dm.payload = std::vector<uint8_t>(data.begin(), data.end());
         dm.raw = std::vector<uint8_t>(data.begin(), data.end());
         messages.push_back(std::move(dm));
@@ -853,13 +857,28 @@ public:
         return false;
     }
 
+    [[nodiscard]] std::string format_message(uint64_t /*type_id*/,
+                                              const std::any& payload) const override {
+        auto* raw = std::any_cast<std::vector<uint8_t>>(&payload);
+        if (!raw || raw->empty()) return {};
+        std::ostringstream oss;
+        oss << std::hex << std::setfill('0');
+        for (size_t i = 0; i < raw->size(); ++i) {
+            if (i > 0 && (i % 16) == 0) oss << '\n';
+            else if (i > 0) oss << ' ';
+            oss << std::setw(2) << static_cast<unsigned>((*raw)[i]);
+        }
+        return oss.str();
+    }
+
     [[nodiscard]] std::string_view protocol_name() const override {
-        return "passthrough";
+        return protocol_;
     }
 
     void reset() override {}
 
 private:
+    std::string protocol_;
     FrameConfig frame_config_;
     std::vector<TypeInfo> types_;
     std::vector<uint64_t> ids_;
@@ -941,7 +960,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_register_passthrough_session(
                 cfg = it->second;
             }
             return static_cast<void*>(
-                new PassthroughSession(cfg->frame_config, cfg->types));
+                new PassthroughSession(session_name, cfg->frame_config, cfg->types));
         };
     }
     return CONDUIT_XCVR_OK;

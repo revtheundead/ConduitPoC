@@ -47,3 +47,15 @@ target_link_libraries(conduit_benchmarks PRIVATE
     bench_stress_protocol
     Catch2::Catch2WithMain
 )
+
+# Place benchmark binary under build/benchmarks/ instead of the global
+# build/lib/.  Per-config overrides prevent MSVC multi-config generators
+# from appending a config subdirectory.
+set_target_properties(conduit_benchmarks PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks"
+)
+foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
+    set_target_properties(conduit_benchmarks PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/benchmarks"
+    )
+endforeach()
