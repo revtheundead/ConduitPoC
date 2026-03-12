@@ -40,6 +40,7 @@ typedef int32_t conduit_xcvr_error_t;
 #define CONDUIT_XCVR_ERR_SEND_FAILED       (-5)
 #define CONDUIT_XCVR_ERR_ENCODE_FAILED     (-6)
 #define CONDUIT_XCVR_ERR_BATCH_NOT_SUPPORTED (-7)
+#define CONDUIT_XCVR_ERR_DECODE_FAILED     (-8)
 #define CONDUIT_XCVR_ERR_UNKNOWN           (-99)
 
 /* ================================================================
@@ -218,6 +219,11 @@ CONDUIT_CABI_API conduit_callback_id conduit_on_any_message(
     conduit_msg_callback_t callback,
     void* user_data);
 
+/**
+ * Remove a message handler for the given type_id.
+ * Note: The peer parameter is reserved for future use and currently ignored.
+ * Handlers are removed transceiver-wide regardless of the peer value.
+ */
 CONDUIT_CABI_API int conduit_remove_handler(
     conduit_transceiver_t* xcvr,
     conduit_peer_id peer,

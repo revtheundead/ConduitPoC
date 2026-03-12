@@ -548,7 +548,7 @@ public class Transceiver implements AutoCloseable {
                                                  Object session,
                                                  int skipBits, int fieldBits) throws Exception {
         int skipBytes = skipBits / 8;
-        int fieldBytes = fieldBits / 8;
+        int fieldBytes = (fieldBits + 7) / 8;
         byte[] header = new byte[skipBytes + fieldBytes];
         int testLen = 0x0102;
         if (fieldBytes >= 2) {
