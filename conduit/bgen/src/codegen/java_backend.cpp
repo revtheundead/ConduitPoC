@@ -2153,6 +2153,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     bool has_ext = sd.bitmap_ext.has_value();
     int max_octet = max_bit / J_BITS_PER_BYTE;
     int num_octets = max_octet + 1;
+    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
 
     // Sort by bit position (octet first, then descending bit within octet)
     auto sorted_fields = bfields;
@@ -2293,6 +2294,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.dedent();
         ctx.line("}");
         ctx.line("fspecLen = " + std::to_string(num_octets) + ";");
+    }
+    if (fspec_le) {
+        ctx.line("for (int lo = 0, hi = fspecLen - 1; lo < hi; lo++, hi--) { byte tmp = fspec[lo]; fspec[lo] = fspec[hi]; fspec[hi] = tmp; }");
     }
     ctx.line();
 
@@ -2472,6 +2476,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         }
         ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] = (byte)(fspec[i] | (1 << " +
                  std::to_string(*sd.bitmap_ext) + "));" );
+        if (fspec_le) {
+            ctx.line("for (int lo = 0, hi = lastOctet; lo < hi; lo++, hi--) { byte tmp = fspec[lo]; fspec[lo] = fspec[hi]; fspec[hi] = tmp; }");
+        }
         ctx.line("for (int i = 0; i <= lastOctet; i++) w.writeU8(fspec[i] & 0xFF);");
     } else {
         for (const auto& bf : bfields) {
@@ -2481,6 +2488,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                      std::to_string(byte_idx) + "] = (byte)(fspec[" +
                      std::to_string(byte_idx) + "] | (1 << " +
                      std::to_string(bit_in_byte) + "));");
+        }
+        if (fspec_le) {
+            ctx.line("for (int lo = 0, hi = " + std::to_string(num_octets - 1) + "; lo < hi; lo++, hi--) { byte tmp = fspec[lo]; fspec[lo] = fspec[hi]; fspec[hi] = tmp; }");
         }
         ctx.line("for (int i = 0; i < " + std::to_string(num_octets) + "; i++) w.writeU8(fspec[i] & 0xFF);");
     }

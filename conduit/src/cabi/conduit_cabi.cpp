@@ -80,7 +80,7 @@ conduit_xcvr_error_t map_xcvr_error(const conduit::Error& err) {
         case EC::DirectionViolation:
             return CONDUIT_XCVR_ERR_SEND_FAILED;
         default:
-            if (err.is_decode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
+            if (err.is_decode_error()) return CONDUIT_XCVR_ERR_DECODE_FAILED;
             if (err.is_encode_error()) return CONDUIT_XCVR_ERR_ENCODE_FAILED;
             if (err.is_connection_error()) return CONDUIT_XCVR_ERR_SEND_FAILED;
             return CONDUIT_XCVR_ERR_UNKNOWN;
@@ -866,15 +866,21 @@ public:
         auto endian = frame_config_.length_big_endian
                           ? conduit::io::Endian::Big
                           : conduit::io::Endian::Little;
-        if (frame_config_.length_field_bits == 8) {
-            auto val = r.read_u8();
-            return val ? static_cast<size_t>(*val) : 0;
-        } else if (frame_config_.length_field_bits == 16) {
-            auto val = r.read_u16(endian);
-            return val ? static_cast<size_t>(*val) : 0;
-        } else if (frame_config_.length_field_bits == 32) {
-            auto val = r.read_u32(endian);
-            return val ? static_cast<size_t>(*val) : 0;
+        auto bits = frame_config_.length_field_bits;
+        if (bits > 0 && bits <= 64) {
+            auto val = r.read_bits(bits);
+            if (!val) return 0;
+            auto raw = *val;
+            // read_bits returns MSB-first; byte-swap for little-endian
+            if (endian == conduit::io::Endian::Little && bits > 8) {
+                size_t byte_count = (bits + 7) / 8;
+                uint64_t swapped = 0;
+                for (size_t i = 0; i < byte_count; ++i) {
+                    swapped |= ((raw >> (i * 8)) & 0xFF) << ((byte_count - 1 - i) * 8);
+                }
+                raw = swapped;
+            }
+            return static_cast<size_t>(raw);
         }
         return 0;
     }

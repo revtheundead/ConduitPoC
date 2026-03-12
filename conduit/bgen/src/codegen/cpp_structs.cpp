@@ -1746,6 +1746,9 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
     ctx_.line("bool operator==(const " + class_name + "&) const = default;");
     ctx_.line();
 
+    // Determine FSPEC endianness from first bitmap field
+    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
+
     // Encode
     ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
     ctx_.indent();
@@ -1771,6 +1774,9 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         }
         ctx_.line("for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << " +
                   std::to_string(*sd.bitmap_ext) + ");");
+        if (fspec_le) {
+            ctx_.line("{ auto n = std::min(static_cast<size_t>(last_octet) + 1, fspec.size()); std::reverse(fspec.begin(), fspec.begin() + static_cast<ptrdiff_t>(n)); }");
+        }
         ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));");
 
         emit_bitmap_encode_fields(bfields, 0, max_octet);
@@ -1783,6 +1789,9 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[" +
                       std::to_string(byte_idx) + "] |= (1 << " +
                       std::to_string(bit_in_byte) + ");");
+        }
+        if (fspec_le) {
+            ctx_.line("std::reverse(fspec.begin(), fspec.begin() + " + std::to_string(num_octets) + ");");
         }
         ctx_.line("w.write_bytes(std::span<const uint8_t>(fspec.data(), " +
                   std::to_string(num_octets) + "));");
@@ -1825,6 +1834,9 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.dedent();
             ctx_.line("}");
             ctx_.line("fspec_len = " + std::to_string(num_octets) + ";");
+        }
+        if (fspec_le) {
+            ctx_.line("std::reverse(fspec.begin(), fspec.begin() + static_cast<ptrdiff_t>(fspec_len));");
         }
     }
     ctx_.line();

@@ -2336,6 +2336,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     bool has_ext = sd.bitmap_ext.has_value();
     int max_octet = max_bit / PY_BITS_PER_BYTE;
     int num_octets = max_octet + 1;
+    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
 
     auto sorted_fields = bfields;
     std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
@@ -2470,6 +2471,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         ctx.line("fspec[i] = r.read_u8()");
         ctx.dedent();
         ctx.line("fspec_len = " + std::to_string(num_octets));
+    }
+    if (fspec_le) {
+        ctx.line("fspec[:fspec_len] = fspec[:fspec_len][::-1]");
     }
     ctx.line();
 
@@ -2635,6 +2639,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         }
         ctx.line("for i in range(last_octet): fspec[i] |= (1 << " +
                  std::to_string(*sd.bitmap_ext) + ")");
+        if (fspec_le) {
+            ctx.line("fspec[:last_octet + 1] = fspec[:last_octet + 1][::-1]");
+        }
         ctx.line("w.write_bytes(bytes(fspec[:last_octet + 1]))");
     } else {
         for (const auto& bf : bfields) {
@@ -2643,6 +2650,9 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             ctx.line("if self." + py_field(bf.name) + " is not None: fspec[" +
                      std::to_string(byte_idx) + "] |= (1 << " +
                      std::to_string(bit_in_byte) + ")");
+        }
+        if (fspec_le) {
+            ctx.line("fspec[:] = fspec[::-1]");
         }
         ctx.line("w.write_bytes(bytes(fspec))");
     }
