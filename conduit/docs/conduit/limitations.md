@@ -81,6 +81,8 @@ Three audit rounds have been performed against the C++ reference implementation:
 | 3 | 17 | Python wire encoding dispatch, auto-length backpatch, FX null safety, inline struct support |
 | **Total** | **40** | All fixes verified against 37,069 assertions across 1,057 C++ test cases |
 
+For the complete audit findings including per-file diffs, see [Backend Audit Findings](../backend-audit-findings.md).
+
 ## See Also
 
 - [Benchmarks & Performance](performance.md) -- Detailed performance data

@@ -212,7 +212,7 @@ The Java backend converts BMDL names to Java-idiomatic identifiers:
 | `msg-type` | field | `msgType` |
 | `sensor-id` | field | `sensorId` |
 | `Heartbeat` | message | `Heartbeat` |
-| `StatusFlags` | type | `StatusFlags` |
+| `status-flags` | type | `StatusFlags` |
 | `MyFrame` | session | `MyFrameSession` |
 
 ---
@@ -232,7 +232,7 @@ The Python backend converts BMDL names to Python-idiomatic identifiers:
 | `msg-type` | field | `msg_type` |
 | `sensor-id` | field | `sensor_id` |
 | `Heartbeat` | message | `Heartbeat` |
-| `StatusFlags` | type | `StatusFlags` |
+| `status-flags` | type | `StatusFlags` |
 | `MyFrame` | session | `MyFrameSession` |
 
 ---
