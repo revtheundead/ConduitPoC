@@ -87,4 +87,3 @@ For the complete audit findings including per-file diffs, see [Backend Audit Fin
 
 - [Benchmarks & Performance](performance.md) -- Detailed performance data
 - [Cross-Language Integration Strategies](cross-language-integration.md) -- Future integration plans
-- [Cross-Language Implementation Plan](cross-language-implementation-plan.md) -- Detailed roadmap for Java/Python feature parity

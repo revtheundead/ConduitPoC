@@ -82,7 +82,6 @@ Pages are listed in recommended reading order -- each page builds on concepts fr
 | [Benchmarks & Performance](performance.md) | Codec latency, throughput, memory footprint, scaling |
 | [Limitations & Known Issues](limitations.md) | Feature parity across C++/Java/Python, known bugs |
 | [Cross-Language Integration](cross-language-integration.md) | Strategies for accessing Conduit from other languages |
-| [Cross-Language Implementation Plan](cross-language-implementation-plan.md) | Detailed roadmap for Java/Python feature parity |
 
 ## Related Documentation
 
