@@ -47,25 +47,56 @@ bool write_file(const std::filesystem::path& path, const std::string& content) {
 // Doc-string helpers
 // ============================================================================
 
-// Collapse a (possibly multi-line) doc string into a single line suitable for
-// use as a Python inline comment.  Newlines and surrounding whitespace are
-// replaced by a single space.
-std::string py_inline_doc(const std::string& doc) {
-    std::string r;
-    r.reserve(doc.size());
-    bool in_ws = false;
-    for (char c : doc) {
-        if (c == '\n' || c == '\r') {
-            in_ws = true;
-        } else if (c == ' ' || c == '\t') {
-            in_ws = true;
-        } else {
-            if (in_ws && !r.empty()) r += ' ';
-            in_ws = false;
-            r += c;
-        }
+// Split a doc string into trimmed lines.
+std::vector<std::string> py_doc_lines(const std::string& doc) {
+    std::vector<std::string> lines;
+    std::string::size_type start = 0;
+    while (start < doc.size()) {
+        auto nl = doc.find('\n', start);
+        auto segment = (nl == std::string::npos)
+            ? doc.substr(start)
+            : doc.substr(start, nl - start);
+        // Trim trailing whitespace
+        while (!segment.empty() && (segment.back() == ' ' || segment.back() == '\r' || segment.back() == '\t'))
+            segment.pop_back();
+        // Trim leading whitespace
+        std::string::size_type first_non_ws = segment.find_first_not_of(" \t");
+        if (first_non_ws != std::string::npos)
+            segment = segment.substr(first_non_ws);
+        else
+            segment.clear();
+        lines.push_back(segment);
+        if (nl == std::string::npos) break;
+        start = nl + 1;
     }
-    return r;
+    return lines;
+}
+
+// Emit a (possibly multi-line) doc string as Python # comment lines.
+// Each line of `doc` becomes a separate "# ..." line at the current indent.
+void py_emit_doc_comment(EmitContext& ctx, const std::string& doc) {
+    if (doc.empty()) return;
+    for (const auto& line : py_doc_lines(doc)) {
+        if (line.empty())
+            ctx.line("#");
+        else
+            ctx.line("# " + line);
+    }
+}
+
+// Emit a (possibly multi-line) doc string as a Python triple-quoted docstring.
+// Each line is properly indented at the current context level.
+void py_emit_docstring(EmitContext& ctx, const std::string& doc) {
+    if (doc.empty()) return;
+    auto lines = py_doc_lines(doc);
+    if (lines.size() == 1) {
+        ctx.line("\"\"\"" + lines[0] + "\"\"\"");
+    } else {
+        ctx.line("\"\"\"" + lines[0]);
+        for (size_t i = 1; i < lines.size(); i++)
+            ctx.line(lines[i]);
+        ctx.line("\"\"\"");
+    }
 }
 
 // ============================================================================
@@ -936,7 +967,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("class " + name + "(IntEnum):");
             ctx.indent();
-            if (!t.doc.empty()) ctx.line("\"\"\"" + t.doc + "\"\"\"");
+            py_emit_docstring(ctx, t.doc);
             for (const auto& ev : t.enum_values)
                 ctx.line(py_enum_val(ev.name) + " = " + std::to_string(ev.id));
             ctx.line();
@@ -965,7 +996,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("class " + name + ":");
             ctx.indent();
-            if (!t.doc.empty()) ctx.line("\"\"\"" + t.doc + "\"\"\"");
+            py_emit_docstring(ctx, t.doc);
             ctx.line("__slots__ = ('_raw',)");
             ctx.line();
             ctx.line("def __init__(self, raw: int = 0) -> None:");
@@ -1015,7 +1046,7 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.line();
             ctx.line("class " + name + ":");
             ctx.indent();
-            if (!t.doc.empty()) ctx.line("\"\"\"" + t.doc + "\"\"\"");
+            py_emit_docstring(ctx, t.doc);
             ctx.line("__slots__ = ('_raw',)");
             if (t.scale) ctx.line("SCALE = " + py_double(*t.scale));
             if (t.offset) ctx.line("OFFSET = " + py_double(*t.offset));
@@ -1941,7 +1972,7 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
 
     // Helper lambda: emit the auto-length(field) backpatch after the target field
     auto emit_length_ref_patch = [&]() {
-        if (!auto_len_ref_field) return;
+        if (!auto_len_ref_field || !auto_len_ref_field->auto_expr) return;
         auto al_fi = py_resolve_field(*auto_len_ref_field, index);
         bool be = (al_fi.endian == model::Endian::Big);
         std::string target_py = py_field(auto_len_ref_field->auto_expr->field_ref);
@@ -2317,7 +2348,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.line();
     ctx.line("class " + cn + ":");
     ctx.indent();
-    if (!sd.doc.empty()) ctx.line("\"\"\"" + sd.doc + "\"\"\"");
+    py_emit_docstring(ctx, sd.doc);
 
     // __slots__
     if (!bfields.empty()) {
@@ -2336,8 +2367,8 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.indent();
     if (bfields.empty()) ctx.line("pass");
     else for (const auto& bf : bfields) {
-        std::string comment = bf.doc.empty() ? "" : "  # " + py_inline_doc(bf.doc);
-        ctx.line("self." + py_field(bf.name) + " = None" + comment);
+        py_emit_doc_comment(ctx, bf.doc);
+        ctx.line("self." + py_field(bf.name) + " = None");
     }
     ctx.dedent();
     ctx.line();
@@ -2782,7 +2813,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.line();
     ctx.line("class " + cn + ":");
     ctx.indent();
-    if (!doc.empty()) ctx.line("\"\"\"" + doc + "\"\"\"");
+    py_emit_docstring(ctx, doc);
 
     auto tid_it = tid_map.find(name);
     if (tid_it != tid_map.end()) {
@@ -2807,11 +2838,11 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (fields.empty()) ctx.line("pass");
     else for (const auto& f : fields) {
-        std::string comment = f.doc.empty() ? "" : "  # " + py_inline_doc(f.doc);
+        py_emit_doc_comment(ctx, f.doc);
         if (f.default_val == "None" && f.py_type == "list" && !f.is_optional)
-            ctx.line("self." + f.name + ": list = []" + comment);
+            ctx.line("self." + f.name + ": list = []");
         else
-            ctx.line("self." + f.name + " = " + f.default_val + comment);
+            ctx.line("self." + f.name + " = " + f.default_val);
     }
     ctx.dedent();
     ctx.line();
@@ -2949,7 +2980,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         if (has_auto_length) {
             ctx.line("_struct_start = w.size_bytes()");
         }
-        std::string len_ref_target = auto_len_ref_field ? auto_len_ref_field->auto_expr->field_ref : "";
+        std::string len_ref_target = (auto_len_ref_field && auto_len_ref_field->auto_expr) ? auto_len_ref_field->auto_expr->field_ref : "";
         PyBitTracker encode_tracker;
         emit_py_encode_children(ctx, children, index, "self", encode_tracker, len_ref_target, auto_len_ref_field, name_map, cn);
         // Auto-length backpatching (struct-level only: auto="length" with no field_ref)

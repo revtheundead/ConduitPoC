@@ -1894,7 +1894,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
 
     // Helper lambda: emit the auto-length(field) backpatch
     auto emit_length_ref_patch = [&]() {
-        if (!auto_len_ref_field) return;
+        if (!auto_len_ref_field || !auto_len_ref_field->auto_expr) return;
         auto al_fi = j_resolve_field(*auto_len_ref_field, index);
         bool be = (al_fi.endian == model::Endian::Big);
         std::string target_field = j_field(auto_len_ref_field->auto_expr->field_ref);
