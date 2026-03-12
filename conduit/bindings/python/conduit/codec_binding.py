@@ -49,11 +49,14 @@ def _load_codec_lib() -> ctypes.CDLL:
     if env_path and os.path.isfile(env_path):
         return ctypes.CDLL(env_path)
 
-    # Search in common locations
+    # Search in common locations (aligned with transceiver.py's _load_cabi_lib)
+    pkg_dir = os.path.dirname(__file__)
     search_paths = [
         env_path,
-        os.path.join(os.path.dirname(__file__), "..", "..", "lib"),
-        os.path.join(os.path.dirname(__file__), ".."),
+        os.path.join(pkg_dir, "..", "..", "..", "build"),    # editable: conduit/build/
+        os.path.join(pkg_dir, "..", "..", "build"),           # alternate layout
+        os.path.join(pkg_dir, "..", "..", "lib"),             # installed lib/ dir
+        os.path.join(pkg_dir, ".."),                          # adjacent to package
     ]
 
     names = ["libconduit_codec_cabi.so", "libconduit_codec_cabi.dylib",
@@ -249,7 +252,7 @@ class CodecSession:
             results = []
             for i in range(count.value):
                 msg = msgs_ptr[i]
-                raw = bytes(msg.data[j] for j in range(msg.data_len)) if msg.data else b""
+                raw = ctypes.string_at(msg.data, msg.data_len) if msg.data else b""
                 name = msg.type_name.decode("utf-8") if msg.type_name else ""
                 results.append(DecodedMessage(
                     type_id=msg.type_id,
@@ -277,7 +280,7 @@ class CodecSession:
             raise ConduitCodecError(err, "encode_message failed")
 
         try:
-            wire_bytes = bytes(result.data[i] for i in range(result.data_len)) if result.data else b""
+            wire_bytes = ctypes.string_at(result.data, result.data_len) if result.data else b""
         finally:
             self._lib.conduit_free_encode_result(ctypes.byref(result))
         return wire_bytes
@@ -314,7 +317,7 @@ class CodecSession:
             raise ConduitCodecError(err, "encode_batch failed")
 
         try:
-            wire_bytes = bytes(result.data[i] for i in range(result.data_len)) if result.data else b""
+            wire_bytes = ctypes.string_at(result.data, result.data_len) if result.data else b""
         finally:
             self._lib.conduit_free_encode_result(ctypes.byref(result))
         return wire_bytes
@@ -416,7 +419,7 @@ class CodecFramer:
             results = []
             for i in range(count.value):
                 frame = frames_ptr[i]
-                frame_bytes = bytes(frame.data[j] for j in range(frame.data_len)) if frame.data else b""
+                frame_bytes = ctypes.string_at(frame.data, frame.data_len) if frame.data else b""
                 results.append(frame_bytes)
         finally:
             if frames_ptr and count.value > 0:
