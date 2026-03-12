@@ -524,6 +524,7 @@ jobs:
         run: |
           $BuildDir = "${{ github.workspace }}\conduit\build"
           $CabiPath = "$BuildDir\lib\conduit_cabi.dll"
+          $env:PATH = "$BuildDir\lib;$env:PATH"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -537,9 +538,9 @@ jobs:
             -RedirectStandardOutput server_out.txt `
             -RedirectStandardError server_err.txt
 
-          Start-Sleep -Seconds 3
+          Start-Sleep -Seconds 5
 
-          # Start PocApp client in background, then wait 5 seconds
+          # Start PocApp client in background, then wait for it to initialize
           $client = Start-Process -FilePath "mvn" `
             -ArgumentList @(
               "exec:java", "-f", "xcvr-java/pom.xml", "-PrunPocApp",
@@ -551,7 +552,7 @@ jobs:
             -RedirectStandardOutput client_out.txt `
             -RedirectStandardError client_err.txt
 
-          Start-Sleep -Seconds 5
+          Start-Sleep -Seconds 10
 
           if (!$client.HasExited) { $client.Kill() }
           if (!$server.HasExited) { $server.Kill() }
