@@ -1401,3 +1401,225 @@ TEST_CASE("PyExt: encode emits constraint checks before writing", "[python][enco
     size_t second = msgs.find("exceeds max 100", first + 1);
     CHECK(second != std::string::npos);
 }
+
+// ============================================================================
+// Issue 2: setValue for scaled types (Python type wrappers)
+// ============================================================================
+
+TEST_CASE("Python: scaled type wrapper generates value setter",
+          "[python][codegen][setValue]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& types = py->files["types.py"];
+
+    // scaled-temp type should have a value.setter (inverse of value getter)
+    CHECK(types.find("@value.setter") != std::string::npos);
+}
+
+TEST_CASE("Python: struct field raw accessors for scaled types",
+          "[python][codegen][setValue]") {
+    auto py = gen_python("field_scale.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+
+    // Scaled fields in structs should have get_*_raw and set_*_raw accessors
+    CHECK(msgs.find("_raw(self)") != std::string::npos);
+}
+
+// ============================================================================
+// Issue 3: Error handling with field context
+// ============================================================================
+
+TEST_CASE("Python: decode wraps field reads in try/except with field context",
+          "[python][codegen][error-handling]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+
+    // Decode should wrap field reads in try/except with field name context
+    CHECK(msgs.find("except Exception as _e") != std::string::npos);
+    CHECK(msgs.find("field 'header'") != std::string::npos);
+}
+
+TEST_CASE("Python: encode wraps field writes in try/except with field context",
+          "[python][codegen][error-handling]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+
+    // Both decode and encode should have try/except wrapping
+    size_t count = 0;
+    size_t pos = 0;
+    while ((pos = msgs.find("except Exception as _e", pos)) != std::string::npos) {
+        count++;
+        pos++;
+    }
+    // Should have at least 2 (decode + encode for message fields)
+    CHECK(count >= 2);
+}
+
+TEST_CASE("Python: error context propagates field name in structs",
+          "[python][codegen][error-handling]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // Struct field decode/encode should have error context
+    CHECK(structs.find("except Exception as _e") != std::string::npos);
+}
+
+// ============================================================================
+// Issue 4: Doc tags generate docstrings/comments
+// ============================================================================
+
+TEST_CASE("Python: doc tag generates docstring on type wrappers",
+          "[python][codegen][doc]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& types = py->files["types.py"];
+
+    // scaled-temp: "Temperature in 0.1 degree units with -40 offset"
+    CHECK(types.find("Temperature in 0.1 degree units with -40 offset") != std::string::npos);
+    // device-status: "Device operational status"
+    CHECK(types.find("Device operational status") != std::string::npos);
+}
+
+TEST_CASE("Python: doc tag generates docstring on struct/bitmap classes",
+          "[python][codegen][doc]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // SubItems has doc="Sub-items with their own FSPEC"
+    CHECK(structs.find("Sub-items with their own FSPEC") != std::string::npos);
+    // OuterItems has doc="Outer items with nested bitmap children"
+    CHECK(structs.find("Outer items with nested bitmap children") != std::string::npos);
+}
+
+TEST_CASE("Python: doc tag generates docstring on message classes",
+          "[python][codegen][doc]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& msgs = py->files["messages.py"];
+
+    // NestedBitmapMsg has doc="Message exercising nested bitmap patterns"
+    CHECK(msgs.find("Message exercising nested bitmap patterns") != std::string::npos);
+}
+
+TEST_CASE("Python: doc tags use Python triple-quote format",
+          "[python][codegen][doc]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& types = py->files["types.py"];
+
+    // Python doc tags should use triple-quote docstring format
+    CHECK(types.find("\"\"\"") != std::string::npos);
+}
+
+TEST_CASE("Python: field doc tags generate inline comments",
+          "[python][codegen][doc]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+
+    // Combine structs + messages output to search
+    std::string all;
+    for (const auto& [name, content] : py->files) all += content;
+
+    // Field-level docs should appear as inline comments
+    // alpha has doc="Alpha channel value"
+    CHECK(all.find("Alpha channel value") != std::string::npos);
+    // temp has doc="Temperature reading"
+    CHECK(all.find("Temperature reading") != std::string::npos);
+}
+
+TEST_CASE("Python: elements without doc tag have no docstring",
+          "[python][codegen][doc]") {
+    auto py = gen_python("bitmap_fx.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // bitmap_fx fixture has no doc tags on structs
+    // The class line should not be followed by a docstring
+    // (We just check that no triple-quote docstrings appear in structs)
+    // Note: generated comment "# Generated by bgen" is fine, but no """
+    auto class_pos = structs.find("class BitmapItems:");
+    REQUIRE(class_pos != std::string::npos);
+    // Next non-whitespace line after class should not start with """
+    auto after_class = structs.find('\n', class_pos);
+    if (after_class != std::string::npos) {
+        auto next_content = structs.find_first_not_of(" \n", after_class);
+        if (next_content != std::string::npos) {
+            // Should not be a docstring
+            CHECK(structs.substr(next_content, 3) != "\"\"\"");
+        }
+    }
+}
+
+// ============================================================================
+// Issue 5: Nested bitmap FSPEC handling
+// ============================================================================
+
+TEST_CASE("Python: nested bitmap struct generates FSPEC decode",
+          "[python][codegen][nested-bitmap]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // Both outer and inner bitmap classes should read FSPEC bytes
+    size_t fspec_count = 0;
+    size_t pos = 0;
+    while ((pos = structs.find("# Read FSPEC", pos)) != std::string::npos) {
+        fspec_count++;
+        pos++;
+    }
+    // SubItems + OuterItems + inline nested = 3 bitmap classes with FSPEC decode
+    CHECK(fspec_count >= 3);
+}
+
+TEST_CASE("Python: nested bitmap generates FSPEC encode",
+          "[python][codegen][nested-bitmap]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // Each bitmap class should have encode() with fspec writing
+    size_t encode_count = 0;
+    size_t pos = 0;
+    while ((pos = structs.find("fspec = bytearray(", pos)) != std::string::npos) {
+        encode_count++;
+        pos++;
+    }
+    // At least 6: decode + encode for each of 3 bitmap classes
+    CHECK(encode_count >= 6);
+}
+
+TEST_CASE("Python: type-referenced bitmap decoded correctly",
+          "[python][codegen][nested-bitmap]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // SubItems (type-referenced) should be decoded via SubItems.decode(r)
+    CHECK(structs.find("SubItems.decode(r)") != std::string::npos);
+}
+
+TEST_CASE("Python: wrapper struct containing inner bitmap generates correctly",
+          "[python][codegen][nested-bitmap]") {
+    auto py = gen_python("nested_bitmap.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // The wrapper struct has tag + inner bitmap
+    // Inner bitmap class should exist with its own FSPEC
+    CHECK(structs.find("Inner") != std::string::npos);
+}
+
+TEST_CASE("Python: wide fixed-size bitmap generates correct FSPEC byte count",
+          "[python][codegen][nested-bitmap]") {
+    auto py = gen_python("bitmap_wide_fixed.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& structs = py->files["structs.py"];
+
+    // WideBitmap has bitmap bits="24" = 3 FSPEC bytes
+    CHECK(structs.find("bytearray(3)") != std::string::npos);
+}

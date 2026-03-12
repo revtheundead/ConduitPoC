@@ -112,6 +112,7 @@ bgen_generate_fixture(msg_config_inline)
 bgen_generate_fixture(constants_everywhere)
 bgen_generate_fixture(bytes_numeric)
 bgen_generate_fixture(type_name_override)
+bgen_generate_fixture(nested_bitmap)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
