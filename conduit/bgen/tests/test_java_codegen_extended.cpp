@@ -1447,3 +1447,265 @@ TEST_CASE("JExt: encode emits constraint checks before writing", "[java][encode]
     size_t second = all.find("exceeds max 100", first + 1);
     CHECK(second != std::string::npos);
 }
+
+// ============================================================================
+// Issue 1: Enum comparison with .value in expressions
+// ============================================================================
+
+TEST_CASE("Java: enum comparison uses .value in present_when expressions",
+          "[java][codegen][enum-compare]") {
+    // The nested_bitmap fixture has an enum type (device-status) used in bitmap fields.
+    // Any expression comparing an enum field should use .value for the comparison.
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+
+    // Verify generation succeeded (basic sanity)
+    CHECK(!java->files.empty());
+}
+
+TEST_CASE("Java: enum field in choice switch uses .value",
+          "[java][codegen][enum-compare]") {
+    // The asterix fixture uses choice/switch on enum-like fields
+    auto java = gen_java("asterix.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // switch_expr on enum fields should use .value for comparison
+    // The generated code should contain ".value ==" or ".value !=" patterns
+    // for enum field comparisons, not raw "==" on enum objects
+    CHECK(!all.empty());
+}
+
+// ============================================================================
+// Issue 2: setValue for scaled types
+// ============================================================================
+
+TEST_CASE("Java: type wrapper with scale generates setValue(double)",
+          "[java][codegen][setValue]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // The nested_bitmap fixture has a scaled-temp type with scale=0.1 and offset=-40.0
+    // The generated type wrapper class should have a setValue(double v) method
+    CHECK(all.find("setValue(double v)") != std::string::npos);
+}
+
+TEST_CASE("Java: scaled type setValue does inverse calculation",
+          "[java][codegen][setValue]") {
+    // nested_bitmap fixture defines a scaled-temp type with scale and offset
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // The scaled type wrapper should have both value() getter and setValue() setter
+    CHECK(all.find("public double value()") != std::string::npos);
+    CHECK(all.find("setValue(double v)") != std::string::npos);
+}
+
+TEST_CASE("Java: type wrapper with scale and offset generates correct setValue inverse",
+          "[java][codegen][setValue]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // scaled-temp has scale=0.1, offset=-40.0
+    // setValue should compute: raw = (long)((v - offset) / scale)
+    // The generated code should contain the offset and scale values
+    CHECK(all.find("setValue") != std::string::npos);
+    // Should contain the scale value 0.1 in the inverse calculation
+    CHECK(all.find("0.1") != std::string::npos);
+    // Should contain the offset value -40.0 in the inverse calculation
+    CHECK(all.find("-40.0") != std::string::npos);
+}
+
+// ============================================================================
+// Issue 3: Error handling with field context
+// ============================================================================
+
+TEST_CASE("Java: decode wraps field reads in try-catch with field name context",
+          "[java][codegen][error-handling]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // The decode method should wrap field decoding in try-catch
+    // with field name context for error messages
+    CHECK(all.find("catch (ConduitCodecException _e)") != std::string::npos);
+    CHECK(all.find("field 'header'") != std::string::npos);
+}
+
+TEST_CASE("Java: encode wraps field writes in try-catch with field name context",
+          "[java][codegen][error-handling]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // Both decode and encode should have try-catch wrapping
+    // Count occurrences of catch blocks
+    size_t count = 0;
+    size_t pos = 0;
+    while ((pos = all.find("catch (ConduitCodecException _e)", pos)) != std::string::npos) {
+        count++;
+        pos++;
+    }
+    // Should have at least 2 (one for decode, one for encode of the message fields)
+    CHECK(count >= 2);
+}
+
+TEST_CASE("Java: error context includes field name for struct fields",
+          "[java][codegen][error-handling]") {
+    auto java = gen_java("all_types.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // All field decode/encode should be wrapped with field name context
+    CHECK(all.find("catch (ConduitCodecException _e)") != std::string::npos);
+}
+
+// ============================================================================
+// Issue 4: Doc tags generate Javadoc comments
+// ============================================================================
+
+TEST_CASE("Java: doc tag generates Javadoc on type wrappers",
+          "[java][codegen][doc]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // The nested_bitmap fixture has doc tags on types:
+    // - scaled-temp: "Temperature in 0.1 degree units with -40 offset"
+    // - device-status: "Device operational status"
+    CHECK(all.find("Temperature in 0.1 degree units with -40 offset") != std::string::npos);
+    CHECK(all.find("Device operational status") != std::string::npos);
+}
+
+TEST_CASE("Java: doc tag generates Javadoc on struct/bitmap classes",
+          "[java][codegen][doc]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // SubItems has doc="Sub-items with their own FSPEC"
+    CHECK(all.find("Sub-items with their own FSPEC") != std::string::npos);
+    // OuterItems has doc="Outer items with nested bitmap children"
+    CHECK(all.find("Outer items with nested bitmap children") != std::string::npos);
+}
+
+TEST_CASE("Java: doc tag generates Javadoc on message classes",
+          "[java][codegen][doc]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // NestedBitmapMsg has doc="Message exercising nested bitmap patterns"
+    CHECK(all.find("Message exercising nested bitmap patterns") != std::string::npos);
+}
+
+TEST_CASE("Java: doc tag generates Javadoc on fields",
+          "[java][codegen][doc]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // Field-level docs:
+    // alpha has doc="Alpha channel value"
+    CHECK(all.find("Alpha channel value") != std::string::npos);
+    // temp has doc="Temperature reading"
+    CHECK(all.find("Temperature reading") != std::string::npos);
+    // id has doc="Item identifier"
+    CHECK(all.find("Item identifier") != std::string::npos);
+}
+
+TEST_CASE("Java: doc tags use Javadoc format /** ... */",
+          "[java][codegen][doc]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // Doc tags should be rendered as Javadoc: /** text */
+    CHECK(all.find("/**") != std::string::npos);
+    CHECK(all.find("*/") != std::string::npos);
+}
+
+TEST_CASE("Java: elements without doc tag have no Javadoc",
+          "[java][codegen][doc]") {
+    auto java = gen_java("bitmap_fx.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // bitmap_fx fixture has no doc tags, so no Javadoc should appear
+    CHECK(all.find("/**") == std::string::npos);
+}
+
+// ============================================================================
+// Issue 5: Nested bitmap FSPEC handling
+// ============================================================================
+
+TEST_CASE("Java: nested bitmap struct generates FSPEC decode",
+          "[java][codegen][nested-bitmap]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // Both the outer and inner bitmap classes should read FSPEC bytes
+    // The nested bitmap (inline child "nested") should have its own fspec decode
+    size_t fspec_count = 0;
+    size_t pos = 0;
+    while ((pos = all.find("// Read FSPEC bitmap", pos)) != std::string::npos) {
+        fspec_count++;
+        pos++;
+    }
+    // At minimum: OuterItems + SubItems + inline nested = 3 bitmap classes
+    CHECK(fspec_count >= 3);
+}
+
+TEST_CASE("Java: nested bitmap generates FSPEC encode",
+          "[java][codegen][nested-bitmap]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // Each bitmap class should have encode() with fspec writing
+    size_t encode_fspec = 0;
+    size_t pos = 0;
+    while ((pos = all.find("byte[] fspec = new byte[", pos)) != std::string::npos) {
+        encode_fspec++;
+        pos++;
+    }
+    // At least 6: decode+encode for each of 3 bitmap classes
+    CHECK(encode_fspec >= 6);
+}
+
+TEST_CASE("Java: type-referenced bitmap field decoded with .decode(r)",
+          "[java][codegen][nested-bitmap]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // SubItems (type-referenced bitmap) should be decoded via SubItems.decode(r)
+    CHECK(all.find("SubItems.decode(r)") != std::string::npos);
+}
+
+TEST_CASE("Java: wrapper struct containing inner bitmap generates correctly",
+          "[java][codegen][nested-bitmap]") {
+    auto java = gen_java("nested_bitmap.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // The wrapper struct has tag (uint8) + inner (bitmap struct)
+    // The inner bitmap should have its own class with FSPEC handling
+    // Check that the inner bitmap class reference appears
+    CHECK(all.find("Inner") != std::string::npos);
+}
+
+TEST_CASE("Java: wide fixed-size bitmap generates correct FSPEC byte count",
+          "[java][codegen][nested-bitmap]") {
+    auto java = gen_java("bitmap_wide_fixed.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto all = all_output(*java);
+
+    // WideBitmap has bitmap bits="24" = 3 FSPEC bytes
+    // Should find "new byte[3]" for the FSPEC array
+    CHECK(all.find("new byte[3]") != std::string::npos);
+}

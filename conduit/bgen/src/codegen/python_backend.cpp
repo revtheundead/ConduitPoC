@@ -1563,14 +1563,21 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
     for (size_t idx = 0; idx < children.size(); ++idx) {
         const auto& child = children[idx];
         if (auto* f = std::get_if<model::Field>(&child)) {
-            if (f->present_when) {
-                ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
+            auto emit_field_decode_wrapped = [&]() {
+                ctx.line("try:");
                 ctx.indent();
                 emit_py_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
                 ctx.dedent();
+                ctx.line("except Exception as _e: raise type(_e)(\"field '" + f->name + "': \" + str(_e)) from _e");
+            };
+            if (f->present_when) {
+                ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
+                ctx.indent();
+                emit_field_decode_wrapped();
+                ctx.dedent();
                 // present_when field makes alignment unknown at compile time
                 tracker.advance_bits_variable();
-            } else emit_py_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
+            } else emit_field_decode_wrapped();
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             std::string resolved = py_inline_class(sd->name, name_map);
@@ -1954,11 +1961,18 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
         }
 
         if (auto* f = std::get_if<model::Field>(&child)) {
+            auto emit_field_encode_wrapped = [&]() {
+                ctx.line("try:");
+                ctx.indent();
+                emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name);
+                ctx.dedent();
+                ctx.line("except Exception as _e: raise type(_e)(\"field '" + f->name + "': \" + str(_e)) from _e");
+            };
             if (f->present_when) {
                 ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
-                ctx.indent(); emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name); ctx.dedent();
+                ctx.indent(); emit_field_encode_wrapped(); ctx.dedent();
                 tracker.advance_bits_variable();
-            } else emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name);
+            } else emit_field_encode_wrapped();
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + py_field(sd->name);
             if (sd->present_when) {
@@ -2041,6 +2055,8 @@ struct PyFieldDef {
     bool raw_signed = false;
     // Source BMDL name for accessor naming
     std::string bmdl_name;
+    // Documentation string from <doc> tag
+    std::string doc;
 };
 
 void collect_py_fields(const std::vector<model::StructChild>& children,
@@ -2060,6 +2076,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
                 ef.default_val = "None";
                 ef.bmdl_name = f->name;
                 ef.is_enum = true;
+                ef.doc = f->doc;
                 fields.push_back(ef);
                 continue;
             }
@@ -2125,6 +2142,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             pf.offset = fi.offset;
             pf.raw_bits = fi.raw_bits;
             pf.raw_signed = fi.raw_signed;
+            pf.doc = f->doc;
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             PyFieldDef sdf;
@@ -2134,6 +2152,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             sdf.is_struct = true;
             sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
             sdf.default_val = sdf.is_optional ? "None" : sdf.py_type + "()";
+            sdf.doc = sd->doc;
             fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             PyFieldDef adf;
@@ -2189,6 +2208,7 @@ struct PyBitmapField {
     bool is_choice = false;
     const model::ChoiceDef* choice_def = nullptr;
     const model::Field* source_field = nullptr;
+    std::string doc;
 };
 
 void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
@@ -2228,6 +2248,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 bf.length = f->length;
                 bf.bytes_attr = f->bytes_attr;
                 bf.source_field = f;
+                bf.doc = f->doc;
                 bfields.push_back(bf);
             }
         } else if (auto* child_sd = std::get_if<model::StructDef>(&child)) {
@@ -2237,6 +2258,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 bf.py_type = py_inline_class(child_sd->name, name_map);
                 bf.bit = *child_sd->bit;
                 bf.is_struct = true;
+                bf.doc = child_sd->doc;
                 bfields.push_back(bf);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
@@ -2270,6 +2292,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.line();
     ctx.line("class " + cn + ":");
     ctx.indent();
+    if (!sd.doc.empty()) ctx.line("\"\"\"" + sd.doc + "\"\"\"");
 
     // __slots__
     if (!bfields.empty()) {
@@ -2288,7 +2311,8 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.indent();
     if (bfields.empty()) ctx.line("pass");
     else for (const auto& bf : bfields) {
-        ctx.line("self." + py_field(bf.name) + " = None");
+        std::string comment = bf.doc.empty() ? "" : "  # " + bf.doc;
+        ctx.line("self." + py_field(bf.name) + " = None" + comment);
     }
     ctx.dedent();
     ctx.line();
@@ -2722,7 +2746,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                    const PyOuterScopeMap& scope_map = {},
                    const PyInlineNameMap& name_map = {},
                    const std::string& class_name_override = {},
-                   const std::vector<PyFieldDef>& extra_fields = {}) {
+                   const std::vector<PyFieldDef>& extra_fields = {},
+                   const std::string& doc = {}) {
     std::string cn = class_name_override.empty() ? py_class(name) : class_name_override;
     std::vector<PyFieldDef> fields;
     // Add frame header/footer fields if this is a message used in a frame
@@ -2732,6 +2757,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.line();
     ctx.line("class " + cn + ":");
     ctx.indent();
+    if (!doc.empty()) ctx.line("\"\"\"" + doc + "\"\"\"");
 
     auto tid_it = tid_map.find(name);
     if (tid_it != tid_map.end()) {
@@ -2756,10 +2782,11 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (fields.empty()) ctx.line("pass");
     else for (const auto& f : fields) {
+        std::string comment = f.doc.empty() ? "" : "  # " + f.doc;
         if (f.default_val == "None" && f.py_type == "list" && !f.is_optional)
-            ctx.line("self." + f.name + ": list = []");
+            ctx.line("self." + f.name + ": list = []" + comment);
         else
-            ctx.line("self." + f.name + " = " + f.default_val);
+            ctx.line("self." + f.name + " = " + f.default_val + comment);
     }
     ctx.dedent();
     ctx.line();
@@ -3105,7 +3132,7 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
             if (sd->is_bitmap) {
                 emit_py_bitmap_class(ctx, *sd, index, tid_map, scope_map, name_map, resolved);
             } else {
-                emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map, name_map, resolved);
+                emit_py_class(ctx, sd->name, sd->children, index, tid_map, {}, scope_map, name_map, resolved, {}, sd->doc);
             }
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             if (ad->type_ref.empty() && !ad->children.empty()) {
@@ -3157,7 +3184,7 @@ std::string generate_py_structs(const model::Protocol& protocol,
         if (sd.is_bitmap) {
             emit_py_bitmap_class(ctx, sd, index, empty, scope_map, name_map);
         } else {
-            emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map);
+            emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map, {}, {}, sd.doc);
         }
     }
 
@@ -3674,7 +3701,7 @@ std::string generate_py_messages(const model::Protocol& protocol,
         emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name, name_map);
         auto mff_it = msg_frame_fields.find(md.name);
         std::vector<PyFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<PyFieldDef>{};
-        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map, {}, extra_fields);
+        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc);
     }
 
     // Generate frame classes (Packet, Frame, etc.)

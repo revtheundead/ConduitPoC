@@ -73,6 +73,31 @@ std::string j_const(std::string_view name) {
     return r;
 }
 
+// Emit a Javadoc comment block if the doc string is non-empty
+void j_emit_doc(EmitContext& ctx, const std::string& doc) {
+    if (doc.empty()) return;
+    // Split multi-line doc into individual lines
+    std::istringstream stream(doc);
+    std::string line;
+    std::vector<std::string> lines;
+    while (std::getline(stream, line)) {
+        // Trim trailing whitespace
+        while (!line.empty() && (line.back() == ' ' || line.back() == '\r')) line.pop_back();
+        lines.push_back(line);
+    }
+    // Remove leading/trailing blank lines
+    while (!lines.empty() && lines.front().empty()) lines.erase(lines.begin());
+    while (!lines.empty() && lines.back().empty()) lines.pop_back();
+    if (lines.empty()) return;
+    if (lines.size() == 1) {
+        ctx.line("/** " + lines[0] + " */");
+    } else {
+        ctx.line("/**");
+        for (const auto& l : lines) ctx.line(" * " + l);
+        ctx.line(" */");
+    }
+}
+
 std::string j_hex64(uint64_t v) {
     char buf[32];
     std::snprintf(buf, sizeof(buf), "0x%016llxL", static_cast<unsigned long long>(v));
@@ -129,7 +154,16 @@ std::string j_qualify_const(const std::string& val, bool is_long = false) {
 // Java expression codegen
 // ============================================================================
 
-std::string j_expr(const model::Expr& e, const std::string& obj = "this") {
+// Helper: check if a FieldRef's root name is an enum field
+static bool j_is_enum_ref(const model::Expr& e, const std::set<std::string>* enum_fields) {
+    if (!enum_fields || e.op != model::ExprOp::FieldRef) return false;
+    auto dot = e.name.find('.');
+    std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
+    return enum_fields->count(root) > 0;
+}
+
+std::string j_expr(const model::Expr& e, const std::string& obj = "this",
+                    const std::set<std::string>* enum_fields = nullptr) {
     switch (e.op) {
         case model::ExprOp::NumberLit: return std::to_string(e.number_value);
         case model::ExprOp::BoolLit: return e.bool_value ? "true" : "false";
@@ -148,27 +182,43 @@ std::string j_expr(const model::Expr& e, const std::string& obj = "this") {
         }
         case model::ExprOp::ConstantRef: return "Constants." + j_const(e.name);
         case model::ExprOp::Remaining: return "((int)(r.remainingBits() / 8))";
-        case model::ExprOp::Add:    return "(" + j_expr(*e.left, obj) + " + " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Sub:    return "(" + j_expr(*e.left, obj) + " - " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Mul:    return "(" + j_expr(*e.left, obj) + " * " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Div:    return "(" + j_expr(*e.left, obj) + " / " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Mod:    return "(" + j_expr(*e.left, obj) + " % " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Eq:     return "(" + j_expr(*e.left, obj) + " == " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Neq:    return "(" + j_expr(*e.left, obj) + " != " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Lt:     return "(" + j_expr(*e.left, obj) + " < " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Lte:    return "(" + j_expr(*e.left, obj) + " <= " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Gt:     return "(" + j_expr(*e.left, obj) + " > " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Gte:    return "(" + j_expr(*e.left, obj) + " >= " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::LogAnd: return "(" + j_expr(*e.left, obj) + " && " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::LogOr:  return "(" + j_expr(*e.left, obj) + " || " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::BitAnd: return "(" + j_expr(*e.left, obj) + " & " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::BitOr:  return "(" + j_expr(*e.left, obj) + " | " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::BitXor: return "(" + j_expr(*e.left, obj) + " ^ " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::ShiftLeft:  return "(" + j_expr(*e.left, obj) + " << " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::ShiftRight: return "(" + j_expr(*e.left, obj) + " >>> " + j_expr(*e.right, obj) + ")";
-        case model::ExprOp::Negate: return "(-" + j_expr(*e.left, obj) + ")";
-        case model::ExprOp::BitNot: return "(~" + j_expr(*e.left, obj) + ")";
-        case model::ExprOp::LogNot: return "(!" + j_expr(*e.left, obj) + ")";
+        case model::ExprOp::Eq:
+        case model::ExprOp::Neq:
+        case model::ExprOp::Lt:
+        case model::ExprOp::Lte:
+        case model::ExprOp::Gt:
+        case model::ExprOp::Gte: {
+            std::string l = j_expr(*e.left, obj, enum_fields);
+            std::string r = j_expr(*e.right, obj, enum_fields);
+            // For enum fields in comparisons, access the raw .value for numeric comparison
+            if (j_is_enum_ref(*e.left, enum_fields)) l += ".value";
+            if (j_is_enum_ref(*e.right, enum_fields)) r += ".value";
+            switch (e.op) {
+                case model::ExprOp::Eq:  return "(" + l + " == " + r + ")";
+                case model::ExprOp::Neq: return "(" + l + " != " + r + ")";
+                case model::ExprOp::Lt:  return "(" + l + " < " + r + ")";
+                case model::ExprOp::Lte: return "(" + l + " <= " + r + ")";
+                case model::ExprOp::Gt:  return "(" + l + " > " + r + ")";
+                case model::ExprOp::Gte: return "(" + l + " >= " + r + ")";
+                default: break;
+            }
+            break;
+        }
+        case model::ExprOp::Add:    return "(" + j_expr(*e.left, obj, enum_fields) + " + " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::Sub:    return "(" + j_expr(*e.left, obj, enum_fields) + " - " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::Mul:    return "(" + j_expr(*e.left, obj, enum_fields) + " * " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::Div:    return "(" + j_expr(*e.left, obj, enum_fields) + " / " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::Mod:    return "(" + j_expr(*e.left, obj, enum_fields) + " % " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::LogAnd: return "(" + j_expr(*e.left, obj, enum_fields) + " && " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::LogOr:  return "(" + j_expr(*e.left, obj, enum_fields) + " || " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::BitAnd: return "(" + j_expr(*e.left, obj, enum_fields) + " & " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::BitOr:  return "(" + j_expr(*e.left, obj, enum_fields) + " | " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::BitXor: return "(" + j_expr(*e.left, obj, enum_fields) + " ^ " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::ShiftLeft:  return "(" + j_expr(*e.left, obj, enum_fields) + " << " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::ShiftRight: return "(" + j_expr(*e.left, obj, enum_fields) + " >>> " + j_expr(*e.right, obj, enum_fields) + ")";
+        case model::ExprOp::Negate: return "(-" + j_expr(*e.left, obj, enum_fields) + ")";
+        case model::ExprOp::BitNot: return "(~" + j_expr(*e.left, obj, enum_fields) + ")";
+        case model::ExprOp::LogNot: return "(!" + j_expr(*e.left, obj, enum_fields) + ")";
     }
     return "0";
 }
@@ -383,10 +433,11 @@ void j_analyze_outer_scope(const std::string& child_name,
     }
 }
 
-// Evaluate an expression with outer-scope context awareness
+// Evaluate an expression with outer-scope context awareness and enum field detection
 std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
-                        const JOuterContext& outer_ctx) {
-    if (outer_ctx.empty()) return j_expr(e, obj);
+                        const JOuterContext& outer_ctx,
+                        const std::set<std::string>* enum_fields = nullptr) {
+    if (outer_ctx.empty()) return j_expr(e, obj, enum_fields);
     if (e.op == model::ExprOp::FieldRef) {
         auto dot = e.name.find('.');
         std::string root = (dot != std::string::npos) ? e.name.substr(0, dot) : e.name;
@@ -412,20 +463,34 @@ std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
     }
     // For compound expressions, recurse so inner FieldRefs are resolved
     if (e.left && e.right) {
-        std::string l = j_expr_ctx(*e.left, obj, outer_ctx);
-        std::string r = j_expr_ctx(*e.right, obj, outer_ctx);
+        std::string l = j_expr_ctx(*e.left, obj, outer_ctx, enum_fields);
+        std::string r = j_expr_ctx(*e.right, obj, outer_ctx, enum_fields);
         switch (e.op) {
             case model::ExprOp::Add:    return "(" + l + " + " + r + ")";
             case model::ExprOp::Sub:    return "(" + l + " - " + r + ")";
             case model::ExprOp::Mul:    return "(" + l + " * " + r + ")";
             case model::ExprOp::Div:    return "(" + l + " / " + r + ")";
             case model::ExprOp::Mod:    return "(" + l + " % " + r + ")";
-            case model::ExprOp::Eq:     return "(" + l + " == " + r + ")";
-            case model::ExprOp::Neq:    return "(" + l + " != " + r + ")";
-            case model::ExprOp::Lt:     return "(" + l + " < " + r + ")";
-            case model::ExprOp::Lte:    return "(" + l + " <= " + r + ")";
-            case model::ExprOp::Gt:     return "(" + l + " > " + r + ")";
-            case model::ExprOp::Gte:    return "(" + l + " >= " + r + ")";
+            case model::ExprOp::Eq:
+            case model::ExprOp::Neq:
+            case model::ExprOp::Lt:
+            case model::ExprOp::Lte:
+            case model::ExprOp::Gt:
+            case model::ExprOp::Gte: {
+                // For enum fields in comparisons, access the raw .value for numeric comparison
+                if (j_is_enum_ref(*e.left, enum_fields)) l += ".value";
+                if (j_is_enum_ref(*e.right, enum_fields)) r += ".value";
+                switch (e.op) {
+                    case model::ExprOp::Eq:  return "(" + l + " == " + r + ")";
+                    case model::ExprOp::Neq: return "(" + l + " != " + r + ")";
+                    case model::ExprOp::Lt:  return "(" + l + " < " + r + ")";
+                    case model::ExprOp::Lte: return "(" + l + " <= " + r + ")";
+                    case model::ExprOp::Gt:  return "(" + l + " > " + r + ")";
+                    case model::ExprOp::Gte: return "(" + l + " >= " + r + ")";
+                    default: break;
+                }
+                break;
+            }
             case model::ExprOp::LogAnd: return "(" + l + " && " + r + ")";
             case model::ExprOp::LogOr:  return "(" + l + " || " + r + ")";
             case model::ExprOp::BitAnd:    return "(" + l + " & " + r + ")";
@@ -438,7 +503,7 @@ std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
     }
     // Unary operators: left child only, no right child
     if (e.left && !e.right) {
-        std::string operand = j_expr_ctx(*e.left, obj, outer_ctx);
+        std::string operand = j_expr_ctx(*e.left, obj, outer_ctx, enum_fields);
         switch (e.op) {
             case model::ExprOp::Negate: return "(-" + operand + ")";
             case model::ExprOp::BitNot: return "(~" + operand + ")";
@@ -446,7 +511,7 @@ std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
             default: break;
         }
     }
-    return j_expr(e, obj);
+    return j_expr(e, obj, enum_fields);
 }
 
 // Build extra decode arguments for a type that has outer-scope params
@@ -934,6 +999,8 @@ struct JFieldDef {
     bool raw_signed = false;
     // Source BMDL name for accessor naming (PascalCase)
     std::string bmdl_name;
+    // Documentation string from <doc> tag
+    std::string doc;
 };
 
 // Helper: return Java encoding constant string for a field (0=ASCII, 1=IA5, 2=EBCDIC)
@@ -1003,6 +1070,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
                 ef.init = "null";
                 ef.bmdl_name = f->name;
                 ef.is_enum = true;
+                ef.doc = f->doc;
                 fields.push_back(ef);
                 continue;
             }
@@ -1073,6 +1141,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             jf.offset = fi.offset;
             jf.raw_bits = fi.raw_bits;
             jf.raw_signed = fi.raw_signed;
+            jf.doc = f->doc;
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             JFieldDef sdf;
@@ -1082,6 +1151,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             sdf.is_struct = true;
             sdf.is_optional = in_fx || sd->present_when != nullptr || sd->bit.has_value();
             sdf.init = sdf.is_optional ? "null" : "new " + sdf.j_type + "()";
+            sdf.doc = sd->doc;
             fields.push_back(sdf);
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
@@ -1109,6 +1179,19 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             collect_j_fields(fx->children, index, fields, name_map, parent_class_name, true);
         }
     }
+}
+
+// Collect the set of enum field names from struct children (for expression codegen)
+std::set<std::string> j_collect_enum_fields(const std::vector<model::StructChild>& children,
+                                             const analyzer::TypeIndex& index) {
+    std::set<std::string> result;
+    for (const auto& child : children) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            auto cfi = resolve_field_type(*f, index);
+            if (cfi.is_enum) result.insert(f->name);
+        }
+    }
+    return result;
 }
 
 // Forward declarations for mutual recursion with inline struct handling
@@ -1391,6 +1474,10 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                              const JOuterContext& outer_ctx,
                              const JInlineNameMap& name_map,
                              const std::string& parent_class_name) {
+    // Collect enum field names for expression codegen
+    auto enum_fields = j_collect_enum_fields(children, index);
+    const std::set<std::string>* ef_ptr = enum_fields.empty() ? nullptr : &enum_fields;
+
     // Pre-scan: find struct-level auto-length field (auto="length" with no field_ref).
     // When present, we create a bounded subReader after reading the length field
     // so that subsequent children cannot over-read past the struct boundary.
@@ -1417,16 +1504,23 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
     for (size_t idx = 0; idx < children.size(); ++idx) {
         const auto& child = children[idx];
         if (auto* f = std::get_if<model::Field>(&child)) {
+            auto emit_field_decode_wrapped = [&]() {
+                ctx.line("try {");
+                ctx.indent();
+                emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
+                ctx.dedent();
+                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
+            };
             if (f->present_when) {
-                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
-                ctx.indent(); emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name); ctx.dedent(); ctx.line("}");
-            } else emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
+                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx, ef_ptr) + ") {");
+                ctx.indent(); emit_field_decode_wrapped(); ctx.dedent(); ctx.line("}");
+            } else emit_field_decode_wrapped();
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string resolved = j_inline_class(sd->name, name_map);
             std::string args = j_build_outer_args(sd->name, scope_map, pfx, outer_ctx);
             std::string decode_line = pfx + "." + j_field(sd->name) + " = " + resolved + ".decode(r" + args + ");";
             if (sd->present_when) {
-                ctx.line("if (" + j_expr_ctx(*sd->present_when, pfx, outer_ctx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*sd->present_when, pfx, outer_ctx, ef_ptr) + ") {");
                 ctx.indent(); ctx.line(decode_line); ctx.dedent(); ctx.line("}");
             } else {
                 ctx.line(decode_line);
@@ -1440,20 +1534,20 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->count_from) {
-                    ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
+                    ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx, ef_ptr) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else {
                     ctx.line("while (r.remainingBytes() > 0) " + m + ".add(" + elem + ".decode(r));");
                 }
             };
             if (ad->present_when) {
-                ctx.line("if (" + j_expr_ctx(*ad->present_when, pfx, outer_ctx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*ad->present_when, pfx, outer_ctx, ef_ptr) + ") {");
                 ctx.indent(); emit_array_decode(); ctx.dedent(); ctx.line("}");
             } else {
                 emit_array_decode();
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
-            std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
+            std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx, ef_ptr);
             // If the switch field is an enum, compare using .value (raw int)
             if (cd->switch_expr->op == model::ExprOp::FieldRef) {
                 for (const auto& sib : children) {
@@ -1492,7 +1586,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.line("{");
                 ctx.indent();
                 if (cd->length_from) {
-                    ctx.line("BitReader cr = r.subReader(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx) + ");");
+                    ctx.line("BitReader cr = r.subReader(" + j_expr_ctx(*cd->length_from, pfx, outer_ctx, ef_ptr) + ");");
                 } else if (cd->length) {
                     ctx.line("BitReader cr = r.subReader(" + std::to_string(*cd->length) + ");");
                 }
@@ -1568,7 +1662,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 if (!first) ctx.line("}");
             };
             if (cd->present_when) {
-                ctx.line("if (" + j_expr_ctx(*cd->present_when, pfx, outer_ctx) + ") {");
+                ctx.line("if (" + j_expr_ctx(*cd->present_when, pfx, outer_ctx, ef_ptr) + ") {");
                 ctx.indent(); emit_choice_decode(); ctx.dedent(); ctx.line("}");
             } else {
                 emit_choice_decode();
@@ -1783,6 +1877,10 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                              const JInlineNameMap& name_map,
                              const std::string& parent_class_name,
                              const JOuterContext& outer_ctx) {
+    // Collect enum field names for expression codegen
+    auto enum_fields = j_collect_enum_fields(children, index);
+    const std::set<std::string>* ef_ptr = enum_fields.empty() ? nullptr : &enum_fields;
+
     // Get the BMDL name from a StructChild
     auto get_child_name = [](const model::StructChild& child) -> std::string {
         return std::visit([](const auto& c) -> std::string {
@@ -1840,10 +1938,17 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
         }
 
         if (auto* f = std::get_if<model::Field>(&child)) {
+            auto emit_field_encode_wrapped = [&]() {
+                ctx.line("try {");
+                ctx.indent();
+                emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx);
+                ctx.dedent();
+                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
+            };
             if (f->present_when) {
-                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx) + ") {");
-                ctx.indent(); emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx); ctx.dedent(); ctx.line("}");
-            } else emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx);
+                ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx, ef_ptr) + ") {");
+                ctx.indent(); emit_field_encode_wrapped(); ctx.dedent(); ctx.line("}");
+            } else emit_field_encode_wrapped();
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             std::string m = pfx + "." + j_field(sd->name);
             if (sd->present_when) {
@@ -1959,6 +2064,7 @@ struct JBitmapField {
     bool is_choice = false;
     const model::ChoiceDef* choice_def = nullptr;
     const model::Field* source_field = nullptr;
+    std::string doc;
 };
 
 // Forward declarations
@@ -2006,6 +2112,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 bf.length = f->length;
                 bf.bytes_attr = f->bytes_attr;
                 bf.source_field = f;
+                bf.doc = f->doc;
                 // Use boxed types for primitives
                 if (bf.j_type == "int") bf.j_type = "Integer";
                 else if (bf.j_type == "long") bf.j_type = "Long";
@@ -2021,6 +2128,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 bf.j_type = j_inline_class(child_sd->name, name_map);
                 bf.bit = *child_sd->bit;
                 bf.is_struct = true;
+                bf.doc = child_sd->doc;
                 bfields.push_back(bf);
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
@@ -2066,11 +2174,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     ctx.line("package " + pkg + ";");
     ctx.line();
     j_emit_imports(ctx, pkg + ".codec", pkg, type_imports);
+    j_emit_doc(ctx, sd.doc);
     ctx.line("public final class " + cn + " {");
     ctx.indent();
 
     // Fields — all nullable
     for (const auto& bf : bfields) {
+        j_emit_doc(ctx, bf.doc);
         ctx.line("public " + bf.j_type + " " + j_field(bf.name) + " = null;");
     }
     ctx.line();
@@ -2593,7 +2703,8 @@ std::string generate_j_class(const std::string& name,
                               const JOuterScopeMap& scope_map = {},
                               const JInlineNameMap& name_map = {},
                               const std::string& class_name_override = {},
-                              const std::vector<JFieldDef>& extra_fields = {}) {
+                              const std::vector<JFieldDef>& extra_fields = {},
+                              const std::string& doc = {}) {
     std::string cn = class_name_override.empty() ? j_class(name) : class_name_override;
     std::vector<JFieldDef> fields;
     // Add frame header/footer fields if this is a message used in a frame
@@ -2609,6 +2720,7 @@ std::string generate_j_class(const std::string& name,
     ctx.line("package " + pkg + ";");
     ctx.line();
     j_emit_imports(ctx, pkg + ".codec", pkg, type_imports);
+    j_emit_doc(ctx, doc);
     ctx.line("public final class " + cn + " {");
     ctx.indent();
 
@@ -2621,8 +2733,10 @@ std::string generate_j_class(const std::string& name,
     ctx.line();
 
     // Fields
-    for (const auto& f : fields)
+    for (const auto& f : fields) {
+        j_emit_doc(ctx, f.doc);
         ctx.line("public " + f.j_type + " " + f.name + " = " + f.init + ";");
+    }
     ctx.line();
 
     // Accessors (matching C++ emit_plain_accessors / emit_optional_accessors)
@@ -3038,7 +3152,7 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
             if (sd->is_bitmap) {
                 code = generate_j_bitmap_class(*sd, index, pkg, tid_map, scope_map, name_map, resolved);
             } else {
-                code = generate_j_class(sd->name, sd->children, index, pkg, tid_map, {}, scope_map, name_map, resolved);
+                code = generate_j_class(sd->name, sd->children, index, pkg, tid_map, {}, scope_map, name_map, resolved, {}, sd->doc);
             }
             out_files.push_back({resolved + ".java", code});
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
@@ -4232,6 +4346,7 @@ bool JavaBackend::generate(
                     int pad = (t.padding == model::StringPadding::Space) ? (is_ebcdic ? 0x40 : 0x20) : 0;
                     tctx.line("import java.nio.charset.StandardCharsets;");
                     tctx.line();
+                    j_emit_doc(tctx, t.doc);
                     tctx.line("public final class " + name + " {");
                     tctx.indent();
                     tctx.line("public static final int WIRE_SIZE = " + std::to_string(*t.length) + ";");
@@ -4275,6 +4390,7 @@ bool JavaBackend::generate(
                     tctx.dedent();
                     tctx.line("}");
                 } else if (is_enum) {
+                    j_emit_doc(tctx, t.doc);
                     tctx.line("public enum " + name + " {");
                     tctx.indent();
                     {
@@ -4321,6 +4437,7 @@ bool JavaBackend::generate(
                     tctx.line("}");
                 } else {
                     bool is_signed = (t.base == model::PrimitiveBase::Int);
+                    j_emit_doc(tctx, t.doc);
                     tctx.line("public final class " + name + " {");
                     tctx.indent();
                     tctx.line("private long raw;");
@@ -4340,6 +4457,11 @@ bool JavaBackend::generate(
                         if (t.scale) ve += " * " + j_double(*t.scale);
                         if (t.offset) ve += " + " + j_double(*t.offset);
                         tctx.line("public double value() { return " + ve + "; }");
+                        // setValue: inverse of value(), matching C++ set_value(double)
+                        std::string inv = "v";
+                        if (t.offset) inv = "(" + inv + " - " + j_double(*t.offset) + ")";
+                        if (t.scale) inv = "(" + inv + " / " + j_double(*t.scale) + ")";
+                        tctx.line("public void setValue(double v) { raw = (long)" + inv + "; }");
                     } else {
                         tctx.line("public long value() { return raw; }");
                     }
@@ -4408,7 +4530,7 @@ bool JavaBackend::generate(
         if (sd.is_bitmap) {
             code = generate_j_bitmap_class(sd, index, java_pkg, empty, scope_map, name_map);
         } else {
-            code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map);
+            code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map, {}, {}, sd.doc);
         }
         ok &= write_file(pkg_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
@@ -4466,7 +4588,7 @@ bool JavaBackend::generate(
         }
         auto mff_it = msg_frame_fields.find(md.name);
         std::vector<JFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<JFieldDef>{};
-        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields);
+        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc);
         ok &= write_file(pkg_dir / (j_class(md.name) + ".java"), code);
         file_count++;
     }

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>nested_bitmap</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int16" base="int" bits="16"/>
+
+    <type name="scaled-temp" base="int" bits="16">
+      <doc>Temperature in 0.1 degree units with -40 offset</doc>
+      <scale>0.1</scale>
+      <offset>-40.0</offset>
+    </type>
+
+    <type name="device-status" base="uint" bits="8">
+      <doc>Device operational status</doc>
+      <enum>
+        <value name="ok" id="0"/>
+        <value name="warning" id="1"/>
+        <value name="error" id="2"/>
+        <value name="critical" id="3"/>
+      </enum>
+    </type>
+
+    <!-- Named bitmap struct used as a type reference -->
+    <struct name="SubItems" presence="bitmap">
+      <doc>Sub-items with their own FSPEC</doc>
+      <bitmap bits="8"/>
+      <field name="alpha" type="uint8" bit="7">
+        <doc>Alpha channel value</doc>
+      </field>
+      <field name="beta" type="uint16" bit="6"/>
+      <field name="temp" type="scaled-temp" bit="5">
+        <doc>Temperature reading</doc>
+      </field>
+    </struct>
+
+    <!-- Outer bitmap with various nested bitmap patterns -->
+    <struct name="OuterItems" presence="bitmap">
+      <doc>Outer items with nested bitmap children</doc>
+      <bitmap ext="0"/>
+
+      <field name="id" type="uint8" bit="7">
+        <doc>Item identifier</doc>
+      </field>
+      <field name="status" type="device-status" bit="6">
+        <doc>Current device status</doc>
+      </field>
+
+      <!-- Inline nested bitmap struct -->
+      <struct name="nested" bit="5" presence="bitmap">
+        <doc>Inline nested bitmap sub-item</doc>
+        <bitmap bits="8"/>
+        <field name="x" type="uint8" bit="7"/>
+        <field name="y" type="uint16" bit="6"/>
+      </struct>
+
+      <!-- Type-referenced bitmap struct -->
+      <field name="sub-items" type="SubItems" bit="4"/>
+
+      <!-- Non-bitmap struct wrapping a bitmap (deeper nesting) -->
+      <struct name="wrapper" bit="3">
+        <doc>Wrapper around a nested bitmap</doc>
+        <field name="tag" type="uint8"/>
+        <struct name="inner" presence="bitmap">
+          <bitmap bits="8"/>
+          <field name="p" type="uint8" bit="7"/>
+          <field name="q" type="uint16" bit="6"/>
+        </struct>
+      </struct>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="NestedBitmapMsg">
+      <doc>Message exercising nested bitmap patterns</doc>
+      <field name="header" type="uint8"/>
+      <field name="items" type="OuterItems"/>
+    </message>
+  </messages>
+
+</bmdl>
