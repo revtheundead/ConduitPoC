@@ -4,6 +4,12 @@
 
 conduit is the C++20 runtime library that powers protocol communication. It provides error handling, bit-level I/O, network transports, stream framing, and the `Transceiver` orchestrator that connects generated protocol sessions to real-world I/O -- letting you send and receive typed messages without touching raw bytes.
 
+While the core runtime is written in C++, **Java and Python users** can access Conduit's full capabilities through native bindings:
+- **Java:** JNI bindings (Java 8--17) and Panama FFI bindings (Java 19+) at `conduit/bindings/java/`
+- **Python:** ctypes-based bindings at `conduit/bindings/python/`
+
+Additionally, the bgen code generator produces standalone codec code in Java and Python that can be used independently of the C++ runtime for encode/decode operations. See the [bgen documentation](../bgen/index.md) for details on multi-language code generation.
+
 ## Terminology
 
 | Term | Meaning |
@@ -73,8 +79,11 @@ Pages are listed in recommended reading order -- each page builds on concepts fr
 | [Logging](logging.md) | `Logger`, sinks, `CategoryLogger`, macros, hex dump |
 | [BoundedQueue](bounded-queue.md) | Thread-safe bounded MPMC queue with drop policies |
 | [String Encoding](string-encoding.md) | ASCII, IA5, EBCDIC, UTF-8 conversion |
+| [Benchmarks & Performance](performance.md) | Codec latency, throughput, memory footprint, scaling |
+| [Limitations & Known Issues](limitations.md) | Feature parity across C++/Java/Python, known bugs |
+| [Cross-Language Integration](cross-language-integration.md) | Strategies for accessing Conduit from other languages |
 
 ## Related Documentation
 
 - [BMDL Language Reference](../bmdl/index.md) -- The BMDL XML language specification
-- [bgen Code Generator](../bgen/index.md) -- The BMDL-to-C++ code generator
+- [bgen Code Generator](../bgen/index.md) -- The BMDL-to-C++/Java/Python code generator

@@ -4,6 +4,8 @@
 
 Sessions bridge generated protocol code and the conduit runtime. bgen produces session classes that implement `ISession`, enabling the `Transceiver` to decode incoming frames and encode outgoing messages without knowing the protocol details.
 
+> **Multi-language support:** bgen generates session classes in all three backends (C++, Java, Python). The C++ `ISession` interface documented below is the reference implementation. Java and Python sessions provide equivalent functionality through language-idiomatic APIs — see [Session Code Generation](../bgen/generated-sessions.md) for the per-backend details and [Limitations & Known Issues](limitations.md) for current feature gaps.
+
 ## ISession Interface
 
 ```cpp
@@ -124,9 +126,15 @@ The `Message` concept constrains the template parameter on `Transceiver::send<T>
 
 ## Session Factory Pattern
 
-bgen generates a factory function for each session in the protocol.
+bgen generates a factory function for each session in the protocol. Factory functions exist in all three backends:
 
-When a `<frame>` is present, the factory is named from the frame:
+| Backend | Factory Pattern | Returns |
+|---------|----------------|---------|
+| C++ | `create_<lower_snake_case(frame)>_session()` | `std::unique_ptr<ISession>` |
+| Java | `new <Frame>Session()` | `<Frame>Session` instance |
+| Python | `<Frame>Session()` | `<Frame>Session` instance |
+
+When a `<frame>` is present, the C++ factory is named from the frame:
 
 ```cpp
 // In generated sessions.hpp
@@ -210,6 +218,30 @@ auto raw = writer.finish();
 
 conduit::io::BitReader reader(data);
 auto decoded = my_protocol::Heartbeat::decode(reader);
+```
+
+The same patterns apply in Java and Python:
+
+**Java:**
+```java
+// Standalone encode/decode
+byte[] bytes = hb.encodeBytes();
+Heartbeat msg = Heartbeat.decodeBytes(payloadData);
+
+// Frame wrap and decode
+MyFrame frame = MyFrame.wrap(hb);
+byte[] frameBytes = frame.encodeBytes();
+```
+
+**Python:**
+```python
+# Standalone encode/decode
+data = hb.encode_bytes()
+msg = Heartbeat.decode_bytes(payload_data)
+
+# Frame wrap and decode
+frame = MyFrame.wrap(hb)
+frame_bytes = frame.encode_bytes()
 ```
 
 ## Manual Session-Level Usage

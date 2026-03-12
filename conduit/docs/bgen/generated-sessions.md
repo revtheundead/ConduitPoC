@@ -2,7 +2,9 @@
 
 [Back to index](index.md)
 
-bgen generates `sessions.hpp` containing session classes that implement `conduit::traits::ISession`.
+bgen generates session classes that handle frame-based message dispatch. The C++ backend produces `sessions.hpp` with classes implementing `conduit::traits::ISession`. The Java backend produces session `.java` files, and the Python backend produces `sessions.py`. All three backends provide the same session functionality: decode frames into typed messages, encode typed messages into framed wire bytes, and manage auto fields (sequence counters, timestamps, config).
+
+This page primarily documents the C++ output. Java and Python equivalents are summarized at the end.
 
 ## Session Class
 
@@ -256,8 +258,40 @@ When two messages share the same `id` with complementary directions (`send` vs. 
 
 The `ProtocolDescriptor` in `protocol.hpp` provides a `create_session()` method that delegates to the first session's factory function. It also aggregates all leaf types across all sessions into a unified type registry with optional group annotations.
 
+## Java and Python Session Generation
+
+All three backends generate session classes with the same core methods. The wire behavior is identical.
+
+### Session Method Comparison
+
+| Method | C++ | Java | Python |
+|--------|-----|------|--------|
+| Decode frame | `decode_frame(span<uint8_t>)` -> `Result<vector<DecodedMessage>>` | `decodeFrame(byte[])` -> `List<Map>` | `decode_frame(bytes)` -> `list[dict]` |
+| Encode message | `encode_wrap(type_id, any)` -> `Result<EncodeResult>` | `encodeWrap(type_id, Object)` -> `Map` | `encode_wrap(type_id, object)` -> `dict` |
+| Encode batch | `encode_batch(type_id, span<any>)` -> `Result<EncodeResult>` | Not yet implemented | `encode_batch(type_id, list)` -> `dict` |
+| Format message | `format_message(type_id, any)` -> `string` | `formatMessage(type_id, Object)` -> `String` | `format_message(type_id, object)` -> `str` |
+| Format outbound | `format_outbound(type_id, any, auto_fields)` -> `string` | `formatOutbound(...)` -> `String` | `format_outbound(...)` -> `str` |
+| Type name | `type_name(type_id)` -> `string_view` | `typeName(type_id)` -> `String` | `type_name(type_id)` -> `str` |
+| Sync pattern | `sync_pattern()` -> `span<uint8_t>` | `syncPattern()` -> `byte[]` | `sync_pattern()` -> `bytes` |
+| Reset | `reset()` | `reset()` | `reset()` |
+
+### Factory Functions
+
+| C++ | Java | Python |
+|-----|------|--------|
+| `create_my_frame_session()` returns `unique_ptr<ISession>` | `new MyFrameSession()` | `MyFrameSession()` |
+
+### Known Gaps
+
+- **Java:** `encodeBatch()` is not yet implemented for array-payload sessions
+- **Java/Python:** `auto_fields` metadata was missing from encode results (fixed in audit Round 3)
+- **Python:** `decode_frame` did not warn on send-only types (fixed in audit Round 3)
+
+See [Limitations & Known Issues](../conduit/limitations.md) for the full parity matrix.
+
 ## See Also
 
 - [Sessions & Generated Code](../conduit/sessions-and-codegen.md) -- `ISession` interface and how generated sessions connect to the runtime
 - [Transceiver](../conduit/transceiver.md) -- The runtime orchestrator that uses session classes for decode/encode dispatch
 - [Naming Conventions](naming-conventions.md) -- How BMDL names map to session class and factory function names
+- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity across backends

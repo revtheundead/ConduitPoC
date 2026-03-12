@@ -6,6 +6,14 @@ Conduit is a C++ library, but **users should never be forced to write C++ to int
 
 The guiding principle: **bring Conduit to the user's stack, not the user to C++.**
 
+> **Current implementation status:** Several strategies described below are already implemented or in progress:
+>
+> - **Strategy 1 (bgen backends):** Java and Python code generation backends are implemented and shipping. bgen supports `--language java` and `--language python` in addition to the default C++ backend. All three produce wire-compatible output from the same BMDL schema. See the [bgen documentation](../bgen/index.md) for usage.
+> - **Strategy 2 (C ABI / FFI bindings):** JNI bindings (Java 8--17) and Panama FFI bindings (Java 19+) exist at `conduit/bindings/java/`. Python ctypes bindings exist at `conduit/bindings/python/`.
+> - **Strategies 3--8:** Not yet implemented. These remain as architectural recommendations for future development.
+>
+> For known feature gaps between backends, see [Limitations & Known Issues](limitations.md).
+
 The strategies below are ordered by impact and build on each other. The recommended approach is to combine Strategies 1-4 for maximum coverage across language ecosystems and infrastructure patterns.
 
 ---
@@ -14,7 +22,7 @@ The strategies below are ordered by impact and build on each other. The recommen
 
 **Impact: Highest.** This is the single most leveraged investment.
 
-bgen already has a clean 6-stage pipeline. Stages 1-5 (parse, resolve, validate, wire-size computation, session analysis) are language-agnostic — only stage 6 emits C++. Adding parallel code generation backends for Python, Rust, Go, C#, Java, TypeScript, etc. means each target language gets **native, idiomatic message types** generated from the same BMDL source.
+bgen already has a clean 6-stage pipeline. Stages 1-5 (parse, resolve, validate, wire-size computation, session analysis) are language-agnostic — only stage 6 differs per backend. **Java and Python backends are already implemented** (see [bgen docs](../bgen/index.md)). Adding additional backends for Rust, Go, C#, TypeScript, etc. would follow the same pattern, giving each target language **native, idiomatic message types** generated from the same BMDL source.
 
 ### What each backend would produce
 
@@ -24,7 +32,7 @@ bgen already has a clean 6-stage pipeline. Stages 1-5 (parse, resolve, validate,
 
 ### Architecture
 
-Add a `--language` flag to bgen, or a plugin system where `bgen --plugin python` loads a language-specific emitter. The plugin receives the resolved `Protocol` AST + `TypeIndex` + `WireSizeInfo` + `SessionInfo` and produces language-specific files.
+bgen's `--language` flag selects the code generation backend (`cpp`, `java`, or `python`). The backend receives the resolved `Protocol` AST + `TypeIndex` + `WireSizeInfo` + `SessionInfo` and produces language-specific files. Adding new language backends follows the same pattern.
 
 This mirrors the approach of Protocol Buffers (`protoc` with plugins) and Cap'n Proto, applied to Conduit's binary protocol domain.
 

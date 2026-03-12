@@ -2,7 +2,7 @@
 
 [Back to top-level documentation](../index.md)
 
-bgen is the BMDL code generator. It reads BMDL XML protocol definitions, validates them, and produces C++ header files that provide type-safe encode/decode for every message type in the protocol.
+bgen is the BMDL code generator. It reads BMDL XML protocol definitions, validates them, and produces type-safe encode/decode code in **C++**, **Java**, or **Python**. All three backends generate wire-compatible output from the same BMDL source -- messages encoded by one language can be decoded by any other.
 
 ## Pipeline Overview
 
@@ -13,9 +13,9 @@ bgen processes a BMDL protocol definition in six stages:
 3. **Validate** -- Check all BMDL spec rules (field sizes, constraint consistency, etc.)
 4. **Compute Wire Sizes** -- Determine fixed vs dynamic wire sizes for all structs/messages
 5. **Analyze Sessions** -- Discover frames, leaf types, sync patterns, auto fields
-6. **Generate Code** -- Emit 7 C++ header files into the output directory
+6. **Generate Code** -- Emit code files in the selected target language (C++, Java, or Python)
 
-Each of the first three stages may accumulate errors within itself; if a stage fails, its errors are reported and bgen exits with a non-zero code. Stages 4-5 always succeed given valid input. Stage 6 can fail only with filesystem errors.
+Stages 1--5 are language-agnostic. Only stage 6 differs per backend. Each of the first three stages may accumulate errors within itself; if a stage fails, its errors are reported and bgen exits with a non-zero code. Stages 4-5 always succeed given valid input. Stage 6 can fail only with filesystem errors.
 
 ## Quick Start
 
@@ -49,13 +49,13 @@ Given a minimal BMDL file `my-protocol.bmdl.xml`:
 </bmdl>
 ```
 
-Run bgen:
+### Generating C++ (default)
 
-```
+```bash
 bgen --input my-protocol.bmdl.xml --output generated/
 ```
 
-This produces 7 files in `generated/`:
+This produces 7 header files in `generated/`:
 
 | File | Purpose |
 |------|---------|
@@ -67,7 +67,43 @@ This produces 7 files in `generated/`:
 | `protocol.hpp` | `ProtocolDescriptor` with type registry and session factory |
 | `my_protocol.hpp` | Umbrella header that includes all of the above |
 
-Include the umbrella header in your application:
+### Generating Java
+
+```bash
+bgen --input my-protocol.bmdl.xml --output generated/ --language java
+```
+
+This produces Java source files including:
+
+| File | Purpose |
+|------|---------|
+| `BitReader.java` / `BitWriter.java` | Bit-level I/O utilities |
+| `Constants.java` | Named constants |
+| Type wrapper classes (e.g., `MsgType.java`) | Enums, flags, scaled, constrained, string wrappers |
+| Struct/message classes (e.g., `Heartbeat.java`) | Message classes with `encode()`/`decode()`, `TYPE_ID`, `TYPE_NAME` |
+| Session classes (e.g., `MyFrameSession.java`) | Session with `decodeFrame()`, `encodeWrap()` |
+
+### Generating Python
+
+```bash
+bgen --input my-protocol.bmdl.xml --output generated/ --language python
+```
+
+This produces Python module files including:
+
+| File | Purpose |
+|------|---------|
+| `bit_io.py` | `BitReader`/`BitWriter` classes |
+| `constants.py` | Named constants |
+| `types.py` | Type wrappers (enums, flags, scaled, constrained, strings) |
+| `structs.py` | Struct classes with `encode()`/`decode()` |
+| `messages.py` | Message classes with `TYPE_ID`, `encode_bytes()`/`decode_bytes()`; Frame class |
+| `sessions.py` | Session classes with `decode_frame()`, `encode_wrap()` |
+| `protocol.py` | Protocol descriptor with type registry |
+
+## Usage Examples
+
+**C++:**
 
 ```cpp
 #include "generated/my_protocol.hpp"
@@ -85,21 +121,67 @@ hb.set_status(1);
 auto bytes = hb.encode_bytes();
 ```
 
-> **Name conversion:** bgen replaces all hyphens (`-`) with underscores (`_`) in generated C++ identifiers. A BMDL field named `msg-type` becomes the C++ accessor `msg_type()`, setter `set_msg_type()`, and member `msg_type_`. Protocol name `my-protocol` becomes namespace `my_protocol`. See [Naming Conventions](naming-conventions.md) for the full rules.
+**Java:**
+
+```java
+import my_protocol.Heartbeat;
+
+// Decode a message
+Heartbeat msg = Heartbeat.decode(new BitReader(data));
+System.out.println(msg.sequence);
+
+// Encode a message
+Heartbeat hb = new Heartbeat();
+hb.sequence = 42;
+hb.status = 1;
+byte[] bytes = hb.encodeBytes();
+```
+
+**Python:**
+
+```python
+from my_protocol.messages import Heartbeat
+from my_protocol.bit_io import BitReader, BitWriter
+
+# Decode a message
+msg = Heartbeat.decode(BitReader(data))
+print(msg.sequence)
+
+# Encode a message
+hb = Heartbeat()
+hb.sequence = 42
+hb.status = 1
+data = hb.encode_bytes()
+```
+
+> **Name conversion:** bgen converts BMDL names to language-appropriate identifiers. In C++, hyphens become underscores (`msg-type` -> `msg_type()`). In Java, hyphens become camelCase (`msg-type` -> `msgType`). In Python, hyphens become underscores (`msg-type` -> `msg_type`). See [Naming Conventions](naming-conventions.md) for the full rules.
+
+## Language Backends
+
+All three backends generate code from the same resolved AST -- they receive identical `Protocol`, `TypeIndex`, `WireSizeInfo`, and `SessionInfo` data. The differences are purely syntactic:
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Field access | `msg.sequence()` / `msg.set_sequence(42)` | `msg.sequence` (public field) | `msg.sequence` (public attribute) |
+| Optional fields | `std::optional<T>` | Boxed types (`Integer`, `Long`, etc.) | `None` sentinel |
+| Variants | `std::variant<A, B>` | `Object` + `instanceof` | Dynamic typing |
+| Error handling | `Result<T>` / `VoidResult` | Exceptions | Exceptions |
+| Include/import | `#include "types.hpp"` | `import my_protocol.Heartbeat;` | `from my_protocol.messages import Heartbeat` |
 
 ## Documentation Guide
 
 | Document | Description |
 |----------|-------------|
-| [Command-Line Usage](cli.md) | CLI arguments, exit codes, error format, examples |
+| [Command-Line Usage](cli.md) | CLI arguments (including `--language`), exit codes, error format, examples |
 | [Processing Pipeline](pipeline.md) | Detailed description of each pipeline stage |
-| [Generated File Structure](output-files.md) | Output files, include chain, runtime dependencies |
-| [Type Code Generation](generated-types.md) | How BMDL types map to C++ (enums, flags, scaled, etc.) |
+| [Generated File Structure](output-files.md) | Output files per backend, include chain, runtime dependencies |
+| [Type Code Generation](generated-types.md) | How BMDL types map to C++, Java, and Python |
 | [Struct & Message Code Generation](generated-structs.md) | Classes, accessors, encode/decode, choices, arrays, bitmap, FX |
 | [Session Code Generation](generated-sessions.md) | Session classes, frame decode, wrap, sync, introspection |
-| [Naming Conventions](naming-conventions.md) | BMDL-to-C++ name mapping rules |
+| [Naming Conventions](naming-conventions.md) | BMDL-to-code name mapping rules for all backends |
 
 ## Related Documentation
 
 - [BMDL Language Reference](../bmdl/index.md) -- The BMDL XML language specification
 - [conduit Runtime Library](../conduit/index.md) -- The runtime library that generated code depends on
+- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity status across backends
