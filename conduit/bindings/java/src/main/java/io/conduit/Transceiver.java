@@ -849,7 +849,7 @@ public class Transceiver implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         long h = handle;
         if (h != 0) {
             handle = 0;

@@ -321,6 +321,19 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     ]
     lib.conduit_register_passthrough_session.restype = ctypes.c_int32
 
+    # Message logging (passthrough)
+    lib.conduit_log_recv_message.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
+        ctypes.c_size_t, ctypes.c_char_p,
+    ]
+    lib.conduit_log_recv_message.restype = ctypes.c_int32
+
+    lib.conduit_log_send_message.argtypes = [
+        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
+        ctypes.c_size_t, ctypes.c_char_p,
+    ]
+    lib.conduit_log_send_message.restype = ctypes.c_int32
+
     # Logger configuration
     lib.conduit_set_log_level.argtypes = [ctypes.c_int]
     lib.conduit_set_log_level.restype = None
@@ -405,6 +418,7 @@ class Transceiver:
         # Passthrough session support
         self._session = None
         self._session_handlers: dict = {}  # type_id -> list of callables
+        self._log_include_content: bool = True
 
     # ========================================================================
     # Pre-start configuration (call before start())
@@ -540,6 +554,7 @@ class Transceiver:
             self._handle, ctypes.byref(cfg))
         if err != 0:
             raise ConduitError(err, "Failed to set message log config")
+        self._log_include_content = include_message_content
 
     def __del__(self):
         self.close()
@@ -626,6 +641,7 @@ class Transceiver:
                 for dm in messages:
                     tid = dm['type_id']
                     payload = dm['payload']
+                    self._log_decoded_recv(peer_id, tid, payload, len(raw))
                     handlers = self._session_handlers.get(tid, [])
                     for h in handlers:
                         h(peer_id, payload)
@@ -714,6 +730,7 @@ class Transceiver:
             cfg.max_clients = transport.max_clients
 
         elif isinstance(transport, SerialConfig):
+            cfg.address     = transport.port.encode("utf-8")
             cfg.baud_rate   = transport.baud_rate
             cfg.data_bits   = transport.data_bits
             cfg.parity      = int(transport.parity)
@@ -789,10 +806,11 @@ class Transceiver:
             if result is None:
                 raise ConduitError(-1, f"Session encode_wrap failed for type_id=0x{type_id:x}")
             data = result['bytes']
+            self.send_raw(peer_id, type_id, data)
+            self._log_decoded_send(peer_id, type_id, msg, len(data))
         else:
             data = msg.encode_bytes()
-
-        self.send_raw(peer_id, type_id, data)
+            self.send_raw(peer_id, type_id, data)
 
     def send_raw(self, peer_id: int, type_id: int, data: bytes) -> None:
         """Send raw bytes to a peer (low-level API)."""
@@ -1011,6 +1029,52 @@ class Transceiver:
     # Internal
     # ========================================================================
 
+    def _log_decoded_recv(self, peer_id: int, type_id: int,
+                          payload, frame_bytes: int) -> None:
+        """Log a decoded received message (passthrough mode)."""
+        if self._session is None:
+            return
+        try:
+            tname = self._session.type_name(type_id)
+            if not tname:
+                tname = "unknown"
+            content = None
+            if self._log_include_content:
+                try:
+                    content = self._session.format_message(type_id, payload)
+                except Exception:
+                    pass
+            self._lib.conduit_log_recv_message(
+                self._handle, peer_id,
+                tname.encode("utf-8"),
+                frame_bytes,
+                content.encode("utf-8") if content else None)
+        except Exception:
+            pass  # best-effort logging
+
+    def _log_decoded_send(self, peer_id: int, type_id: int,
+                          msg, frame_bytes: int) -> None:
+        """Log a decoded sent message (passthrough mode)."""
+        if self._session is None:
+            return
+        try:
+            tname = self._session.type_name(type_id)
+            if not tname:
+                tname = "unknown"
+            content = None
+            if self._log_include_content:
+                try:
+                    content = self._session.format_message(type_id, msg)
+                except Exception:
+                    pass
+            self._lib.conduit_log_send_message(
+                self._handle, peer_id,
+                tname.encode("utf-8"),
+                frame_bytes,
+                content.encode("utf-8") if content else None)
+        except Exception:
+            pass  # best-effort logging
+
     def _register_message_handler(
         self, type_id: int, func: Callable,
         any_message: bool = False
@@ -1018,7 +1082,7 @@ class Transceiver:
         """Internal: register a C message callback that calls func."""
         @_MSG_CALLBACK
         def _cb(peer_id, tid, type_name, data, data_len, _user_data):
-            raw = bytes(data[i] for i in range(data_len)) if data and data_len > 0 else b""
+            raw = ctypes.string_at(data, data_len) if data and data_len > 0 else b""
             name = type_name.decode("utf-8") if type_name else ""
             func(peer_id, tid, name, raw)
 
