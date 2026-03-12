@@ -488,15 +488,21 @@ if(CONDUIT_BUILD_JAVA_JAR)
             set(_junit_jar "${CMAKE_CURRENT_BINARY_DIR}/junit-platform-console-standalone-${_junit_version}.jar")
             set(_junit_url "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${_junit_version}/junit-platform-console-standalone-${_junit_version}.jar")
 
-            # Download JUnit if not present
+            # Use vendored JUnit JAR if available, otherwise download
+            set(_junit_vendored "${CONDUIT_THIRD_PARTY_DIR}/junit5/junit-platform-console-standalone-${_junit_version}.jar")
             if(NOT EXISTS "${_junit_jar}")
-                message(STATUS "Downloading JUnit Platform Console Standalone ${_junit_version}...")
-                file(DOWNLOAD "${_junit_url}" "${_junit_jar}" STATUS _dl_status)
-                list(GET _dl_status 0 _dl_rc)
-                if(NOT _dl_rc EQUAL 0)
-                    message(WARNING "Failed to download JUnit JAR (rc=${_dl_rc}). "
-                        "Java JUnit tests will not be available. "
-                        "Download manually from ${_junit_url}")
+                if(EXISTS "${_junit_vendored}")
+                    message(STATUS "Using vendored JUnit JAR from third_party/junit5/")
+                    file(COPY "${_junit_vendored}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
+                else()
+                    message(STATUS "Downloading JUnit Platform Console Standalone ${_junit_version}...")
+                    file(DOWNLOAD "${_junit_url}" "${_junit_jar}" STATUS _dl_status)
+                    list(GET _dl_status 0 _dl_rc)
+                    if(NOT _dl_rc EQUAL 0)
+                        message(WARNING "Failed to download JUnit JAR (rc=${_dl_rc}). "
+                            "Java JUnit tests will not be available. "
+                            "Place the JAR in third_party/junit5/ or download manually from ${_junit_url}")
+                    endif()
                 endif()
             endif()
 

@@ -1,0 +1,188 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: ============================================================================
+:: Conduit — Test Runner (Windows)
+::
+:: Runs all available test suites: C++ (Catch2), Java (JUnit 5), Python (pytest).
+::
+:: Usage:
+::   scripts\run_tests.bat              Run tests (expects build\ directory)
+::   scripts\run_tests.bat BUILD_DIR    Run tests using a custom build directory
+::
+:: Java and Python tests are non-fatal — failures are reported but do not
+:: prevent subsequent test suites from running.
+:: ============================================================================
+
+cd /d "%~dp0.."
+
+set "BUILD_DIR=build"
+if not "%~1"=="" set "BUILD_DIR=%~1"
+
+set "PASSED=0"
+set "FAILED=0"
+
+:: ============================================================================
+:: C++ Tests (Catch2)
+:: ============================================================================
+
+echo.
+echo ==^> C++ Tests
+
+:: Detect test binary path: multi-config (MSVC) vs single-config (Ninja)
+set "TEST_PREFIX=%BUILD_DIR%\tests"
+set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests"
+if exist "%BUILD_DIR%\tests\Release\conduit_tests.exe" (
+    set "TEST_PREFIX=%BUILD_DIR%\tests\Release"
+    set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests\Release"
+)
+if exist "%BUILD_DIR%\tests\Debug\conduit_tests.exe" (
+    set "TEST_PREFIX=%BUILD_DIR%\tests\Debug"
+    set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests\Debug"
+)
+
+if exist "!TEST_PREFIX!\conduit_tests.exe" (
+    echo   Running conduit_tests...
+    "!TEST_PREFIX!\conduit_tests.exe"
+    if errorlevel 1 (
+        echo   FAIL: conduit_tests
+        set /a FAILED+=1
+    ) else (
+        echo   PASS: conduit_tests
+        set /a PASSED+=1
+    )
+) else (
+    echo   Warning: conduit_tests not found at !TEST_PREFIX!\conduit_tests.exe
+)
+
+if exist "!BGEN_TEST_PREFIX!\bgen_tests.exe" (
+    echo   Running bgen_tests...
+    "!BGEN_TEST_PREFIX!\bgen_tests.exe"
+    if errorlevel 1 (
+        echo   FAIL: bgen_tests
+        set /a FAILED+=1
+    ) else (
+        echo   PASS: bgen_tests
+        set /a PASSED+=1
+    )
+) else (
+    echo   Warning: bgen_tests not found
+)
+
+if exist "!BGEN_TEST_PREFIX!\bgen_python_tests.exe" (
+    echo   Running bgen_python_tests...
+    "!BGEN_TEST_PREFIX!\bgen_python_tests.exe"
+    if errorlevel 1 (
+        echo   FAIL: bgen_python_tests
+        set /a FAILED+=1
+    ) else (
+        echo   PASS: bgen_python_tests
+        set /a PASSED+=1
+    )
+)
+
+if exist "!BGEN_TEST_PREFIX!\bgen_java_tests.exe" (
+    echo   Running bgen_java_tests...
+    "!BGEN_TEST_PREFIX!\bgen_java_tests.exe"
+    if errorlevel 1 (
+        echo   FAIL: bgen_java_tests
+        set /a FAILED+=1
+    ) else (
+        echo   PASS: bgen_java_tests
+        set /a PASSED+=1
+    )
+)
+
+:: ============================================================================
+:: Java JUnit Tests
+:: ============================================================================
+
+echo.
+echo ==^> Java JUnit Tests
+
+set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
+set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
+
+if exist "!JUNIT_JAR!" (
+    if exist "!JAVA_TEST_CLASSES!" (
+        if exist "!JAVA_JAR!" (
+            where java >nul 2>&1
+            if not errorlevel 1 (
+                echo   Running Java JUnit tests...
+                java -jar "!JUNIT_JAR!" ^
+                    --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
+                    --scan-class-path "!JAVA_TEST_CLASSES!" ^
+                    --include-classname "^Test.*" ^
+                    --exclude-classname ".*Transceiver.*" ^
+                    --exclude-classname ".*CodecCabi.*"
+                if errorlevel 1 (
+                    echo   FAIL: Java JUnit tests
+                    set /a FAILED+=1
+                ) else (
+                    echo   PASS: Java JUnit tests
+                    set /a PASSED+=1
+                )
+            ) else (
+                echo   Warning: java not found -- skipping Java JUnit tests
+            )
+        ) else (
+            echo   Java JAR not found -- build with CONDUIT_BUILD_JAVA_JAR=ON
+        )
+    ) else (
+        echo   Java test classes not found -- build with CONDUIT_BUILD_JAVA_JAR=ON
+    )
+) else (
+    echo   JUnit JAR not found at !JUNIT_JAR!
+)
+
+:: ============================================================================
+:: Python pytest Tests
+:: ============================================================================
+
+echo.
+echo ==^> Python pytest Tests
+
+set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
+set "PYTHON_TESTS=%~dp0..\tests\python"
+
+if exist "!PYTHON_TESTS!" (
+    where python >nul 2>&1
+    if not errorlevel 1 (
+        :: Install pytest from vendored wheels if available
+        if exist "!PYTEST_WHEEL_DIR!" (
+            python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1
+        )
+        python -c "import pytest" >nul 2>&1
+        if not errorlevel 1 (
+            echo   Running Python pytest tests...
+            python -m pytest "!PYTHON_TESTS!" -x -q ^
+                --ignore="!PYTHON_TESTS!\test_codec_cabi.py" ^
+                --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py"
+            if errorlevel 1 (
+                echo   FAIL: Python pytest tests
+                set /a FAILED+=1
+            ) else (
+                echo   PASS: Python pytest tests
+                set /a PASSED+=1
+            )
+        ) else (
+            echo   Warning: pytest not available -- skipping Python tests
+        )
+    ) else (
+        echo   Warning: python not found -- skipping Python tests
+    )
+) else (
+    echo   Python tests directory not found
+)
+
+:: ============================================================================
+:: Summary
+:: ============================================================================
+
+echo.
+echo ============================================================================
+echo   Test suites passed: !PASSED!    failed: !FAILED!
+echo ============================================================================
+
+if !FAILED! gtr 0 exit /b 1

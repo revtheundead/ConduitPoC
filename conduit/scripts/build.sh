@@ -282,6 +282,58 @@ if [ "$RUN_TESTS" = true ]; then
         "$BUILD_DIR/bgen/tests/bgen_java_tests"
     fi
 
+    # --- Java JUnit tests (non-fatal) ---
+    JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
+    JAVA_TEST_CLASSES="$BUILD_DIR/java-test-classes"
+    JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
+    if [ -f "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
+        if command -v java &>/dev/null; then
+            step "Running Java JUnit tests"
+            java -jar "$JUNIT_JAR" \
+                --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
+                --scan-class-path "$JAVA_TEST_CLASSES" \
+                --include-classname "^Test.*" \
+                --exclude-classname ".*Transceiver.*" \
+                --exclude-classname ".*CodecCabi.*" \
+                || warn "Java JUnit tests failed (non-fatal)"
+        else
+            warn "java not found — skipping Java JUnit tests"
+        fi
+    else
+        echo "  Java JUnit tests not available (build with CONDUIT_BUILD_JAVA_JAR=ON)"
+    fi
+
+    # --- Python pytest tests (non-fatal) ---
+    PYTEST_WHEEL_DIR="$PROJECT_DIR/third_party/pytest"
+    PYTHON_TESTS="$PROJECT_DIR/tests/python"
+    if [ -d "$PYTHON_TESTS" ]; then
+        if command -v python3 &>/dev/null; then
+            PYTHON_CMD="python3"
+        elif command -v python &>/dev/null; then
+            PYTHON_CMD="python"
+        else
+            PYTHON_CMD=""
+        fi
+        if [ -n "$PYTHON_CMD" ]; then
+            # Install pytest from vendored wheels if available
+            if [ -d "$PYTEST_WHEEL_DIR" ]; then
+                $PYTHON_CMD -m pip install --no-index --find-links "$PYTEST_WHEEL_DIR" \
+                    pytest 2>/dev/null || true
+            fi
+            if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
+                step "Running Python pytest tests"
+                $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
+                    --ignore="$PYTHON_TESTS/test_codec_cabi.py" \
+                    --ignore="$PYTHON_TESTS/test_transceiver_cabi.py" \
+                    || warn "Python tests failed (non-fatal)"
+            else
+                warn "pytest not available — skipping Python tests"
+            fi
+        else
+            warn "python not found — skipping Python tests"
+        fi
+    fi
+
     step "All tests passed"
 fi
 

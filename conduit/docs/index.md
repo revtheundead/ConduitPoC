@@ -72,5 +72,6 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 | [BMDL Language Reference](bmdl/index.md) | XML language for defining binary message formats |
 | [bgen Code Generator](bgen/index.md) | Reads BMDL, validates, generates C++, Java, or Python code |
 | [conduit Runtime Library](conduit/index.md) | Error handling, bit I/O, transports, transceiver |
+| [Examples](examples.md) | Complete ASTERIX transceiver apps in C++, Java 11, Java 21, and Python |
 | [Benchmarks & Performance](conduit/performance.md) | Codec latency, throughput, memory footprint, and scaling characteristics |
 | [Limitations & Known Issues](conduit/limitations.md) | Feature parity across backends, known bugs, and general constraints |
