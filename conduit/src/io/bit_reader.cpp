@@ -29,10 +29,10 @@ Result<uint64_t> BitReader::read_bits(size_t count) {
         size_t bits_in_byte = 8 - bit_pos_;
         size_t bits_to_read = std::min(remaining, bits_in_byte);
 
-        uint8_t mask = (bits_to_read >= 8) ? 0xFF
-                       : static_cast<uint8_t>((1U << bits_to_read) - 1);
+        uint8_t mask = static_cast<uint8_t>((bits_to_read >= 8) ? 0xFF
+                       : ((1U << bits_to_read) - 1));
         uint8_t shift = static_cast<uint8_t>(bits_in_byte - bits_to_read);
-        uint8_t bits = (data_[byte_pos_] >> shift) & mask;
+        uint8_t bits = static_cast<uint8_t>((data_[byte_pos_] >> shift) & mask);
 
         result = (result << bits_to_read) | bits;
         remaining -= bits_to_read;
