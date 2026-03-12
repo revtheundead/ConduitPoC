@@ -44,6 +44,31 @@ bool write_file(const std::filesystem::path& path, const std::string& content) {
 }
 
 // ============================================================================
+// Doc-string helpers
+// ============================================================================
+
+// Collapse a (possibly multi-line) doc string into a single line suitable for
+// use as a Python inline comment.  Newlines and surrounding whitespace are
+// replaced by a single space.
+std::string py_inline_doc(const std::string& doc) {
+    std::string r;
+    r.reserve(doc.size());
+    bool in_ws = false;
+    for (char c : doc) {
+        if (c == '\n' || c == '\r') {
+            in_ws = true;
+        } else if (c == ' ' || c == '\t') {
+            in_ws = true;
+        } else {
+            if (in_ws && !r.empty()) r += ' ';
+            in_ws = false;
+            r += c;
+        }
+    }
+    return r;
+}
+
+// ============================================================================
 // Python naming helpers
 // ============================================================================
 
@@ -2311,7 +2336,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.indent();
     if (bfields.empty()) ctx.line("pass");
     else for (const auto& bf : bfields) {
-        std::string comment = bf.doc.empty() ? "" : "  # " + bf.doc;
+        std::string comment = bf.doc.empty() ? "" : "  # " + py_inline_doc(bf.doc);
         ctx.line("self." + py_field(bf.name) + " = None" + comment);
     }
     ctx.dedent();
@@ -2782,7 +2807,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.indent();
     if (fields.empty()) ctx.line("pass");
     else for (const auto& f : fields) {
-        std::string comment = f.doc.empty() ? "" : "  # " + f.doc;
+        std::string comment = f.doc.empty() ? "" : "  # " + py_inline_doc(f.doc);
         if (f.default_val == "None" && f.py_type == "list" && !f.is_optional)
             ctx.line("self." + f.name + ": list = []" + comment);
         else
