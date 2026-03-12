@@ -2,9 +2,11 @@
 
 [Back to index](index.md)
 
-bgen generates `types.hpp` containing C++ representations for every `<type>` in the BMDL protocol. The mapping depends on the type's attributes (enum values, flags, scale/offset, constraints, string properties).
+bgen generates type representations for every `<type>` in the BMDL protocol. The C++ backend produces `types.hpp`; the Java backend produces per-type `.java` files; the Python backend produces `types.py`. The mapping depends on the type's attributes (enum values, flags, scale/offset, constraints, string properties).
 
-All generated C++ type names have hyphens replaced with underscores (e.g., BMDL `status-flags` becomes C++ `status_flags`). See [Naming Conventions](naming-conventions.md) for full rules.
+This page primarily documents the C++ output as the reference implementation. Java and Python equivalents are summarized at the end.
+
+All generated type names have hyphens replaced with underscores. See [Naming Conventions](naming-conventions.md) for full rules per language.
 
 ## Decision Logic
 
@@ -194,6 +196,42 @@ CB2 and BNR use the same code path as Default (standard two's complement / unsig
 
 Endianness is recorded per-type but only affects field-level encode/decode (in structs). Type-level wrappers use bit-level operations that are endian-agnostic. The endian attribute is used by the struct emitter when selecting between byte-optimized read/write functions (e.g., `read_u16(Endian::Big)` vs `read_u16(Endian::Little)`).
 
+## Java and Python Type Generation
+
+The Java and Python backends generate equivalent type wrappers using language-appropriate patterns. The same BMDL type definition produces functionally identical code across all three backends -- field values, wire encoding, and validation semantics are preserved.
+
+### Enum Types
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Declaration | `enum class MsgType : uint8_t` | `public class MsgType` with `int value` field | Class with `int` value |
+| Values | `MsgType::Heartbeat` | `MsgType.HEARTBEAT` (static final) | `MsgType.HEARTBEAT` (class constant) |
+| to_string | `to_string(v)` free function | `toString()` method | `__repr__` method |
+| Decode | `decode_MsgType(BitReader&)` -> `Result<MsgType>` | `MsgType.decode(BitReader)` | `MsgType.decode(BitReader)` |
+| Encode | `encode_MsgType(v, BitWriter&)` | `encode(BitWriter)` | `encode(BitWriter)` |
+
+### Flags Types
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Accessors | `bool active()` / `set_active(bool)` | `boolean active` (public field) | `active` (public attribute) |
+| Raw access | `raw()` / `set_raw()` | `raw` field | `raw` attribute |
+| Equality | `operator==` (default) | Not generated | `__eq__` |
+
+### Scaled Types
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Value access | `double value()` | `double value()` method | `value` property or method |
+| Raw access | `int16_t raw()` | `int raw` field | `raw` attribute |
+| Constants | `static constexpr double SCALE` | `static final double SCALE` | `SCALE` class variable |
+
+### Wire Encoding
+
+All three backends support the same wire encodings (BCD, BCD_S, BNR_S, CB2). The C++ backend dispatches at compile time; Java and Python dispatch at runtime in the generated `decode()`/`encode()` methods.
+
+> **Known limitation:** The Python backend had a bug where type-level wrappers ignored wire encoding, always using `read_bits`/`write_bits`. This was fixed in audit Round 3. See [Limitations & Known Issues](../conduit/limitations.md).
+
 ## All Generated Files
 
-Types are emitted in the order they appear in the BMDL definition, all within a single `namespace`. See [Naming Conventions](naming-conventions.md) for how BMDL names map to C++ identifiers.
+Types are emitted in the order they appear in the BMDL definition. See [Naming Conventions](naming-conventions.md) for how BMDL names map to identifiers in each language.

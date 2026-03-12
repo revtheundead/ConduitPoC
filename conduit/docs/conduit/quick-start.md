@@ -2,7 +2,9 @@
 
 [Back to index](index.md)
 
-This tutorial walks through building a complete sender/receiver application using BMDL, bgen, and conduit. By the end, you will have two programs exchanging typed protocol messages over UDP.
+This tutorial walks through building a complete sender/receiver application using BMDL, bgen, and conduit. The main walkthrough uses C++. Java and Python quick-start examples are at the bottom of this page.
+
+By the end, you will have two programs exchanging typed protocol messages over UDP.
 
 ## Step 1: Define the Protocol in BMDL
 
@@ -201,6 +203,117 @@ send<Heartbeat>(hb)
                                            → "Heartbeat: seq=1 status=0"
 ```
 
+---
+
+## Java Quick Start
+
+Generate Java code from the same BMDL protocol:
+
+```bash
+bgen --input my-protocol.bmdl.xml --output generated/ --language java
+```
+
+**Decoding a message:**
+
+```java
+import my_protocol.Heartbeat;
+import my_protocol.BitReader;
+
+byte[] wireData = ...;  // received from network
+BitReader reader = new BitReader(wireData);
+Heartbeat msg = Heartbeat.decode(reader);
+System.out.println("seq=" + msg.sequence + " status=" + msg.status);
+```
+
+**Encoding a message:**
+
+```java
+import my_protocol.Heartbeat;
+import my_protocol.BitWriter;
+
+Heartbeat hb = new Heartbeat();
+hb.sequence = 1;
+hb.status = 0;
+byte[] wireData = hb.encodeBytes();
+// send wireData over network
+```
+
+**Using the session for framed messages:**
+
+```java
+import my_protocol.MyFrameSession;
+
+MyFrameSession session = new MyFrameSession();
+
+// Decode a frame
+List<Map<String, Object>> messages = session.decodeFrame(wireData);
+for (Map<String, Object> msg : messages) {
+    System.out.println(msg.get("type_name") + ": " + msg.get("payload"));
+}
+
+// Encode a framed message
+Map<String, Object> result = session.encodeWrap(Heartbeat.TYPE_ID, hb);
+byte[] framedBytes = (byte[]) result.get("bytes");
+```
+
+For full transport access (TCP, UDP, Serial), use the JNI bindings at `conduit/bindings/java/`.
+
+---
+
+## Python Quick Start
+
+Generate Python code from the same BMDL protocol:
+
+```bash
+bgen --input my-protocol.bmdl.xml --output generated/ --language python
+```
+
+**Decoding a message:**
+
+```python
+from my_protocol.messages import Heartbeat
+from my_protocol.bit_io import BitReader
+
+wire_data = b'\x00\x01\x00'  # received from network
+reader = BitReader(wire_data)
+msg = Heartbeat.decode(reader)
+print(f"seq={msg.sequence} status={msg.status}")
+```
+
+**Encoding a message:**
+
+```python
+from my_protocol.messages import Heartbeat
+
+hb = Heartbeat()
+hb.sequence = 1
+hb.status = 0
+wire_data = hb.encode_bytes()
+# send wire_data over network
+```
+
+**Using the session for framed messages:**
+
+```python
+from my_protocol.sessions import MyFrameSession
+from my_protocol.messages import Heartbeat
+
+session = MyFrameSession()
+
+# Decode a frame
+messages = session.decode_frame(wire_data)
+for msg in messages:
+    print(f"{msg['type_name']}: {msg['payload']}")
+
+# Encode a framed message
+result = session.encode_wrap(Heartbeat.TYPE_ID, hb)
+framed_bytes = result['bytes']
+```
+
+For full transport access (TCP, UDP, Serial), use the ctypes bindings at `conduit/bindings/python/`.
+
+---
+
 ## Next Steps
 
 - [Error Handling](error-handling.md) -- Understand `Result<T>`, `VoidResult`, and error propagation
@@ -210,3 +323,5 @@ send<Heartbeat>(hb)
 - [Configuration](configuration.md) -- Tuning queue size, worker threads, back-pressure
 - [Stream Framing](stream-framing.md) -- How TCP/serial streams are reassembled into frames
 - [Sessions & Generated Code](sessions-and-codegen.md) -- Direct session usage without the Transceiver
+- [Benchmarks & Performance](performance.md) -- Performance characteristics and tuning guidance
+- [Limitations & Known Issues](limitations.md) -- Feature parity across backends

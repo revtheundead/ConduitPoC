@@ -77,20 +77,24 @@ For each `<frame>` in the protocol:
 
 ## Stage 6: Generate Code
 
-**Input:** `Protocol` AST + `TypeIndex` + `WireSizeInfo` + `vector<SessionInfo>` + namespace string
-**Output:** 7 C++ header files in the output directory
+**Input:** `Protocol` AST + `TypeIndex` + `WireSizeInfo` + `vector<SessionInfo>` + namespace string + target language
+**Output:** Code files in the output directory (format depends on `--language`)
+
+The target language is selected by `--language` (`cpp`, `java`, or `python`; default: `cpp`). **Stages 1--5 are identical regardless of target language** -- only this stage differs per backend. Each backend receives the same resolved AST, type index, wire size information, and session analysis results.
 
 1. Create the output directory (if it doesn't exist)
 2. Derive the namespace from `--namespace`, `<defaults><namespace>`, or protocol name (hyphens to underscores)
-3. Generate and write each file:
-   - `constants.hpp` -- Named constants
-   - `types.hpp` -- Type wrappers
-   - `structs.hpp` -- Struct classes
-   - `messages.hpp` -- Message classes with `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`. Includes Frame class with `PayloadVariant`, `wrap()`, encode/decode with length backpatch.
-   - `sessions.hpp` -- Session classes implementing `ISession` with frame-based dispatch using message ID switch.
-   - `protocol.hpp` -- `ProtocolDescriptor` with type registry
-   - `<protocol-name>.hpp` -- Umbrella header
+3. Dispatch to the selected language backend and generate files
+
+**C++ backend** (`cpp_backend.cpp`) generates 7 header files:
+   - `constants.hpp`, `types.hpp`, `structs.hpp`, `messages.hpp`, `sessions.hpp`, `protocol.hpp`, `<protocol-name>.hpp`
+
+**Java backend** (`java_backend.cpp`) generates `.java` source files:
+   - `BitReader.java` / `BitWriter.java`, per-type/struct/message classes, session classes, `Constants.java`
+
+**Python backend** (`python_backend.cpp`) generates `.py` module files:
+   - `bit_io.py`, `constants.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`
 
 If any file write fails, bgen reports the error and exits with code 3.
 
-See [Generated File Structure](output-files.md) for details on each output file.
+See [Generated File Structure](output-files.md) for details on each backend's output files.

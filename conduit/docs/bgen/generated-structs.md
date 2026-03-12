@@ -2,11 +2,13 @@
 
 [Back to index](index.md)
 
-bgen generates `structs.hpp` and `messages.hpp` containing C++ classes for every `<struct>` and `<message>` in the BMDL protocol. Structs and messages use the same internal emission logic, with messages adding `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`, and convenience methods.
+bgen generates struct and message classes for every `<struct>` and `<message>` in the BMDL protocol. The C++ backend produces `structs.hpp` and `messages.hpp`; Java generates per-class `.java` files; Python generates `structs.py` and `messages.py`. All three backends use the same internal emission logic, with messages adding `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`, and convenience methods.
 
-`messages.hpp` also contains the Frame class with `PayloadVariant`, `wrap()` overloads, and encode/decode with auto-length backpatching. See [Frame Class](#frame-class) below.
+This page primarily documents C++ output. Java and Python equivalents are summarized at the end.
 
-## Class Structure
+`messages.hpp` (C++) also contains the Frame class with `PayloadVariant`, `wrap()` overloads, and encode/decode with auto-length backpatching. Java and Python generate equivalent Frame classes. See [Frame Class](#frame-class) below.
+
+## Class Structure (C++)
 
 Both `structs.hpp` and `messages.hpp` begin with forward declarations of all classes they define, allowing circular references between types.
 
@@ -317,8 +319,53 @@ The `encode_batch()` session method also initializes constraint-equals fields wh
 
 Note: Individual message classes do **not** have `wrap()` overloads -- only the Frame class has `wrap()` overloads. Messages can still be encoded/decoded standalone via `encode_bytes()` / `decode_bytes()` (without the frame envelope).
 
+## Java and Python Struct/Message Generation
+
+The Java and Python backends generate functionally equivalent struct and message classes. The wire format is identical -- a message encoded by C++ can be decoded by Java or Python and vice versa.
+
+### Field Access Patterns
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Field read | `msg.sequence()` (getter) | `msg.sequence` (public field) | `msg.sequence` (public attribute) |
+| Field write | `msg.set_sequence(42)` (setter) | `msg.sequence = 42` (direct assign) | `msg.sequence = 42` (direct assign) |
+| Mutable ref | `msg.mutable_items()` | N/A (fields are always mutable) | N/A (attributes are always mutable) |
+| Private storage | `sequence_` (trailing underscore) | `sequence` (public) | `sequence` (public) |
+
+### Encode/Decode
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Encode | `msg.encode(BitWriter& w)` -> `VoidResult` | `msg.encode(BitWriter w)` (void, throws) | `msg.encode(BitWriter w)` (void, raises) |
+| Decode | `Msg::decode(BitReader& r)` -> `Result<Msg>` | `Msg.decode(BitReader r)` -> `Msg` (throws) | `Msg.decode(BitReader r)` -> `Msg` (raises) |
+| Convenience | `encode_bytes()` / `decode_bytes(span)` | `encodeBytes()` / `decodeBytes(byte[])` | `encode_bytes()` / `decode_bytes(bytes)` |
+| Error handling | `Result<T>` / `VoidResult` | Java exceptions | Python exceptions |
+
+### Optional Fields
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Storage | `std::optional<T>` | Boxed types (`Integer`, `Long`, etc.) | `None` sentinel |
+| Check | `has_field()` | `field != null` | `field is not None` |
+| Clear | `clear_field()` | `field = null` | `field = None` |
+
+### Choices (Variants)
+
+| Aspect | C++ | Java | Python |
+|--------|-----|------|--------|
+| Type | `std::variant<A, B, C>` | `Object` | Dynamic (any type) |
+| Check | `std::holds_alternative<A>(v)` | `v instanceof A` | `isinstance(v, A)` |
+| Extract | `std::get<A>(v)` | `(A) v` | Direct use |
+
+### Frame Class
+
+All three backends generate a Frame class with `wrap()` methods, encode/decode with auto-length backpatching, and message dispatch by ID. The semantics are identical; only the syntax differs per language.
+
+> **Known limitations:** Java/Python backends have gaps in some advanced features including inline struct flattening, choice decode with range-based cases, and deferred constraint validation. See [Limitations & Known Issues](../conduit/limitations.md) for the full parity matrix.
+
 ## See Also
 
-- [Naming Conventions](naming-conventions.md) -- BMDL-to-C++ name mapping rules used by all generated code
-- [Error Handling](../conduit/error-handling.md) -- `Result<T>` and `VoidResult` returned by encode/decode methods
+- [Naming Conventions](naming-conventions.md) -- BMDL-to-code name mapping rules for all backends
+- [Error Handling](../conduit/error-handling.md) -- `Result<T>` and `VoidResult` returned by C++ encode/decode methods
 - [Bit I/O](../conduit/bit-io.md) -- `BitReader` and `BitWriter` used by generated encode/decode
+- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity across backends

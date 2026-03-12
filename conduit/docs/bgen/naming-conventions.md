@@ -2,9 +2,9 @@
 
 [Back to index](index.md)
 
-bgen converts BMDL names to C++ identifiers using consistent rules. All conversions are implemented in `name_utils.hpp`.
+bgen converts BMDL names to language-appropriate identifiers. The core C++ conversion rules are implemented in `name_utils.hpp`. Java and Python backends apply additional language-specific conventions.
 
-> **Core rule:** All hyphens (`-`) in BMDL names become underscores (`_`) in C++. Casing is preserved -- bgen does not convert between PascalCase and snake_case (except for factory function names). BMDL authors should choose names that are already valid C++ after hyphen substitution.
+> **Core rule (C++):** All hyphens (`-`) in BMDL names become underscores (`_`). Casing is preserved -- bgen does not convert between PascalCase and snake_case (except for factory function names). BMDL authors should choose names that are already valid C++ after hyphen substitution.
 
 ## Field Names
 
@@ -194,3 +194,56 @@ When a struct field has the same name as its type after conversion (e.g., field 
 // Instead of: msg_type msg_type_{};
 ::my_protocol::msg_type msg_type_{};  // Qualified to avoid shadowing
 ```
+
+---
+
+## Java Naming Conventions
+
+The Java backend converts BMDL names to Java-idiomatic identifiers:
+
+- **Fields:** camelCase -- `msg-type` becomes `msgType`, `sensor-id` becomes `sensorId`
+- **Classes:** PascalCase -- `Heartbeat` stays `Heartbeat`, `sensor-reading` becomes `SensorReading`
+- **Constants:** UPPER_SNAKE_CASE -- `SYNC_WORD` stays `SYNC_WORD`
+- **Enum values:** UPPER_SNAKE_CASE -- `heartbeat` becomes `HEARTBEAT`
+- **Packages:** Derived from namespace, lowercase with dots
+
+| BMDL Name | Context | Java Name |
+|-----------|---------|-----------|
+| `msg-type` | field | `msgType` |
+| `sensor-id` | field | `sensorId` |
+| `Heartbeat` | message | `Heartbeat` |
+| `StatusFlags` | type | `StatusFlags` |
+| `MyFrame` | session | `MyFrameSession` |
+
+---
+
+## Python Naming Conventions
+
+The Python backend converts BMDL names to Python-idiomatic identifiers:
+
+- **Fields/attributes:** snake_case -- `msg-type` becomes `msg_type` (same as C++)
+- **Classes:** PascalCase -- `Heartbeat` stays `Heartbeat`, `data-frame` becomes `DataFrame`
+- **Constants:** UPPER_SNAKE_CASE -- same as BMDL
+- **Enum values:** UPPER_SNAKE_CASE -- `heartbeat` becomes `HEARTBEAT`
+- **Modules:** snake_case -- derived from namespace
+
+| BMDL Name | Context | Python Name |
+|-----------|---------|-------------|
+| `msg-type` | field | `msg_type` |
+| `sensor-id` | field | `sensor_id` |
+| `Heartbeat` | message | `Heartbeat` |
+| `StatusFlags` | type | `StatusFlags` |
+| `MyFrame` | session | `MyFrameSession` |
+
+---
+
+## Cross-Language Name Comparison
+
+| BMDL | C++ | Java | Python |
+|------|-----|------|--------|
+| `msg-type` (field) | `msg_type()` / `set_msg_type()` | `msgType` (public field) | `msg_type` (attribute) |
+| `sensor-id` (field) | `sensor_id()` / `set_sensor_id()` | `sensorId` (public field) | `sensor_id` (attribute) |
+| `Heartbeat` (message) | `class Heartbeat` | `class Heartbeat` | `class Heartbeat` |
+| `status-flags` (type) | `class status_flags` | `class StatusFlags` | `class StatusFlags` |
+| `MyFrame` (session) | `MyFrameSession` / `create_my_frame_session()` | `MyFrameSession` | `MyFrameSession` |
+| `SYNC_WORD` (constant) | `SYNC_WORD` | `SYNC_WORD` | `SYNC_WORD` |

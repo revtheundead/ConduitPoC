@@ -5,7 +5,7 @@
 ## Synopsis
 
 ```
-bgen --input <root.bmdl.xml> --output <dir> [--namespace <ns>] [options]
+bgen --input <root.bmdl.xml> --output <dir> [--language <lang>] [--namespace <ns>] [options]
 ```
 
 ## Arguments
@@ -14,7 +14,8 @@ bgen --input <root.bmdl.xml> --output <dir> [--namespace <ns>] [options]
 |----------|----------|-------------|
 | `--input <path>` | Yes | Path to the root BMDL XML file |
 | `--output <dir>` | Yes* | Output directory for generated code |
-| `--namespace <ns>` | No | Override the C++ namespace (default: protocol name) |
+| `--language <lang>` | No | Target language: `cpp` (default), `java`, `python` |
+| `--namespace <ns>` | No | Override the namespace/package (default: protocol name) |
 | `--verbose` | No | Show informational and diagnostic output |
 | `--validate-only` | No | Parse and validate without generating code |
 | `--dump-ast` | No | Parse, resolve, validate, then print AST and exit |
@@ -23,29 +24,52 @@ bgen --input <root.bmdl.xml> --output <dir> [--namespace <ns>] [options]
 
 *`--output` is not required when using `--validate-only` or `--dump-ast`.
 
+## Language Selection
+
+The `--language` argument selects the code generation backend. If omitted, C++ is used.
+
+| Language | Value | Output |
+|----------|-------|--------|
+| C++ | `cpp` (default) | 7 `.hpp` header files |
+| Java | `java` | `.java` source files (one per class + BitReader/BitWriter) |
+| Python | `python` | `.py` module files (bit_io, types, structs, messages, sessions, protocol) |
+
+All backends produce wire-compatible serialization from the same BMDL schema.
+
 ## Namespace Rules
 
-The `--namespace` argument overrides the default namespace, which is derived from the protocol name. Namespace rules:
+The `--namespace` argument overrides the default namespace, which is derived from the protocol name. The interpretation depends on the target language:
 
-- Must be valid C++ identifier(s), optionally separated by `::`
+- **C++:** Used as the C++ namespace. May contain `::` separators (e.g., `my::proto`).
+- **Java:** Used as the Java package name (e.g., `com.example.myprotocol`).
+- **Python:** Used as the Python module path.
+
+General rules:
+
 - Hyphens are converted to underscores automatically
 - Each segment must start with a letter or underscore, followed by letters, digits, or underscores
+
+C++-specific:
+
+- May be separated by `::`
 - Cannot start or end with `::`
 - Cannot contain empty segments (`::::`)
 
 Examples:
 
 ```
---namespace myproto           # namespace myproto { ... }
---namespace my::proto         # namespace my::proto { ... }
---namespace my-protocol       # namespace my_protocol { ... }  (hyphen → underscore)
+--namespace myproto           # C++: namespace myproto { ... }
+--namespace my::proto         # C++: namespace my::proto { ... }
+--namespace my-protocol       # C++: namespace my_protocol { ... }  (hyphen -> underscore)
 ```
 
 When `--namespace` is not specified, the namespace is derived from `<defaults><namespace>`:
 
 ```xml
 <defaults><namespace>my_protocol</namespace></defaults>
-<!-- generates: namespace my_protocol { ... } -->
+<!-- C++: namespace my_protocol { ... } -->
+<!-- Java: package my_protocol; -->
+<!-- Python: my_protocol/ module directory -->
 ```
 
 Hyphens in namespace values are automatically converted to underscores.
@@ -107,10 +131,22 @@ bgen: generated 7 files in output/
 
 ## Examples
 
-Generate code from a protocol:
+Generate C++ code from a protocol (default):
 
 ```bash
 bgen --input protocols/asterix.bmdl.xml --output generated/asterix/
+```
+
+Generate Java code:
+
+```bash
+bgen --input protocols/asterix.bmdl.xml --output generated/asterix/ --language java
+```
+
+Generate Python code:
+
+```bash
+bgen --input protocols/asterix.bmdl.xml --output generated/asterix/ --language python
 ```
 
 Validate without generating:

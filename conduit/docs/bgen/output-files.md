@@ -2,9 +2,9 @@
 
 [Back to index](index.md)
 
-bgen produces 7 C++ header files. Each file is self-contained (includes its own dependencies) and follows a strict include chain.
+bgen produces code files whose structure depends on the target language (`--language`). This page describes the output for all three backends. The C++ backend is documented most thoroughly as the reference implementation; Java and Python follow the same logical structure with language-appropriate adaptations.
 
-## Output Files
+## C++ Output Files
 
 | File | Generator | Purpose |
 |------|-----------|---------|
@@ -151,9 +151,88 @@ Generated code requires the conduit runtime library headers:
 | `conduit/traits/session_traits.hpp` | sessions, protocol (`ISession` interface) |
 | `conduit/logging/logger.hpp` | sessions (only when direction-constrained types exist) |
 
+---
+
+## Java Output Files
+
+The Java backend generates one `.java` file per class, plus shared utility classes.
+
+| File | Purpose |
+|------|---------|
+| `BitReader.java` | Bit-level reader (reads bits, bytes, BCD, sign-magnitude from a byte array) |
+| `BitWriter.java` | Bit-level writer (accumulates bits into a byte array) |
+| `Constants.java` | Named constants as `public static final` fields |
+| Per-type `.java` files | Wrapper classes for enums, flags, scaled, constrained, and string types |
+| Per-struct `.java` files | Struct classes with public fields, `encode(BitWriter)`/`static decode(BitReader)` |
+| Per-message `.java` files | Message classes with `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`, `encodeBytes()`/`decodeBytes()` |
+| Frame `.java` file | Frame class with `wrap()`, encode/decode with length backpatching |
+| Session `.java` files | Session classes with `decodeFrame()`, `encodeWrap()`, `formatMessage()` |
+
+### Java Field Access
+
+Java uses **public fields** rather than getter/setter methods:
+
+```java
+Heartbeat msg = Heartbeat.decode(new BitReader(data));
+int seq = msg.sequence;         // direct field access
+msg.sequence = 42;              // direct field assignment
+```
+
+### Java Runtime Dependencies
+
+Generated Java code is self-contained -- `BitReader.java` and `BitWriter.java` are generated alongside the protocol code. No external library dependencies are required for codec operations. For transport access, the JNI or Panama bindings (`conduit/bindings/java/`) link against the native conduit library.
+
+---
+
+## Python Output Files
+
+The Python backend generates a module directory with `.py` files.
+
+| File | Purpose |
+|------|---------|
+| `bit_io.py` | `BitReader`/`BitWriter` classes with bit-level operations |
+| `constants.py` | Named constants |
+| `types.py` | Type wrappers (enums, flags, scaled, constrained, string types) |
+| `structs.py` | Struct classes with `encode(BitWriter)`/`decode(BitReader)` class methods |
+| `messages.py` | Message classes with `TYPE_ID`, `TYPE_NAME`, `encode_bytes()`/`decode_bytes()`; Frame class |
+| `sessions.py` | Session classes with `decode_frame()`, `encode_wrap()`, `format_message()` |
+| `protocol.py` | Protocol descriptor with type registry and session factory |
+| `__init__.py` | Package initializer |
+
+### Python Field Access
+
+Python uses **public attributes** set in `__init__`:
+
+```python
+msg = Heartbeat.decode(BitReader(data))
+seq = msg.sequence              # direct attribute access
+msg.sequence = 42               # direct attribute assignment
+```
+
+### Python Runtime Dependencies
+
+Generated Python code is self-contained -- `bit_io.py` provides the `BitReader`/`BitWriter` implementation. No external package dependencies are required for codec operations. For transport access, the ctypes bindings (`conduit/bindings/python/`) link against the native conduit shared library.
+
+---
+
+## Cross-Backend Comparison
+
+| Concept | C++ | Java | Python |
+|---------|-----|------|--------|
+| Bit I/O | `conduit::io::BitReader` (library) | `BitReader.java` (generated) | `bit_io.BitReader` (generated) |
+| Constants | `inline constexpr` | `public static final` | Module-level variables |
+| Type wrappers | Classes with `value()`/`set_value()` | Classes with public `value` field | Classes with public `value` attribute |
+| Struct fields | Private members + getters/setters | Public fields | Public attributes |
+| Optional fields | `std::optional<T>` | Boxed types (nullable `Integer`, `Long`) | `None` sentinel |
+| Encode | `msg.encode(BitWriter&)` | `msg.encode(BitWriter)` | `msg.encode(BitWriter)` |
+| Decode | `Msg::decode(BitReader&)` | `Msg.decode(BitReader)` | `Msg.decode(BitReader)` |
+| Convenience | `encode_bytes()` / `decode_bytes(span)` | `encodeBytes()` / `decodeBytes(byte[])` | `encode_bytes()` / `decode_bytes(bytes)` |
+| Session | `ISession` interface | Class with virtual methods | Class with methods |
+
 ## See Also
 
 - [conduit Runtime Library](../conduit/index.md) -- Documentation for each conduit header listed above
-- [Type Code Generation](generated-types.md) -- How BMDL types map to C++ in `types.hpp`
-- [Struct & Message Code Generation](generated-structs.md) -- How structs/messages are generated in `structs.hpp` and `messages.hpp`
-- [Session Code Generation](generated-sessions.md) -- How sessions are generated in `sessions.hpp`
+- [Type Code Generation](generated-types.md) -- How BMDL types map to code in each backend
+- [Struct & Message Code Generation](generated-structs.md) -- How structs/messages are generated
+- [Session Code Generation](generated-sessions.md) -- How sessions are generated
+- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity status across backends
