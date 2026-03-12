@@ -594,9 +594,6 @@ if(CONDUIT_BUILD_TESTS)
 endif()
 
 if(CONDUIT_BUILD_EXAMPLES)
-    if(NOT CONDUIT_BUILD_BGEN)
-        message(FATAL_ERROR "CONDUIT_BUILD_EXAMPLES requires CONDUIT_BUILD_BGEN=ON")
-    endif()
     add_subdirectory(examples)
 endif()
 
