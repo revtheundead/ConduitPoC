@@ -17,36 +17,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests)
+      - name: Configure conduit (with tests + examples)
         run: >
-          cmake -B build-conduit -S conduit
+          cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build conduit
-        run: cmake --build build-conduit --config ${{ matrix.build_type }} --parallel
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
 
       - name: Run conduit tests
         run: |
-          cd build-conduit
+          cd build
           ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
-
-      - name: Configure xcvr
-        run: >
-          cmake -B build-xcvr -S xcvr
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-
-      - name: Build xcvr
-        run: cmake --build build-xcvr --config ${{ matrix.build_type }} --parallel
 
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         shell: pwsh
         run: |
-          $buildDir = "build-xcvr/${{ matrix.build_type }}"
-          if (-not (Test-Path "$buildDir/dummy_peer.exe")) {
-            $buildDir = "build-xcvr"
-          }
+          $buildDir = "build/examples"
 
           # Start server in background
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
@@ -112,18 +102,21 @@ jobs:
           echo $mingwBin | Out-File -Append -FilePath $env:GITHUB_PATH
           gcc --version
 
-      - name: Configure xcvr (MinGW)
+      - name: Configure conduit with examples (MinGW)
         run: >
-          cmake -B build-mingw -S xcvr -G "MinGW Makefiles"
+          cmake -B build-mingw -S conduit -G "MinGW Makefiles"
+          -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BGEN=OFF
+          -DCONDUIT_BUILD_TESTS=OFF
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build xcvr (MinGW)
+      - name: Build conduit with examples (MinGW)
         run: cmake --build build-mingw --parallel
 
       - name: Smoke-test xcvr apps (MinGW)
         shell: pwsh
         run: |
-          $buildDir = "build-mingw"
+          $buildDir = "build-mingw/examples"
 
           # Start server in background
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
@@ -170,11 +163,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests)
+      - name: Configure conduit (with tests + examples)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -183,25 +177,20 @@ jobs:
       - name: Run conduit tests
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Configure and build xcvr
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -240,17 +229,17 @@ jobs:
       - name: Generate Java sources from BMDL
         run: |
           BGEN=./build-conduit/bgen/bgen
-          $BGEN --input xcvr-java11/asterix/asterix.bmdl.xml \
-                --output xcvr-java11/asterix/generated --language java
-          $BGEN --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml \
-                --output xcvr-java11/asterix-alt/generated --language java
+          $BGEN --input conduit/examples/xcvr-java11/asterix/asterix.bmdl.xml \
+                --output conduit/examples/xcvr-java11/asterix/generated --language java
+          $BGEN --input conduit/examples/xcvr-java11/asterix-alt/asterix-alt.bmdl.xml \
+                --output conduit/examples/xcvr-java11/asterix-alt/generated --language java
 
       - name: Install conduit-java to local Maven repo
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
       - name: Build xcvr-java11
         run: >
-          mvn package -q -f xcvr-java11/pom.xml
+          mvn package -q -f conduit/examples/xcvr-java11/pom.xml
           -Dskip.bgen=true
           -Dconduit.build.dir=${{ github.workspace }}/build-conduit
 
@@ -260,7 +249,7 @@ jobs:
           JNI_LIB=$BUILD_DIR/lib/libconduit_jni.so
 
           # Start DummyPeer in server mode in the background
-          mvn exec:java -f xcvr-java11/pom.xml -PrunDummyPeer \
+          mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
             -Dconduit.build.dir=$BUILD_DIR \
             -Dconduit.jni.path=$JNI_LIB \
             -Dexec.appArgs="server --port 15001 --interval-ms 500" \
@@ -270,7 +259,7 @@ jobs:
           sleep 3
 
           # Run PocApp client for 5 seconds
-          timeout 5 mvn exec:java -f xcvr-java11/pom.xml -PrunPocApp \
+          timeout 5 mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunPocApp \
             -Dconduit.build.dir=$BUILD_DIR \
             -Dconduit.jni.path=$JNI_LIB \
             -Dexec.appArgs="127.0.0.1 15001 --interval-ms 500" \
@@ -321,10 +310,10 @@ jobs:
         run: |
           # CMake config flattens all configs into bgen/ (no Release/ subdirectory)
           $bgen = "build-conduit/bgen/bgen.exe"
-          & $bgen --input xcvr-java11/asterix/asterix.bmdl.xml `
-                  --output xcvr-java11/asterix/generated --language java
-          & $bgen --input xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
-                  --output xcvr-java11/asterix-alt/generated --language java
+          & $bgen --input conduit/examples/xcvr-java11/asterix/asterix.bmdl.xml `
+                  --output conduit/examples/xcvr-java11/asterix/generated --language java
+          & $bgen --input conduit/examples/xcvr-java11/asterix-alt/asterix-alt.bmdl.xml `
+                  --output conduit/examples/xcvr-java11/asterix-alt/generated --language java
 
       - name: Install conduit-java to local Maven repo
         run: mvn install -q -f conduit/bindings/java/pom.xml
@@ -333,7 +322,7 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\build-conduit"
-          mvn package -q -f xcvr-java11/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir"
+          mvn package -q -f conduit/examples/xcvr-java11/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir"
 
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         shell: pwsh
@@ -348,7 +337,7 @@ jobs:
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
             -ArgumentList @(
-              "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunDummyPeer",
+              "exec:java", "-f", "conduit/examples/xcvr-java11/pom.xml", "-PrunDummyPeer",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.jni.path=$JniLib",
               '"-Dexec.appArgs=server --port 15001 --interval-ms 500"'
@@ -362,7 +351,7 @@ jobs:
           # Start PocApp client in background, then wait 5 seconds
           $client = Start-Process -FilePath "mvn" `
             -ArgumentList @(
-              "exec:java", "-f", "xcvr-java11/pom.xml", "-PrunPocApp",
+              "exec:java", "-f", "conduit/examples/xcvr-java11/pom.xml", "-PrunPocApp",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.jni.path=$JniLib",
               '"-Dexec.appArgs=127.0.0.1 15001 --interval-ms 500"'
@@ -425,18 +414,18 @@ jobs:
       - name: Generate Java sources from BMDL
         run: |
           BGEN=./conduit/build/bgen/bgen
-          $BGEN --input xcvr-java/asterix/asterix.bmdl.xml \
-                --output xcvr-java/asterix/generated --language java
-          $BGEN --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml \
-                --output xcvr-java/asterix-alt/generated --language java
+          $BGEN --input conduit/examples/xcvr-java21/asterix/asterix.bmdl.xml \
+                --output conduit/examples/xcvr-java21/asterix/generated --language java
+          $BGEN --input conduit/examples/xcvr-java21/asterix-alt/asterix-alt.bmdl.xml \
+                --output conduit/examples/xcvr-java21/asterix-alt/generated --language java
 
       - name: Install conduit-java to local Maven repo
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
-      - name: Build xcvr-java
-        run: mvn package -q -f xcvr-java/pom.xml -Dskip.bgen=true
+      - name: Build xcvr-java21
+        run: mvn package -q -f conduit/examples/xcvr-java21/pom.xml -Dskip.bgen=true
 
-      - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
+      - name: Smoke-test xcvr-java21 (DummyPeer server + PocApp client)
         env:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
@@ -444,7 +433,7 @@ jobs:
           CABI_PATH=$BUILD_DIR/lib/libconduit_cabi.so
 
           # Start DummyPeer in server mode in the background
-          mvn exec:java -f xcvr-java/pom.xml -PrunDummyPeer \
+          mvn exec:java -f conduit/examples/xcvr-java21/pom.xml -PrunDummyPeer \
             -Dconduit.build.dir=$BUILD_DIR \
             -Dconduit.cabi.path=$CABI_PATH \
             -Dexec.appArgs="server --port 15002 --interval-ms 500" \
@@ -454,7 +443,7 @@ jobs:
           sleep 3
 
           # Run PocApp client for 5 seconds
-          timeout 5 mvn exec:java -f xcvr-java/pom.xml -PrunPocApp \
+          timeout 5 mvn exec:java -f conduit/examples/xcvr-java21/pom.xml -PrunPocApp \
             -Dconduit.build.dir=$BUILD_DIR \
             -Dconduit.cabi.path=$CABI_PATH \
             -Dexec.appArgs="127.0.0.1 15002 --interval-ms 500" \
@@ -502,22 +491,22 @@ jobs:
         shell: pwsh
         run: |
           $bgen = "conduit/build/bgen/bgen.exe"
-          & $bgen --input xcvr-java/asterix/asterix.bmdl.xml `
-                  --output xcvr-java/asterix/generated --language java
-          & $bgen --input xcvr-java/asterix-alt/asterix-alt.bmdl.xml `
-                  --output xcvr-java/asterix-alt/generated --language java
+          & $bgen --input conduit/examples/xcvr-java21/asterix/asterix.bmdl.xml `
+                  --output conduit/examples/xcvr-java21/asterix/generated --language java
+          & $bgen --input conduit/examples/xcvr-java21/asterix-alt/asterix-alt.bmdl.xml `
+                  --output conduit/examples/xcvr-java21/asterix-alt/generated --language java
 
       - name: Install conduit-java to local Maven repo
         run: mvn install -q -f conduit/bindings/java/pom.xml
 
-      - name: Build xcvr-java
+      - name: Build xcvr-java21
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\conduit\build"
           $cabiPath = "$buildDir\lib\conduit_cabi.dll"
-          mvn package -q -f xcvr-java/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
+          mvn package -q -f conduit/examples/xcvr-java21/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
-      - name: Smoke-test xcvr-java (DummyPeer server + PocApp client)
+      - name: Smoke-test xcvr-java21 (DummyPeer server + PocApp client)
         shell: pwsh
         env:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
@@ -529,7 +518,7 @@ jobs:
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
             -ArgumentList @(
-              "exec:java", "-f", "xcvr-java/pom.xml", "-PrunDummyPeer",
+              "exec:java", "-f", "conduit/examples/xcvr-java21/pom.xml", "-PrunDummyPeer",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.cabi.path=$CabiPath",
               '"-Dexec.appArgs=server --port 15002 --interval-ms 500"'
@@ -543,7 +532,7 @@ jobs:
           # Start PocApp client in background, then wait for it to initialize
           $client = Start-Process -FilePath "mvn" `
             -ArgumentList @(
-              "exec:java", "-f", "xcvr-java/pom.xml", "-PrunPocApp",
+              "exec:java", "-f", "conduit/examples/xcvr-java21/pom.xml", "-PrunPocApp",
               "-Dconduit.build.dir=$BuildDir",
               "-Dconduit.cabi.path=$CabiPath",
               '"-Dexec.appArgs=127.0.0.1 15002 --interval-ms 500"'
@@ -604,35 +593,35 @@ jobs:
       - name: Generate Python sources from BMDL
         run: |
           BGEN=./conduit/build/bgen/bgen
-          $BGEN --input xcvr-python/asterix/asterix.bmdl.xml \
-                --output xcvr-python/asterix/generated --language python
-          $BGEN --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml \
-                --output xcvr-python/asterix-alt/generated --language python
+          $BGEN --input conduit/examples/xcvr-python/asterix/asterix.bmdl.xml \
+                --output conduit/examples/xcvr-python/asterix/generated --language python
+          $BGEN --input conduit/examples/xcvr-python/asterix-alt/asterix-alt.bmdl.xml \
+                --output conduit/examples/xcvr-python/asterix-alt/generated --language python
 
       - name: Install conduit Python bindings and xcvr-python
         run: |
           pip install conduit/bindings/python/
-          pip install xcvr-python/
+          pip install conduit/examples/xcvr-python/
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/libconduit_cabi.so
           PYTHONUNBUFFERED: "1"
         run: |
-          cd xcvr-python
+          cd conduit/examples/xcvr-python
 
           python -m src.dummy_peer server --port 15003 --interval-ms 500 \
-            > ../server_out.txt 2>&1 &
+            > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
 
           sleep 2
 
           timeout 5 python -m src.poc_app 127.0.0.1 15003 --interval-ms 500 \
-            > ../client_out.txt 2>&1 || true
+            > ../../../client_out.txt 2>&1 || true
 
           kill $SERVER_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../../..
 
           echo "=== Server output ==="
           cat server_out.txt
@@ -672,15 +661,15 @@ jobs:
         shell: pwsh
         run: |
           $bgen = "conduit/build/bgen/bgen.exe"
-          & $bgen --input xcvr-python/asterix/asterix.bmdl.xml `
-                  --output xcvr-python/asterix/generated --language python
-          & $bgen --input xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
-                  --output xcvr-python/asterix-alt/generated --language python
+          & $bgen --input conduit/examples/xcvr-python/asterix/asterix.bmdl.xml `
+                  --output conduit/examples/xcvr-python/asterix/generated --language python
+          & $bgen --input conduit/examples/xcvr-python/asterix-alt/asterix-alt.bmdl.xml `
+                  --output conduit/examples/xcvr-python/asterix-alt/generated --language python
 
       - name: Install conduit Python bindings and xcvr-python
         run: |
           pip install conduit/bindings/python/
-          pip install xcvr-python/
+          pip install conduit/examples/xcvr-python/
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         shell: pwsh
@@ -691,7 +680,7 @@ jobs:
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "python" `
             -ArgumentList "-m", "src.dummy_peer", "server", "--port", "15003", "--interval-ms", "500" `
-            -WorkingDirectory "xcvr-python" `
+            -WorkingDirectory "conduit/examples/xcvr-python" `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput server_out.txt `
             -RedirectStandardError server_err.txt
@@ -701,7 +690,7 @@ jobs:
           # Start PocApp client in background, then wait 5 seconds
           $client = Start-Process -FilePath "python" `
             -ArgumentList "-m", "src.poc_app", "127.0.0.1", "15003", "--interval-ms", "500" `
-            -WorkingDirectory "xcvr-python" `
+            -WorkingDirectory "conduit/examples/xcvr-python" `
             -PassThru -NoNewWindow `
             -RedirectStandardOutput client_out.txt `
             -RedirectStandardError client_err.txt
@@ -740,11 +729,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (Debug, with tests)
+      - name: Configure conduit (Debug, with tests + examples)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build conduit
@@ -753,25 +743,20 @@ jobs:
       - name: Run conduit tests
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Configure and build xcvr
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -790,11 +775,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests)
+      - name: Configure conduit (with tests + examples)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -803,25 +789,20 @@ jobs:
       - name: Run conduit tests
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Configure and build xcvr
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -849,7 +830,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y clang-19
 
-      - name: Configure conduit (Clang 19, with tests)
+      - name: Configure conduit (Clang 19, with tests + examples)
         env:
           CC: clang-19
           CXX: clang++-19
@@ -857,6 +838,7 @@ jobs:
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -865,28 +847,20 @@ jobs:
       - name: Run conduit tests
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Configure and build xcvr
-        env:
-          CC: clang-19
-          CXX: clang++-19
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -905,11 +879,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (ASan + UBSan, with tests)
+      - name: Configure conduit (ASan + UBSan, with tests + examples)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Debug
           -DCONDUIT_ENABLE_SANITIZERS=ON
 
@@ -922,32 +897,23 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: cd build && ctest --output-on-failure --timeout 180
 
-      - name: Configure and build xcvr
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug \
-            -DCONDUIT_ENABLE_SANITIZERS=ON \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps under sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 8
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -966,11 +932,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (TSan, with tests)
+      - name: Configure conduit (TSan, with tests + examples)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
           -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
@@ -984,30 +951,22 @@ jobs:
           TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: cd build && ctest --output-on-failure --timeout 180
 
-      - name: Configure and build xcvr
-        run: |
-          cmake -B build-xcvr -S xcvr -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=thread"
-          cmake --build build-xcvr --parallel
-
       - name: Smoke-test xcvr apps under TSan
         env:
           TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: |
-          cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
+          cd build/examples
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 8
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ..
+          cd ../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="

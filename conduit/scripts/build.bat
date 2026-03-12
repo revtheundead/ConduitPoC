@@ -387,6 +387,63 @@ if "%RUN_TESTS%"=="1" (
         )
     )
 
+    :: --- Java JUnit tests (non-fatal) ---
+    set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+    set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
+    set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
+    if exist "!JUNIT_JAR!" (
+        if exist "!JAVA_TEST_CLASSES!" (
+            if exist "!JAVA_JAR!" (
+                where java >nul 2>&1
+                if not errorlevel 1 (
+                    echo.
+                    echo ==^> Running Java JUnit tests
+                    java -jar "!JUNIT_JAR!" ^
+                        --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
+                        --scan-class-path "!JAVA_TEST_CLASSES!" ^
+                        --include-classname "^Test.*" ^
+                        --exclude-classname ".*Transceiver.*" ^
+                        --exclude-classname ".*CodecCabi.*"
+                    if errorlevel 1 (
+                        echo Warning: Java JUnit tests failed ^(non-fatal^)
+                    )
+                ) else (
+                    echo Warning: java not found -- skipping Java JUnit tests
+                )
+            )
+        )
+    ) else (
+        echo   Java JUnit tests not available ^(build with CONDUIT_BUILD_JAVA_JAR=ON^)
+    )
+
+    :: --- Python pytest tests (non-fatal) ---
+    set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
+    set "PYTHON_TESTS=%~dp0..\tests\python"
+    if exist "!PYTHON_TESTS!" (
+        where python >nul 2>&1
+        if not errorlevel 1 (
+            :: Install pytest from vendored wheels if available
+            if exist "!PYTEST_WHEEL_DIR!" (
+                python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1
+            )
+            python -c "import pytest" >nul 2>&1
+            if not errorlevel 1 (
+                echo.
+                echo ==^> Running Python pytest tests
+                python -m pytest "!PYTHON_TESTS!" -x -q ^
+                    --ignore="!PYTHON_TESTS!\test_codec_cabi.py" ^
+                    --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py"
+                if errorlevel 1 (
+                    echo Warning: Python tests failed ^(non-fatal^)
+                )
+            ) else (
+                echo Warning: pytest not available -- skipping Python tests
+            )
+        ) else (
+            echo Warning: python not found -- skipping Python tests
+        )
+    )
+
     echo.
     echo ==^> All tests passed
 )

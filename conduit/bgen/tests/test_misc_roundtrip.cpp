@@ -153,7 +153,7 @@ TEST_CASE("PrefixMsg wire format length includes prefix", "[roundtrip][string_pr
     // Wire: uint16 length prefix (includes self=2 bytes) + string bytes + tag
     // Length prefix = 2 + 2 = 4 for "AB"
     REQUIRE(bytes.size() >= 2);
-    uint16_t wire_len = (static_cast<uint16_t>(bytes[0]) << 8) | bytes[1];
+    uint16_t wire_len = static_cast<uint16_t>((static_cast<uint16_t>(bytes[0]) << 8) | bytes[1]);
     CHECK(wire_len == 4); // 2 (prefix size) + 2 (string length)
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("PrefixMsg empty string roundtrip", "[roundtrip][string_prefix]") {
     auto bytes = std::move(*enc_result);
     // Length prefix should be 2 (just the prefix itself, no string data)
     REQUIRE(bytes.size() >= 2);
-    uint16_t wire_len = (static_cast<uint16_t>(bytes[0]) << 8) | bytes[1];
+    uint16_t wire_len = static_cast<uint16_t>((static_cast<uint16_t>(bytes[0]) << 8) | bytes[1]);
     CHECK(wire_len == 2);
 
     auto decoded = string_prefix_incl::PrefixMsg::decode_bytes(bytes);
