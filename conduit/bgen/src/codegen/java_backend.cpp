@@ -1362,7 +1362,7 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length) {
         if (f.auto_expr->field_ref.empty()) {
             // auto="length" (whole struct): record start pos, write placeholder
-            ctx.line("int _lenPos = w.sizeBytes();");
+            ctx.line("_lenPos = w.sizeBytes();");
         } else {
             // auto="length(field)": record position for field-specific backpatch
             ctx.line("int _lenRefPos = w.sizeBytes();");
@@ -1894,7 +1894,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
 
     // Helper lambda: emit the auto-length(field) backpatch
     auto emit_length_ref_patch = [&]() {
-        if (!auto_len_ref_field) return;
+        if (!auto_len_ref_field || !auto_len_ref_field->auto_expr) return;
         auto al_fi = j_resolve_field(*auto_len_ref_field, index);
         bool be = (al_fi.endian == model::Endian::Big);
         std::string target_field = j_field(auto_len_ref_field->auto_expr->field_ref);
@@ -2880,6 +2880,7 @@ std::string generate_j_class(const std::string& name,
         ctx.indent();
         if (auto_len_field) {
             ctx.line("int _structStart = w.sizeBytes();");
+            ctx.line("int _lenPos = 0;");
         }
         std::string len_ref_target = (auto_len_ref_field && auto_len_ref_field->auto_expr)
             ? auto_len_ref_field->auto_expr->field_ref : "";
