@@ -1499,13 +1499,13 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes
         && f.constraint->validate != model::ValidateTiming::Deferred) {
         if (f.constraint->equals) {
-            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ValueError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
+            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
         }
         if (f.constraint->max) {
-            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ValueError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
         }
         if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
-            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ValueError('" + f.name + " below min " + *f.constraint->min + "')");
+            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
         }
     }
     if (fi.is_enum) {

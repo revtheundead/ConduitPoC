@@ -368,18 +368,26 @@ void emit_write_stmt(EmitContext& ctx, const std::string& value, const FieldType
     }
     // Byte-optimized writes (write_u8, write_u16, etc.) auto-align to byte
     // boundaries. Only use them when we know the position is byte-aligned.
+    // Helper: wrap value with static_cast only if it doesn't already have one.
+    // This avoids redundant double casts like static_cast<uint16_t>(static_cast<uint16_t>(...))
+    // or static_cast<uint8_t>(static_cast<uint8>(...)) which occur when callers pass
+    // pre-cast scaled field or count expressions.
+    auto cast_wrap = [](const std::string& v, const std::string& type) -> std::string {
+        if (v.starts_with("static_cast<")) return v;
+        return "static_cast<" + type + ">(" + v + ")";
+    };
     if (byte_aligned) {
         if (fti.bits == 8 && !fti.is_signed) {
-            ctx.line("w.write_u8(static_cast<uint8_t>(" + value + "));");
+            ctx.line("w.write_u8(" + cast_wrap(value, "uint8_t") + ");");
             return;
         } else if (fti.bits == 16 && !fti.is_signed) {
-            ctx.line("w.write_u16(static_cast<uint16_t>(" + value + "), " + endian_str(endian) + ");");
+            ctx.line("w.write_u16(" + cast_wrap(value, "uint16_t") + ", " + endian_str(endian) + ");");
             return;
         } else if (fti.bits == 32 && !fti.is_signed) {
-            ctx.line("w.write_u32(static_cast<uint32_t>(" + value + "), " + endian_str(endian) + ");");
+            ctx.line("w.write_u32(" + cast_wrap(value, "uint32_t") + ", " + endian_str(endian) + ");");
             return;
         } else if (fti.bits == 64 && !fti.is_signed) {
-            ctx.line("w.write_u64(static_cast<uint64_t>(" + value + "), " + endian_str(endian) + ");");
+            ctx.line("w.write_u64(" + cast_wrap(value, "uint64_t") + ", " + endian_str(endian) + ");");
             return;
         }
     }
