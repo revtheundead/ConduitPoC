@@ -1535,6 +1535,11 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->count_from) {
                     ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx, ef_ptr) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
+                } else if (ad->length_from) {
+                    // Bounded array: create sub-reader limited to length_from bytes
+                    ctx.line("{ BitReader _ar = r.subReader((int)(" + j_expr_ctx(*ad->length_from, pfx, outer_ctx, ef_ptr) + "));");
+                    ctx.line("  while (_ar.remainingBytes() > 0) " + m + ".add(" + elem + ".decode(_ar));");
+                    ctx.line("}");
                 } else {
                     ctx.line("while (r.remainingBytes() > 0) " + m + ".add(" + elem + ".decode(r));");
                 }

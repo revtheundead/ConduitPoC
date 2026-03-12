@@ -191,12 +191,27 @@ jobs:
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 5
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "Smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED"
+          else
+            echo "Smoke test FAILED"
+            exit 1
+          fi
 
   # ── Java 11 JNI / Linux ────────────────────────────────────────────────────
   java11-linux:
@@ -745,12 +760,27 @@ jobs:
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 5
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "Smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED"
+          else
+            echo "Smoke test FAILED"
+            exit 1
+          fi
 
   # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
   cpp-macos:
@@ -780,12 +810,27 @@ jobs:
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 5
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "Smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED"
+          else
+            echo "Smoke test FAILED"
+            exit 1
+          fi
 
   # ── C++ / Linux Clang ──────────────────────────────────────────────────────
   cpp-linux-clang:
@@ -830,12 +875,27 @@ jobs:
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 5 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 5
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "Smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Smoke test PASSED"
+          else
+            echo "Smoke test FAILED"
+            exit 1
+          fi
 
   # ── C++ / Linux ASan + UBSan ───────────────────────────────────────────────
   cpp-linux-sanitizers:
@@ -876,12 +936,27 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 8
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "Sanitizer smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "Sanitizer smoke test PASSED"
+          else
+            echo "Sanitizer smoke test FAILED"
+            exit 1
+          fi
 
   # ── C++ / Linux TSan (Thread Sanitizer) ────────────────────────────────────
   cpp-linux-tsan:
@@ -921,12 +996,27 @@ jobs:
           TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: |
           cd build-xcvr
-          ./dummy_peer server --port 15000 --interval-ms 500 &
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          timeout 10 ./poc_app 127.0.0.1 15000 --interval-ms 500 || true
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../client_out.txt 2>&1 &
+          CLIENT_PID=$!
+          sleep 8
+          kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
-          echo "TSan smoke test completed"
+          wait $CLIENT_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+          cd ..
+          echo "=== Server output ==="
+          cat server_out.txt
+          echo "=== Client output ==="
+          cat client_out.txt
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+            echo "TSan smoke test PASSED"
+          else
+            echo "TSan smoke test FAILED"
+            exit 1
+          fi
 
   # ── C++ / Static Analysis (clang-tidy) ─────────────────────────────────────
   cpp-clang-tidy:
