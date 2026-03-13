@@ -350,14 +350,14 @@ endif()
 # ============================================================================
 
 if(CONDUIT_BUILD_JAVA_JAR)
+    set(_java_bindings_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java")
+    set(_java_src_dir "${_java_bindings_dir}/src/main/java")
+    set(_java_jar "${CMAKE_CURRENT_BINARY_DIR}/conduit-java-0.1.0.jar")
+    set(_java_jar_built FALSE)
+
+    # Detect JDK version (needed for test compilation regardless of build strategy)
     find_program(JAVAC_EXECUTABLE javac)
-    find_program(JAR_EXECUTABLE jar)
-    if(NOT JAVAC_EXECUTABLE OR NOT JAR_EXECUTABLE)
-        message(WARNING
-            "CONDUIT_BUILD_JAVA_JAR is ON but javac/jar not found on PATH. "
-            "Skipping Java JAR build. Install a JDK and ensure javac and jar are in PATH.")
-    else()
-        # Detect JDK version to decide whether Panama sources can be compiled
+    if(JAVAC_EXECUTABLE)
         execute_process(
             COMMAND ${JAVAC_EXECUTABLE} -version
             OUTPUT_VARIABLE _javac_version_out
@@ -366,64 +366,116 @@ if(CONDUIT_BUILD_JAVA_JAR)
         )
         string(REGEX MATCH "[0-9]+" _java_major "${_javac_version_out}")
         message(STATUS "Detected JDK major version: ${_java_major}")
+    else()
+        set(_java_major 0)
+    endif()
 
-        set(_java_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java/src/main/java")
-        set(_java_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/java-classes")
-        set(_java_jar "${CMAKE_CURRENT_BINARY_DIR}/conduit-java-0.1.0.jar")
+    # Collect Java sources for dependency tracking
+    file(GLOB _java_core_sources "${_java_src_dir}/io/conduit/*.java")
 
-        # Collect Java sources — always include the core (non-Panama, non-JNI) files
-        file(GLOB _java_core_sources "${_java_src_dir}/io/conduit/*.java")
-        set(_java_sources ${_java_core_sources})
-
-        # Panama FFI sources (require JDK 21+)
-        set(_panama_files
-            "CabiBindings\\.java$"
-            "CodecBindings\\.java$"
-            "PanamaNativeBinding\\.java$"
-            "PanamaCodecBinding\\.java$"
-        )
-
-        # JNI binding sources
-        set(_jni_files
-            "JniNativeBinding\\.java$"
-            "JniCodecBinding\\.java$"
-        )
-
-        # Determine compiler release level
-        set(_javac_flags -d "${_java_classes_dir}")
-        if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
-            list(APPEND _javac_flags --release 21 --enable-preview)
-            message(STATUS "Java JAR: including Panama FFI sources (JDK ${_java_major})")
-        else()
-            list(APPEND _javac_flags --release 11)
-            # Exclude Panama-specific files that require JDK 21+
-            foreach(_pat ${_panama_files})
-                list(FILTER _java_sources EXCLUDE REGEX "${_pat}")
-            endforeach()
-            if(NOT CONDUIT_BUILD_JAVA_PANAMA)
-                message(STATUS "Java JAR: Panama FFI sources excluded (CONDUIT_BUILD_JAVA_PANAMA=OFF)")
-            elseif(_java_major LESS 21)
-                message(STATUS "Java JAR: Panama sources requested but JDK ${_java_major} < 21; excluding Panama files")
-            endif()
-        endif()
-
-        # Exclude JNI sources if not requested
-        if(NOT CONDUIT_BUILD_JAVA_JNI_SOURCES)
-            foreach(_pat ${_jni_files})
-                list(FILTER _java_sources EXCLUDE REGEX "${_pat}")
-            endforeach()
-            message(STATUS "Java JAR: JNI binding sources excluded by CONDUIT_BUILD_JAVA_JNI_SOURCES=OFF")
-        endif()
-
+    # --- Strategy 1: Maven ---
+    find_program(_mvn_exe mvn)
+    if(_mvn_exe AND EXISTS "${_java_bindings_dir}/pom.xml")
+        message(STATUS "Java JAR: using Maven (mvn found, pom.xml exists)")
         add_custom_command(
             OUTPUT "${_java_jar}"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_classes_dir}"
-            COMMAND ${JAVAC_EXECUTABLE} ${_javac_flags} ${_java_sources}
-            COMMAND ${JAR_EXECUTABLE} cf "${_java_jar}" -C "${_java_classes_dir}" .
-            DEPENDS ${_java_sources}
-            COMMENT "Building conduit-java-0.1.0.jar"
+            COMMAND ${_mvn_exe} install -q -f "${_java_bindings_dir}/pom.xml"
+            COMMAND ${CMAKE_COMMAND} -E copy
+                "${_java_bindings_dir}/target/conduit-java-0.1.0.jar"
+                "${_java_jar}"
+            DEPENDS ${_java_core_sources}
+            COMMENT "Building conduit-java-0.1.0.jar (Maven)"
             VERBATIM
         )
+        set(_java_jar_built TRUE)
+    endif()
+
+    # --- Strategy 2: Gradle ---
+    if(NOT _java_jar_built)
+        find_program(_gradle_exe gradle)
+        if(_gradle_exe AND EXISTS "${_java_bindings_dir}/build.gradle")
+            message(STATUS "Java JAR: using Gradle (gradle found, build.gradle exists)")
+            add_custom_command(
+                OUTPUT "${_java_jar}"
+                COMMAND ${_gradle_exe} -p "${_java_bindings_dir}" jar -q
+                COMMAND ${CMAKE_COMMAND} -E copy
+                    "${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar"
+                    "${_java_jar}"
+                DEPENDS ${_java_core_sources}
+                COMMENT "Building conduit-java-0.1.0.jar (Gradle)"
+                VERBATIM
+            )
+            set(_java_jar_built TRUE)
+        endif()
+    endif()
+
+    # --- Strategy 3: javac/jar fallback ---
+    if(NOT _java_jar_built)
+        find_program(JAR_EXECUTABLE jar)
+        if(NOT JAVAC_EXECUTABLE OR NOT JAR_EXECUTABLE)
+            message(WARNING
+                "CONDUIT_BUILD_JAVA_JAR is ON but no Java build tool found (mvn, gradle, or javac/jar). "
+                "Skipping Java JAR build.")
+        else()
+            message(STATUS "Java JAR: using javac/jar fallback")
+
+            set(_java_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/java-classes")
+            set(_java_sources ${_java_core_sources})
+
+            # Panama FFI sources (require JDK 21+)
+            set(_panama_files
+                "CabiBindings\\.java$"
+                "CodecBindings\\.java$"
+                "PanamaNativeBinding\\.java$"
+                "PanamaCodecBinding\\.java$"
+            )
+
+            # JNI binding sources
+            set(_jni_files
+                "JniNativeBinding\\.java$"
+                "JniCodecBinding\\.java$"
+            )
+
+            # Determine compiler release level
+            set(_javac_flags -d "${_java_classes_dir}")
+            if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
+                list(APPEND _javac_flags --release 21 --enable-preview)
+                message(STATUS "Java JAR: including Panama FFI sources (JDK ${_java_major})")
+            else()
+                list(APPEND _javac_flags --release 11)
+                # Exclude Panama-specific files that require JDK 21+
+                foreach(_pat ${_panama_files})
+                    list(FILTER _java_sources EXCLUDE REGEX "${_pat}")
+                endforeach()
+                if(NOT CONDUIT_BUILD_JAVA_PANAMA)
+                    message(STATUS "Java JAR: Panama FFI sources excluded (CONDUIT_BUILD_JAVA_PANAMA=OFF)")
+                elseif(_java_major LESS 21)
+                    message(STATUS "Java JAR: Panama sources requested but JDK ${_java_major} < 21; excluding Panama files")
+                endif()
+            endif()
+
+            # Exclude JNI sources if not requested
+            if(NOT CONDUIT_BUILD_JAVA_JNI_SOURCES)
+                foreach(_pat ${_jni_files})
+                    list(FILTER _java_sources EXCLUDE REGEX "${_pat}")
+                endforeach()
+                message(STATUS "Java JAR: JNI binding sources excluded by CONDUIT_BUILD_JAVA_JNI_SOURCES=OFF")
+            endif()
+
+            add_custom_command(
+                OUTPUT "${_java_jar}"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_classes_dir}"
+                COMMAND ${JAVAC_EXECUTABLE} ${_javac_flags} ${_java_sources}
+                COMMAND ${JAR_EXECUTABLE} cf "${_java_jar}" -C "${_java_classes_dir}" .
+                DEPENDS ${_java_sources}
+                COMMENT "Building conduit-java-0.1.0.jar (javac)"
+                VERBATIM
+            )
+            set(_java_jar_built TRUE)
+        endif()
+    endif()
+
+    if(_java_jar_built)
         add_custom_target(conduit_java_jar ALL DEPENDS "${_java_jar}")
 
         # ---- Java test compilation (requires bgen + fixtures) ----

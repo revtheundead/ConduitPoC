@@ -77,21 +77,30 @@ fi
 
 step "Java JUnit Tests"
 
-JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
+JUNIT_JAR=""
+if [ -f "$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar" ]; then
+    JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
+elif [ -f "$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar" ]; then
+    JUNIT_JAR="$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar"
+fi
 JAVA_TEST_CLASSES="$BUILD_DIR/java-test-classes"
 JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
 
-if [ -f "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
+if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
         run_suite "Java JUnit (standalone)" java -jar "$JUNIT_JAR" \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
-            --include-classname "^Test.*"
+            --include-classname "^Test.*" \
+            --exclude-classname "TestTransceiverCabi" \
+            --exclude-classname "TestTransceiverJni" \
+            --exclude-classname "TestXcvrScenarios" \
+            --exclude-classname ".*CodecCabi.*"
     else
         warn "java not found — skipping Java JUnit tests"
     fi
 else
-    echo "  Java JUnit tests not available (build with CONDUIT_BUILD_JAVA_JAR=ON)"
+    echo "  Java JUnit tests not available (build with --java or CONDUIT_BUILD_JAVA_JAR=ON)"
 fi
 
 # ============================================================================

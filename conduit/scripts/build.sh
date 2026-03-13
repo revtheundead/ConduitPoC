@@ -35,7 +35,6 @@ BUILD_JNI=false
 BUILD_JAVA=false
 ENABLE_SANITIZERS=false
 BUILD_DIR="build"
-JAVA_BINDINGS_DIR="bindings/java"
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 # ============================================================================
@@ -125,10 +124,15 @@ if [ "$BUILD_JNI" = true ]; then
 fi
 
 if [ "$BUILD_JAVA" = true ]; then
-    if ! command -v mvn &>/dev/null; then
-        fail "mvn not found. Please install Apache Maven to build Java bindings."
+    if command -v mvn &>/dev/null; then
+        echo "  mvn $(mvn --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) ... ok"
+    elif command -v gradle &>/dev/null; then
+        echo "  gradle ... ok"
+    elif command -v javac &>/dev/null; then
+        echo "  javac ... ok"
+    else
+        warn "No Java build tool found (mvn, gradle, or javac) — Java JAR may not build"
     fi
-    echo "  mvn $(mvn --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) ... ok"
 fi
 
 # ============================================================================
@@ -188,6 +192,12 @@ else
     CMAKE_FLAGS+=(-DCONDUIT_BUILD_JNI=OFF)
 fi
 
+if [ "$BUILD_JAVA" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JAVA_JAR=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JAVA_JAR=OFF)
+fi
+
 if [ "$ENABLE_SANITIZERS" = true ]; then
     CMAKE_FLAGS+=(-DCONDUIT_ENABLE_SANITIZERS=ON)
 else
@@ -209,6 +219,7 @@ else
     CACHED_BENCHMARKS=$(_cache CONDUIT_BUILD_BENCHMARKS)
     CACHED_CABI=$(_cache CONDUIT_BUILD_CABI)
     CACHED_JNI=$(_cache CONDUIT_BUILD_JNI)
+    CACHED_JAVA_JAR=$(_cache CONDUIT_BUILD_JAVA_JAR)
     CACHED_SANITIZE=$(_cache CONDUIT_ENABLE_SANITIZERS)
 
     WANT_EXAMPLES="OFF"; WANT_BENCHMARKS="OFF"
@@ -216,6 +227,8 @@ else
     WANT_CABI="OFF"; WANT_JNI="OFF"
     [ "$BUILD_CABI" = true ] && WANT_CABI="ON"
     [ "$BUILD_JNI"  = true ] && WANT_JNI="ON"
+    WANT_JAVA_JAR="OFF"
+    [ "$BUILD_JAVA" = true ] && WANT_JAVA_JAR="ON"
     WANT_SANITIZE="OFF"
     [ "$ENABLE_SANITIZERS" = true ] && WANT_SANITIZE="ON"
 
@@ -225,6 +238,7 @@ else
         "$CACHED_BENCHMARKS:$WANT_BENCHMARKS" \
         "$CACHED_CABI:$WANT_CABI" \
         "$CACHED_JNI:$WANT_JNI" \
+        "$CACHED_JAVA_JAR:$WANT_JAVA_JAR" \
         "$CACHED_SANITIZE:$WANT_SANITIZE"
     do
         cached="${pair%%:*}"; want="${pair##*:}"
@@ -252,16 +266,6 @@ cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" -j "$JOBS"
 step "Build succeeded"
 
 # ============================================================================
-# Java bindings (Maven install to local repo)
-# ============================================================================
-
-if [ "$BUILD_JAVA" = true ]; then
-    step "Building Java bindings (Maven)"
-    (cd "$JAVA_BINDINGS_DIR" && mvn install -q)
-    step "Java bindings installed to local Maven repo"
-fi
-
-# ============================================================================
 # Test (only with --test)
 # ============================================================================
 
@@ -283,24 +287,31 @@ if [ "$RUN_TESTS" = true ]; then
     fi
 
     # --- Java JUnit tests (non-fatal) ---
-    JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
+    JUNIT_JAR=""
+    if [ -f "$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar" ]; then
+        JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
+    elif [ -f "$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar" ]; then
+        JUNIT_JAR="$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar"
+    fi
     JAVA_TEST_CLASSES="$BUILD_DIR/java-test-classes"
     JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
-    if [ -f "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
+    if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
         if command -v java &>/dev/null; then
             step "Running Java JUnit tests"
             java -jar "$JUNIT_JAR" \
                 --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
                 --scan-class-path "$JAVA_TEST_CLASSES" \
                 --include-classname "^Test.*" \
-                --exclude-classname ".*Transceiver.*" \
+                --exclude-classname "TestTransceiverCabi" \
+                --exclude-classname "TestTransceiverJni" \
+                --exclude-classname "TestXcvrScenarios" \
                 --exclude-classname ".*CodecCabi.*" \
                 || warn "Java JUnit tests failed (non-fatal)"
         else
             warn "java not found — skipping Java JUnit tests"
         fi
     else
-        echo "  Java JUnit tests not available (build with CONDUIT_BUILD_JAVA_JAR=ON)"
+        echo "  Java JUnit tests not available (build with --java or CONDUIT_BUILD_JAVA_JAR=ON)"
     fi
 
     # --- Python pytest tests (non-fatal) ---
