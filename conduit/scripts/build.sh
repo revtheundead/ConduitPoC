@@ -266,6 +266,38 @@ cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" -j "$JOBS"
 step "Build succeeded"
 
 # ============================================================================
+# Build examples (only with --release or relevant flags)
+# ============================================================================
+
+if [ "$BUILD_ALL" = true ]; then
+    # xcvr-java11
+    if command -v mvn &>/dev/null && [ -f "examples/xcvr-java11/pom.xml" ]; then
+        step "Building xcvr-java11 example (Maven)"
+        mvn package -q -f "examples/xcvr-java11/pom.xml" -Dskip.bgen=true \
+            "-Dconduit.build.dir=$BUILD_DIR" \
+            || warn "xcvr-java11 build failed (non-fatal)"
+    fi
+
+    # xcvr-java21
+    if command -v mvn &>/dev/null && [ -f "examples/xcvr-java21/pom.xml" ]; then
+        step "Building xcvr-java21 example (Maven)"
+        mvn package -q -f "examples/xcvr-java21/pom.xml" -Dskip.bgen=true \
+            || warn "xcvr-java21 build failed (non-fatal)"
+    fi
+
+    # xcvr-python
+    _pip_cmd=""
+    if command -v pip3 &>/dev/null; then _pip_cmd="pip3"
+    elif command -v pip &>/dev/null; then _pip_cmd="pip"
+    fi
+    if [ -n "$_pip_cmd" ] && [ -f "examples/xcvr-python/pyproject.toml" ]; then
+        step "Installing xcvr-python example (pip)"
+        $_pip_cmd install --quiet "examples/xcvr-python/" \
+            || warn "xcvr-python install failed (non-fatal)"
+    fi
+fi
+
+# ============================================================================
 # Test (only with --test)
 # ============================================================================
 
@@ -290,11 +322,9 @@ if [ "$RUN_TESTS" = true ]; then
     JUNIT_JAR=""
     if [ -f "$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar" ]; then
         JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
-    elif [ -f "$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar" ]; then
-        JUNIT_JAR="$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar"
     fi
-    JAVA_TEST_CLASSES="$BUILD_DIR/java-test-classes"
-    JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
+    JAVA_TEST_CLASSES="$BUILD_DIR/tests/java-test-classes"
+    JAVA_JAR="$PROJECT_DIR/lib/conduit-java-0.1.0.jar"
     if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
         if command -v java &>/dev/null; then
             step "Running Java JUnit tests"
@@ -313,12 +343,13 @@ if [ "$RUN_TESTS" = true ]; then
             if [ -n "$_java_major" ] && [ "$_java_major" -ge 21 ] 2>/dev/null; then
                 JAVA_JVM_FLAGS+=(--enable-preview --enable-native-access=ALL-UNNAMED)
             fi
-            java "-Djava.library.path=$BUILD_DIR/lib" \
+            java "-Djava.library.path=$PROJECT_DIR/lib" \
                 "${JAVA_JVM_FLAGS[@]}" \
                 -jar "$JUNIT_JAR" \
                 --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
                 --scan-class-path "$JAVA_TEST_CLASSES" \
                 --include-classname "^Test.*" \
+                --details flat \
                 "${JUNIT_EXCLUDES[@]}" \
                 || warn "Java JUnit tests failed (non-fatal)"
         else
@@ -346,6 +377,11 @@ if [ "$RUN_TESTS" = true ]; then
                     pytest 2>/dev/null || true
             fi
             if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
+                # Generate Python packages from BMDL fixtures
+                step "Generating Python test packages"
+                cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --target pytest_generated -j "$JOBS" \
+                    || warn "Failed to generate Python test packages"
+
                 step "Running Python pytest tests"
                 PYTEST_IGNORES=()
                 if [ "$BUILD_CABI" != true ]; then

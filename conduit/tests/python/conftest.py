@@ -23,8 +23,9 @@ def resolve_native_lib(env_var: str, base_name: str) -> str:
 
     Checks (in order):
       1. Environment variable *env_var* pointing to a file
-      2. Single-config layout: build/tests/<lib>
-      3. Multi-config layout: build/tests/{Debug,Release,RelWithDebInfo}/<lib>
+      2. Project-root lib/ directory (primary output location)
+      3. Legacy: build/lib/ and build/tests/
+      4. Multi-config layout: lib/{Debug,Release,RelWithDebInfo}/
     """
     env_path = os.environ.get(env_var, "")
     if env_path and os.path.isfile(env_path):
@@ -45,25 +46,29 @@ def resolve_native_lib(env_var: str, base_name: str) -> str:
         search_roots.append(conduit_sub)
 
     for root in search_roots:
-        # Single-config (Ninja, Make): build/lib/<lib>
-        lib_dir = os.path.join(root, "build", "lib", lib_name)
+        # Project-root lib/ directory (primary output location)
+        lib_dir = os.path.join(root, "lib", lib_name)
         if os.path.isfile(lib_dir):
             return lib_dir
 
-        # Single-config: build/tests/<lib>
+        # Legacy: build/lib/<lib>
+        build_lib = os.path.join(root, "build", "lib", lib_name)
+        if os.path.isfile(build_lib):
+            return build_lib
+
+        # Legacy: build/tests/<lib>
         direct = os.path.join(root, "build", "tests", lib_name)
         if os.path.isfile(direct):
             return direct
 
-        # Multi-config (MSVC)
+        # Multi-config (MSVC): lib/{Config}/<lib>
         for config in ("Debug", "Release", "RelWithDebInfo"):
-            for subdir in ("tests", "lib"):
-                multi = os.path.join(root, "build", subdir, config, lib_name)
-                if os.path.isfile(multi):
-                    return multi
+            multi = os.path.join(root, "lib", config, lib_name)
+            if os.path.isfile(multi):
+                return multi
 
     # Fallback — will fail with a clear error at load time
-    return os.path.join(_PROJECT_ROOT, "build", "tests", lib_name)
+    return os.path.join(_PROJECT_ROOT, "lib", lib_name)
 
 
 # ---------------------------------------------------------------------------

@@ -100,12 +100,12 @@ sourceSets {
     }
 }
 
-def cabiLibPath = "${rootProject.projectDir}/../conduit/build/libconduit_cabi.so"
+def cabiLibPath = "${rootProject.projectDir}/../conduit/lib/libconduit_cabi.so"
 def commonJvmArgs = [
     '--enable-preview',
     '--enable-native-access=ALL-UNNAMED',
     "-Dconduit.cabi.path=${cabiLibPath}",
-    "-Djava.library.path=${rootProject.projectDir}/../conduit/build"
+    "-Djava.library.path=${rootProject.projectDir}/../conduit/lib"
 ]
 
 application {

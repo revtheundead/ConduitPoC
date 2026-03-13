@@ -5,10 +5,17 @@ __pycache__/
 build/
 build_*/
 build-*/
+conduit/lib/
 .gradle/
 **/generated/
 *.egg-info/
 test_roundtrip
 test_roundtrip_old
 xcvr/test_cat021_roundtrip
+conduit/examples/xcvr-cpp/poc_app
+conduit/examples/xcvr-cpp/poc_app.exe
+conduit/examples/xcvr-cpp/dummy_peer
+conduit/examples/xcvr-cpp/dummy_peer.exe
+conduit/examples/xcvr-cpp/xcvr_roundtrip_test
+conduit/examples/xcvr-cpp/xcvr_roundtrip_test.exe
 logs/

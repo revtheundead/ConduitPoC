@@ -91,9 +91,9 @@ sourceSets {
     }
 }
 
-def buildDir = "${rootProject.projectDir}/../conduit/build"
+def libDir = "${rootProject.projectDir}/../conduit/lib"
 def commonJvmArgs = [
-    "-Djava.library.path=${buildDir}",
+    "-Djava.library.path=${libDir}",
 ]
 
 application {

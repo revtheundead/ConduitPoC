@@ -337,6 +337,37 @@ echo.
 echo ==^> Build succeeded
 
 :: ============================================================================
+:: Build examples (only with --release or relevant flags)
+:: ============================================================================
+
+if "%BUILD_ALL%"=="1" (
+    where mvn >nul 2>&1
+    if not errorlevel 1 (
+        if exist "examples\xcvr-java11\pom.xml" (
+            echo.
+            echo ==^> Building xcvr-java11 example ^(Maven^)
+            mvn package -q -f "examples\xcvr-java11\pom.xml" -Dskip.bgen=true "-Dconduit.build.dir=!BUILD_DIR!"
+            if errorlevel 1 echo Warning: xcvr-java11 build failed ^(non-fatal^)
+        )
+        if exist "examples\xcvr-java21\pom.xml" (
+            echo.
+            echo ==^> Building xcvr-java21 example ^(Maven^)
+            mvn package -q -f "examples\xcvr-java21\pom.xml" -Dskip.bgen=true
+            if errorlevel 1 echo Warning: xcvr-java21 build failed ^(non-fatal^)
+        )
+    )
+    where pip >nul 2>&1
+    if not errorlevel 1 (
+        if exist "examples\xcvr-python\pyproject.toml" (
+            echo.
+            echo ==^> Installing xcvr-python example ^(pip^)
+            pip install --quiet "examples\xcvr-python\"
+            if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
+        )
+    )
+)
+
+:: ============================================================================
 :: Test (only with --test)
 :: ============================================================================
 
@@ -389,11 +420,9 @@ if "%RUN_TESTS%"=="1" (
     set "JUNIT_JAR="
     if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
         set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
-    ) else if exist "!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar" (
-        set "JUNIT_JAR=!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar"
     )
-    set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
-    set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
+    set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
+    set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
     if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (
@@ -423,7 +452,7 @@ if "%RUN_TESTS%"=="1" (
                             set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                         )
                     )
-                    java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                    java "-Djava.library.path=%~dp0..\lib" ^
                         !JAVA_JVM_FLAGS! ^
                         -jar "!JUNIT_JAR!" ^
                         --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
