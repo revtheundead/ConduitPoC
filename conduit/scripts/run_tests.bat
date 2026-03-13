@@ -115,14 +115,36 @@ if defined JUNIT_JAR (
             where java >nul 2>&1
             if not errorlevel 1 (
                 echo   Running Java JUnit tests...
-                java -jar "!JUNIT_JAR!" ^
+                :: Conditionally exclude CABI/JNI tests based on native test library presence
+                set "JUNIT_EXCLUDES="
+                if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+                    if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
+                        set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
+                    )
+                )
+                if not exist "!BUILD_DIR!\lib\conduit_jni_test.dll" (
+                    if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
+                    )
+                )
+                :: Panama FFI tests require --enable-preview on JDK 21+
+                set "JAVA_JVM_FLAGS="
+                for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
+                    set "_java_ver=%%~v"
+                )
+                for /f "delims=." %%m in ("!_java_ver!") do set "_java_major=%%m"
+                if defined _java_major (
+                    if !_java_major! geq 21 (
+                        set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
+                    )
+                )
+                java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                    !JAVA_JVM_FLAGS! ^
+                    -jar "!JUNIT_JAR!" ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
                     --include-classname "^Test.*" ^
-                    --exclude-classname "TestTransceiverCabi" ^
-                    --exclude-classname "TestTransceiverJni" ^
-                    --exclude-classname "TestXcvrScenarios" ^
-                    --exclude-classname ".*CodecCabi.*"
+                    !JUNIT_EXCLUDES!
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests
                     set /a FAILED+=1
@@ -162,8 +184,15 @@ if exist "!PYTHON_TESTS!" (
         )
         python -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
+            :: Exclude CABI-dependent tests if native test libraries are not available
+            set "PYTEST_IGNORES="
+            if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+                if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                )
+            )
             echo   Running Python pytest tests...
-            python -m pytest "!PYTHON_TESTS!" -x -q
+            python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
             if errorlevel 1 (
                 echo   FAIL: Python pytest tests
                 set /a FAILED+=1

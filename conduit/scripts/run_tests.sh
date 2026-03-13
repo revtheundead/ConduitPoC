@@ -88,14 +88,40 @@ JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
 
 if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
-        run_suite "Java JUnit (standalone)" java -jar "$JUNIT_JAR" \
+        # Conditionally exclude CABI/JNI tests based on whether native test libraries exist
+        JUNIT_EXCLUDES=()
+        _has_cabi_test_libs=false
+        _has_jni_test_libs=false
+        for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+            if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_cabi_test_libs=true
+            fi
+            if ls "$_d"/libconduit_jni_test* "$_d"/conduit_jni_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_jni_test_libs=true
+            fi
+        done
+        if [ "$_has_cabi_test_libs" != true ]; then
+            JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverCabi"
+                             --exclude-classname ".*CodecCabi.*")
+        fi
+        if [ "$_has_jni_test_libs" != true ]; then
+            JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
+                             --exclude-classname "TestXcvrScenarios")
+        fi
+        # Panama FFI tests require --enable-preview on JDK 21+
+        JAVA_JVM_FLAGS=()
+        _java_major="$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)"
+        if [ -n "$_java_major" ] && [ "$_java_major" -ge 21 ] 2>/dev/null; then
+            JAVA_JVM_FLAGS+=(--enable-preview --enable-native-access=ALL-UNNAMED)
+        fi
+        run_suite "Java JUnit (standalone)" java \
+            "-Djava.library.path=$BUILD_DIR/lib" \
+            "${JAVA_JVM_FLAGS[@]}" \
+            -jar "$JUNIT_JAR" \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
-            --exclude-classname "TestTransceiverCabi" \
-            --exclude-classname "TestTransceiverJni" \
-            --exclude-classname "TestXcvrScenarios" \
-            --exclude-classname ".*CodecCabi.*"
+            "${JUNIT_EXCLUDES[@]}"
     else
         warn "java not found — skipping Java JUnit tests"
     fi
@@ -129,7 +155,21 @@ if [ -d "$PYTHON_TESTS" ]; then
         fi
 
         if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
-            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q
+            # Exclude CABI-dependent tests if native test libraries are not available
+            PYTEST_IGNORES=()
+            _has_cabi_libs=false
+            for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+                if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                    _has_cabi_libs=true; break
+                fi
+            done
+            if [ "$_has_cabi_libs" != true ]; then
+                PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
+                                 --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
+                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+            fi
+            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
+                "${PYTEST_IGNORES[@]}"
         else
             warn "pytest not available — skipping Python tests"
         fi

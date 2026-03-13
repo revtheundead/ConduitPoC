@@ -100,6 +100,14 @@ else()
     endif()
 endif()
 
+# MinGW: statically link the GCC/C++ runtime (libstdc++, libgcc, libwinpthread)
+# into executables so they don't depend on MinGW's bin directory being on PATH
+# at runtime.  Without this, executables fail to start when the MinGW DLLs
+# cannot be found or conflict with other MinGW distributions (e.g. MSYS2).
+if(MINGW)
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -static")
+endif()
+
 # ============================================================================
 # Sanitizers (ASAN + UBSAN)
 # ============================================================================
@@ -576,10 +584,19 @@ if(CONDUIT_BUILD_JAVA_JAR)
             else()
                 set(_java_test_release_flags "--release 11")
             endif()
+            # Panama test files require JDK 21+; exclude them when targeting --release 11
+            set(_java_test_exclude_filter "")
+            if(NOT (CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21))
+                set(_java_test_exclude_filter "
+# Exclude Panama FFI test files (require JDK 21+)
+list(FILTER _test_src EXCLUDE REGEX \"TestCodecCabi\\\\.java$\")
+list(FILTER _test_src EXCLUDE REGEX \"TestTransceiverCabi\\\\.java$\")
+")
+            endif()
             file(WRITE "${_java_test_compile_script}" "
 file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
-list(APPEND _all_src \${_gen_src} \${_test_src})
+${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
 execute_process(
@@ -603,7 +620,7 @@ endif()
                 COMMENT "Compiling Java test classes (generated + JUnit tests)"
                 VERBATIM
             )
-            add_custom_target(java_test_compile DEPENDS "${_java_test_classes_dir}/.compiled")
+            add_custom_target(java_test_compile ALL DEPENDS "${_java_test_classes_dir}/.compiled")
 
             # Run target: execute JUnit tests via the console launcher
             if(EXISTS "${_junit_jar}")
@@ -614,17 +631,26 @@ endif()
                     else()
                         set(_java_test_jvm_flags "")
                     endif()
+                    set(_java_test_excludes "")
+                    if(NOT CONDUIT_BUILD_CABI)
+                        list(APPEND _java_test_excludes
+                            --exclude-classname "TestTransceiverCabi"
+                            --exclude-classname ".*CodecCabi.*")
+                    endif()
+                    if(NOT CONDUIT_BUILD_JNI OR NOT CONDUIT_BUILD_CABI)
+                        list(APPEND _java_test_excludes
+                            --exclude-classname "TestTransceiverJni"
+                            --exclude-classname "TestXcvrScenarios")
+                    endif()
                     add_custom_target(java_test_run
                         COMMAND ${_java_exe}
+                            "-Djava.library.path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
                             ${_java_test_jvm_flags}
                             -jar "${_junit_jar}"
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"
                             --include-classname "^Test.*"
-                            --exclude-classname "TestTransceiverCabi"
-                            --exclude-classname "TestTransceiverJni"
-                            --exclude-classname "TestXcvrScenarios"
-                            --exclude-classname ".*CodecCabi.*"
+                            ${_java_test_excludes}
                         DEPENDS java_test_compile
                         COMMENT "Running Java JUnit tests"
                         VERBATIM
