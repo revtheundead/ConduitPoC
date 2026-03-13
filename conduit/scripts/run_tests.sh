@@ -86,11 +86,7 @@ if [ -f "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
         run_suite "Java JUnit (standalone)" java -jar "$JUNIT_JAR" \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
-            --include-classname "^Test.*" \
-            --exclude-classname "TestTransceiverCabi" \
-            --exclude-classname "TestTransceiverJni" \
-            --exclude-classname "TestXcvrScenarios" \
-            --exclude-classname ".*CodecCabi.*"
+            --include-classname "^Test.*"
     else
         warn "java not found — skipping Java JUnit tests"
     fi
@@ -124,10 +120,7 @@ if [ -d "$PYTHON_TESTS" ]; then
         fi
 
         if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
-            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
-                --ignore="$PYTHON_TESTS/test_codec_cabi.py" \
-                --ignore="$PYTHON_TESTS/test_transceiver_cabi.py" \
-                --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py"
+            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q
         else
             warn "pytest not available — skipping Python tests"
         fi
