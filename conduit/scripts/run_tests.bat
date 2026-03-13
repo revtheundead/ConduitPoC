@@ -113,11 +113,7 @@ if exist "!JUNIT_JAR!" (
                 java -jar "!JUNIT_JAR!" ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
-                    --include-classname "^Test.*" ^
-                    --exclude-classname "TestTransceiverCabi" ^
-                    --exclude-classname "TestTransceiverJni" ^
-                    --exclude-classname "TestXcvrScenarios" ^
-                    --exclude-classname ".*CodecCabi.*"
+                    --include-classname "^Test.*"
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests
                     set /a FAILED+=1
@@ -158,10 +154,7 @@ if exist "!PYTHON_TESTS!" (
         python -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
             echo   Running Python pytest tests...
-            python -m pytest "!PYTHON_TESTS!" -x -q ^
-                --ignore="!PYTHON_TESTS!\test_codec_cabi.py" ^
-                --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" ^
-                --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py"
+            python -m pytest "!PYTHON_TESTS!" -x -q
             if errorlevel 1 (
                 echo   FAIL: Python pytest tests
                 set /a FAILED+=1
