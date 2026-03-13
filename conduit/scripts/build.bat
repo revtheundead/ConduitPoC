@@ -402,13 +402,29 @@ if "%RUN_TESTS%"=="1" (
                     echo.
                     echo ==^> Running Java JUnit tests
                     set "JUNIT_EXCLUDES="
+                    set "JAVA_JVM_FLAGS="
                     if not "%BUILD_CABI%"=="1" (
                         set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                     )
-                    if not "%BUILD_JNI%"=="1" (
+                    :: JNI tests require both JNI and CABI libraries
+                    set "_exclude_jni=0"
+                    if not "%BUILD_JNI%"=="1" set "_exclude_jni=1"
+                    if not "%BUILD_CABI%"=="1" set "_exclude_jni=1"
+                    if "!_exclude_jni!"=="1" (
                         set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
                     )
+                    :: Panama FFI tests require --enable-preview on JDK 21+
+                    for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
+                        set "_java_ver=%%~v"
+                    )
+                    for /f "delims=." %%m in ("!_java_ver!") do set "_java_major=%%m"
+                    if defined _java_major (
+                        if !_java_major! geq 21 (
+                            set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
+                        )
+                    )
                     java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                        !JAVA_JVM_FLAGS! ^
                         -jar "!JUNIT_JAR!" ^
                         --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                         --scan-class-path "!JAVA_TEST_CLASSES!" ^

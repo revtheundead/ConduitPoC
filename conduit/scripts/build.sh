@@ -299,6 +299,7 @@ if [ "$RUN_TESTS" = true ]; then
         if command -v java &>/dev/null; then
             step "Running Java JUnit tests"
             JUNIT_EXCLUDES=()
+            JAVA_JVM_FLAGS=()
             if [ "$BUILD_CABI" != true ]; then
                 JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverCabi"
                                  --exclude-classname ".*CodecCabi.*")
@@ -307,7 +308,13 @@ if [ "$RUN_TESTS" = true ]; then
                 JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
                                  --exclude-classname "TestXcvrScenarios")
             fi
+            # Panama FFI tests require --enable-preview on JDK 21+
+            _java_major="$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)"
+            if [ -n "$_java_major" ] && [ "$_java_major" -ge 21 ] 2>/dev/null; then
+                JAVA_JVM_FLAGS+=(--enable-preview --enable-native-access=ALL-UNNAMED)
+            fi
             java "-Djava.library.path=$BUILD_DIR/lib" \
+                "${JAVA_JVM_FLAGS[@]}" \
                 -jar "$JUNIT_JAR" \
                 --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
                 --scan-class-path "$JAVA_TEST_CLASSES" \

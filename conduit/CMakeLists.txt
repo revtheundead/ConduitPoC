@@ -614,17 +614,26 @@ endif()
                     else()
                         set(_java_test_jvm_flags "")
                     endif()
+                    set(_java_test_excludes "")
+                    if(NOT CONDUIT_BUILD_CABI)
+                        list(APPEND _java_test_excludes
+                            --exclude-classname "TestTransceiverCabi"
+                            --exclude-classname ".*CodecCabi.*")
+                    endif()
+                    if(NOT CONDUIT_BUILD_JNI OR NOT CONDUIT_BUILD_CABI)
+                        list(APPEND _java_test_excludes
+                            --exclude-classname "TestTransceiverJni"
+                            --exclude-classname "TestXcvrScenarios")
+                    endif()
                     add_custom_target(java_test_run
                         COMMAND ${_java_exe}
+                            "-Djava.library.path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
                             ${_java_test_jvm_flags}
                             -jar "${_junit_jar}"
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"
                             --include-classname "^Test.*"
-                            --exclude-classname "TestTransceiverCabi"
-                            --exclude-classname "TestTransceiverJni"
-                            --exclude-classname "TestXcvrScenarios"
-                            --exclude-classname ".*CodecCabi.*"
+                            ${_java_test_excludes}
                         DEPENDS java_test_compile
                         COMMENT "Running Java JUnit tests"
                         VERBATIM
