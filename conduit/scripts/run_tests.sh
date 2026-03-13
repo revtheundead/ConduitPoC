@@ -121,6 +121,7 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
+            --details flat \
             "${JUNIT_EXCLUDES[@]}"
     else
         warn "java not found — skipping Java JUnit tests"
@@ -155,6 +156,11 @@ if [ -d "$PYTHON_TESTS" ]; then
         fi
 
         if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
+            # Generate Python test packages from BMDL fixtures
+            if [ -d "$BUILD_DIR" ]; then
+                cmake --build "$BUILD_DIR" --target pytest_generated 2>/dev/null || true
+            fi
+
             # Exclude CABI-dependent tests if native test libraries are not available
             PYTEST_IGNORES=()
             _has_cabi_libs=false

@@ -89,6 +89,69 @@ if(CONDUIT_BUILD_BGEN)
         test_sentry_link
         test_direction_qualified
     )
+
+    # ========================================================================
+    # Python pytest generated packages
+    #
+    # Generate Python modules from the same BMDL fixtures used by the Python
+    # test suite under tests/python/generated/.  A convenience target
+    # "pytest_generated" triggers all of them; build.sh / run_tests.sh can
+    # build this target before running pytest.
+    # ========================================================================
+
+    set(_PYTEST_GEN_DIR "${CMAKE_SOURCE_DIR}/tests/python/generated")
+
+    set(_PYTEST_SCHEMAS
+        all_types
+        arrays_choices
+        auto_count
+        auto_struct_length
+        bitmap_advanced
+        boundary_types
+        bytes_numeric
+        choice_protocol
+        constants_everywhere
+        constraints
+        constraints_extended
+        direction_qualified
+        enum_arrays
+        expr_features
+        field_scale
+        format_binary
+        frame_array
+        frame_basic
+        frame_config
+        frame_direction
+        frame_footer
+        fx_advanced
+        fx_block
+        fx_choice
+        inline_enum
+        inline_field_types
+        mixed_endian
+        outer_scope
+        present_when_complex
+        sentry_link
+        session_protocol
+        string_features
+        struct_features
+        wire_encodings
+    )
+
+    set(_PYTEST_GEN_TARGETS "")
+    foreach(_schema ${_PYTEST_SCHEMAS})
+        set(_target "pytest_${_schema}")
+        bgen_generate(
+            TARGET     ${_target}
+            INPUT      ${CMAKE_SOURCE_DIR}/bgen/tests/fixtures/${_schema}.bmdl.xml
+            OUTPUT_DIR ${_PYTEST_GEN_DIR}/${_schema}
+            NAMESPACE  ${_schema}
+            LANGUAGE   python
+        )
+        list(APPEND _PYTEST_GEN_TARGETS ${_target}_generate)
+    endforeach()
+
+    add_custom_target(pytest_generated DEPENDS ${_PYTEST_GEN_TARGETS})
 endif()
 
 add_executable(conduit_tests ${CONDUIT_TEST_SOURCES})

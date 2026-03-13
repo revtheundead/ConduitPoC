@@ -319,6 +319,7 @@ if [ "$RUN_TESTS" = true ]; then
                 --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
                 --scan-class-path "$JAVA_TEST_CLASSES" \
                 --include-classname "^Test.*" \
+                --details flat \
                 "${JUNIT_EXCLUDES[@]}" \
                 || warn "Java JUnit tests failed (non-fatal)"
         else
@@ -346,6 +347,11 @@ if [ "$RUN_TESTS" = true ]; then
                     pytest 2>/dev/null || true
             fi
             if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
+                # Generate Python packages from BMDL fixtures
+                step "Generating Python test packages"
+                cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" --target pytest_generated -j "$JOBS" \
+                    || warn "Failed to generate Python test packages"
+
                 step "Running Python pytest tests"
                 PYTEST_IGNORES=()
                 if [ "$BUILD_CABI" != true ]; then
