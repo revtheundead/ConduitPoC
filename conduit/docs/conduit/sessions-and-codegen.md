@@ -167,7 +167,7 @@ using namespace conduit::transceiver::transport;
 
 TransceiverConfig config;
 config.add_peer("my-peer",
-                my_protocol::create_frame_session,
+                my_protocol::create_my_frame_session,
                 UdpConfig{.bind_port = 5000});
 
 Transceiver xcvr(std::move(config));

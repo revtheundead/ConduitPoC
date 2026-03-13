@@ -148,10 +148,20 @@ pip install conduit/examples/xcvr-python/
 ```bash
 export CONDUIT_CABI_LIB=$(pwd)/build/lib/libconduit_cabi.so
 
-# Server
-python -m src.dummy_peer server --port 5000 --interval-ms 500
+# Server (using pip-installed entry points)
+dummy-peer server --port 5000 --interval-ms 500
 
 # Client (in another terminal)
+poc-app 127.0.0.1 5000 --interval-ms 500
+```
+
+Alternatively, run directly from the source tree without pip-installing the example:
+
+```bash
+export CONDUIT_CABI_LIB=$(pwd)/build/lib/libconduit_cabi.so
+
+cd conduit/examples/xcvr-python
+python -m src.dummy_peer server --port 5000 --interval-ms 500
 python -m src.poc_app 127.0.0.1 5000 --interval-ms 500
 ```
 

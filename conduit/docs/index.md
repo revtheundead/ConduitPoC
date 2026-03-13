@@ -1,6 +1,6 @@
-# NIIS Transceiver Documentation
+# Conduit Documentation
 
-NIIS Transceiver is a three-part system for working with binary protocols. **BMDL** is an XML language for defining binary message formats. **bgen** is a code generator that reads BMDL definitions and produces type-safe code in **C++**, **Java**, or **Python**. **conduit** is the C++20 runtime library that provides error handling, bit-level I/O, network transports, and a transceiver orchestrator -- connecting generated protocol code to real-world communication. Java and Python users can access the full transceiver through native bindings (JNI/Panama for Java, ctypes for Python) or use the generated codec code standalone.
+Conduit is a three-part system for working with binary protocols. **BMDL** is an XML language for defining binary message formats. **bgen** is a code generator that reads BMDL definitions and produces type-safe code in **C++**, **Java**, or **Python**. **conduit** is the C++20 runtime library that provides error handling, bit-level I/O, network transports, and a transceiver orchestrator -- connecting generated protocol code to real-world communication. Java and Python users can access the full transceiver through native bindings (JNI/Panama for Java, ctypes for Python) or use the generated codec code standalone.
 
 ## How They Fit Together
 
@@ -43,7 +43,7 @@ using namespace conduit::transceiver::transport;
 // Configure and start
 TransceiverConfig config;
 config.add_peer("feed",
-                my_protocol::create_frame_session,
+                my_protocol::create_my_frame_session,
                 UdpConfig{.bind_port = 5000});
 Transceiver xcvr(std::move(config));
 
@@ -65,6 +65,27 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 - **Python** 3.7+ -- optional, for Python backend
 - No external runtime dependencies (header-only generated code, conduit is a static library)
 
+## Building from Source
+
+```bash
+# Basic build (C++ runtime + bgen code generator)
+cmake -B build -S conduit
+cmake --build build
+
+# With examples
+cmake -B build -S conduit -DCONDUIT_BUILD_EXAMPLES=ON -DCONDUIT_BUILD_BGEN=ON
+cmake --build build
+
+# With cross-language bindings (CABI + JNI)
+cmake -B build -S conduit -DCONDUIT_BUILD_CABI=ON -DCONDUIT_BUILD_JNI=ON -DCONDUIT_BUILD_BGEN=ON
+cmake --build build
+
+# Run tests
+cmake --build build --target test
+```
+
+For full build and run instructions for each language, see [Examples](examples.md).
+
 ## Documentation
 
 | Section | Description |
@@ -75,3 +96,4 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 | [Examples](examples.md) | Complete ASTERIX transceiver apps in C++, Java 11, Java 21, and Python |
 | [Benchmarks & Performance](conduit/performance.md) | Codec latency, throughput, memory footprint, and scaling characteristics |
 | [Limitations & Known Issues](conduit/limitations.md) | Feature parity across backends, known bugs, and general constraints |
+| [Backend Audit Findings](backend-audit-findings.md) | Detailed Java/Python audit results vs C++ reference implementation |
