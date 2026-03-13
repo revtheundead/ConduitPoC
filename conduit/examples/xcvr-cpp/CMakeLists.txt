@@ -17,16 +17,16 @@ function(xcvr_compile_opts target)
     endif()
 endfunction()
 
-# Helper: place example binaries under build/examples/ (not build/lib/).
+# Helper: place example binaries in-place (in the example source directory).
 # Per-config overrides prevent MSVC multi-config generators from appending
 # a config subdirectory.
 function(xcvr_set_output_dir target)
     set_target_properties(${target} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
         set_target_properties(${target} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/examples"
+            RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_CURRENT_SOURCE_DIR}"
         )
     endforeach()
 endfunction()

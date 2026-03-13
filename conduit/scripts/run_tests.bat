@@ -103,11 +103,9 @@ echo ==^> Java JUnit Tests
 set "JUNIT_JAR="
 if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
     set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
-) else if exist "!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar" (
-    set "JUNIT_JAR=!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar"
 )
-set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
-set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
+set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
+set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
 
 if defined JUNIT_JAR (
     if exist "!JAVA_TEST_CLASSES!" (
@@ -117,12 +115,12 @@ if defined JUNIT_JAR (
                 echo   Running Java JUnit tests...
                 :: Conditionally exclude CABI/JNI tests based on native test library presence
                 set "JUNIT_EXCLUDES="
-                if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+                if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                         set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                     )
                 )
-                if not exist "!BUILD_DIR!\lib\conduit_jni_test.dll" (
+                if not exist "%~dp0..\lib\conduit_jni_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
                         set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
                     )
@@ -138,7 +136,7 @@ if defined JUNIT_JAR (
                         set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                     )
                 )
-                java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                java "-Djava.library.path=%~dp0..\lib" ^
                     !JAVA_JVM_FLAGS! ^
                     -jar "!JUNIT_JAR!" ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
@@ -186,7 +184,7 @@ if exist "!PYTHON_TESTS!" (
         if not errorlevel 1 (
             :: Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
-            if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+            if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
                 if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                     set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
                 )

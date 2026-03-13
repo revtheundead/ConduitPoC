@@ -39,28 +39,26 @@ public final class TestLibraryResolver {
 
         String libFileName = platformLibName(baseName);
 
-        // Single-config layout: build/lib/<lib>
-        Path libDir = Path.of(projectRoot, "build", "lib", libFileName);
+        // Project-root lib/ directory (primary output location)
+        Path libDir = Path.of(projectRoot, "lib", libFileName);
         if (Files.exists(libDir)) return libDir.toString();
 
-        // Single-config layout: build/tests/<lib>
-        Path direct = Path.of(projectRoot, "build", "tests", libFileName);
-        if (Files.exists(direct)) return direct.toString();
+        // Legacy: build/lib/<lib>
+        Path buildLib = Path.of(projectRoot, "build", "lib", libFileName);
+        if (Files.exists(buildLib)) return buildLib.toString();
 
-        // Multi-config layout: build/tests/{Debug,Release,RelWithDebInfo}/<lib>
-        for (String config : new String[]{"Debug", "Release", "RelWithDebInfo"}) {
-            Path multi = Path.of(projectRoot, "build", "tests", config, libFileName);
-            if (Files.exists(multi)) return multi.toString();
-        }
+        // Legacy: build/tests/<lib>
+        Path buildTests = Path.of(projectRoot, "build", "tests", libFileName);
+        if (Files.exists(buildTests)) return buildTests.toString();
 
-        // Multi-config layout: build/lib/{Debug,Release,RelWithDebInfo}/<lib>
+        // Multi-config layout: lib/{Debug,Release,RelWithDebInfo}/<lib>
         for (String config : new String[]{"Debug", "Release", "RelWithDebInfo"}) {
-            Path multi = Path.of(projectRoot, "build", "lib", config, libFileName);
+            Path multi = Path.of(projectRoot, "lib", config, libFileName);
             if (Files.exists(multi)) return multi.toString();
         }
 
         // Fallback (will fail with a clear error at load time)
-        return direct.toString();
+        return libDir.toString();
     }
 
     private static String platformLibName(String baseName) {

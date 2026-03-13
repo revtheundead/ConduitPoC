@@ -80,11 +80,9 @@ step "Java JUnit Tests"
 JUNIT_JAR=""
 if [ -f "$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar" ]; then
     JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
-elif [ -f "$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar" ]; then
-    JUNIT_JAR="$BUILD_DIR/junit-platform-console-standalone-1.11.4.jar"
 fi
-JAVA_TEST_CLASSES="$BUILD_DIR/java-test-classes"
-JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
+JAVA_TEST_CLASSES="$BUILD_DIR/tests/java-test-classes"
+JAVA_JAR="$PROJECT_DIR/lib/conduit-java-0.1.0.jar"
 
 if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
@@ -92,7 +90,7 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
         JUNIT_EXCLUDES=()
         _has_cabi_test_libs=false
         _has_jni_test_libs=false
-        for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+        for _d in "$PROJECT_DIR/lib" "$BUILD_DIR/tests"; do
             if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
                 _has_cabi_test_libs=true
             fi
@@ -115,7 +113,7 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
             JAVA_JVM_FLAGS+=(--enable-preview --enable-native-access=ALL-UNNAMED)
         fi
         run_suite "Java JUnit (standalone)" java \
-            "-Djava.library.path=$BUILD_DIR/lib" \
+            "-Djava.library.path=$PROJECT_DIR/lib" \
             "${JAVA_JVM_FLAGS[@]}" \
             -jar "$JUNIT_JAR" \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
@@ -164,7 +162,7 @@ if [ -d "$PYTHON_TESTS" ]; then
             # Exclude CABI-dependent tests if native test libraries are not available
             PYTEST_IGNORES=()
             _has_cabi_libs=false
-            for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+            for _d in "$PROJECT_DIR/lib" "$BUILD_DIR/tests"; do
                 if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
                     _has_cabi_libs=true; break
                 fi

@@ -195,6 +195,10 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
     target_compile_definitions(conduit_codec_cabi_test PRIVATE CONDUIT_CODEC_CABI_EXPORTS)
+    if(MSVC)
+        target_compile_definitions(conduit_codec_cabi_test PRIVATE
+            _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+    endif()
     set_target_properties(conduit_codec_cabi_test PROPERTIES
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
@@ -228,6 +232,10 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
     target_compile_definitions(conduit_cabi_test PRIVATE CONDUIT_CABI_EXPORTS CONDUIT_CODEC_CABI_EXPORTS)
+    if(MSVC)
+        target_compile_definitions(conduit_cabi_test PRIVATE
+            _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+    endif()
     set_target_properties(conduit_cabi_test PROPERTIES
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden

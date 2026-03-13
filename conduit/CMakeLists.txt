@@ -6,18 +6,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Place all shared libraries (.dll/.so) in a single directory so that
-# downstream consumers (Java apps, Python scripts, xcvr examples) only
-# need one path.  Per-config overrides prevent MSVC multi-config generators
-# from appending a config subdirectory — all libraries land directly in
-# <build>/lib regardless of build type.
+# Place all shared libraries (.dll/.so) in a single directory at the project
+# root so that downstream consumers (Java apps, Python scripts, xcvr examples)
+# only need one path.  Per-config overrides prevent MSVC multi-config
+# generators from appending a config subdirectory — all libraries land
+# directly in <project>/lib regardless of build type.
 # This also ensures Windows finds dependent DLLs (e.g. conduit_cabi.dll
 # needed by conduit_jni.dll) without extra PATH manipulation.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib")
 foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/lib")
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_BINARY_DIR}/lib")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_SOURCE_DIR}/lib")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_SOURCE_DIR}/lib")
 endforeach()
 
 # Threading support — required for std::mutex across all platforms.
@@ -360,7 +360,7 @@ endif()
 if(CONDUIT_BUILD_JAVA_JAR)
     set(_java_bindings_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java")
     set(_java_src_dir "${_java_bindings_dir}/src/main/java")
-    set(_java_jar "${CMAKE_CURRENT_BINARY_DIR}/conduit-java-0.1.0.jar")
+    set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-0.1.0.jar")
     set(_java_jar_built FALSE)
 
     # Detect JDK version (needed for test compilation regardless of build strategy)
@@ -388,6 +388,7 @@ if(CONDUIT_BUILD_JAVA_JAR)
         add_custom_command(
             OUTPUT "${_java_jar}"
             COMMAND ${_mvn_exe} install -q -f "${_java_bindings_dir}/pom.xml"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
             COMMAND ${CMAKE_COMMAND} -E copy
                 "${_java_bindings_dir}/target/conduit-java-0.1.0.jar"
                 "${_java_jar}"
@@ -406,6 +407,7 @@ if(CONDUIT_BUILD_JAVA_JAR)
             add_custom_command(
                 OUTPUT "${_java_jar}"
                 COMMAND ${_gradle_exe} -p "${_java_bindings_dir}" jar -q
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
                 COMMAND ${CMAKE_COMMAND} -E copy
                     "${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar"
                     "${_java_jar}"
@@ -474,6 +476,7 @@ if(CONDUIT_BUILD_JAVA_JAR)
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_classes_dir}"
                 COMMAND ${JAVAC_EXECUTABLE} ${_javac_flags} ${_java_sources}
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
                 COMMAND ${JAR_EXECUTABLE} cf "${_java_jar}" -C "${_java_classes_dir}" .
                 DEPENDS ${_java_sources}
                 COMMENT "Building conduit-java-0.1.0.jar (javac)"
@@ -488,8 +491,8 @@ if(CONDUIT_BUILD_JAVA_JAR)
 
         # ---- Java test compilation (requires bgen + fixtures) ----
         if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_TESTS)
-            set(_java_test_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/java-test-generated")
-            set(_java_test_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/java-test-classes")
+            set(_java_test_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/java-test-generated")
+            set(_java_test_classes_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/java-test-classes")
             set(_java_test_fixtures
                 struct_features
                 constraints
@@ -544,25 +547,20 @@ if(CONDUIT_BUILD_JAVA_JAR)
             add_custom_target(java_test_codegen DEPENDS ${_java_test_gen_stamps})
 
             # JUnit 5 standalone console runner for test execution
+            # Referenced directly from third_party/junit5/; downloaded there if missing.
             set(_junit_version "1.11.4")
-            set(_junit_jar "${CMAKE_CURRENT_BINARY_DIR}/junit-platform-console-standalone-${_junit_version}.jar")
+            set(_junit_jar "${CONDUIT_THIRD_PARTY_DIR}/junit5/junit-platform-console-standalone-${_junit_version}.jar")
             set(_junit_url "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${_junit_version}/junit-platform-console-standalone-${_junit_version}.jar")
 
-            # Use vendored JUnit JAR if available, otherwise download
-            set(_junit_vendored "${CONDUIT_THIRD_PARTY_DIR}/junit5/junit-platform-console-standalone-${_junit_version}.jar")
             if(NOT EXISTS "${_junit_jar}")
-                if(EXISTS "${_junit_vendored}")
-                    message(STATUS "Using vendored JUnit JAR from third_party/junit5/")
-                    file(COPY "${_junit_vendored}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")
-                else()
-                    message(STATUS "Downloading JUnit Platform Console Standalone ${_junit_version}...")
-                    file(DOWNLOAD "${_junit_url}" "${_junit_jar}" STATUS _dl_status)
-                    list(GET _dl_status 0 _dl_rc)
-                    if(NOT _dl_rc EQUAL 0)
-                        message(WARNING "Failed to download JUnit JAR (rc=${_dl_rc}). "
-                            "Java JUnit tests will not be available. "
-                            "Place the JAR in third_party/junit5/ or download manually from ${_junit_url}")
-                    endif()
+                message(STATUS "Downloading JUnit Platform Console Standalone ${_junit_version}...")
+                file(MAKE_DIRECTORY "${CONDUIT_THIRD_PARTY_DIR}/junit5")
+                file(DOWNLOAD "${_junit_url}" "${_junit_jar}" STATUS _dl_status)
+                list(GET _dl_status 0 _dl_rc)
+                if(NOT _dl_rc EQUAL 0)
+                    message(WARNING "Failed to download JUnit JAR (rc=${_dl_rc}). "
+                        "Java JUnit tests will not be available. "
+                        "Place the JAR in third_party/junit5/ or download manually from ${_junit_url}")
                 endif()
             endif()
 
