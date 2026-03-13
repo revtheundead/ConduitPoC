@@ -106,16 +106,19 @@ jobs:
           echo $mingwBin | Out-File -Append -FilePath $env:GITHUB_PATH
           gcc --version
 
-      - name: Configure conduit with examples (MinGW)
+      - name: Configure conduit with tests + examples (MinGW)
         run: >
           cmake -B build-mingw -S conduit -G "MinGW Makefiles"
           -DCONDUIT_BUILD_EXAMPLES=ON
-          -DCONDUIT_BUILD_BGEN=OFF
-          -DCONDUIT_BUILD_TESTS=OFF
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit with examples (MinGW)
+      - name: Build conduit with tests + examples (MinGW)
         run: cmake --build build-mingw --parallel
+
+      - name: Run conduit tests (MinGW)
+        run: cd build-mingw && ctest --output-on-failure --timeout 120
 
       - name: Smoke-test xcvr apps (MinGW)
         shell: pwsh
@@ -160,6 +163,10 @@ jobs:
             Write-Host "Smoke test FAILED: apps did not start properly"
             exit 1
           }
+
+      - name: Run standalone test suite (MinGW)
+        shell: cmd
+        run: conduit\scripts\run_tests.bat build-mingw
 
   # ── C++ / Linux GCC ────────────────────────────────────────────────────────
   cpp-linux:
