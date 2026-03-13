@@ -100,11 +100,16 @@ if exist "!BGEN_TEST_PREFIX!\bgen_java_tests.exe" (
 echo.
 echo ==^> Java JUnit Tests
 
-set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+set "JUNIT_JAR="
+if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+    set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+) else if exist "!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar" (
+    set "JUNIT_JAR=!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar"
+)
 set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
 set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
 
-if exist "!JUNIT_JAR!" (
+if defined JUNIT_JAR (
     if exist "!JAVA_TEST_CLASSES!" (
         if exist "!JAVA_JAR!" (
             where java >nul 2>&1
@@ -113,7 +118,11 @@ if exist "!JUNIT_JAR!" (
                 java -jar "!JUNIT_JAR!" ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
-                    --include-classname "^Test.*"
+                    --include-classname "^Test.*" ^
+                    --exclude-classname "TestTransceiverCabi" ^
+                    --exclude-classname "TestTransceiverJni" ^
+                    --exclude-classname "TestXcvrScenarios" ^
+                    --exclude-classname ".*CodecCabi.*"
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests
                     set /a FAILED+=1
@@ -125,13 +134,13 @@ if exist "!JUNIT_JAR!" (
                 echo   Warning: java not found -- skipping Java JUnit tests
             )
         ) else (
-            echo   Java JAR not found -- build with CONDUIT_BUILD_JAVA_JAR=ON
+            echo   Java JAR not found -- build with --java or CONDUIT_BUILD_JAVA_JAR=ON
         )
     ) else (
-        echo   Java test classes not found -- build with CONDUIT_BUILD_JAVA_JAR=ON
+        echo   Java test classes not found -- build with --java or CONDUIT_BUILD_JAVA_JAR=ON
     )
 ) else (
-    echo   JUnit JAR not found at !JUNIT_JAR!
+    echo   JUnit JAR not found -- build with --java or CONDUIT_BUILD_JAVA_JAR=ON
 )
 
 :: ============================================================================

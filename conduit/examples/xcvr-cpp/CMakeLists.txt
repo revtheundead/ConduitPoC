@@ -59,22 +59,6 @@ xcvr_compile_opts(dummy_peer)
 xcvr_set_output_dir(dummy_peer)
 
 # ----------------------------------------------------------------------------
-# asterix_sessions — shared library for CABI session factory registration
-# Only built when CONDUIT_BUILD_CABI is enabled.
-# ----------------------------------------------------------------------------
-
-if(CONDUIT_BUILD_CABI)
-    add_library(asterix_sessions SHARED src/asterix_sessions_register.cpp)
-    target_link_libraries(asterix_sessions PRIVATE conduit_cabi conduit)
-    target_include_directories(asterix_sessions PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/asterix/generated
-        ${CMAKE_CURRENT_SOURCE_DIR}/asterix-alt/generated
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-    xcvr_compile_opts(asterix_sessions)
-endif()
-
-# ----------------------------------------------------------------------------
 # xcvr_roundtrip_test — Cat021 roundtrip encoding/decoding test
 # ----------------------------------------------------------------------------
 

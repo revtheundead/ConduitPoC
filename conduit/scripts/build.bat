@@ -34,7 +34,6 @@ set "BUILD_JNI=0"
 set "BUILD_JAVA=0"
 set "ENABLE_SANITIZERS=0"
 set "BUILD_DIR=build"
-set "JAVA_BINDINGS_DIR=bindings\java"
 
 :: Auto-detect number of CPU cores for parallel builds
 set "JOBS=%NUMBER_OF_PROCESSORS%"
@@ -144,11 +143,21 @@ if "%BUILD_JNI%"=="1" (
 
 if "%BUILD_JAVA%"=="1" (
     where mvn >nul 2>&1
-    if errorlevel 1 (
-        echo Error: mvn not found. Please install Apache Maven to build Java bindings.
-        exit /b 1
+    if not errorlevel 1 (
+        echo   mvn ... ok
+    ) else (
+        where gradle >nul 2>&1
+        if not errorlevel 1 (
+            echo   gradle ... ok
+        ) else (
+            where javac >nul 2>&1
+            if not errorlevel 1 (
+                echo   javac ... ok
+            ) else (
+                echo Warning: No Java build tool found ^(mvn, gradle, or javac^) -- Java JAR may not build
+            )
+        )
     )
-    echo   mvn ... ok
 )
 
 :: ============================================================================
@@ -221,6 +230,11 @@ if "%BUILD_JNI%"=="1" (
     set "FLAG_JNI=-DCONDUIT_BUILD_JNI=ON"
 )
 
+set "FLAG_JAVA_JAR=-DCONDUIT_BUILD_JAVA_JAR=OFF"
+if "%BUILD_JAVA%"=="1" (
+    set "FLAG_JAVA_JAR=-DCONDUIT_BUILD_JAVA_JAR=ON"
+)
+
 set "FLAG_SANITIZE=-DCONDUIT_ENABLE_SANITIZERS=OFF"
 if "%ENABLE_SANITIZERS%"=="1" (
     set "FLAG_SANITIZE=-DCONDUIT_ENABLE_SANITIZERS=ON"
@@ -243,6 +257,7 @@ set "CACHED_EXAMPLES="
 set "CACHED_BENCHMARKS="
 set "CACHED_CABI="
 set "CACHED_JNI="
+set "CACHED_JAVA_JAR="
 set "CACHED_SANITIZE="
 
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CMAKE_BUILD_TYPE"') do set "CACHED_TYPE=%%a"
@@ -250,6 +265,7 @@ for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr 
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_BENCHMARKS"') do set "CACHED_BENCHMARKS=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_CABI:"') do set "CACHED_CABI=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_JNI"') do set "CACHED_JNI=%%a"
+for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_JAVA_JAR"') do set "CACHED_JAVA_JAR=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_ENABLE_SANITIZERS"') do set "CACHED_SANITIZE=%%a"
 
 :: Compute desired values
@@ -259,6 +275,8 @@ set "WANT_CABI=OFF"
 if "%BUILD_CABI%"=="1" set "WANT_CABI=ON"
 set "WANT_JNI=OFF"
 if "%BUILD_JNI%"=="1" set "WANT_JNI=ON"
+set "WANT_JAVA_JAR=OFF"
+if "%BUILD_JAVA%"=="1" set "WANT_JAVA_JAR=ON"
 set "WANT_SANITIZE=OFF"
 if "%ENABLE_SANITIZERS%"=="1" set "WANT_SANITIZE=ON"
 
@@ -267,6 +285,7 @@ if not "!CACHED_EXAMPLES!"=="!WANT_EXAMPLES!"    set "NEEDS_CONFIGURE=1"
 if not "!CACHED_BENCHMARKS!"=="!WANT_BENCHMARKS!" set "NEEDS_CONFIGURE=1"
 if not "!CACHED_CABI!"=="!WANT_CABI!"            set "NEEDS_CONFIGURE=1"
 if not "!CACHED_JNI!"=="!WANT_JNI!"             set "NEEDS_CONFIGURE=1"
+if not "!CACHED_JAVA_JAR!"=="!WANT_JAVA_JAR!"   set "NEEDS_CONFIGURE=1"
 if not "!CACHED_SANITIZE!"=="!WANT_SANITIZE!"    set "NEEDS_CONFIGURE=1"
 
 :do_configure_check_done
@@ -284,13 +303,13 @@ if "%NEEDS_CONFIGURE%"=="1" (
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^
-            !FLAG_CABI! !FLAG_JNI! !FLAG_SANITIZE!
+            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_SANITIZE!
     ) else (
         cmake -B "%BUILD_DIR%" ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^
-            !FLAG_CABI! !FLAG_JNI! !FLAG_SANITIZE!
+            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_SANITIZE!
     )
     if errorlevel 1 (
         echo Error: CMake configure failed.
@@ -316,27 +335,6 @@ if errorlevel 1 (
 
 echo.
 echo ==^> Build succeeded
-
-:: ============================================================================
-:: Java bindings (Maven install to local repo)
-:: ============================================================================
-
-if "%BUILD_JAVA%"=="1" (
-    echo.
-    echo ==^> Building Java bindings ^(Maven^)
-
-    pushd "%JAVA_BINDINGS_DIR%"
-    call mvn install -q
-    if errorlevel 1 (
-        popd
-        echo Error: Maven build failed.
-        exit /b 1
-    )
-    popd
-
-    echo.
-    echo ==^> Java bindings installed to local Maven repo
-)
 
 :: ============================================================================
 :: Test (only with --test)
@@ -388,10 +386,15 @@ if "%RUN_TESTS%"=="1" (
     )
 
     :: --- Java JUnit tests (non-fatal) ---
-    set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+    set "JUNIT_JAR="
+    if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+        set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+    ) else if exist "!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar" (
+        set "JUNIT_JAR=!BUILD_DIR!\junit-platform-console-standalone-1.11.4.jar"
+    )
     set "JAVA_TEST_CLASSES=!BUILD_DIR!\java-test-classes"
     set "JAVA_JAR=!BUILD_DIR!\conduit-java-0.1.0.jar"
-    if exist "!JUNIT_JAR!" (
+    if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (
                 where java >nul 2>&1
@@ -402,7 +405,9 @@ if "%RUN_TESTS%"=="1" (
                         --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                         --scan-class-path "!JAVA_TEST_CLASSES!" ^
                         --include-classname "^Test.*" ^
-                        --exclude-classname ".*Transceiver.*" ^
+                        --exclude-classname "TestTransceiverCabi" ^
+                        --exclude-classname "TestTransceiverJni" ^
+                        --exclude-classname "TestXcvrScenarios" ^
                         --exclude-classname ".*CodecCabi.*"
                     if errorlevel 1 (
                         echo Warning: Java JUnit tests failed ^(non-fatal^)
@@ -413,7 +418,7 @@ if "%RUN_TESTS%"=="1" (
             )
         )
     ) else (
-        echo   Java JUnit tests not available ^(build with CONDUIT_BUILD_JAVA_JAR=ON^)
+        echo   Java JUnit tests not available ^(build with --java or CONDUIT_BUILD_JAVA_JAR=ON^)
     )
 
     :: --- Python pytest tests (non-fatal) ---
