@@ -576,10 +576,19 @@ if(CONDUIT_BUILD_JAVA_JAR)
             else()
                 set(_java_test_release_flags "--release 11")
             endif()
+            # Panama test files require JDK 21+; exclude them when targeting --release 11
+            set(_java_test_exclude_filter "")
+            if(NOT (CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21))
+                set(_java_test_exclude_filter "
+# Exclude Panama FFI test files (require JDK 21+)
+list(FILTER _test_src EXCLUDE REGEX \"TestCodecCabi\\\\.java$\")
+list(FILTER _test_src EXCLUDE REGEX \"TestTransceiverCabi\\\\.java$\")
+")
+            endif()
             file(WRITE "${_java_test_compile_script}" "
 file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
-list(APPEND _all_src \${_gen_src} \${_test_src})
+${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
 execute_process(
