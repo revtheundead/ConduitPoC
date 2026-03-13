@@ -87,7 +87,8 @@ if [ -f "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
-            --exclude-classname ".*Transceiver.*" \
+            --exclude-classname "TestTransceiverCabi" \
+            --exclude-classname "TestTransceiverJni" \
             --exclude-classname ".*CodecCabi.*"
     else
         warn "java not found — skipping Java JUnit tests"

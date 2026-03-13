@@ -825,6 +825,11 @@ class Transceiver:
         """Send a batch of messages to a peer."""
         count = len(payloads)
         if count == 0:
+            # C++ returns InvalidArgument for empty batch; pass count=0 to C ABI
+            err = self._lib.conduit_send_batch(
+                self._handle, peer_id, type_id, None, None, 0)
+            if err != 0:
+                raise ConduitError(err, "send_batch failed")
             return
 
         ArrayOfPtr = ctypes.POINTER(ctypes.c_uint8) * count

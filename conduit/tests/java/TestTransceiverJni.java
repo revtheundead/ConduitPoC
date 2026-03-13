@@ -954,14 +954,15 @@ public class TestTransceiverJni {
     // ========================================================================
 
     @Test
-    @DisplayName("JNI: sendBatch with empty list is no-op")
+    @DisplayName("JNI: sendBatch with empty list throws ConduitError")
     void sendBatchEmpty() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("test", "session_protocol",
                 TransportConfig.udp("127.0.0.1:10290"));
             t.start();
             List<byte[]> empty = new ArrayList<>();
-            assertDoesNotThrow(() -> t.sendBatch(peerId, PingBody.TYPE_ID, empty));
+            assertThrows(ConduitError.class,
+                () -> t.sendBatch(peerId, PingBody.TYPE_ID, empty));
             t.stop();
         }
     }

@@ -114,7 +114,8 @@ if exist "!JUNIT_JAR!" (
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
                     --include-classname "^Test.*" ^
-                    --exclude-classname ".*Transceiver.*" ^
+                    --exclude-classname "TestTransceiverCabi" ^
+                    --exclude-classname "TestTransceiverJni" ^
                     --exclude-classname ".*CodecCabi.*"
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests

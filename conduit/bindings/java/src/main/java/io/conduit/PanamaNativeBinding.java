@@ -267,7 +267,16 @@ public final class PanamaNativeBinding implements NativeBinding {
 
     @Override
     public int sendBatch(long handle, int peerId, long typeId, List<byte[]> payloads) {
-        if (payloads.isEmpty()) return 0;
+        if (payloads.isEmpty()) {
+            // C++ returns InvalidArgument for empty batch; pass count=0 to C ABI
+            try {
+                return (int) CabiBindings.conduit_send_batch.invokeExact(
+                    MemorySegment.ofAddress(handle), peerId, typeId,
+                    MemorySegment.NULL, MemorySegment.NULL, 0L);
+            } catch (Throwable e) {
+                throw new RuntimeException("sendBatch failed", e);
+            }
+        }
         try (var batchArena = Arena.ofConfined()) {
             int count = payloads.size();
             var ptrs = batchArena.allocate(
