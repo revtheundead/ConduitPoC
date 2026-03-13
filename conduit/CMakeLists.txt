@@ -596,12 +596,12 @@ file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
 ${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
-file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
+# Write javac argfile — keeps classpath semicolons out of CMake COMMAND parsing
+# (on Windows the classpath separator is semicolon which CMake treats as a list separator)
+file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
     COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
-        -cp \"${_java_jar}${_cp_sep}${_junit_jar}\"
-        -d \"${_java_test_classes_dir}\"
-        \"@${_java_test_classes_dir}/sources.txt\"
+        \"@${_java_test_classes_dir}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )
 if(NOT _rc EQUAL 0)
