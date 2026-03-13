@@ -83,6 +83,10 @@ jobs:
             exit 1
           }
 
+      - name: Run standalone test suite
+        shell: cmd
+        run: conduit\scripts\run_tests.bat build
+
   # ── C++ / Windows MinGW (cross-compilation parity) ─────────────────────────
   cpp-windows-mingw:
     runs-on: windows-latest
@@ -203,6 +207,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh build
+
   # ── Java 11 JNI / Linux ────────────────────────────────────────────────────
   java11-linux:
     runs-on: ubuntu-latest
@@ -216,15 +223,17 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen)
+      - name: Configure conduit (CABI + JNI + bgen + tests)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen)
+      - name: Build conduit (CABI + JNI + bgen + tests)
         run: cmake --build build-conduit --parallel
 
       - name: Generate Java sources from BMDL
@@ -282,6 +291,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh build-conduit
+
   # ── Java 11 JNI / Windows ──────────────────────────────────────────────────
   java11-windows:
     runs-on: windows-latest
@@ -295,15 +307,17 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen)
+      - name: Configure conduit (CABI + JNI + bgen + tests)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen)
+      - name: Build conduit (CABI + JNI + bgen + tests)
         run: cmake --build build-conduit --config Release --parallel
 
       - name: Generate Java sources from BMDL
@@ -389,6 +403,10 @@ jobs:
             exit 1
           }
 
+      - name: Run standalone test suite
+        shell: cmd
+        run: conduit\scripts\run_tests.bat build-conduit
+
   # ── Java 21 Panama FFI / Linux ─────────────────────────────────────────────
   java21-linux:
     runs-on: ubuntu-latest
@@ -402,14 +420,16 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen)
+      - name: Configure conduit (CABI + bgen + tests)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen)
+      - name: Build conduit (CABI + bgen + tests)
         run: cmake --build conduit/build --parallel
 
       - name: Generate Java sources from BMDL
@@ -465,6 +485,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh conduit/build
+
   # ── Java 21 Panama FFI / Windows ───────────────────────────────────────────
   java21-windows:
     runs-on: windows-latest
@@ -478,14 +501,16 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen)
+      - name: Configure conduit (CABI + bgen + tests)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen)
+      - name: Build conduit (CABI + bgen + tests)
         run: cmake --build conduit/build --config Release --parallel
 
       - name: Generate Java sources from BMDL
@@ -569,6 +594,10 @@ jobs:
             exit 1
           }
 
+      - name: Run standalone test suite
+        shell: cmd
+        run: conduit\scripts\run_tests.bat conduit\build
+
   # ── Python / Linux ─────────────────────────────────────────────────────────
   python-linux:
     runs-on: ubuntu-latest
@@ -581,14 +610,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen)
+      - name: Configure conduit (CABI + bgen + tests)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen)
+      - name: Build conduit (CABI + bgen + tests)
         run: cmake --build conduit/build --parallel
 
       - name: Generate Python sources from BMDL
@@ -636,6 +666,11 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        env:
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/lib/libconduit_cabi.so
+        run: conduit/scripts/run_tests.sh conduit/build
+
   # ── Python / Windows ───────────────────────────────────────────────────────
   python-windows:
     runs-on: windows-latest
@@ -648,14 +683,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen)
+      - name: Configure conduit (CABI + bgen + tests)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen)
+      - name: Build conduit (CABI + bgen + tests)
         run: cmake --build conduit/build --config Release --parallel
 
       - name: Generate Python sources from BMDL
@@ -723,6 +759,12 @@ jobs:
             exit 1
           }
 
+      - name: Run standalone test suite
+        shell: cmd
+        env:
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/lib/conduit_cabi.dll
+        run: conduit\scripts\run_tests.bat conduit\build
+
   # ── C++ / Linux GCC Debug ──────────────────────────────────────────────────
   cpp-linux-debug:
     runs-on: ubuntu-latest
@@ -769,6 +811,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh build
+
   # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
   cpp-macos:
     runs-on: macos-latest
@@ -814,6 +859,9 @@ jobs:
             echo "Smoke test FAILED"
             exit 1
           fi
+
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh build
 
   # ── C++ / Linux Clang ──────────────────────────────────────────────────────
   cpp-linux-clang:
@@ -873,6 +921,9 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite
+        run: conduit/scripts/run_tests.sh build
+
   # ── C++ / Linux ASan + UBSan ───────────────────────────────────────────────
   cpp-linux-sanitizers:
     runs-on: ubuntu-latest
@@ -926,6 +977,12 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone test suite under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: conduit/scripts/run_tests.sh build
+
   # ── C++ / Linux TSan (Thread Sanitizer) ────────────────────────────────────
   cpp-linux-tsan:
     runs-on: ubuntu-latest
@@ -978,6 +1035,11 @@ jobs:
             echo "TSan smoke test FAILED"
             exit 1
           fi
+
+      - name: Run standalone test suite under TSan
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: conduit/scripts/run_tests.sh build
 
   # ── C++ / Static Analysis (clang-tidy) ─────────────────────────────────────
   cpp-clang-tidy:
