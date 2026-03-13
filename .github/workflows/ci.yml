@@ -36,7 +36,7 @@ jobs:
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         shell: pwsh
         run: |
-          $buildDir = "build/examples"
+          $buildDir = "conduit/examples/xcvr-cpp"
 
           # Start server in background
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
@@ -116,7 +116,7 @@ jobs:
       - name: Smoke-test xcvr apps (MinGW)
         shell: pwsh
         run: |
-          $buildDir = "build-mingw/examples"
+          $buildDir = "conduit/examples/xcvr-cpp"
 
           # Start server in background
           # MinGW statically-linked builds may take longer to initialize on CI
@@ -180,18 +180,18 @@ jobs:
 
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -247,7 +247,7 @@ jobs:
       - name: Smoke-test xcvr-java11 (DummyPeer server + PocApp client)
         run: |
           BUILD_DIR=${{ github.workspace }}/build-conduit
-          JNI_LIB=$BUILD_DIR/lib/libconduit_jni.so
+          JNI_LIB=${{ github.workspace }}/conduit/lib/libconduit_jni.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
@@ -329,11 +329,11 @@ jobs:
         shell: pwsh
         run: |
           $BuildDir = "${{ github.workspace }}\build-conduit"
-          $JniLib = "$BuildDir\lib\conduit_jni.dll"
+          $JniLib = "${{ github.workspace }}\conduit\lib\conduit_jni.dll"
 
           # Add lib dir to PATH so Windows can find conduit_cabi.dll
           # (dependent DLL of conduit_jni.dll) during library loading
-          $env:PATH = "$BuildDir\lib;$env:PATH"
+          $env:PATH = "${{ github.workspace }}\conduit\lib;$env:PATH"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -431,7 +431,7 @@ jobs:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           BUILD_DIR=${{ github.workspace }}/conduit/build
-          CABI_PATH=$BUILD_DIR/lib/libconduit_cabi.so
+          CABI_PATH=${{ github.workspace }}/conduit/lib/libconduit_cabi.so
 
           # Start DummyPeer in server mode in the background
           mvn exec:java -f conduit/examples/xcvr-java21/pom.xml -PrunDummyPeer \
@@ -504,7 +504,7 @@ jobs:
         shell: pwsh
         run: |
           $buildDir = "${{ github.workspace }}\conduit\build"
-          $cabiPath = "$buildDir\lib\conduit_cabi.dll"
+          $cabiPath = "${{ github.workspace }}\conduit\lib\conduit_cabi.dll"
           mvn package -q -f conduit/examples/xcvr-java21/pom.xml "-Dskip.bgen=true" "-Dconduit.build.dir=$buildDir" "-Dconduit.cabi.path=$cabiPath"
 
       - name: Smoke-test xcvr-java21 (DummyPeer server + PocApp client)
@@ -513,8 +513,8 @@ jobs:
           MAVEN_OPTS: "--enable-preview --enable-native-access=ALL-UNNAMED"
         run: |
           $BuildDir = "${{ github.workspace }}\conduit\build"
-          $CabiPath = "$BuildDir\lib\conduit_cabi.dll"
-          $env:PATH = "$BuildDir\lib;$env:PATH"
+          $CabiPath = "${{ github.workspace }}\conduit\lib\conduit_cabi.dll"
+          $env:PATH = "${{ github.workspace }}\conduit\lib;$env:PATH"
 
           # Start DummyPeer in server mode in the background
           $server = Start-Process -FilePath "mvn" `
@@ -606,7 +606,7 @@ jobs:
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/libconduit_cabi.so
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/lib/libconduit_cabi.so
           PYTHONUNBUFFERED: "1"
         run: |
           cd conduit/examples/xcvr-python
@@ -675,7 +675,7 @@ jobs:
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         shell: pwsh
         env:
-          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/build/lib/conduit_cabi.dll
+          CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/lib/conduit_cabi.dll
           PYTHONUNBUFFERED: "1"
         run: |
           # Start DummyPeer in server mode in the background
@@ -746,18 +746,18 @@ jobs:
 
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -792,18 +792,18 @@ jobs:
 
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -850,18 +850,18 @@ jobs:
 
       - name: Smoke-test xcvr apps (server + client for 5 seconds)
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 5
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -903,18 +903,18 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 8
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
@@ -956,18 +956,18 @@ jobs:
         env:
           TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: |
-          cd build/examples
-          ./dummy_peer server --port 15000 --interval-ms 500 > ../../server_out.txt 2>&1 &
+          cd conduit/examples/xcvr-cpp
+          ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
           sleep 2
-          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../client_out.txt 2>&1 &
+          ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
           sleep 8
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
           wait $SERVER_PID 2>/dev/null || true
-          cd ../..
+          cd ../../..
           echo "=== Server output ==="
           cat server_out.txt
           echo "=== Client output ==="
