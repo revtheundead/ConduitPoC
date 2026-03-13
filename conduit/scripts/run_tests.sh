@@ -88,14 +88,33 @@ JAVA_JAR="$BUILD_DIR/conduit-java-0.1.0.jar"
 
 if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
-        run_suite "Java JUnit (standalone)" java -jar "$JUNIT_JAR" \
+        # Conditionally exclude CABI/JNI tests based on whether native test libraries exist
+        JUNIT_EXCLUDES=()
+        _has_cabi_test_libs=false
+        _has_jni_test_libs=false
+        for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+            if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_cabi_test_libs=true
+            fi
+            if ls "$_d"/libconduit_jni_test* "$_d"/conduit_jni_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_jni_test_libs=true
+            fi
+        done
+        if [ "$_has_cabi_test_libs" != true ]; then
+            JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverCabi"
+                             --exclude-classname ".*CodecCabi.*")
+        fi
+        if [ "$_has_jni_test_libs" != true ]; then
+            JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
+                             --exclude-classname "TestXcvrScenarios")
+        fi
+        run_suite "Java JUnit (standalone)" java \
+            "-Djava.library.path=$BUILD_DIR/lib" \
+            -jar "$JUNIT_JAR" \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
-            --exclude-classname "TestTransceiverCabi" \
-            --exclude-classname "TestTransceiverJni" \
-            --exclude-classname "TestXcvrScenarios" \
-            --exclude-classname ".*CodecCabi.*"
+            "${JUNIT_EXCLUDES[@]}"
     else
         warn "java not found — skipping Java JUnit tests"
     fi

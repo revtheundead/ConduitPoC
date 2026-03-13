@@ -115,14 +115,24 @@ if defined JUNIT_JAR (
             where java >nul 2>&1
             if not errorlevel 1 (
                 echo   Running Java JUnit tests...
-                java -jar "!JUNIT_JAR!" ^
+                :: Conditionally exclude CABI/JNI tests based on native test library presence
+                set "JUNIT_EXCLUDES="
+                if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+                    if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
+                        set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
+                    )
+                )
+                if not exist "!BUILD_DIR!\lib\conduit_jni_test.dll" (
+                    if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
+                    )
+                )
+                java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                    -jar "!JUNIT_JAR!" ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
                     --include-classname "^Test.*" ^
-                    --exclude-classname "TestTransceiverCabi" ^
-                    --exclude-classname "TestTransceiverJni" ^
-                    --exclude-classname "TestXcvrScenarios" ^
-                    --exclude-classname ".*CodecCabi.*"
+                    !JUNIT_EXCLUDES!
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests
                     set /a FAILED+=1

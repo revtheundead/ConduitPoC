@@ -401,14 +401,19 @@ if "%RUN_TESTS%"=="1" (
                 if not errorlevel 1 (
                     echo.
                     echo ==^> Running Java JUnit tests
-                    java -jar "!JUNIT_JAR!" ^
+                    set "JUNIT_EXCLUDES="
+                    if not "%BUILD_CABI%"=="1" (
+                        set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
+                    )
+                    if not "%BUILD_JNI%"=="1" (
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
+                    )
+                    java "-Djava.library.path=!BUILD_DIR!\lib" ^
+                        -jar "!JUNIT_JAR!" ^
                         --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                         --scan-class-path "!JAVA_TEST_CLASSES!" ^
                         --include-classname "^Test.*" ^
-                        --exclude-classname "TestTransceiverCabi" ^
-                        --exclude-classname "TestTransceiverJni" ^
-                        --exclude-classname "TestXcvrScenarios" ^
-                        --exclude-classname ".*CodecCabi.*"
+                        !JUNIT_EXCLUDES!
                     if errorlevel 1 (
                         echo Warning: Java JUnit tests failed ^(non-fatal^)
                     )
@@ -452,7 +457,7 @@ if "%RUN_TESTS%"=="1" (
     )
 
     echo.
-    echo ==^> All tests passed
+    echo ==^> Test run complete
 )
 
 echo.

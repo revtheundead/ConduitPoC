@@ -298,14 +298,21 @@ if [ "$RUN_TESTS" = true ]; then
     if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
         if command -v java &>/dev/null; then
             step "Running Java JUnit tests"
-            java -jar "$JUNIT_JAR" \
+            JUNIT_EXCLUDES=()
+            if [ "$BUILD_CABI" != true ]; then
+                JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverCabi"
+                                 --exclude-classname ".*CodecCabi.*")
+            fi
+            if [ "$BUILD_JNI" != true ] || [ "$BUILD_CABI" != true ]; then
+                JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
+                                 --exclude-classname "TestXcvrScenarios")
+            fi
+            java "-Djava.library.path=$BUILD_DIR/lib" \
+                -jar "$JUNIT_JAR" \
                 --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
                 --scan-class-path "$JAVA_TEST_CLASSES" \
                 --include-classname "^Test.*" \
-                --exclude-classname "TestTransceiverCabi" \
-                --exclude-classname "TestTransceiverJni" \
-                --exclude-classname "TestXcvrScenarios" \
-                --exclude-classname ".*CodecCabi.*" \
+                "${JUNIT_EXCLUDES[@]}" \
                 || warn "Java JUnit tests failed (non-fatal)"
         else
             warn "java not found — skipping Java JUnit tests"
@@ -350,7 +357,7 @@ if [ "$RUN_TESTS" = true ]; then
         fi
     fi
 
-    step "All tests passed"
+    step "Test run complete"
 fi
 
 echo ""
