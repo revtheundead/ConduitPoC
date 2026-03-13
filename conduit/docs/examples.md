@@ -24,17 +24,17 @@ The `examples/` directory contains complete working applications that demonstrat
 cmake -B build -S conduit -DCONDUIT_BUILD_EXAMPLES=ON -DCONDUIT_BUILD_BGEN=ON
 cmake --build build
 
-# Binaries are placed in build/examples/
+# Binaries are placed in conduit/examples/xcvr-cpp/
 ```
 
 **How to run:**
 
 ```bash
 # Start server
-./build/examples/dummy_peer server --port 5000 --interval-ms 500
+./conduit/examples/xcvr-cpp/dummy_peer server --port 5000 --interval-ms 500
 
 # In another terminal, start client
-./build/examples/poc_app 127.0.0.1 5000 --interval-ms 500
+./conduit/examples/xcvr-cpp/poc_app 127.0.0.1 5000 --interval-ms 500
 ```
 
 **CLI options:** `--port`, `--interval-ms`, `--session`, `--log-dir`, `--log-prefix`.
@@ -146,7 +146,7 @@ pip install conduit/examples/xcvr-python/
 **How to run:**
 
 ```bash
-export CONDUIT_CABI_LIB=$(pwd)/build/lib/libconduit_cabi.so
+export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.so
 
 # Server (using pip-installed entry points)
 dummy-peer server --port 5000 --interval-ms 500
@@ -158,7 +158,7 @@ poc-app 127.0.0.1 5000 --interval-ms 500
 Alternatively, run directly from the source tree without pip-installing the example:
 
 ```bash
-export CONDUIT_CABI_LIB=$(pwd)/build/lib/libconduit_cabi.so
+export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.so
 
 cd conduit/examples/xcvr-python
 python -m src.dummy_peer server --port 5000 --interval-ms 500

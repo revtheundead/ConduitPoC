@@ -22,9 +22,9 @@ cmake --build build
 ./build/bin/bgen --input my-protocol.bmdl.xml --output generated/ --language cpp
 
 # 4. Run the ASTERIX example
-./build/examples/dummy_peer server --port 5000 --interval-ms 500
+./conduit/examples/xcvr-cpp/dummy_peer server --port 5000 --interval-ms 500
 # In another terminal:
-./build/examples/poc_app 127.0.0.1 5000 --interval-ms 500
+./conduit/examples/xcvr-cpp/poc_app 127.0.0.1 5000 --interval-ms 500
 ```
 
 ## Requirements
