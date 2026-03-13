@@ -14,10 +14,15 @@ setlocal enabledelayedexpansion
 :: prevent subsequent test suites from running.
 :: ============================================================================
 
-cd /d "%~dp0.."
-
+:: Resolve BUILD_DIR to absolute path before cd (argument is relative to CWD)
 set "BUILD_DIR=build"
 if not "%~1"=="" set "BUILD_DIR=%~1"
+pushd "!BUILD_DIR!" 2>nul && (
+    set "BUILD_DIR=!CD!"
+    popd
+)
+
+cd /d "%~dp0.."
 
 set "PASSED=0"
 set "FAILED=0"
@@ -188,6 +193,10 @@ if exist "!PYTHON_TESTS!" (
                 if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                     set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
                 )
+            )
+            :: Generate Python test packages from BMDL fixtures
+            if exist "!BUILD_DIR!" (
+                cmake --build "!BUILD_DIR!" --target pytest_generated >nul 2>&1
             )
             echo   Running Python pytest tests...
             python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
