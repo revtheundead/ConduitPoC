@@ -19,11 +19,12 @@ using namespace conduit::transceiver::transport;
 
 TEST_CASE("TCP loopback: server + client bidirectional",
           "[integration][tcp]") {
-    auto wait_until = [](auto pred, std::chrono::milliseconds timeout = std::chrono::milliseconds(2000)) {
+    auto wait_until = [](auto pred, std::chrono::milliseconds timeout = std::chrono::milliseconds(2000)) -> bool {
         auto deadline = std::chrono::steady_clock::now() + timeout;
         while (!pred() && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
+        return pred();
     };
 
     // --- Server setup ---
@@ -37,12 +38,13 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     std::atomic<uint32_t> next_id{100};
     std::vector<uint8_t> server_received;
     std::mutex server_rx_mutex;
-    PeerId client_peer_on_server;
+    std::atomic<uint32_t> client_peer_on_server_id{0};
 
     TransportCallbacks server_cb;
     server_cb.on_peer_connected = [&](std::string) -> PeerId {
-        client_peer_on_server = PeerId{next_id.fetch_add(1)};
-        return client_peer_on_server;
+        auto id = next_id.fetch_add(1);
+        client_peer_on_server_id.store(id, std::memory_order_release);
+        return PeerId{id};
     };
     server_cb.on_data_received = [&](PeerId /*peer*/,
                                      std::span<const uint8_t> data) {
@@ -85,7 +87,11 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     REQUIRE(cli_result.has_value());
 
     // Wait for connection
-    wait_until([&] { return client_peer_on_server.valid(); });
+    REQUIRE(wait_until([&] {
+        return client_peer_on_server_id.load(std::memory_order_acquire) != 0;
+    }));
+
+    PeerId client_peer_on_server{client_peer_on_server_id.load(std::memory_order_acquire)};
 
     // Client sends to server
     std::vector<uint8_t> msg1 = {0x01, 0x02, 0x03, 0x04};
@@ -93,17 +99,15 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     REQUIRE(send1.has_value());
 
     // Wait for server to receive data
-    wait_until([&] { std::lock_guard lock(server_rx_mutex); return !server_received.empty(); });
+    REQUIRE(wait_until([&] { std::lock_guard lock(server_rx_mutex); return !server_received.empty(); }));
 
     // Server sends back to client
-    if (client_peer_on_server.valid()) {
-        std::vector<uint8_t> msg2 = {0x0A, 0x0B, 0x0C};
-        auto send2 = server->send(client_peer_on_server, msg2);
-        REQUIRE(send2.has_value());
-    }
+    std::vector<uint8_t> msg2 = {0x0A, 0x0B, 0x0C};
+    auto send2 = server->send(client_peer_on_server, msg2);
+    REQUIRE(send2.has_value());
 
     // Wait for client to receive data
-    wait_until([&] { std::lock_guard lock(client_rx_mutex); return !client_received.empty(); });
+    REQUIRE(wait_until([&] { std::lock_guard lock(client_rx_mutex); return !client_received.empty(); }));
 
     client->stop();
     server->stop();
@@ -115,7 +119,6 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     }
     {
         std::lock_guard lock(client_rx_mutex);
-        std::vector<uint8_t> expected = {0x0A, 0x0B, 0x0C};
-        CHECK(client_received == expected);
+        CHECK(client_received == msg2);
     }
 }
