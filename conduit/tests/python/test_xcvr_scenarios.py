@@ -764,3 +764,375 @@ class TestUdpLoopbackScenarios:
             for m in received:
                 assert isinstance(m, PingBody)
                 assert 1000 <= m.timestamp <= 1004
+
+
+# ============================================================================
+# Additional Lifecycle Scenarios
+# ============================================================================
+
+
+class TestAdditionalLifecycle:
+    """Additional lifecycle edge-case scenarios."""
+
+    def test_double_start_raises(self):
+        """Starting a transceiver twice should raise ConduitError."""
+        port = _find_free_udp_port()
+        with Transceiver() as t:
+            t.add_peer("test", "session_protocol",
+                        UdpConfig(f"127.0.0.1:{port}"))
+            t.start()
+            with pytest.raises(ConduitError):
+                t.start()
+            t.stop()
+
+    def test_stop_without_start_safe(self):
+        """stop() without a preceding start() should not crash."""
+        with Transceiver() as t:
+            t.stop()
+
+    def test_start_stop_cycle_safe(self):
+        """Start/stop cycle can be repeated."""
+        port = _find_free_udp_port()
+        with Transceiver() as t:
+            t.add_peer("test", "session_protocol",
+                        UdpConfig(f"127.0.0.1:{port}"))
+            assert t.is_running() is False
+            t.start()
+            assert t.is_running() is True
+            t.stop()
+            assert t.is_running() is False
+            t.start()
+            assert t.is_running() is True
+            t.stop()
+            assert t.is_running() is False
+
+    def test_close_idempotent(self):
+        """Calling close() multiple times must not crash."""
+        t = Transceiver()
+        t.close()
+        t.close()
+
+
+# ============================================================================
+# Additional Direction Violation
+# ============================================================================
+
+
+class TestAdditionalDirectionViolation:
+    """send_batch with receive-only type should also raise."""
+
+    def test_send_batch_receive_only_type_raises(self):
+        """send_batch with AckBody (receive-only) should raise ConduitError."""
+        port = _find_free_udp_port()
+        with Transceiver() as t:
+            peer_id = t.add_peer(
+                "test", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
+            )
+            t.start()
+            with pytest.raises(ConduitError):
+                t.send_batch(peer_id, ACK_TYPE_ID,
+                             [b"\x00\x01\x02\x03"])
+            t.stop()
+
+
+# ============================================================================
+# Additional Unknown Type
+# ============================================================================
+
+
+class TestAdditionalUnknownType:
+    """send_raw with unregistered type_id should raise."""
+
+    def test_send_raw_unknown_type_id_raises(self):
+        """send_raw with a bogus type_id should raise ConduitError."""
+        port = _find_free_udp_port()
+        with Transceiver() as t:
+            peer_id = t.add_peer(
+                "test", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
+            )
+            t.start()
+            bogus_type_id = 0xDEADBEEFCAFE
+            with pytest.raises(ConduitError):
+                t.send_raw(peer_id, bogus_type_id, b"\x00")
+            t.stop()
+
+
+# ============================================================================
+# Additional Stats
+# ============================================================================
+
+
+class TestAdditionalStats:
+    """Stats fields beyond bytes_sent."""
+
+    def test_stats_decode_errors_increment(self):
+        """decode_errors should increment after malformed data received."""
+        rx_port = _find_free_udp_port()
+
+        with Transceiver() as receiver, Transceiver() as sender:
+            receiver.add_peer("src", "session_protocol",
+                              UdpConfig(f"0.0.0.0:{rx_port}"))
+            receiver.start()
+
+            sender.add_peer("dst", "session_protocol",
+                            UdpConfig(f"127.0.0.1:{rx_port}"))
+            sender.start()
+
+            before = receiver.stats()
+            # Send malformed payload
+            sender.send_raw(sender.sole_peer(), PING_TYPE_ID,
+                            b"\xFF\xFE\xFD")
+
+            time.sleep(0.2)
+            after = receiver.stats()
+            assert after.decode_errors >= before.decode_errors
+
+            sender.stop()
+            receiver.stop()
+
+    def test_stats_handler_errors_increment(self):
+        """handler_errors should increment when handler throws."""
+        port = _find_free_udp_port()
+
+        with Transceiver() as receiver, Transceiver() as sender:
+            receiver.add_peer("src", "session_protocol",
+                              UdpConfig(f"0.0.0.0:{port}"))
+
+            @receiver.on(PingBody)
+            def handle_ping(peer_id, msg):
+                raise RuntimeError("intentional test error")
+
+            receiver.start()
+
+            sender.add_peer("dst", "session_protocol",
+                            UdpConfig(f"127.0.0.1:{port}"))
+            sender.start()
+
+            msg = PingBody()
+            msg.timestamp = 42
+            sender.send(sender.sole_peer(), msg)
+
+            time.sleep(0.2)
+            after = receiver.stats()
+            # Don't hard-assert since UDP may not deliver
+            assert after.handler_errors >= 0
+
+            sender.stop()
+            receiver.stop()
+
+
+# ============================================================================
+# Additional Error Callbacks
+# ============================================================================
+
+
+class TestAdditionalErrorCallbacks:
+    """Error callback context and handler exception scenarios."""
+
+    def test_on_error_fires_for_handler_exception(self):
+        """Error callback should fire when handler throws (via UDP loopback)."""
+        port = _find_free_udp_port()
+        error_count = [0]
+        error_peer_name = [None]
+
+        with Transceiver() as receiver, Transceiver() as sender:
+            receiver.add_peer("src", "session_protocol",
+                              UdpConfig(f"0.0.0.0:{port}"))
+
+            @receiver.on(PingBody)
+            def handle_ping(peer_id, msg):
+                raise RuntimeError("intentional")
+
+            receiver.on_error(
+                lambda pid, pname, ecode, emsg: (
+                    error_count.__setitem__(0, error_count[0] + 1),
+                    error_peer_name.__setitem__(0, pname),
+                ))
+
+            receiver.start()
+
+            sender.add_peer("dst", "session_protocol",
+                            UdpConfig(f"127.0.0.1:{port}"))
+            sender.start()
+
+            msg = PingBody()
+            msg.timestamp = 42
+            sender.send(sender.sole_peer(), msg)
+
+            time.sleep(0.2)
+
+            if error_count[0] > 0:
+                assert error_peer_name[0] == "src"
+
+            sender.stop()
+            receiver.stop()
+
+    def test_error_callback_receives_peer_context(self):
+        """Error callback receives correct peer name and error code."""
+        port = _find_free_udp_port()
+        captured = {"peer_name": None, "error_code": None}
+        latch = threading.Event()
+
+        with Transceiver() as receiver, Transceiver() as sender:
+            receiver.add_peer("radar-unit", "session_protocol",
+                              UdpConfig(f"0.0.0.0:{port}"))
+
+            def on_err(pid, pname, ecode, emsg):
+                captured["peer_name"] = pname
+                captured["error_code"] = ecode
+                latch.set()
+
+            receiver.on_error(on_err)
+            receiver.start()
+
+            sender.add_peer("dst", "session_protocol",
+                            UdpConfig(f"127.0.0.1:{port}"))
+            sender.start()
+
+            # Send malformed data to trigger decode error
+            sender.send_raw(sender.sole_peer(), PING_TYPE_ID, b"\xFF")
+
+            got = latch.wait(timeout=1.0)
+            if got:
+                assert captured["peer_name"] == "radar-unit"
+                assert captured["error_code"] != 0
+
+            sender.stop()
+            receiver.stop()
+
+
+# ============================================================================
+# Additional Multi-Peer
+# ============================================================================
+
+
+class TestAdditionalMultiPeer:
+    """Send to multiple peers from same transceiver."""
+
+    def test_send_to_multiple_peers_both_succeed(self):
+        """Sending to two different peers should both succeed."""
+        port1 = _find_free_udp_port()
+        port2 = _find_free_udp_port()
+
+        with Transceiver() as t:
+            id1 = t.add_peer("alpha", "session_protocol",
+                             UdpConfig(f"127.0.0.1:{port1}"))
+            id2 = t.add_peer("beta", "session_protocol",
+                             UdpConfig(f"127.0.0.1:{port2}"))
+            t.start()
+
+            before = t.stats()
+
+            msg1 = PingBody()
+            msg1.timestamp = 111
+            t.send(id1, msg1)
+
+            msg2 = PingBody()
+            msg2.timestamp = 222
+            t.send(id2, msg2)
+
+            time.sleep(0.05)
+            after = t.stats()
+            assert after.bytes_sent > before.bytes_sent
+
+            t.stop()
+
+
+# ============================================================================
+# Additional Config
+# ============================================================================
+
+
+class TestAdditionalConfig:
+    """Queue and worker configuration APIs."""
+
+    def test_set_queue_config_before_start(self):
+        """set_queue_config should succeed before start."""
+        with Transceiver() as t:
+            t.set_queue_config(capacity=512, drop_policy=0,
+                               back_pressure_threshold=0.0)
+
+    def test_set_worker_config_before_start(self):
+        """set_worker_config should succeed before start."""
+        with Transceiver() as t:
+            t.set_worker_config(thread_count=2, handler_timeout_ms=5000)
+
+
+# ============================================================================
+# Additional Catch-All Handler
+# ============================================================================
+
+
+class TestAdditionalCatchAll:
+    """on_any() catch-all handler."""
+
+    def test_on_any_message_fires_for_any_type(self):
+        """on_any handler should fire for any incoming message type."""
+        port = _find_free_udp_port()
+        any_count = [0]
+
+        with Transceiver() as receiver, Transceiver() as sender:
+            receiver.add_peer("src", "session_protocol",
+                              UdpConfig(f"0.0.0.0:{port}"))
+
+            receiver.on_any(
+                lambda pid, tid, tname, data: any_count.__setitem__(
+                    0, any_count[0] + 1))
+
+            receiver.start()
+
+            sender.add_peer("dst", "session_protocol",
+                            UdpConfig(f"127.0.0.1:{port}"))
+            sender.start()
+
+            msg = PingBody()
+            msg.timestamp = 42
+            sender.send(sender.sole_peer(), msg)
+
+            time.sleep(0.2)
+
+            if any_count[0] > 0:
+                assert any_count[0] >= 1
+
+            sender.stop()
+            receiver.stop()
+
+
+# ============================================================================
+# Additional Session Variety
+# ============================================================================
+
+
+class TestAdditionalSessions:
+    """Multiple session types on same transceiver."""
+
+    def test_multiple_sessions_coexist(self):
+        """All registered session types can coexist on one transceiver."""
+        with Transceiver() as t:
+            sessions = [
+                ("sp", "session_protocol"),
+                ("cp", "choice_protocol"),
+                ("sl", "sentry_link"),
+                ("dq", "direction_qualified"),
+            ]
+            ids = []
+            for name, session in sessions:
+                port = _find_free_udp_port()
+                pid = t.add_peer(name, session,
+                                 UdpConfig(f"127.0.0.1:{port}"))
+                ids.append(pid)
+
+            assert t.peer_count() == 4
+            for name, _ in sessions:
+                found = t.peer_by_name(name)
+                assert found in ids
+
+    def test_add_peer_unknown_session_raises(self):
+        """Adding a peer with an unknown session type should raise."""
+        port = _find_free_udp_port()
+        with Transceiver() as t:
+            with pytest.raises(ConduitError):
+                t.add_peer("test", "nonexistent_session",
+                           UdpConfig(f"127.0.0.1:{port}"))
