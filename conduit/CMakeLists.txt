@@ -663,6 +663,10 @@ endif()
 # Subdirectories
 # ============================================================================
 
+if(CONDUIT_BUILD_TESTS)
+    enable_testing()
+endif()
+
 if(CONDUIT_BUILD_BGEN)
     add_subdirectory(bgen)
 endif()

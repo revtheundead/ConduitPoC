@@ -230,18 +230,22 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen + tests)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen + tests)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples)
         run: cmake --build build-conduit --parallel
+
+      - name: Run conduit tests
+        run: cd build-conduit && ctest --output-on-failure --timeout 120
 
       - name: Generate Java sources from BMDL
         run: |
@@ -314,18 +318,24 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen + tests)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen + tests)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples)
         run: cmake --build build-conduit --config Release --parallel
+
+      - name: Run conduit tests
+        run: |
+          cd build-conduit
+          ctest --build-config Release --output-on-failure --timeout 120
 
       - name: Generate Java sources from BMDL
         shell: pwsh
@@ -427,17 +437,21 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen + tests)
+      - name: Configure conduit (CABI + bgen + tests + examples)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests)
+      - name: Build conduit (CABI + bgen + tests + examples)
         run: cmake --build conduit/build --parallel
+
+      - name: Run conduit tests
+        run: cd conduit/build && ctest --output-on-failure --timeout 120
 
       - name: Generate Java sources from BMDL
         run: |
@@ -508,17 +522,23 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen + tests)
+      - name: Configure conduit (CABI + bgen + tests + examples)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests)
+      - name: Build conduit (CABI + bgen + tests + examples)
         run: cmake --build conduit/build --config Release --parallel
+
+      - name: Run conduit tests
+        run: |
+          cd conduit/build
+          ctest --build-config Release --output-on-failure --timeout 120
 
       - name: Generate Java sources from BMDL
         shell: pwsh
@@ -617,16 +637,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen + tests)
+      - name: Configure conduit (CABI + bgen + tests + examples)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests)
+      - name: Build conduit (CABI + bgen + tests + examples)
         run: cmake --build conduit/build --parallel
+
+      - name: Run conduit tests
+        run: cd conduit/build && ctest --output-on-failure --timeout 120
 
       - name: Generate Python sources from BMDL
         run: |
@@ -690,16 +714,22 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen + tests)
+      - name: Configure conduit (CABI + bgen + tests + examples)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests)
+      - name: Build conduit (CABI + bgen + tests + examples)
         run: cmake --build conduit/build --config Release --parallel
+
+      - name: Run conduit tests
+        run: |
+          cd conduit/build
+          ctest --build-config Release --output-on-failure --timeout 120
 
       - name: Generate Python sources from BMDL
         shell: pwsh
