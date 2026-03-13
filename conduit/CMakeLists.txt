@@ -100,6 +100,14 @@ else()
     endif()
 endif()
 
+# MinGW: statically link the GCC/C++ runtime (libstdc++, libgcc, libwinpthread)
+# into executables so they don't depend on MinGW's bin directory being on PATH
+# at runtime.  Without this, executables fail to start when the MinGW DLLs
+# cannot be found or conflict with other MinGW distributions (e.g. MSYS2).
+if(MINGW)
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -static")
+endif()
+
 # ============================================================================
 # Sanitizers (ASAN + UBSAN)
 # ============================================================================
