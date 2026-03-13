@@ -603,7 +603,7 @@ endif()
                 COMMENT "Compiling Java test classes (generated + JUnit tests)"
                 VERBATIM
             )
-            add_custom_target(java_test_compile DEPENDS "${_java_test_classes_dir}/.compiled")
+            add_custom_target(java_test_compile ALL DEPENDS "${_java_test_classes_dir}/.compiled")
 
             # Run target: execute JUnit tests via the console launcher
             if(EXISTS "${_junit_jar}")

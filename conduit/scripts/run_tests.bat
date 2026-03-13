@@ -162,8 +162,15 @@ if exist "!PYTHON_TESTS!" (
         )
         python -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
+            :: Exclude CABI-dependent tests if native test libraries are not available
+            set "PYTEST_IGNORES="
+            if not exist "!BUILD_DIR!\lib\conduit_cabi_test.dll" (
+                if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                )
+            )
             echo   Running Python pytest tests...
-            python -m pytest "!PYTHON_TESTS!" -x -q
+            python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
             if errorlevel 1 (
                 echo   FAIL: Python pytest tests
                 set /a FAILED+=1

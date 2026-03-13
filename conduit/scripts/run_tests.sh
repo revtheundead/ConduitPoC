@@ -129,7 +129,21 @@ if [ -d "$PYTHON_TESTS" ]; then
         fi
 
         if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
-            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q
+            # Exclude CABI-dependent tests if native test libraries are not available
+            PYTEST_IGNORES=()
+            _has_cabi_libs=false
+            for _d in "$BUILD_DIR/lib" "$BUILD_DIR/tests"; do
+                if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                    _has_cabi_libs=true; break
+                fi
+            done
+            if [ "$_has_cabi_libs" != true ]; then
+                PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
+                                 --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
+                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+            fi
+            run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
+                "${PYTEST_IGNORES[@]}"
         else
             warn "pytest not available — skipping Python tests"
         fi

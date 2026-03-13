@@ -435,9 +435,11 @@ if "%RUN_TESTS%"=="1" (
             if not errorlevel 1 (
                 echo.
                 echo ==^> Running Python pytest tests
-                python -m pytest "!PYTHON_TESTS!" -x -q ^
-                    --ignore="!PYTHON_TESTS!\test_codec_cabi.py" ^
-                    --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py"
+                set "PYTEST_IGNORES="
+                if not "%BUILD_CABI%"=="1" (
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                )
+                python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
                 if errorlevel 1 (
                     echo Warning: Python tests failed ^(non-fatal^)
                 )

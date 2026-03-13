@@ -333,9 +333,14 @@ if [ "$RUN_TESTS" = true ]; then
             fi
             if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
                 step "Running Python pytest tests"
+                PYTEST_IGNORES=()
+                if [ "$BUILD_CABI" != true ]; then
+                    PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
+                                     --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
+                                     --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+                fi
                 $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
-                    --ignore="$PYTHON_TESTS/test_codec_cabi.py" \
-                    --ignore="$PYTHON_TESTS/test_transceiver_cabi.py" \
+                    "${PYTEST_IGNORES[@]}" \
                     || warn "Python tests failed (non-fatal)"
             else
                 warn "pytest not available — skipping Python tests"
