@@ -381,6 +381,14 @@ if(CONDUIT_BUILD_JAVA_JAR)
     # Collect Java sources for dependency tracking
     file(GLOB _java_core_sources "${_java_src_dir}/io/conduit/*.java")
 
+    # On Windows, build tools like mvn.cmd/gradle.bat need cmd /c to run inside
+    # cmake -P execute_process (CreateProcess can't run .cmd/.bat directly)
+    if(WIN32)
+        set(_cmd_prefix cmd /c)
+    else()
+        set(_cmd_prefix)
+    endif()
+
     # --- Strategy 1: Maven ---
     find_program(_mvn_exe mvn)
     if(_mvn_exe AND EXISTS "${_java_bindings_dir}/pom.xml")
@@ -390,7 +398,7 @@ if(CONDUIT_BUILD_JAVA_JAR)
         set(_mvn_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_mvn.cmake")
         file(WRITE "${_mvn_build_script}" "\
 execute_process(\n\
-    COMMAND \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"\n\
+    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"\n\
     RESULT_VARIABLE _rc\n\
 )\n\
 if(NOT _rc EQUAL 0)\n\
@@ -427,7 +435,7 @@ endif()\n\
             set(_gradle_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_gradle.cmake")
             file(WRITE "${_gradle_build_script}" "\
 execute_process(\n\
-    COMMAND \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q\n\
+    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q\n\
     RESULT_VARIABLE _rc\n\
 )\n\
 if(NOT _rc EQUAL 0)\n\
