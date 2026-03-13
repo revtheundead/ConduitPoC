@@ -60,7 +60,7 @@ public class TestXcvrScenarios {
     void sendBeforeStartThrows() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("peer", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15001"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             PingBody msg = new PingBody();
             msg.timestamp = 1;
             ConduitError err = assertThrows(ConduitError.class,
@@ -74,7 +74,7 @@ public class TestXcvrScenarios {
     void sendToUnknownPeerThrows() {
         try (Transceiver t = new Transceiver()) {
             t.addPeer("real", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15002"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
             PingBody msg = new PingBody();
             msg.timestamp = 1;
@@ -88,7 +88,7 @@ public class TestXcvrScenarios {
     void sendViaSolePeerConvenience() {
         try (Transceiver t = new Transceiver()) {
             t.addPeer("only", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15003"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
             PingBody msg = new PingBody();
             msg.timestamp = 42;
@@ -110,9 +110,9 @@ public class TestXcvrScenarios {
     void solePeerErrorMultiplePeers() {
         try (Transceiver t = new Transceiver()) {
             t.addPeer("a", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15004"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.addPeer("b", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15005"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             assertThrows(ConduitError.class, () -> t.solePeer());
         }
     }
@@ -126,7 +126,7 @@ public class TestXcvrScenarios {
     void statsBytesSentIncrements() throws Exception {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("stat", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15006"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
 
             PingBody msg = new PingBody();
@@ -146,7 +146,7 @@ public class TestXcvrScenarios {
     void statsResetZeroesCounters() throws Exception {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("stat", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15007"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
 
             PingBody msg = new PingBody();
@@ -193,7 +193,7 @@ public class TestXcvrScenarios {
     void removeHandlerStopsDelivery() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("peer", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15009"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             t.onMessage(PingBody.TYPE_ID,
                 (pid, typeId, typeName, data) -> {});
             boolean removed = t.removeHandler(peerId, PingBody.TYPE_ID);
@@ -244,8 +244,7 @@ public class TestXcvrScenarios {
     @DisplayName("Scenario 13: error callback fires for decode failure via UDP loopback")
     void errorCallbackFiresForDecodeFailure() throws Exception {
         int port = findFreePort();
-        try (Transceiver sender = new Transceiver();
-             Transceiver receiver = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("src", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + port));
@@ -258,16 +257,14 @@ public class TestXcvrScenarios {
             });
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + port));
-            sender.start();
-
-            // Send garbage bytes with a valid type ID to trigger decode error
-            byte[] garbage = new byte[]{
-                (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF,
-                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
-            };
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID, garbage);
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), port);
+                sock.send(pkt);
+            }
 
             boolean fired = latch.await(2, TimeUnit.SECONDS);
             // UDP may drop; assert only if callback arrived
@@ -276,7 +273,6 @@ public class TestXcvrScenarios {
                     "Error message should be non-null when callback fires");
             }
 
-            sender.stop();
             receiver.stop();
         }
     }
@@ -285,8 +281,7 @@ public class TestXcvrScenarios {
     @DisplayName("Scenario 14: multiple error callbacks all fire")
     void multipleErrorCallbacksAllFire() throws Exception {
         int port = findFreePort();
-        try (Transceiver sender = new Transceiver();
-             Transceiver receiver = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("src", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + port));
@@ -310,14 +305,14 @@ public class TestXcvrScenarios {
             });
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + port));
-            sender.start();
-
-            byte[] garbage = new byte[]{
-                (byte) 0xBA, (byte) 0xAD, (byte) 0xF0, (byte) 0x0D
-            };
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID, garbage);
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), port);
+                sock.send(pkt);
+            }
 
             boolean fired = latch.await(2, TimeUnit.SECONDS);
             if (fired) {
@@ -326,7 +321,6 @@ public class TestXcvrScenarios {
                 assertTrue(cb3Count.get() >= 1, "Callback 3 should have fired");
             }
 
-            sender.stop();
             receiver.stop();
         }
     }
@@ -335,8 +329,7 @@ public class TestXcvrScenarios {
     @DisplayName("Scenario 15: error callback that throws RuntimeException does not crash")
     void errorCallbackExceptionDoesNotCrash() throws Exception {
         int port = findFreePort();
-        try (Transceiver sender = new Transceiver();
-             Transceiver receiver = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("src", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + port));
@@ -346,12 +339,14 @@ public class TestXcvrScenarios {
             });
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + port));
-            sender.start();
-
-            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE};
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID, garbage);
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), port);
+                sock.send(pkt);
+            }
 
             Thread.sleep(200);
 
@@ -359,7 +354,6 @@ public class TestXcvrScenarios {
             assertTrue(receiver.isRunning(),
                 "Receiver should still be running after error callback exception");
 
-            sender.stop();
             receiver.stop();
         }
     }
@@ -368,8 +362,7 @@ public class TestXcvrScenarios {
     @DisplayName("Scenario 16: error callback can query transceiver state without deadlock")
     void errorCallbackCanQueryTransceiverState() throws Exception {
         int port = findFreePort();
-        try (Transceiver sender = new Transceiver();
-             Transceiver receiver = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("src", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + port));
@@ -384,12 +377,14 @@ public class TestXcvrScenarios {
             });
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + port));
-            sender.start();
-
-            byte[] garbage = new byte[]{(byte) 0xCA, (byte) 0xFE};
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID, garbage);
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), port);
+                sock.send(pkt);
+            }
 
             boolean fired = latch.await(2, TimeUnit.SECONDS);
             if (fired) {
@@ -397,7 +392,6 @@ public class TestXcvrScenarios {
                     "isRunning() inside error callback should return true");
             }
 
-            sender.stop();
             receiver.stop();
         }
     }
@@ -456,7 +450,7 @@ public class TestXcvrScenarios {
     void emptyBatchSendThrows() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("peer", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15018"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
             List<byte[]> empty = new ArrayList<>();
             assertThrows(ConduitError.class,
@@ -470,7 +464,7 @@ public class TestXcvrScenarios {
     void batchSendNonBatchProtocolThrows() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("peer", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15019"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
 
             List<byte[]> payloads = new ArrayList<>();
@@ -495,9 +489,9 @@ public class TestXcvrScenarios {
     void twoPeersDistinctIds() {
         try (Transceiver t = new Transceiver()) {
             int id1 = t.addPeer("alpha", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15020"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             int id2 = t.addPeer("bravo", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15021"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             assertNotEquals(id1, id2, "Two peers should have distinct IDs");
         }
     }
@@ -507,7 +501,7 @@ public class TestXcvrScenarios {
     void peerByNameFindsCorrectPeer() {
         try (Transceiver t = new Transceiver()) {
             int addedId = t.addPeer("alpha", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15022"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             int foundId = t.peerByName("alpha");
             assertEquals(addedId, foundId,
                 "peerByName should return the same ID as addPeer");
@@ -519,7 +513,7 @@ public class TestXcvrScenarios {
     void peerByNameUnknownReturnsError() {
         try (Transceiver t = new Transceiver()) {
             t.addPeer("known", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15023"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             assertThrows(ConduitError.class,
                 () -> t.peerByName("nonexistent"));
         }
@@ -531,13 +525,13 @@ public class TestXcvrScenarios {
         try (Transceiver t = new Transceiver()) {
             assertEquals(0, t.peerCount());
             t.addPeer("p1", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15024"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             assertEquals(1, t.peerCount());
             t.addPeer("p2", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15025"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             assertEquals(2, t.peerCount());
             t.addPeer("p3", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15026"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             assertEquals(3, t.peerCount());
         }
     }
@@ -547,7 +541,7 @@ public class TestXcvrScenarios {
     void peerStateInitialDisconnected() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("fresh", "session_protocol",
-                TransportConfig.udp("0.0.0.0:15027"));
+                TransportConfig.udp("0.0.0.0:" + findFreePort()));
             Transceiver.ConnectionState state = t.peerState(peerId);
             assertEquals(Transceiver.ConnectionState.DISCONNECTED, state,
                 "Initial peer state should be DISCONNECTED");
@@ -563,7 +557,7 @@ public class TestXcvrScenarios {
     void rapidSendsAllSucceed() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("flood", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15028"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
 
             for (int i = 0; i < 100; i++) {
@@ -599,7 +593,7 @@ public class TestXcvrScenarios {
     void sendReceiveOnlyTypeThrows() {
         try (Transceiver t = new Transceiver()) {
             int peerId = t.addPeer("peer", "session_protocol",
-                TransportConfig.udp("127.0.0.1:15030"));
+                TransportConfig.udp("127.0.0.1:" + findFreePort()));
             t.start();
 
             AckBody ack = new AckBody();
@@ -858,23 +852,23 @@ public class TestXcvrScenarios {
     @DisplayName("stats decode_errors increments after malformed data")
     void statsDecodeErrorsIncrement() throws Exception {
         int rxPort = findFreePort();
-        int txPort = findFreePort();
 
-        try (Transceiver receiver = new Transceiver();
-             Transceiver sender = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("src", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + rxPort));
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + rxPort));
-            sender.start();
-
             StatsSnapshot before = receiver.stats();
-            // Send malformed payload - valid type_id but garbage data
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID,
-                new byte[]{(byte)0xFF, (byte)0xFE, (byte)0xFD});
+
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), rxPort);
+                sock.send(pkt);
+            }
 
             Thread.sleep(200);
             StatsSnapshot after = receiver.stats();
@@ -883,7 +877,6 @@ public class TestXcvrScenarios {
             assertTrue(after.decodeErrors() >= before.decodeErrors(),
                 "decode_errors should not decrease");
 
-            sender.stop();
             receiver.stop();
         }
     }
@@ -985,8 +978,7 @@ public class TestXcvrScenarios {
         AtomicReference<String> capturedPeerName = new AtomicReference<>();
         AtomicInteger capturedErrorCode = new AtomicInteger(0);
 
-        try (Transceiver receiver = new Transceiver();
-             Transceiver sender = new Transceiver()) {
+        try (Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("radar-unit", "session_protocol",
                 TransportConfig.udp("0.0.0.0:" + port));
@@ -999,13 +991,14 @@ public class TestXcvrScenarios {
 
             receiver.start();
 
-            sender.addPeer("dst", "session_protocol",
-                TransportConfig.udp("127.0.0.1:" + port));
-            sender.start();
-
-            // Send malformed data to trigger decode error
-            sender.sendRaw(sender.solePeer(), PingBody.TYPE_ID,
-                new byte[]{(byte)0xFF});
+            // Send garbage bytes directly via raw UDP, bypassing Conduit's encode step
+            byte[] garbage = new byte[]{(byte) 0xFF, (byte) 0xFE, (byte) 0xFD, (byte) 0xFC, (byte) 0xFB};
+            try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                java.net.DatagramPacket pkt = new java.net.DatagramPacket(
+                    garbage, garbage.length,
+                    java.net.InetAddress.getByName("127.0.0.1"), port);
+                sock.send(pkt);
+            }
 
             boolean got = latch.await(1, TimeUnit.SECONDS);
             if (got) {
@@ -1015,7 +1008,6 @@ public class TestXcvrScenarios {
                     "Error code should be non-zero");
             }
 
-            sender.stop();
             receiver.stop();
         }
     }

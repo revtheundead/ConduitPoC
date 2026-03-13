@@ -249,16 +249,14 @@ class TestErrorCallbacks:
 
     def test_error_callback_fires_for_decode_failure(self):
         """Sending malformed raw bytes should trigger an error callback on the receiver."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
         errors = []
         error_event = threading.Event()
 
-        with Transceiver() as receiver, Transceiver() as sender:
-            # Receiver binds on port_recv, points to sender's port_send
+        with Transceiver() as receiver:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             def error_cb(peer_id, peer_name, error_code, error_message):
@@ -267,23 +265,18 @@ class TestErrorCallbacks:
 
             receiver.on_error(error_cb)
 
-            # Sender binds on port_send, points to receiver's port_recv
-            peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
-            )
-
             receiver.start()
-            sender.start()
             time.sleep(0.05)
 
-            # Send garbage data with a valid type_id but corrupted payload
-            sender.send_raw(peer_id, PING_TYPE_ID, b"\xFF\xFE\xFD\xFC\xFB\xFA")
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", port))
+            sock.close()
 
             # Wait for error callback (UDP is unreliable, use timeout)
             error_event.wait(timeout=0.5)
 
-            sender.stop()
             receiver.stop()
 
         # UDP is unreliable; if we got errors, verify structure
@@ -294,15 +287,14 @@ class TestErrorCallbacks:
 
     def test_multiple_error_callbacks_all_fire(self):
         """Multiple registered error callbacks should all fire on error."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
         counters = [0, 0, 0]
         all_fired = threading.Event()
 
-        with Transceiver() as receiver, Transceiver() as sender:
+        with Transceiver() as receiver:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             for idx in range(3):
@@ -314,21 +306,17 @@ class TestErrorCallbacks:
                     return cb
                 receiver.on_error(make_cb(idx))
 
-            peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
-            )
-
             receiver.start()
-            sender.start()
             time.sleep(0.05)
 
-            # Send garbage to trigger error
-            sender.send_raw(peer_id, PING_TYPE_ID, b"\xFF\xFE\xFD\xFC\xFB\xFA")
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", port))
+            sock.close()
 
             all_fired.wait(timeout=0.5)
 
-            sender.stop()
             receiver.stop()
 
         # UDP is unreliable; if any fired, all three should have
@@ -338,13 +326,12 @@ class TestErrorCallbacks:
 
     def test_error_callback_exception_does_not_crash(self):
         """An error callback that raises an exception should not crash the transceiver."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
 
-        with Transceiver() as receiver, Transceiver() as sender:
+        with Transceiver() as receiver:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             def bad_error_cb(peer_id, peer_name, error_code, error_message):
@@ -352,36 +339,31 @@ class TestErrorCallbacks:
 
             receiver.on_error(bad_error_cb)
 
-            peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
-            )
-
             receiver.start()
-            sender.start()
             time.sleep(0.05)
 
-            # Send garbage to trigger error callback
-            sender.send_raw(peer_id, PING_TYPE_ID, b"\xFF\xFE\xFD\xFC\xFB\xFA")
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", port))
+            sock.close()
             time.sleep(0.2)
 
             # Transceiver should still be running
             assert receiver.is_running() is True
 
-            sender.stop()
             receiver.stop()
 
     def test_error_callback_can_query_transceiver_state(self):
         """An error callback that calls is_running() should not deadlock."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
         state_results = []
         done_event = threading.Event()
 
-        with Transceiver() as receiver, Transceiver() as sender:
+        with Transceiver() as receiver:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             def state_checking_cb(peer_id, peer_name, error_code, error_message):
@@ -390,20 +372,17 @@ class TestErrorCallbacks:
 
             receiver.on_error(state_checking_cb)
 
-            peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
-            )
-
             receiver.start()
-            sender.start()
             time.sleep(0.05)
 
-            sender.send_raw(peer_id, PING_TYPE_ID, b"\xFF\xFE\xFD\xFC\xFB\xFA")
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", port))
+            sock.close()
 
             done_event.wait(timeout=0.5)
 
-            sender.stop()
             receiver.stop()
 
         # If the callback fired, is_running() should have returned True
@@ -421,13 +400,12 @@ class TestHandlerExceptionSafety:
 
     def test_handler_exception_does_not_crash_transceiver(self):
         """A message handler that raises should not crash the transceiver."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
 
         with Transceiver() as receiver, Transceiver() as sender:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             @receiver.on(type_id=PING_TYPE_ID)
@@ -435,8 +413,8 @@ class TestHandlerExceptionSafety:
                 raise RuntimeError("intentional handler error")
 
             peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
+                "dst", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
             )
 
             receiver.start()
@@ -618,8 +596,7 @@ class TestQueueOverflow:
 
     def test_queue_overflow_fires_error_callback(self):
         """A small queue with a slow handler should trigger error/drop callbacks."""
-        port_recv = _find_free_udp_port()
-        port_send = _find_free_udp_port()
+        port = _find_free_udp_port()
         errors = []
         error_event = threading.Event()
 
@@ -628,8 +605,8 @@ class TestQueueOverflow:
             receiver.set_queue_config(capacity=2, drop_policy=0)
 
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_send}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             # Slow handler to cause queue backup
@@ -644,8 +621,8 @@ class TestQueueOverflow:
             receiver.on_error(error_cb)
 
             peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_recv}"),
+                "dst", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
             )
 
             receiver.start()
@@ -681,16 +658,14 @@ class TestUdpLoopbackScenarios:
 
     def test_send_receive_typed_loopback(self):
         """Send a PingBody from one transceiver and receive it on another, verifying fields."""
-        port_a = _find_free_udp_port()
-        port_b = _find_free_udp_port()
+        port = _find_free_udp_port()
         received = []
         recv_event = threading.Event()
 
         with Transceiver() as receiver, Transceiver() as sender:
-            # Receiver binds on port_a, sends to port_b
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_b}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             @receiver.on(PingBody)
@@ -698,10 +673,9 @@ class TestUdpLoopbackScenarios:
                 received.append(msg)
                 recv_event.set()
 
-            # Sender binds on port_b, sends to port_a
             peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_a}"),
+                "dst", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
             )
 
             receiver.start()
@@ -723,15 +697,14 @@ class TestUdpLoopbackScenarios:
 
     def test_send_receive_multiple_messages_loopback(self):
         """Send 5 messages and verify at least some are received."""
-        port_a = _find_free_udp_port()
-        port_b = _find_free_udp_port()
+        port = _find_free_udp_port()
         received = []
         done_event = threading.Event()
 
         with Transceiver() as receiver, Transceiver() as sender:
             receiver.add_peer(
-                "sender_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_b}"),
+                "src", "session_protocol",
+                UdpConfig(f"0.0.0.0:{port}"),
             )
 
             @receiver.on(PingBody)
@@ -741,8 +714,8 @@ class TestUdpLoopbackScenarios:
                     done_event.set()
 
             peer_id = sender.add_peer(
-                "receiver_link", "session_protocol",
-                UdpConfig(f"127.0.0.1:{port_a}"),
+                "dst", "session_protocol",
+                UdpConfig(f"127.0.0.1:{port}"),
             )
 
             receiver.start()
@@ -871,25 +844,23 @@ class TestAdditionalStats:
         """decode_errors should increment after malformed data received."""
         rx_port = _find_free_udp_port()
 
-        with Transceiver() as receiver, Transceiver() as sender:
+        with Transceiver() as receiver:
             receiver.add_peer("src", "session_protocol",
                               UdpConfig(f"0.0.0.0:{rx_port}"))
             receiver.start()
 
-            sender.add_peer("dst", "session_protocol",
-                            UdpConfig(f"127.0.0.1:{rx_port}"))
-            sender.start()
-
             before = receiver.stats()
-            # Send malformed payload
-            sender.send_raw(sender.sole_peer(), PING_TYPE_ID,
-                            b"\xFF\xFE\xFD")
+
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", rx_port))
+            sock.close()
 
             time.sleep(0.2)
             after = receiver.stats()
             assert after.decode_errors >= before.decode_errors
 
-            sender.stop()
             receiver.stop()
 
     def test_stats_handler_errors_increment(self):
@@ -975,7 +946,7 @@ class TestAdditionalErrorCallbacks:
         captured = {"peer_name": None, "error_code": None}
         latch = threading.Event()
 
-        with Transceiver() as receiver, Transceiver() as sender:
+        with Transceiver() as receiver:
             receiver.add_peer("radar-unit", "session_protocol",
                               UdpConfig(f"0.0.0.0:{port}"))
 
@@ -987,19 +958,17 @@ class TestAdditionalErrorCallbacks:
             receiver.on_error(on_err)
             receiver.start()
 
-            sender.add_peer("dst", "session_protocol",
-                            UdpConfig(f"127.0.0.1:{port}"))
-            sender.start()
-
-            # Send malformed data to trigger decode error
-            sender.send_raw(sender.sole_peer(), PING_TYPE_ID, b"\xFF")
+            # Send garbage directly via raw UDP, bypassing Conduit's encode step
+            garbage = b"\xFF\xFE\xFD\xFC\xFB"
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.sendto(garbage, ("127.0.0.1", port))
+            sock.close()
 
             got = latch.wait(timeout=1.0)
             if got:
                 assert captured["peer_name"] == "radar-unit"
                 assert captured["error_code"] != 0
 
-            sender.stop()
             receiver.stop()
 
 
