@@ -101,7 +101,7 @@ This defines a protocol with a `<frame>` that handles wire-level transport (mess
 
 ## Related Documentation
 
-- [bgen Code Generator](../bgen/index.md) -- Reads BMDL definitions and generates C++ header files
+- [bgen Code Generator](../bgen/index.md) -- Reads BMDL definitions and generates type-safe code in C++, Java, or Python
 - [conduit Runtime Library](../conduit/index.md) -- The runtime library for sending/receiving typed messages
 
 ## Specification Version
