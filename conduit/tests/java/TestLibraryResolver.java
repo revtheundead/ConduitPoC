@@ -39,6 +39,10 @@ public final class TestLibraryResolver {
 
         String libFileName = platformLibName(baseName);
 
+        // Single-config layout: build/lib/<lib>
+        Path libDir = Path.of(projectRoot, "build", "lib", libFileName);
+        if (Files.exists(libDir)) return libDir.toString();
+
         // Single-config layout: build/tests/<lib>
         Path direct = Path.of(projectRoot, "build", "tests", libFileName);
         if (Files.exists(direct)) return direct.toString();
@@ -46,6 +50,12 @@ public final class TestLibraryResolver {
         // Multi-config layout: build/tests/{Debug,Release,RelWithDebInfo}/<lib>
         for (String config : new String[]{"Debug", "Release", "RelWithDebInfo"}) {
             Path multi = Path.of(projectRoot, "build", "tests", config, libFileName);
+            if (Files.exists(multi)) return multi.toString();
+        }
+
+        // Multi-config layout: build/lib/{Debug,Release,RelWithDebInfo}/<lib>
+        for (String config : new String[]{"Debug", "Release", "RelWithDebInfo"}) {
+            Path multi = Path.of(projectRoot, "build", "lib", config, libFileName);
             if (Files.exists(multi)) return multi.toString();
         }
 

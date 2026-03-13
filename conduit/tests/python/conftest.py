@@ -38,19 +38,32 @@ def resolve_native_lib(env_var: str, base_name: str) -> str:
     else:
         lib_name = f"lib{base_name}.so"
 
-    # Single-config (Ninja, Make)
-    direct = os.path.join(_PROJECT_ROOT, "build", "tests", lib_name)
-    if os.path.isfile(direct):
-        return direct
+    # Search multiple possible root directories (handles nested project layouts)
+    search_roots = [_PROJECT_ROOT]
+    conduit_sub = os.path.join(_PROJECT_ROOT, "conduit")
+    if os.path.isdir(conduit_sub):
+        search_roots.append(conduit_sub)
 
-    # Multi-config (MSVC)
-    for config in ("Debug", "Release", "RelWithDebInfo"):
-        multi = os.path.join(_PROJECT_ROOT, "build", "tests", config, lib_name)
-        if os.path.isfile(multi):
-            return multi
+    for root in search_roots:
+        # Single-config (Ninja, Make): build/lib/<lib>
+        lib_dir = os.path.join(root, "build", "lib", lib_name)
+        if os.path.isfile(lib_dir):
+            return lib_dir
+
+        # Single-config: build/tests/<lib>
+        direct = os.path.join(root, "build", "tests", lib_name)
+        if os.path.isfile(direct):
+            return direct
+
+        # Multi-config (MSVC)
+        for config in ("Debug", "Release", "RelWithDebInfo"):
+            for subdir in ("tests", "lib"):
+                multi = os.path.join(root, "build", subdir, config, lib_name)
+                if os.path.isfile(multi):
+                    return multi
 
     # Fallback — will fail with a clear error at load time
-    return direct
+    return os.path.join(_PROJECT_ROOT, "build", "tests", lib_name)
 
 
 # ---------------------------------------------------------------------------

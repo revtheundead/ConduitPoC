@@ -639,7 +639,6 @@ public class Transceiver implements AutoCloseable {
      * @param payloads  List of raw message payloads
      */
     public void sendBatch(int peerId, long typeId, List<byte[]> payloads) {
-        if (payloads.isEmpty()) return;
         int err = binding.sendBatch(handle, peerId, typeId, payloads);
         if (err != 0) {
             throw new ConduitError(err, "sendBatch failed");

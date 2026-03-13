@@ -1365,7 +1365,7 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
             ctx.line("_lenPos = w.sizeBytes();");
         } else {
             // auto="length(field)": record position for field-specific backpatch
-            ctx.line("int _lenRefPos = w.sizeBytes();");
+            ctx.line("_lenRefPos = w.sizeBytes();");
         }
         ctx.line(j_write_stmt("0", fi) + ";");
         return;
@@ -1553,18 +1553,6 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx, ef_ptr);
-            // If the switch field is an enum, compare using .value (raw int)
-            if (cd->switch_expr->op == model::ExprOp::FieldRef) {
-                for (const auto& sib : children) {
-                    if (auto* sf = std::get_if<model::Field>(&sib)) {
-                        if (sf->name == cd->switch_expr->name) {
-                            auto sfi = j_resolve_field(*sf, index);
-                            if (sfi.is_enum) sv += ".value";
-                            break;
-                        }
-                    }
-                }
-            }
             std::string m = pfx + "." + j_field(cd->name);
 
             // Check if the switch expression field is an enum type.
@@ -2899,6 +2887,9 @@ std::string generate_j_class(const std::string& name,
         }
         std::string len_ref_target = (auto_len_ref_field && auto_len_ref_field->auto_expr)
             ? auto_len_ref_field->auto_expr->field_ref : "";
+        if (auto_len_ref_field) {
+            ctx.line("int _lenRefPos = 0;");
+        }
         emit_j_encode_children(ctx, children, index, "this", len_ref_target, auto_len_ref_field, name_map, cn);
 
         // Backpatch auto-length (whole struct)

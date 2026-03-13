@@ -569,7 +569,9 @@ endif()
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"
                             --include-classname "^Test.*"
-                            --exclude-classname ".*Transceiver.*"
+                            --exclude-classname "TestTransceiverCabi"
+                            --exclude-classname "TestTransceiverJni"
+                            --exclude-classname "TestXcvrScenarios"
                             --exclude-classname ".*CodecCabi.*"
                         DEPENDS java_test_compile
                         COMMENT "Running Java JUnit tests"

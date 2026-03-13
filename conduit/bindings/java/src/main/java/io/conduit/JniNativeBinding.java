@@ -232,7 +232,9 @@ public final class JniNativeBinding implements NativeBinding {
 
     @Override
     public int sendBatch(long handle, int peerId, long typeId, List<byte[]> payloads) {
-        if (payloads.isEmpty()) return 0;
+        if (payloads.isEmpty()) {
+            return nSendBatch(handle, peerId, typeId, new byte[0][], new int[0], 0);
+        }
         int count = payloads.size();
         byte[][] arrays = payloads.toArray(new byte[0][]);
         int[] lengths = new int[count];

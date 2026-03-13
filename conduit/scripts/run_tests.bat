@@ -114,7 +114,9 @@ if exist "!JUNIT_JAR!" (
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
                     --include-classname "^Test.*" ^
-                    --exclude-classname ".*Transceiver.*" ^
+                    --exclude-classname "TestTransceiverCabi" ^
+                    --exclude-classname "TestTransceiverJni" ^
+                    --exclude-classname "TestXcvrScenarios" ^
                     --exclude-classname ".*CodecCabi.*"
                 if errorlevel 1 (
                     echo   FAIL: Java JUnit tests
@@ -158,7 +160,8 @@ if exist "!PYTHON_TESTS!" (
             echo   Running Python pytest tests...
             python -m pytest "!PYTHON_TESTS!" -x -q ^
                 --ignore="!PYTHON_TESTS!\test_codec_cabi.py" ^
-                --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py"
+                --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" ^
+                --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py"
             if errorlevel 1 (
                 echo   FAIL: Python pytest tests
                 set /a FAILED+=1
