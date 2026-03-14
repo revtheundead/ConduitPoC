@@ -381,17 +381,45 @@ if(CONDUIT_BUILD_JAVA_JAR)
     # Collect Java sources for dependency tracking
     file(GLOB _java_core_sources "${_java_src_dir}/io/conduit/*.java")
 
+    # On Windows, build tools like mvn.cmd/gradle.bat need cmd /c to run inside
+    # cmake -P execute_process (CreateProcess can't run .cmd/.bat directly)
+    if(WIN32)
+        set(_cmd_prefix cmd /c)
+    else()
+        set(_cmd_prefix)
+    endif()
+
     # --- Strategy 1: Maven ---
     find_program(_mvn_exe mvn)
     if(_mvn_exe AND EXISTS "${_java_bindings_dir}/pom.xml")
         message(STATUS "Java JAR: using Maven (mvn found, pom.xml exists)")
+        # Wrap in a cmake -P script for reliable error propagation on all generators
+        # (Visual Studio generators don't chain multiple COMMANDs with &&)
+        set(_mvn_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_mvn.cmake")
+        file(WRITE "${_mvn_build_script}" "\
+execute_process(\n\
+    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"\n\
+    RESULT_VARIABLE _rc\n\
+)\n\
+if(NOT _rc EQUAL 0)\n\
+    message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")\n\
+endif()\n\
+set(_src_jar \"${_java_bindings_dir}/target/conduit-java-0.1.0.jar\")\n\
+if(NOT EXISTS \"\${_src_jar}\")\n\
+    message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")\n\
+endif()\n\
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
+execute_process(\n\
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
+    RESULT_VARIABLE _rc2\n\
+)\n\
+if(NOT _rc2 EQUAL 0)\n\
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
+endif()\n\
+")
         add_custom_command(
             OUTPUT "${_java_jar}"
-            COMMAND ${_mvn_exe} install -q -f "${_java_bindings_dir}/pom.xml"
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
-            COMMAND ${CMAKE_COMMAND} -E copy
-                "${_java_bindings_dir}/target/conduit-java-0.1.0.jar"
-                "${_java_jar}"
+            COMMAND ${CMAKE_COMMAND} -P "${_mvn_build_script}"
             DEPENDS ${_java_core_sources}
             COMMENT "Building conduit-java-0.1.0.jar (Maven)"
             VERBATIM
@@ -404,13 +432,31 @@ if(CONDUIT_BUILD_JAVA_JAR)
         find_program(_gradle_exe gradle)
         if(_gradle_exe AND EXISTS "${_java_bindings_dir}/build.gradle")
             message(STATUS "Java JAR: using Gradle (gradle found, build.gradle exists)")
+            set(_gradle_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_gradle.cmake")
+            file(WRITE "${_gradle_build_script}" "\
+execute_process(\n\
+    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q\n\
+    RESULT_VARIABLE _rc\n\
+)\n\
+if(NOT _rc EQUAL 0)\n\
+    message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")\n\
+endif()\n\
+set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar\")\n\
+if(NOT EXISTS \"\${_src_jar}\")\n\
+    message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")\n\
+endif()\n\
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
+execute_process(\n\
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
+    RESULT_VARIABLE _rc2\n\
+)\n\
+if(NOT _rc2 EQUAL 0)\n\
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
+endif()\n\
+")
             add_custom_command(
                 OUTPUT "${_java_jar}"
-                COMMAND ${_gradle_exe} -p "${_java_bindings_dir}" jar -q
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
-                COMMAND ${CMAKE_COMMAND} -E copy
-                    "${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar"
-                    "${_java_jar}"
+                COMMAND ${CMAKE_COMMAND} -P "${_gradle_build_script}"
                 DEPENDS ${_java_core_sources}
                 COMMENT "Building conduit-java-0.1.0.jar (Gradle)"
                 VERBATIM
@@ -472,12 +518,38 @@ if(CONDUIT_BUILD_JAVA_JAR)
                 message(STATUS "Java JAR: JNI binding sources excluded by CONDUIT_BUILD_JAVA_JNI_SOURCES=OFF")
             endif()
 
+            # Write javac args file at configure time (avoids list separator issues)
+            set(_javac_args_file "${CMAKE_CURRENT_BINARY_DIR}/javac_jar_args.txt")
+            list(JOIN _javac_flags "\n" _javac_flags_nl)
+            list(JOIN _java_sources "\n" _java_sources_nl)
+            file(WRITE "${_javac_args_file}" "${_javac_flags_nl}\n${_java_sources_nl}\n")
+
+            # Wrap in cmake -P for reliable error propagation on all generators
+            set(_javac_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_javac.cmake")
+            file(WRITE "${_javac_build_script}" "\
+file(MAKE_DIRECTORY \"${_java_classes_dir}\")\n\
+execute_process(\n\
+    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_javac_args_file}\"\n\
+    RESULT_VARIABLE _rc\n\
+)\n\
+if(NOT _rc EQUAL 0)\n\
+    message(FATAL_ERROR \"javac compilation failed (exit code: \${_rc})\")\n\
+endif()\n\
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
+execute_process(\n\
+    COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\" -C \"${_java_classes_dir}\" .\n\
+    RESULT_VARIABLE _rc2\n\
+)\n\
+if(NOT _rc2 EQUAL 0)\n\
+    message(FATAL_ERROR \"jar creation failed (exit code: \${_rc2})\")\n\
+endif()\n\
+if(NOT EXISTS \"${_java_jar}\")\n\
+    message(FATAL_ERROR \"JAR not found after build: ${_java_jar}\")\n\
+endif()\n\
+")
             add_custom_command(
                 OUTPUT "${_java_jar}"
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${_java_classes_dir}"
-                COMMAND ${JAVAC_EXECUTABLE} ${_javac_flags} ${_java_sources}
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/lib"
-                COMMAND ${JAR_EXECUTABLE} cf "${_java_jar}" -C "${_java_classes_dir}" .
+                COMMAND ${CMAKE_COMMAND} -P "${_javac_build_script}"
                 DEPENDS ${_java_sources}
                 COMMENT "Building conduit-java-0.1.0.jar (javac)"
                 VERBATIM
@@ -596,12 +668,12 @@ file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
 ${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
-file(WRITE \"${_java_test_classes_dir}/sources.txt\" \"\${_src_list}\")
+# Write javac argfile — keeps classpath semicolons out of CMake COMMAND parsing
+# (on Windows the classpath separator is semicolon which CMake treats as a list separator)
+file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
     COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
-        -cp \"${_java_jar}${_cp_sep}${_junit_jar}\"
-        -d \"${_java_test_classes_dir}\"
-        \"@${_java_test_classes_dir}/sources.txt\"
+        \"@${_java_test_classes_dir}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )
 if(NOT _rc EQUAL 0)
@@ -662,6 +734,10 @@ endif()
 # ============================================================================
 # Subdirectories
 # ============================================================================
+
+if(CONDUIT_BUILD_TESTS)
+    enable_testing()
+endif()
 
 if(CONDUIT_BUILD_BGEN)
     add_subdirectory(bgen)

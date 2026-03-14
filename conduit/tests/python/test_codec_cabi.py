@@ -18,8 +18,15 @@ from conftest import resolve_native_lib
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
-# Path to the test codec CABI shared library (platform-aware)
-_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_LIB", "conduit_codec_cabi_test")
+# Path to the test codec CABI shared library (platform-aware).
+# Use test-specific env var to avoid collision with CI's CONDUIT_CODEC_LIB.
+_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
+if not os.path.isfile(_CODEC_LIB_PATH):
+    # conduit_cabi_test bundles the codec API; use it when the standalone
+    # codec test library is not built (CONDUIT_BUILD_CODEC_CABI=OFF).
+    _CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_TEST_LIB", "conduit_cabi_test")
+    if os.path.isfile(_CABI_LIB_PATH):
+        _CODEC_LIB_PATH = _CABI_LIB_PATH
 os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
 # Ensure Python bindings are importable

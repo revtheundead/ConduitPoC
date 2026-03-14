@@ -21,8 +21,11 @@ import io.conduit.CodecBindings;
  */
 public class TestCodecCabi {
 
-    private static final String CODEC_LIB = TestLibraryResolver.resolve(
-        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test");
+    // Fall back to conduit_cabi_test (which bundles the codec API) when
+    // conduit_codec_cabi_test is not built (CONDUIT_BUILD_CODEC_CABI=OFF).
+    private static final String CODEC_LIB = TestLibraryResolver.resolveWithFallback(
+        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test",
+        "conduit.cabi.test.path",  "CONDUIT_CABI_LIB",  "conduit_cabi_test");
 
     // Known type IDs from session_protocol (session_test package)
     private static final long PING_TYPE_ID = session_test.PingBody.TYPE_ID;   // 0x0ad7bb3ecc473399L

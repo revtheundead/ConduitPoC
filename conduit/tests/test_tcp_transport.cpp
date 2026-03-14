@@ -73,6 +73,8 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     std::mutex client_rx_mutex;
     PeerId client_peer(1);
 
+    std::atomic<bool> client_connected{false};
+
     TransportCallbacks client_cb;
     client_cb.on_data_received = [&](PeerId /*peer*/,
                                      std::span<const uint8_t> data) {
@@ -81,14 +83,20 @@ TEST_CASE("TCP loopback: server + client bidirectional",
     };
     client_cb.on_peer_connected = [&](std::string) -> PeerId { return client_peer; };
     client_cb.on_peer_disconnected = [](PeerId) {};
-    client_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
+    client_cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
+        if (s == net::ConnectionState::Connected)
+            client_connected.store(true, std::memory_order_release);
+    };
 
     auto cli_result = client->start(std::move(client_cb));
     REQUIRE(cli_result.has_value());
 
-    // Wait for connection
+    // Wait for both sides to see the connection — the server must have
+    // accepted (so we can obtain the server-assigned PeerId) AND the client
+    // must have completed its connect handshake (so send() can succeed).
     REQUIRE(wait_until([&] {
-        return client_peer_on_server_id.load(std::memory_order_acquire) != 0;
+        return client_peer_on_server_id.load(std::memory_order_acquire) != 0
+            && client_connected.load(std::memory_order_acquire);
     }));
 
     PeerId client_peer_on_server{client_peer_on_server_id.load(std::memory_order_acquire)};

@@ -12,10 +12,16 @@ from conftest import resolve_native_lib
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
-_CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_LIB", "conduit_cabi_test")
+# Use test-specific env vars to avoid collision with CI's CONDUIT_CABI_LIB
+# (which points to the production library without registered test sessions).
+_CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_TEST_LIB", "conduit_cabi_test")
 os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
 
-_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_LIB", "conduit_codec_cabi_test")
+_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
+if not os.path.isfile(_CODEC_LIB_PATH):
+    # conduit_cabi_test bundles the codec API; use it when the standalone
+    # codec test library is not built (CONDUIT_BUILD_CODEC_CABI=OFF).
+    _CODEC_LIB_PATH = _CABI_LIB_PATH
 os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
 _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
@@ -24,7 +30,7 @@ if _BINDINGS_DIR not in sys.path:
 
 if sys.platform == "win32":
     _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-    if hasattr(os, "add_dll_directory"):
+    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
         os.add_dll_directory(_lib_dir)
     _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
 else:

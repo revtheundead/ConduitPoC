@@ -8,6 +8,7 @@
 #include <conduit/io/bit_writer.hpp>
 #include <algorithm>
 #include <any>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
@@ -231,13 +232,13 @@ TEST_CASE("Transceiver multi-peer: per-peer handler isolation",
     PeerId alpha = *r_alpha;
     PeerId beta = *r_beta;
 
-    int alpha_count = 0;
-    int beta_count = 0;
+    std::atomic<int> alpha_count{0};
+    std::atomic<int> beta_count{0};
 
     xcvr.on<TestMsg>(alpha, std::function<void(const TestMsg&)>(
-        [&](const TestMsg&) { ++alpha_count; }));
+        [&](const TestMsg&) { alpha_count.fetch_add(1); }));
     xcvr.on<TestMsg>(beta, std::function<void(const TestMsg&)>(
-        [&](const TestMsg&) { ++beta_count; }));
+        [&](const TestMsg&) { beta_count.fetch_add(1); }));
 
     REQUIRE(xcvr.start().has_value());
 
@@ -245,11 +246,11 @@ TEST_CASE("Transceiver multi-peer: per-peer handler isolation",
     std::vector<uint8_t> frame = {0x00, 0x00, 0x00, 0x2A};
     t_alpha->inject_data(alpha, frame);
 
-    wait_until([&] { return alpha_count >= 1; });
+    wait_until([&] { return alpha_count.load() >= 1; });
     xcvr.stop();
 
-    CHECK(alpha_count == 1);
-    CHECK(beta_count == 0);
+    CHECK(alpha_count.load() == 1);
+    CHECK(beta_count.load() == 0);
 }
 
 TEST_CASE("Transceiver multi-peer: send routes to correct transport",
@@ -357,16 +358,16 @@ TEST_CASE("Transceiver multi-peer: per-peer overrides global",
     REQUIRE(r_alpha.has_value());
     REQUIRE(r_beta.has_value());
 
-    int per_peer_count = 0;
-    int global_count = 0;
+    std::atomic<int> per_peer_count{0};
+    std::atomic<int> global_count{0};
 
     // Per-peer handler for alpha
     xcvr.on<TestMsg>(*r_alpha, std::function<void(const TestMsg&)>(
-        [&](const TestMsg&) { ++per_peer_count; }));
+        [&](const TestMsg&) { per_peer_count.fetch_add(1); }));
 
     // Global handler for all
     xcvr.on<TestMsg>(std::function<void(const TestMsg&)>(
-        [&](const TestMsg&) { ++global_count; }));
+        [&](const TestMsg&) { global_count.fetch_add(1); }));
 
     REQUIRE(xcvr.start().has_value());
 
@@ -374,16 +375,16 @@ TEST_CASE("Transceiver multi-peer: per-peer overrides global",
     std::vector<uint8_t> frame = {0x00, 0x00, 0x00, 0x01};
     t_alpha->inject_data(*r_alpha, frame);
 
-    wait_until([&] { return per_peer_count >= 1; });
+    wait_until([&] { return per_peer_count.load() >= 1; });
 
     // Inject to beta — global should fire
     t_beta->inject_data(*r_beta, frame);
 
-    wait_until([&] { return global_count >= 1; });
+    wait_until([&] { return global_count.load() >= 1; });
     xcvr.stop();
 
-    CHECK(per_peer_count == 1);
-    CHECK(global_count == 1);  // Only beta's message went to global
+    CHECK(per_peer_count.load() == 1);
+    CHECK(global_count.load() == 1);  // Only beta's message went to global
 }
 
 TEST_CASE("Transceiver multi-peer: peer_state per-peer",
