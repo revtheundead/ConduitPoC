@@ -342,6 +342,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
             trans = std::make_shared<trans_ns::SerialTransport>(cfg);
             break;
         }
+        default:
+            return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
     }
 
     // Query the transport to decide which add_peer overload to use.
