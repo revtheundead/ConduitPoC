@@ -24,7 +24,7 @@ if _BINDINGS_DIR not in sys.path:
 
 if sys.platform == "win32":
     _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-    if hasattr(os, "add_dll_directory"):
+    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
         os.add_dll_directory(_lib_dir)
     _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
 else:

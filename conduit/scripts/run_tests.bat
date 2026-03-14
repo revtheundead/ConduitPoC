@@ -24,6 +24,9 @@ pushd "!BUILD_DIR!" 2>nul && (
 
 cd /d "%~dp0.."
 
+:: Ensure DLL dependencies in lib\ are findable (JNI, Python ctypes, etc.)
+set "PATH=%CD%\lib;%PATH%"
+
 set "PASSED=0"
 set "FAILED=0"
 

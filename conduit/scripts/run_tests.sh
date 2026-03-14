@@ -17,6 +17,9 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${1:-$PROJECT_DIR/build}"
 
+# Ensure shared library dependencies in lib/ are findable (JNI, Python ctypes)
+export LD_LIBRARY_PATH="$PROJECT_DIR/lib:${LD_LIBRARY_PATH:-}"
+
 # ============================================================================
 # Helpers
 # ============================================================================
