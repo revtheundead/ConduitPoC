@@ -243,6 +243,8 @@ When inlined, the struct's fields behave as if they were declared directly in th
 
 `inline` is only valid when the field's type is a struct or message. Inlining must not produce duplicate field names in the parent scope.
 
+> **Backend limitation (Java/Python):** Java and Python do not flatten inline struct fields into the parent -- they generate a nested sub-object instead. See [Limitations & Known Issues](../conduit/limitations.md).
+
 ## Auto-Managed Fields
 
 The `auto` attribute marks fields for automatic management by frames and sessions:
@@ -312,6 +314,8 @@ The wire value is computed as: `computed_byte_length {op} operand`.
 
 - `auto="count(field)"` -- Auto-computes the size of a sibling array during encode. The field reference must name a sibling array in the same struct/message. Example: `<field name="count" type="uint8" auto="count(items)"/>` followed by `<array name="items" ... count-from="count"/>`.
 - `auto="length(field)"` -- Auto-computes the byte length of a sibling field during encode. Uses a zero-placeholder and backpatch approach. Supports arithmetic modifiers including field operands. Example: `<field name="len" type="uint8" auto="length(data) / 2"/>`.
+
+> **Backend limitation (Python):** `auto="length(field)"` backpatch is broken when using a non-empty `field_ref` -- Python writes a zero placeholder but never patches the correct value. See [Limitations & Known Issues](../conduit/limitations.md).
 - `auto="config(key)"` -- Values provided via the session's Config struct. The session sets the field value during encode wrapping, before the message is encoded into the frame. Useful for per-message metadata like station identifiers. Config fields in inlined structs are also supported.
 
 ### Session Auto Fields

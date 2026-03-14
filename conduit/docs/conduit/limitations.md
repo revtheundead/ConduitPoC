@@ -61,7 +61,7 @@ These performance patterns mean that Java and Python backends will be measurably
 - **No asyncio integration.** The Python bindings are synchronous. Async support is planned but not yet implemented.
 - **No dynamic schema loading.** BMDL schemas must be processed by `bgen` at build time. There is no runtime schema parsing.
 - **Single sequence counter per session.** All auto-increment fields within a session share one counter. If your protocol needs independent counters per message type, you'll need to manage them externally.
-- **UDP large messages.** Messages larger than ~50 bytes experience significant drop rates under aggressive burst conditions. Use pacing or TCP for reliable delivery of large messages.
+- **UDP large messages.** Under aggressive burst conditions (back-to-back sends with no pacing), messages larger than approximately 50 bytes experience significant drop rates in the test environment. Use pacing or TCP for reliable delivery of larger messages.
 - **Worker thread scaling.** Adding worker threads only helps when handler processing time exceeds ~1--10 us per message. For lightweight handlers, single-threaded dispatch is faster (see [Benchmarks & Performance](performance.md)).
 
 ## Test Coverage

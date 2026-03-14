@@ -143,3 +143,5 @@ This eliminates the need to specify both `default` and `constraint equals` with 
 - Immediate-constrained setters return errors that must be checked. Forgetting to check silently discards the error.
 - Each field or type should have at most one `<constraint>` child. If multiple `<constraint>` elements are present, only the first is used; the rest are silently ignored.
 - `equals` and `min`/`max` are mutually exclusive on the same `<constraint>`.
+
+> **Backend limitation (Java/Python):** Java does not generate a `validate()` method for deferred constraints. Python does not implement deferred constraint validation at all. Only the C++ backend fully supports `validate="deferred"`. See [Limitations & Known Issues](../conduit/limitations.md).
