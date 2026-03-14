@@ -15,6 +15,30 @@ public final class TestLibraryResolver {
     private TestLibraryResolver() {}
 
     /**
+     * Resolve the absolute path to a native test library, falling back to an
+     * alternative library if the primary one is not found on disk.
+     *
+     * <p>This is useful when {@code conduit_codec_cabi_test} is not built
+     * (CONDUIT_BUILD_CODEC_CABI=OFF) but {@code conduit_cabi_test} bundles the
+     * codec API and can be used instead.
+     *
+     * @param propertyName     system property for the primary library
+     * @param envVar           environment variable for the primary library
+     * @param baseName         base name of the primary library
+     * @param fallbackProperty system property for the fallback library
+     * @param fallbackEnvVar   environment variable for the fallback library
+     * @param fallbackBaseName base name of the fallback library
+     * @return absolute path to whichever library was found first
+     */
+    public static String resolveWithFallback(
+            String propertyName, String envVar, String baseName,
+            String fallbackProperty, String fallbackEnvVar, String fallbackBaseName) {
+        String primary = resolve(propertyName, envVar, baseName);
+        if (Files.exists(Path.of(primary))) return primary;
+        return resolve(fallbackProperty, fallbackEnvVar, fallbackBaseName);
+    }
+
+    /**
      * Resolve the absolute path to a native test library.
      *
      * @param propertyName  system property to check first (e.g. "conduit.codec.test.path")

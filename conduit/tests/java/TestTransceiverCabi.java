@@ -27,8 +27,11 @@ import session_test.DataBody;
  */
 public class TestTransceiverCabi {
 
-    private static final String CODEC_LIB = TestLibraryResolver.resolve(
-        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test");
+    // Fall back to conduit_cabi_test (which bundles the codec API) when
+    // conduit_codec_cabi_test is not built (CONDUIT_BUILD_CODEC_CABI=OFF).
+    private static final String CODEC_LIB = TestLibraryResolver.resolveWithFallback(
+        "conduit.codec.test.path", "CONDUIT_CODEC_LIB", "conduit_codec_cabi_test",
+        "conduit.cabi.test.path",  "CONDUIT_CABI_LIB",  "conduit_cabi_test");
     private static final String CABI_LIB = TestLibraryResolver.resolve(
         "conduit.cabi.test.path", "CONDUIT_CABI_LIB", "conduit_cabi_test");
 
