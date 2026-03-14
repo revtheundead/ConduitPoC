@@ -2689,7 +2689,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     ctx.line("@Override public boolean equals(Object o) {");
     ctx.indent();
     ctx.line("if (this == o) return true;");
-    ctx.line("if (!(o instanceof " + cn + " that)) return false;");
+    ctx.line("if (!(o instanceof " + cn + ")) return false;");
+    ctx.line(cn + " that = (" + cn + ") o;");
     if (bfields.empty()) {
         ctx.line("return true;");
     } else {
@@ -3242,7 +3243,8 @@ std::string generate_j_class(const std::string& name,
     ctx.line("@Override public boolean equals(Object o) {");
     ctx.indent();
     ctx.line("if (this == o) return true;");
-    ctx.line("if (!(o instanceof " + cn + " that)) return false;");
+    ctx.line("if (!(o instanceof " + cn + ")) return false;");
+    ctx.line(cn + " that = (" + cn + ") o;");
     if (fields.empty()) {
         ctx.line("return true;");
     } else {
