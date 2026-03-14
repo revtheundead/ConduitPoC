@@ -2733,8 +2733,6 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.indent();
         if (bf.is_enum) {
             ctx.line("m.put(\"" + key + "\", " + fn + ".value);");
-        } else if (bf.has_scale) {
-            ctx.line("m.put(\"" + key + "\", " + fn + ".value());");
         } else if (bf.is_struct) {
             ctx.line("m.put(\"" + key + "\", " + fn + ".toMap());");
         } else if (bf.is_bytes) {
@@ -2763,16 +2761,14 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         if (bf.is_enum) {
             // Enum from int value
             ctx.line("obj." + fn + " = " + bf.j_type + ".fromValue(((Number) d.get(\"" + key + "\")).intValue());");
-        } else if (bf.has_scale) {
-            ctx.line("obj." + fn + " = new " + bf.j_type + "(); obj." + fn + ".setValue(((Number) d.get(\"" + key + "\")).doubleValue());");
+        } else if (bf.has_scale || bf.is_float) {
+            ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).doubleValue();");
         } else if (bf.is_struct) {
             ctx.line("obj." + fn + " = " + bf.j_type + ".fromMap((java.util.Map<String, Object>) d.get(\"" + key + "\"));");
         } else if (bf.is_bytes) {
             ctx.line("{ java.util.List<Number> _bl = (java.util.List<Number>) d.get(\"" + key + "\"); byte[] _ba = new byte[_bl.size()]; for (int _i = 0; _i < _bl.size(); _i++) _ba[_i] = _bl.get(_i).byteValue(); obj." + fn + " = _ba; }");
         } else if (bf.is_bool) {
             ctx.line("obj." + fn + " = (Boolean) d.get(\"" + key + "\");");
-        } else if (bf.is_float) {
-            ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).doubleValue();");
         } else if (bf.is_string) {
             ctx.line("obj." + fn + " = (String) d.get(\"" + key + "\");");
         } else if (bf.j_type == "long" || bf.j_type == "Long") {
@@ -3145,8 +3141,6 @@ std::string generate_j_class(const std::string& name,
             ctx.line("{ java.util.List<Integer> _bl = new java.util.ArrayList<>(); if (" + val + " != null) for (byte b : " + val + ") _bl.add(b & 0xFF); m.put(\"" + key + "\", _bl); }");
         } else if (f.is_enum) {
             ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value : null);");
-        } else if (f.has_scale) {
-            ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value() : null);");
         } else if (f.is_struct && f.is_string) {
             ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value() : null);");
         } else if (f.is_struct) {
@@ -3186,12 +3180,12 @@ std::string generate_j_class(const std::string& name,
             ctx.line("Object _bv = m.get(\"" + key + "\"); if (_bv instanceof java.util.List) { java.util.List<?> _bl = (java.util.List<?>)_bv; byte[] _ba = new byte[_bl.size()]; for (int _i=0;_i<_bl.size();_i++) _ba[_i] = ((Number)_bl.get(_i)).byteValue(); " + target + " = _ba; }");
         } else if (f.is_enum) {
             ctx.line("Object _ev = m.get(\"" + key + "\"); if (_ev instanceof Number) { int _rv = ((Number)_ev).intValue(); for (" + f.j_type + " v : " + f.j_type + ".values()) { if (v.value == _rv) { " + target + " = v; break; } } }");
-        } else if (f.has_scale) {
-            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof Number) { " + target + " = new " + f.j_type + "(0); " + target + ".setValue(((Number)_sv).doubleValue()); }");
         } else if (f.is_struct && f.is_string) {
             ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = new " + f.j_type + "((String)_sv);");
         } else if (f.is_struct) {
             ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof java.util.Map) " + target + " = " + f.j_type + ".fromMap((java.util.Map<String, Object>)_sv);");
+        } else if (f.has_scale || f.j_type == "double" || f.j_type == "float") {
+            ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).doubleValue();");
         } else if (f.is_numeric) {
             if (f.j_type == "long" || f.j_type == "Long")
                 ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).longValue();");
