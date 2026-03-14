@@ -4174,7 +4174,7 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     ctx.line();
 
     // Private state
-    ctx.line("private long sequenceCounter = 0;");
+    ctx.line("private final java.util.Map<Long, Long> sequenceCounters = new java.util.HashMap<>();");
     if (has_config) {
         ctx.line("private final Map<String, Object> config;");
     }
@@ -4459,13 +4459,15 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                 std::string field = j_field(lt.auto_fields[ai]);
                 if (bits > 32) {
-                    ctx.line("{ long seqVal = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                    ctx.line("{ long curSeq = sequenceCounters.getOrDefault(typeId, 0L);");
+                    ctx.line("  long seqVal = curSeq & " + std::to_string(mask_val) + "L;");
                     ctx.line("  frame." + field + " = seqVal;");
                 } else {
-                    ctx.line("{ int seqVal = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                    ctx.line("{ long curSeq = sequenceCounters.getOrDefault(typeId, 0L);");
+                    ctx.line("  int seqVal = (int)(curSeq & " + std::to_string(mask_val) + "L);");
                     ctx.line("  frame." + field + " = seqVal;");
                 }
-                ctx.line("  sequenceCounter++;");
+                ctx.line("  sequenceCounters.put(typeId, curSeq + 1);");
                 ctx.line("  autoFields.add(new String[]{\"" + lt.auto_fields[ai] + "\", String.valueOf(seqVal)}); }");
             }
 
@@ -4580,13 +4582,15 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = j_field(lt.auto_fields[ai]);
                     if (bits > 32) {
-                        ctx.line("{ long seqVal = sequenceCounter & " + std::to_string(mask_val) + "L;");
+                        ctx.line("{ long curSeq = sequenceCounters.getOrDefault(typeId, 0L);");
+                        ctx.line("  long seqVal = curSeq & " + std::to_string(mask_val) + "L;");
                         ctx.line("  frame." + field + " = seqVal;");
                     } else {
-                        ctx.line("{ int seqVal = (int)(sequenceCounter & " + std::to_string(mask_val) + "L);");
+                        ctx.line("{ long curSeq = sequenceCounters.getOrDefault(typeId, 0L);");
+                        ctx.line("  int seqVal = (int)(curSeq & " + std::to_string(mask_val) + "L);");
                         ctx.line("  frame." + field + " = seqVal;");
                     }
-                    ctx.line("  sequenceCounter++;");
+                    ctx.line("  sequenceCounters.put(typeId, curSeq + 1);");
                     ctx.line("  autoFields.add(new String[]{\"" + lt.auto_fields[ai] + "\", String.valueOf(seqVal)}); }");
                 }
 
@@ -4673,14 +4677,14 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     // reset
     ctx.line("public void reset() {");
     ctx.indent();
-    ctx.line("sequenceCounter = 0;");
+    ctx.line("sequenceCounters.clear();");
     ctx.dedent();
     ctx.line("}");
     ctx.line();
 
-    // sequenceCounter accessor
+    // sequenceCounter accessor (per-type-id)
     if (has_auto_fields) {
-        ctx.line("public long sequenceCounter() { return sequenceCounter; }");
+        ctx.line("public long sequenceCounter(long typeId) { return sequenceCounters.getOrDefault(typeId, 0L); }");
         ctx.line();
     }
 

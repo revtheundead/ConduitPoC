@@ -106,6 +106,15 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
         return reuse;
     }
 
+    // Set OS socket buffer sizes to reduce drop rates under burst conditions
+    auto buf_result = set_socket_buffer_sizes(sock,
+        impl_->config.recv_buffer_size,
+        impl_->config.send_buffer_size);
+    if (!buf_result) {
+        LOG_WARNF("Failed to set socket buffer sizes: {}",
+                  buf_result.error().format_short());
+    }
+
     // Bind
     sockaddr_in bind_addr{};
     bind_addr.sin_family = AF_INET;

@@ -94,6 +94,30 @@ VoidResult set_tcp_nodelay(socket_t sock) {
     return {};
 }
 
+VoidResult set_socket_buffer_sizes(socket_t sock, size_t recv_size, size_t send_size) {
+    if (recv_size > 0) {
+        int val = static_cast<int>(recv_size);
+        if (setsockopt(static_cast<SOCKET>(sock), SOL_SOCKET, SO_RCVBUF,
+                       reinterpret_cast<const char*>(&val), sizeof(val)) != 0) {
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::SocketError,
+                              "Failed to set SO_RCVBUF: " +
+                              error_to_string(get_last_error())));
+        }
+    }
+    if (send_size > 0) {
+        int val = static_cast<int>(send_size);
+        if (setsockopt(static_cast<SOCKET>(sock), SOL_SOCKET, SO_SNDBUF,
+                       reinterpret_cast<const char*>(&val), sizeof(val)) != 0) {
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::SocketError,
+                              "Failed to set SO_SNDBUF: " +
+                              error_to_string(get_last_error())));
+        }
+    }
+    return {};
+}
+
 void close_socket(socket_t sock) {
     if (sock != invalid_socket) {
         ::closesocket(static_cast<SOCKET>(sock));

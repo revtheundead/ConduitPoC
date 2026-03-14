@@ -4031,7 +4031,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         // __init__
         ctx.line("def __init__(self" + std::string(has_config ? ", config: dict | None = None" : "") + ") -> None:");
         ctx.indent();
-        ctx.line("self._seq = 0");
+        ctx.line("self._seq = {}  # per-type-id sequence counters");
         if (has_config) {
             ctx.line("self._config = config or {}");
         }
@@ -4259,9 +4259,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                     uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                     std::string field = py_field(lt.auto_fields[ai]);
-                    ctx.line("_seq_val = self._seq & " + std::to_string(mask_val));
+                    ctx.line("_seq_val = self._seq.get(type_id, 0) & " + std::to_string(mask_val));
                     ctx.line("frame." + field + " = _seq_val");
-                    ctx.line("self._seq += 1");
+                    ctx.line("self._seq[type_id] = self._seq.get(type_id, 0) + 1");
                     ctx.line("_auto_fields.append(('" + lt.auto_fields[ai] + "', str(_seq_val)))");
                 }
 
@@ -4341,9 +4341,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                         uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                         std::string field = py_field(lt.auto_fields[ai]);
-                        ctx.line("_seq_val = self._seq & " + std::to_string(mask_val));
+                        ctx.line("_seq_val = self._seq.get(type_id, 0) & " + std::to_string(mask_val));
                         ctx.line("frame." + field + " = _seq_val");
-                        ctx.line("self._seq += 1");
+                        ctx.line("self._seq[type_id] = self._seq.get(type_id, 0) + 1");
                         ctx.line("_auto_fields.append(('" + lt.auto_fields[ai] + "', str(_seq_val)))");
                     }
 
@@ -4423,7 +4423,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         // reset
         ctx.line("def reset(self) -> None:");
         ctx.indent();
-        ctx.line("self._seq = 0");
+        ctx.line("self._seq = {}");
         ctx.dedent();
 
         ctx.dedent();

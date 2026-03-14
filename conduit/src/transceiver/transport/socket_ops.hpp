@@ -43,6 +43,7 @@ Result<socket_t> create_udp_socket();
 VoidResult set_nonblocking(socket_t sock);
 VoidResult set_reuse_addr(socket_t sock);
 VoidResult set_tcp_nodelay(socket_t sock);
+VoidResult set_socket_buffer_sizes(socket_t sock, size_t recv_size, size_t send_size);
 
 // ============================================================================
 // Socket lifecycle
