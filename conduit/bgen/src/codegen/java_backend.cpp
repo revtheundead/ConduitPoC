@@ -236,6 +236,9 @@ struct JFieldInfo {
     bool is_bytes = false;
     bool is_float = false;
     bool is_bool = false;
+    bool is_type_wrapper = false; // true for TypeDef wrappers (string/scaled/flags/constrained)
+    bool is_string_wrapper = false;
+    bool is_scaled_wrapper = false;
     int bits = 0;
     bool is_signed = false;
     bool has_scale = false;
@@ -265,6 +268,20 @@ JFieldInfo j_resolve_field(const model::Field& f, const analyzer::TypeIndex& ind
     ji.raw_signed = cfi.raw_signed;
     ji.endian = f.endian;
     ji.wire_enc = cfi.wire_encoding;
+    // Detect type wrappers: TypeDef resolved as struct (not a real StructDef/MessageDef)
+    if (ji.is_struct && !f.type_ref.empty()) {
+        auto resolved = index.find(f.type_ref);
+        if (resolved) {
+            std::visit([&ji](const auto* def) {
+                using T = std::decay_t<decltype(*def)>;
+                if constexpr (std::is_same_v<T, model::TypeDef>) {
+                    ji.is_type_wrapper = true;
+                    ji.is_string_wrapper = (def->base == model::PrimitiveBase::String);
+                    ji.is_scaled_wrapper = def->scale.has_value() || def->offset.has_value();
+                }
+            }, *resolved);
+        }
+    }
 
     if (ji.is_string) { ji.j_type = "String"; ji.j_boxed = "String"; }
     else if (ji.is_bytes) { ji.j_type = "byte[]"; ji.j_boxed = "byte[]"; }
@@ -1046,6 +1063,12 @@ struct JFieldDef {
     bool is_string = false;
     bool is_bytes = false;
     bool is_bool = false;
+    bool is_type_wrapper = false; // TypeDef wrapper (string/scaled/flags/constrained) vs real struct
+    bool is_string_wrapper = false; // String type wrapper (AsciiStr etc)
+    bool is_scaled_wrapper = false; // Scaled type wrapper (ScaledTemp etc)
+    bool is_list_of_type_wrappers = false; // List<TypeWrapper> elements
+    bool is_list_of_string_wrappers = false;
+    bool is_list_of_scaled_wrappers = false;
     std::optional<int> max_length;
     // Scaled field raw accessors
     bool has_scale = false;
@@ -1186,6 +1209,9 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             jf.is_signed = fi.is_signed;
             jf.is_enum = fi.is_enum;
             jf.is_struct = fi.is_struct;
+            jf.is_type_wrapper = fi.is_type_wrapper;
+            jf.is_string_wrapper = fi.is_string_wrapper;
+            jf.is_scaled_wrapper = fi.is_scaled_wrapper;
             jf.is_string = fi.is_string;
             jf.is_bytes = fi.is_bytes;
             jf.is_bool = fi.is_bool;
@@ -1215,6 +1241,20 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             adf.name = j_field(ad->name);
             adf.bmdl_name = ad->name;
             adf.is_optional = in_fx || ad->present_when != nullptr || ad->bit.has_value();
+            // Check if array element type is a type wrapper
+            if (!ad->type_ref.empty()) {
+                auto resolved = index.find(ad->type_ref);
+                if (resolved) {
+                    std::visit([&adf](const auto* def) {
+                        using T = std::decay_t<decltype(*def)>;
+                        if constexpr (std::is_same_v<T, model::TypeDef>) {
+                            adf.is_list_of_type_wrappers = true;
+                            adf.is_list_of_string_wrappers = (def->base == model::PrimitiveBase::String);
+                            adf.is_list_of_scaled_wrappers = def->scale.has_value() || def->offset.has_value();
+                        }
+                    }, *resolved);
+                }
+            }
             if (in_fx) {
                 adf.j_type = "java.util.List<" + elem + ">";
                 adf.init = "null";
@@ -3141,7 +3181,8 @@ std::string generate_j_class(const std::string& name,
             ctx.line("{ java.util.List<Integer> _bl = new java.util.ArrayList<>(); if (" + val + " != null) for (byte b : " + val + ") _bl.add(b & 0xFF); m.put(\"" + key + "\", _bl); }");
         } else if (f.is_enum) {
             ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value : null);");
-        } else if (f.is_struct && f.is_string) {
+        } else if (f.is_type_wrapper || (f.is_struct && f.is_string)) {
+            // Type wrappers (string/scaled/flags/constrained) and string structs use .value()
             ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value() : null);");
         } else if (f.is_struct) {
             ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".toMap() : null);");
@@ -3152,7 +3193,9 @@ std::string generate_j_class(const std::string& name,
             if (lt_pos != std::string::npos && f.j_type.back() == '>') {
                 elem_type = f.j_type.substr(lt_pos + 1, f.j_type.size() - lt_pos - 2);
             }
-            if (!elem_type.empty()) {
+            if (!elem_type.empty() && f.is_list_of_type_wrappers) {
+                ctx.line("{ java.util.List<Object> _al = new java.util.ArrayList<>(); if (" + val + " != null) for (" + elem_type + " _e : " + val + ") _al.add(_e != null ? _e.value() : null); m.put(\"" + key + "\", _al); }");
+            } else if (!elem_type.empty()) {
                 ctx.line("{ java.util.List<Object> _al = new java.util.ArrayList<>(); if (" + val + " != null) for (" + elem_type + " _e : " + val + ") _al.add(_e != null ? _e.toMap() : null); m.put(\"" + key + "\", _al); }");
             } else {
                 ctx.line("m.put(\"" + key + "\", " + val + ");");
@@ -3180,12 +3223,41 @@ std::string generate_j_class(const std::string& name,
             ctx.line("Object _bv = m.get(\"" + key + "\"); if (_bv instanceof java.util.List) { java.util.List<?> _bl = (java.util.List<?>)_bv; byte[] _ba = new byte[_bl.size()]; for (int _i=0;_i<_bl.size();_i++) _ba[_i] = ((Number)_bl.get(_i)).byteValue(); " + target + " = _ba; }");
         } else if (f.is_enum) {
             ctx.line("Object _ev = m.get(\"" + key + "\"); if (_ev instanceof Number) { int _rv = ((Number)_ev).intValue(); for (" + f.j_type + " v : " + f.j_type + ".values()) { if (v.value == _rv) { " + target + " = v; break; } } }");
+        } else if (f.is_string_wrapper) {
+            // String type wrapper: construct from String value
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = new " + f.j_type + "((String)_sv);");
+        } else if (f.is_scaled_wrapper) {
+            // Scaled type wrapper: construct + setValue from double
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof Number) { " + target + " = new " + f.j_type + "(); " + target + ".setValue(((Number)_sv).doubleValue()); }");
+        } else if (f.is_type_wrapper) {
+            // Flags/constrained type wrapper: construct from raw long
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof Number) " + target + " = new " + f.j_type + "(((Number)_sv).longValue());");
         } else if (f.is_struct && f.is_string) {
             ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = new " + f.j_type + "((String)_sv);");
         } else if (f.is_struct) {
             ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof java.util.Map) " + target + " = " + f.j_type + ".fromMap((java.util.Map<String, Object>)_sv);");
-        } else if (f.has_scale || f.j_type == "double" || f.j_type == "float") {
+        } else if (f.j_type.find("java.util.List") == 0) {
+            // List fields: deserialize from List<Object>
+            std::string elem_type;
+            auto lt_pos = f.j_type.find('<');
+            if (lt_pos != std::string::npos && f.j_type.back() == '>') {
+                elem_type = f.j_type.substr(lt_pos + 1, f.j_type.size() - lt_pos - 2);
+            }
+            if (!elem_type.empty() && f.is_list_of_string_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof String) " + target + ".add(new " + elem_type + "((String)_e)); }");
+            } else if (!elem_type.empty() && f.is_list_of_scaled_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof Number) { " + elem_type + " _tw = new " + elem_type + "(); _tw.setValue(((Number)_e).doubleValue()); " + target + ".add(_tw); } }");
+            } else if (!elem_type.empty() && f.is_list_of_type_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof Number) " + target + ".add(new " + elem_type + "(((Number)_e).longValue())); }");
+            } else if (!elem_type.empty()) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof java.util.Map) " + target + ".add(" + elem_type + ".fromMap((java.util.Map<String, Object>)_e)); }");
+            } else {
+                ctx.line(target + " = m.get(\"" + key + "\");");
+            }
+        } else if (f.has_scale || f.j_type == "double" || f.j_type == "Double") {
             ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).doubleValue();");
+        } else if (f.j_type == "float" || f.j_type == "Float") {
+            ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).floatValue();");
         } else if (f.is_numeric) {
             if (f.j_type == "long" || f.j_type == "Long")
                 ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).longValue();");
