@@ -299,6 +299,35 @@ using JOuterContext = std::unordered_map<std::string, std::string>;
 // Map from BMDL inline type name → resolved Java class name (parent-prefixed or typeName-overridden)
 using JInlineNameMap = std::unordered_map<std::string, std::string>;
 
+// Byte alignment tracker for code generation (mirrors C++ StructEmitter::bit_mod8_).
+// Tracks cumulative bit offset mod 8 so byte-optimized reads/writes are only
+// emitted when the reader/writer is known to be byte-aligned.
+static constexpr int J_BITS_PER_BYTE = 8;
+
+struct JBitTracker {
+    int bit_mod8 = 0; // -1 means unknown alignment
+
+    bool is_byte_aligned() const { return bit_mod8 == 0; }
+
+    void advance_bits(int bits) {
+        if (bit_mod8 < 0) return; // already unknown
+        bit_mod8 = (bit_mod8 + bits) % J_BITS_PER_BYTE;
+    }
+
+    void advance_bits_variable() {
+        if (bit_mod8 != 0) bit_mod8 = -1;
+        // else: stays 0 (byte-aligned -> still byte-aligned after whole-byte field)
+    }
+
+    void advance_field(const JFieldInfo& fi) {
+        if (fi.is_struct || fi.is_string || fi.is_bytes) {
+            advance_bits_variable();
+        } else {
+            advance_bits(fi.bits);
+        }
+    }
+};
+
 // Resolve the Java class name for an inline type, applying parent-prefix or typeName override.
 // If type_name_override is set, it is used as-is (PascalCased). Otherwise, the name is
 // prefixed with the parent class name to prevent collisions across messages/structs.
@@ -540,17 +569,22 @@ std::string j_build_outer_args(const std::string& type_name,
 
 // Returns true when j_read_expr returns long but the field is int-typed,
 // meaning an explicit (int) narrowing cast is needed.
-bool j_needs_int_cast(const JFieldInfo& fi) {
+bool j_needs_int_cast(const JFieldInfo& fi, bool byte_aligned = true) {
     if (fi.j_type != "int") return false;
     if (fi.is_float) return false;
     // readU8, readU16, readU32 already return int — no cast needed
-    if (!fi.is_signed && fi.wire_enc == model::WireEncoding::Default) {
+    // But only when byte_aligned; otherwise readBits() returns long
+    if (byte_aligned && !fi.is_signed && fi.wire_enc == model::WireEncoding::Default) {
         if (fi.bits == 8 || fi.bits == 16 || fi.bits == 32) return false;
+    }
+    // Signed byte-aligned reads for 32-bit already return int (readU32 returns int)
+    if (byte_aligned && fi.is_signed && fi.wire_enc == model::WireEncoding::Default) {
+        if (fi.bits == 32) return false;
     }
     return true;
 }
 
-std::string j_read_expr(const JFieldInfo& fi) {
+std::string j_read_expr(const JFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BCD) return std::string(fi.bits > 32 ? "(long)" : "(int)") + " r.readBcd(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BCD_S) return std::string(fi.bits > 32 ? "(long)" : "(int)") + " r.readBcdSigned(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.readSignMagnitude(" + std::to_string(fi.bits) + ")";
@@ -559,15 +593,21 @@ std::string j_read_expr(const JFieldInfo& fi) {
         if (fi.bits <= 32) return std::string("r.readF32(") + (be ? "true" : "false") + ")";
         return std::string("r.readF64(") + (be ? "true" : "false") + ")";
     }
-    if (fi.bits == 8 && !fi.is_signed) return "r.readU8()";
-    if (fi.bits == 16 && !fi.is_signed) return std::string("r.readU16(") + (be ? "true" : "false") + ")";
-    if (fi.bits == 32 && !fi.is_signed) return std::string("r.readU32(") + (be ? "true" : "false") + ")";
-    if (fi.bits == 64 && !fi.is_signed) return std::string("r.readU64(") + (be ? "true" : "false") + ")";
+    if (byte_aligned) {
+        if (fi.bits == 8 && !fi.is_signed) return "r.readU8()";
+        if (fi.bits == 16 && !fi.is_signed) return std::string("r.readU16(") + (be ? "true" : "false") + ")";
+        if (fi.bits == 32 && !fi.is_signed) return std::string("r.readU32(") + (be ? "true" : "false") + ")";
+        if (fi.bits == 64 && !fi.is_signed) return std::string("r.readU64(") + (be ? "true" : "false") + ")";
+        // Signed byte-aligned reads: read unsigned then cast (matches C++ emit_read_expr)
+        if (fi.bits == 16 && fi.is_signed) return std::string("(short) r.readU16(") + (be ? "true" : "false") + ")";
+        if (fi.bits == 32 && fi.is_signed) return std::string("r.readU32(") + (be ? "true" : "false") + ")";
+        if (fi.bits == 64 && fi.is_signed) return std::string("r.readU64(") + (be ? "true" : "false") + ")";
+    }
     if (fi.is_signed) return "r.readSignedBits(" + std::to_string(fi.bits) + ")";
     return "r.readBits(" + std::to_string(fi.bits) + ")";
 }
 
-std::string j_write_stmt(const std::string& val, const JFieldInfo& fi) {
+std::string j_write_stmt(const std::string& val, const JFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BCD) return "w.writeBcd(" + val + ", " + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "w.writeBcdSigned(" + val + ", " + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "w.writeSignMagnitude(" + val + ", " + std::to_string(fi.bits) + ")";
@@ -578,10 +618,12 @@ std::string j_write_stmt(const std::string& val, const JFieldInfo& fi) {
     }
     // bool must be checked before bit-width checks since (int)boolean is illegal in Java
     if (fi.is_bool) return "w.writeBits(" + val + " ? 1 : 0, " + std::to_string(fi.bits) + ")";
-    if (fi.bits == 8 && !fi.is_signed) return "w.writeU8(" + val + ")";
-    if (fi.bits == 16 && !fi.is_signed) return std::string("w.writeU16(") + val + ", " + (be ? "true" : "false") + ")";
-    if (fi.bits == 32 && !fi.is_signed) return std::string("w.writeU32(") + val + ", " + (be ? "true" : "false") + ")";
-    if (fi.bits == 64 && !fi.is_signed) return std::string("w.writeU64(") + val + ", " + (be ? "true" : "false") + ")";
+    if (byte_aligned) {
+        if (fi.bits == 8 && !fi.is_signed) return "w.writeU8(" + val + ")";
+        if (fi.bits == 16 && !fi.is_signed) return std::string("w.writeU16(") + val + ", " + (be ? "true" : "false") + ")";
+        if (fi.bits == 32 && !fi.is_signed) return std::string("w.writeU32(") + val + ", " + (be ? "true" : "false") + ")";
+        if (fi.bits == 64 && !fi.is_signed) return std::string("w.writeU64(") + val + ", " + (be ? "true" : "false") + ")";
+    }
     if (fi.is_signed) return "w.writeSignedBits(" + val + ", " + std::to_string(fi.bits) + ")";
     return "w.writeBits(" + val + ", " + std::to_string(fi.bits) + ")";
 }
@@ -1197,12 +1239,14 @@ std::set<std::string> j_collect_enum_fields(const std::vector<model::StructChild
 // Forward declarations for mutual recursion with inline struct handling
 void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             JBitTracker& tracker,
                              const JOuterScopeMap& scope_map = {},
                              const JOuterContext& outer_ctx = {},
                              const JInlineNameMap& name_map = {},
                              const std::string& parent_class_name = {});
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             JBitTracker& tracker,
                              const std::string& len_ref_target = "",
                              const model::Field* auto_len_ref_field = nullptr,
                              const JInlineNameMap& name_map = {},
@@ -1212,6 +1256,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
 // Emit Java decode for field
 void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          JBitTracker& tracker,
                           const JOuterContext& outer_ctx = {},
                           const std::string& parent_class_name = {}) {
     // Inline enum field: enum_values populated, type_ref empty
@@ -1219,6 +1264,8 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         std::string enum_name = parent_class_name + j_class(f.name);
         std::string m = pfx + "." + j_field(f.name);
         ctx.line(m + " = " + enum_name + ".decode(r);");
+        if (f.bits) tracker.advance_bits(*f.bits);
+        else tracker.advance_bits_variable();
         return;
     }
     auto fi = j_resolve_field(f, index);
@@ -1227,16 +1274,16 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     if (f.is_inline && !f.type_ref.empty()) {
         auto sit = index.structs.find(f.type_ref);
         if (sit != index.structs.end()) {
-            emit_j_decode_children(ctx, sit->second->children, index, pfx);
+            emit_j_decode_children(ctx, sit->second->children, index, pfx, tracker);
             return;
         }
         auto mit = index.messages.find(f.type_ref);
         if (mit != index.messages.end()) {
-            emit_j_decode_children(ctx, mit->second->children, index, pfx);
+            emit_j_decode_children(ctx, mit->second->children, index, pfx, tracker);
             return;
         }
     }
-    if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.j_type + ".decode(r);"); return; }
+    if (fi.is_struct || fi.is_enum) { ctx.line(m + " = " + fi.j_type + ".decode(r);"); tracker.advance_field(fi); return; }
     if (fi.is_string) {
         bool has_enc = j_field_needs_encoding(f);
         std::string enc_arg = has_enc ? (", " + j_encoding_const(f)) : "";
@@ -1290,6 +1337,7 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.max_length) {
             ctx.line("if (" + m + ".length() > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.is_bytes) {
@@ -1300,20 +1348,22 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         if (f.max_length) {
             ctx.line("if (" + m + ".length > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
         }
+        tracker.advance_field(fi);
         return;
     }
     if (fi.has_scale) {
         JFieldInfo raw_fi = fi; raw_fi.bits = fi.raw_bits; raw_fi.is_signed = fi.raw_signed;
         raw_fi.is_float = false; raw_fi.has_scale = false;
-        std::string ve = j_read_expr(raw_fi);
+        std::string ve = j_read_expr(raw_fi, tracker.is_byte_aligned());
         std::string expr = ve;
         if (fi.scale != 1.0) expr += " * " + j_double(fi.scale);
         if (fi.offset != 0.0) expr += " + " + j_double(fi.offset);
         ctx.line(m + " = " + expr + ";");
+        tracker.advance_field(fi);
         return;
     }
-    if (fi.is_bool) { ctx.line(m + " = (" + j_read_expr(fi) + " != 0);"); return; }
-    ctx.line(m + " = " + (j_needs_int_cast(fi) ? "(int) " : "") + j_read_expr(fi) + ";");
+    if (fi.is_bool) { ctx.line(m + " = (" + j_read_expr(fi, tracker.is_byte_aligned()) + " != 0);"); tracker.advance_field(fi); return; }
+    ctx.line(m + " = " + (j_needs_int_cast(fi, tracker.is_byte_aligned()) ? "(int) " : "") + j_read_expr(fi, tracker.is_byte_aligned()) + ";");
     // Field-level constraint checks (matching C++ emit_constraint_check)
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
@@ -1328,11 +1378,13 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
             ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
         }
     }
+    tracker.advance_field(fi);
 }
 
 // Emit Java encode for field
 void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
+                          JBitTracker& tracker,
                           const std::string& parent_class_name = {},
                           const JOuterContext& outer_ctx = {}) {
     (void)outer_ctx;
@@ -1340,6 +1392,8 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     if (!f.enum_values.empty() && f.type_ref.empty() && !parent_class_name.empty()) {
         std::string m = pfx + "." + j_field(f.name);
         ctx.line(m + ".encode(w);");
+        if (f.bits) tracker.advance_bits(*f.bits);
+        else tracker.advance_bits_variable();
         return;
     }
     auto fi = j_resolve_field(f, index);
@@ -1349,13 +1403,13 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         auto sit = index.structs.find(f.type_ref);
         if (sit != index.structs.end()) {
             std::string len_ref; // no auto-length ref target for inline children
-            emit_j_encode_children(ctx, sit->second->children, index, pfx, len_ref);
+            emit_j_encode_children(ctx, sit->second->children, index, pfx, tracker, len_ref);
             return;
         }
         auto mit = index.messages.find(f.type_ref);
         if (mit != index.messages.end()) {
             std::string len_ref;
-            emit_j_encode_children(ctx, mit->second->children, index, pfx, len_ref);
+            emit_j_encode_children(ctx, mit->second->children, index, pfx, tracker, len_ref);
             return;
         }
     }
@@ -1367,18 +1421,21 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
             // auto="length(field)": record position for field-specific backpatch
             ctx.line("_lenRefPos = w.sizeBytes();");
         }
-        ctx.line(j_write_stmt("0", fi) + ";");
+        ctx.line(j_write_stmt("0", fi, tracker.is_byte_aligned()) + ";");
+        tracker.advance_field(fi);
         return;
     }
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count) {
         // auto="count(field)": write the size of the referenced array
         std::string array_member = pfx + "." + j_field(f.auto_expr->field_ref);
-        ctx.line(j_write_stmt(array_member + ".size()", fi) + ";");
+        ctx.line(j_write_stmt(array_member + ".size()", fi, tracker.is_byte_aligned()) + ";");
+        tracker.advance_field(fi);
         return;
     }
     if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Id) {
         // auto="id": write the message's ID_VALUE constant
-        ctx.line(j_write_stmt("ID_VALUE", fi) + ";");
+        ctx.line(j_write_stmt("ID_VALUE", fi, tracker.is_byte_aligned()) + ";");
+        tracker.advance_field(fi);
         return;
     }
     // Encode-time constraint checks (matching C++ emit_encode_constraint_check)
@@ -1396,7 +1453,7 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
             ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
         }
     }
-    if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); return; }
+    if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); tracker.advance_field(fi); return; }
     if (fi.is_string) {
         bool has_enc = j_field_needs_encoding(f);
         std::string enc_arg = has_enc ? (", " + j_encoding_const(f)) : "";
@@ -1449,9 +1506,10 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         } else {
             ctx.line("w." + write_fn + "(" + m + ", " + m + ".length(), 0" + enc_arg + ");");
         }
+        tracker.advance_field(fi);
         return;
     }
-    if (fi.is_bytes) { ctx.line("w.writeBytes(" + m + ");"); return; }
+    if (fi.is_bytes) { ctx.line("w.writeBytes(" + m + ");"); tracker.advance_field(fi); return; }
     if (fi.has_scale) {
         std::string inv = m;
         if (fi.offset != 0.0) inv = "(" + inv + " - " + j_double(fi.offset) + ")";
@@ -1462,14 +1520,17 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
         bool use_int = !raw_fi.is_signed &&
             (raw_fi.bits == 8 || raw_fi.bits == 16 || raw_fi.bits == 32);
         std::string cast = use_int ? "(int)" : "(long)";
-        ctx.line(j_write_stmt(cast + "(" + inv + ")", raw_fi) + ";");
+        ctx.line(j_write_stmt(cast + "(" + inv + ")", raw_fi, tracker.is_byte_aligned()) + ";");
+        tracker.advance_field(fi);
         return;
     }
-    ctx.line(j_write_stmt(m, fi) + ";");
+    ctx.line(j_write_stmt(m, fi, tracker.is_byte_aligned()) + ";");
+    tracker.advance_field(fi);
 }
 
 void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             JBitTracker& tracker,
                              const JOuterScopeMap& scope_map,
                              const JOuterContext& outer_ctx,
                              const JInlineNameMap& name_map,
@@ -1507,7 +1568,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             auto emit_field_decode_wrapped = [&]() {
                 ctx.line("try {");
                 ctx.indent();
-                emit_j_field_decode(ctx, *f, index, pfx, outer_ctx, parent_class_name);
+                emit_j_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
                 ctx.dedent();
                 ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
             };
@@ -1525,6 +1586,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             } else {
                 ctx.line(decode_line);
             }
+            tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
             std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
@@ -1550,6 +1612,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             } else {
                 emit_array_decode();
             }
+            tracker.advance_bits_variable();
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             if (!cd->switch_expr) continue;
             std::string sv = j_expr_ctx(*cd->switch_expr, pfx, outer_ctx, ef_ptr);
@@ -1665,15 +1728,18 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.dedent();
                 ctx.line("}");
             }
+            tracker.advance_bits_variable();
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("r.skipBits(" + std::to_string(res->bits) + ");");
+            tracker.advance_bits(res->bits);
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("r.alignTo(" + std::to_string(al->to) + ");");
+            tracker.bit_mod8 = 0; // alignment resets to byte-aligned
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             // FX extension: read continuation bit, conditionally decode children
             ctx.line("if (r.readBits(1) != 0) {");
             ctx.indent();
-            emit_j_decode_children(ctx, fx->children, index, pfx, scope_map, outer_ctx, name_map, parent_class_name);
+            emit_j_decode_children(ctx, fx->children, index, pfx, tracker, scope_map, outer_ctx, name_map, parent_class_name);
             // Write terminal FX=0 bit if this FX extent has no nested FxBlock
             bool has_nested_fx = false;
             for (const auto& fc : fx->children) {
@@ -1865,6 +1931,7 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
 
 void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChild>& children,
                              const analyzer::TypeIndex& index, const std::string& pfx,
+                             JBitTracker& tracker,
                              const std::string& len_ref_target,
                              const model::Field* auto_len_ref_field,
                              const JInlineNameMap& name_map,
@@ -1934,7 +2001,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             auto emit_field_encode_wrapped = [&]() {
                 ctx.line("try {");
                 ctx.indent();
-                emit_j_field_encode(ctx, *f, index, pfx, parent_class_name, outer_ctx);
+                emit_j_field_encode(ctx, *f, index, pfx, tracker, parent_class_name, outer_ctx);
                 ctx.dedent();
                 ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
             };
@@ -1949,6 +2016,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             } else {
                 ctx.line(m + ".encode(w);");
             }
+            tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
             if (ad->present_when) {
@@ -1956,6 +2024,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             } else {
                 ctx.line("for (var _item : " + m + ") _item.encode(w);");
             }
+            tracker.advance_bits_variable();
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + j_field(cd->name);
             auto emit_choice_encode = [&]() {
@@ -1988,10 +2057,13 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             } else {
                 emit_choice_encode();
             }
+            tracker.advance_bits_variable();
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
+            tracker.advance_bits(res->bits);
         } else if (auto* al = std::get_if<model::Align>(&child)) {
             ctx.line("w.alignTo(" + std::to_string(al->to) + ");");
+            tracker.bit_mod8 = 0;
         } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
             // FX extension: check if any children are set, write FX bit, conditionally encode
             ctx.line("{");
@@ -2029,8 +2101,6 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
 // ============================================================================
 // Java Bitmap/FSPEC class generation
 // ============================================================================
-
-static const int J_BITS_PER_BYTE = 8;
 
 struct JBitmapField {
     std::string name;
@@ -2850,7 +2920,7 @@ std::string generate_j_class(const std::string& name,
     ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") {");
     ctx.indent();
     ctx.line(cn + " result = new " + cn + "();");
-    emit_j_decode_children(ctx, children, index, "result", scope_map, outer_ctx, name_map, cn);
+    { JBitTracker decode_tracker; emit_j_decode_children(ctx, children, index, "result", decode_tracker, scope_map, outer_ctx, name_map, cn); }
     ctx.line("return result;");
     ctx.dedent();
     ctx.line("}");
@@ -2890,7 +2960,7 @@ std::string generate_j_class(const std::string& name,
         if (auto_len_ref_field) {
             ctx.line("int _lenRefPos = 0;");
         }
-        emit_j_encode_children(ctx, children, index, "this", len_ref_target, auto_len_ref_field, name_map, cn);
+        { JBitTracker encode_tracker; emit_j_encode_children(ctx, children, index, "this", encode_tracker, len_ref_target, auto_len_ref_field, name_map, cn); }
 
         // Backpatch auto-length (whole struct)
         if (auto_len_field && auto_len_field->auto_expr) {

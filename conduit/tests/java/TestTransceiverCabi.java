@@ -45,16 +45,16 @@ public class TestTransceiverCabi {
     private static final long PING_TYPE_ID = 0x0ad7bb3ecc473399L;
 
     /**
-     * Layout for conduit_transport_config_t:
-     *   { int type; [4 padding]; char* address; uint32_t baud_rate; [4 padding] }
+     * Size of conduit_transport_config_t (128 bytes on 64-bit).
+     * The struct contains pointers and size_t fields that require the full
+     * allocation to be zero-filled; under-allocating causes out-of-bounds reads
+     * in the C implementation (e.g. bind_address at offset 64 is a char* — if
+     * it contains garbage, the C code dereferences it and crashes).
      */
-    private static final StructLayout TRANSPORT_CONFIG_LAYOUT = MemoryLayout.structLayout(
-        ValueLayout.JAVA_INT.withName("type"),
-        MemoryLayout.paddingLayout(4),
-        ValueLayout.ADDRESS.withName("address"),
-        ValueLayout.JAVA_INT.withName("baud_rate"),
-        MemoryLayout.paddingLayout(4)
-    );
+    private static final long TRANSPORT_CONFIG_SIZE = 128;
+    private static final long TC_OFF_TYPE    = 0;
+    private static final long TC_OFF_ADDRESS = 8;
+    private static final long TC_OFF_BAUD    = 16;
 
     static {
         // The CABI library depends on conduit_register_session from the codec library,
@@ -266,11 +266,10 @@ public class TestTransceiverCabi {
             try {
                 var nameStr = arena.allocateUtf8String("radar");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
-                var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-                cfg.set(ValueLayout.JAVA_INT, 0, TRANSPORT_UDP);
+                var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
+                cfg.set(ValueLayout.JAVA_INT, TC_OFF_TYPE, TRANSPORT_UDP);
                 var addrStr = arena.allocateUtf8String("0.0.0.0:5000");
-                cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-                cfg.set(ValueLayout.JAVA_INT, 16, 0);
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
 
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
@@ -423,11 +422,10 @@ public class TestTransceiverCabi {
                 // Add peer
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
-                var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-                cfg.set(ValueLayout.JAVA_INT, 0, TRANSPORT_UDP);
+                var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
+                cfg.set(ValueLayout.JAVA_INT, TC_OFF_TYPE, TRANSPORT_UDP);
                 var addrStr = arena.allocateUtf8String("0.0.0.0:7005");
-                cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-                cfg.set(ValueLayout.JAVA_INT, 16, 0);
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
                 int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(
@@ -488,11 +486,10 @@ public class TestTransceiverCabi {
             try {
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
-                var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-                cfg.set(ValueLayout.JAVA_INT, 0, TRANSPORT_UDP);
+                var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
+                cfg.set(ValueLayout.JAVA_INT, TC_OFF_TYPE, TRANSPORT_UDP);
                 var addrStr = arena.allocateUtf8String("0.0.0.0:8004");
-                cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-                cfg.set(ValueLayout.JAVA_INT, 16, 0);
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
                 int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(xcvr, nameStr, sessionStr, cfg, peerIdOut);
@@ -583,11 +580,10 @@ public class TestTransceiverCabi {
                 // Add a peer first (handlers are per-peer in the C ABI)
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
-                var cfg = arena.allocate(TRANSPORT_CONFIG_LAYOUT);
-                cfg.set(ValueLayout.JAVA_INT, 0, TRANSPORT_UDP);
+                var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
+                cfg.set(ValueLayout.JAVA_INT, TC_OFF_TYPE, TRANSPORT_UDP);
                 var addrStr = arena.allocateUtf8String("0.0.0.0:9001");
-                cfg.set(ValueLayout.ADDRESS, 8, addrStr);
-                cfg.set(ValueLayout.JAVA_INT, 16, 0);
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
                 int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(xcvr, nameStr, sessionStr, cfg, peerIdOut);
                 assertEquals(0, addErr, "add_peer should succeed");

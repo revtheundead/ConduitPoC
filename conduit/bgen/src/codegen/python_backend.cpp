@@ -688,6 +688,19 @@ class BitReader:
         b = bytes([self.read_bits(8) for _ in range(8)])
         return struct.unpack('>Q' if big_endian else '<Q', b)[0]
 
+    def read_s16(self, big_endian: bool = True) -> int:
+        b0 = self.read_bits(8)
+        b1 = self.read_bits(8)
+        return struct.unpack('>h' if big_endian else '<h', bytes([b0, b1]))[0]
+
+    def read_s32(self, big_endian: bool = True) -> int:
+        b = bytes([self.read_bits(8) for _ in range(4)])
+        return struct.unpack('>i' if big_endian else '<i', b)[0]
+
+    def read_s64(self, big_endian: bool = True) -> int:
+        b = bytes([self.read_bits(8) for _ in range(8)])
+        return struct.unpack('>q' if big_endian else '<q', b)[0]
+
     def read_f32(self, big_endian: bool = True) -> float:
         b = bytes([self.read_bits(8) for _ in range(4)])
         return struct.unpack('>f' if big_endian else '<f', b)[0]
@@ -1229,6 +1242,10 @@ std::string py_read_expr(const PyFieldInfo& fi, bool byte_aligned = true) {
         if (fi.bits == 16 && !fi.is_signed) return "r.read_u16(" + be + ")";
         if (fi.bits == 32 && !fi.is_signed) return "r.read_u32(" + be + ")";
         if (fi.bits == 64 && !fi.is_signed) return "r.read_u64(" + be + ")";
+        // Signed byte-aligned reads: use struct-based methods (matches C++ emit_read_expr)
+        if (fi.bits == 16 && fi.is_signed) return "r.read_s16(" + be + ")";
+        if (fi.bits == 32 && fi.is_signed) return "r.read_s32(" + be + ")";
+        if (fi.bits == 64 && fi.is_signed) return "r.read_s64(" + be + ")";
     }
     if (fi.is_signed) return "r.read_signed_bits(" + std::to_string(fi.bits) + ")";
     return "r.read_bits(" + std::to_string(fi.bits) + ")";
