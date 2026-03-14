@@ -229,3 +229,9 @@ Choices support `present-when` and `bit` for conditional presence:
 - Without `<otherwise>`, an unrecognized discriminator value causes a decode error.
 - `<otherwise>` is implicitly receive-only -- you can decode unknown types into it but cannot encode an otherwise case.
 - The `switch` expression must reference a previously decoded field -- you can't switch on a field that appears after the choice.
+
+> **Backend limitation (Java/Python):** `direction` filtering is ignored -- all cases participate in both encode and decode regardless of their `direction` attribute. See [Limitations & Known Issues](../conduit/limitations.md).
+
+> **Backend limitation (Java/Python):** Only exact `value` matching is supported in choice cases. Range cases (`range="lo..hi"`) are not implemented -- only exact values are matched. See [Limitations & Known Issues](../conduit/limitations.md).
+
+> **Backend limitation (Java/Python):** When a `<choice>` is controlled by a bitmap/FSPEC bit, Java sets the field to `null` (unimplemented) and Python generates invalid decode code. Only the C++ backend handles bitmap-controlled choices correctly. See [Limitations & Known Issues](../conduit/limitations.md).

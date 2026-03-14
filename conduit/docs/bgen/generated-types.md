@@ -210,6 +210,8 @@ The Java and Python backends generate equivalent type wrappers using language-ap
 | Decode | `decode_MsgType(BitReader&)` -> `Result<MsgType>` | `MsgType.decode(BitReader)` | `MsgType.decode(BitReader)` |
 | Encode | `encode_MsgType(v, BitWriter&)` | `encode(BitWriter)` | `encode(BitWriter)` |
 
+> **Known bug (Java):** Java enum value types are always `int` regardless of the BMDL bit width. Enums wider than 32 bits will be silently truncated. See [Limitations & Known Issues](../conduit/limitations.md).
+
 ### Flags Types
 
 | Aspect | C++ | Java | Python |
