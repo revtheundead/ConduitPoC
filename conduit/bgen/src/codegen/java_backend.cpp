@@ -2800,7 +2800,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.indent();
         if (bf.is_enum) {
             // Enum from int value
-            ctx.line("obj." + fn + " = " + bf.j_type + ".fromValue(((Number) d.get(\"" + key + "\")).intValue());");
+            ctx.line("{ int _rv = ((Number) d.get(\"" + key + "\")).intValue(); for (" + bf.j_type + " v : " + bf.j_type + ".values()) { if (v.value == _rv) { obj." + fn + " = v; break; } } }");
         } else if (bf.has_scale || bf.is_float) {
             ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).doubleValue();");
         } else if (bf.is_struct) {
@@ -4967,32 +4967,38 @@ bool JavaBackend::generate(
     for (const auto& si : sessions) {
         if (!si.is_frame_based || !si.frame) continue;
         std::vector<JFieldDef> frame_fields;
+        auto add_frame_field = [&](const model::Field* f) {
+            auto fi = j_resolve_field(*f, index);
+            JFieldDef fd;
+            fd.name = j_field(f->name);
+            fd.bmdl_name = f->name;
+            fd.j_type = fi.j_type;
+            fd.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
+                            !fi.is_float && !fi.has_scale && (fi.bits > 0);
+            fd.is_struct = fi.is_struct;
+            fd.is_type_wrapper = fi.is_type_wrapper;
+            fd.is_string_wrapper = fi.is_string_wrapper;
+            fd.is_scaled_wrapper = fi.is_scaled_wrapper;
+            fd.is_string = fi.is_string;
+            fd.is_bytes = fi.is_bytes;
+            fd.is_bool = fi.is_bool;
+            fd.is_enum = fi.is_enum;
+            fd.has_scale = fi.has_scale;
+            if (fi.is_string) fd.init = "\"\"";
+            else if (fi.is_bytes) fd.init = "new byte[0]";
+            else if (fi.is_bool) fd.init = "false";
+            else if (fi.j_type == "long") fd.init = "0L";
+            else fd.init = "0";
+            frame_fields.push_back(fd);
+        };
         for (const auto& child : si.frame->header_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = j_resolve_field(*f, index);
-                JFieldDef fd;
-                fd.name = j_field(f->name);
-                fd.j_type = fi.j_type;
-                if (fi.is_string) fd.init = "\"\"";
-                else if (fi.is_bytes) fd.init = "new byte[0]";
-                else if (fi.is_bool) fd.init = "false";
-                else if (fi.j_type == "long") fd.init = "0L";
-                else fd.init = "0";
-                frame_fields.push_back(fd);
+                add_frame_field(f);
             }
         }
         for (const auto& child : si.frame->footer_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = j_resolve_field(*f, index);
-                JFieldDef fd;
-                fd.name = j_field(f->name);
-                fd.j_type = fi.j_type;
-                if (fi.is_string) fd.init = "\"\"";
-                else if (fi.is_bytes) fd.init = "new byte[0]";
-                else if (fi.is_bool) fd.init = "false";
-                else if (fi.j_type == "long") fd.init = "0L";
-                else fd.init = "0";
-                frame_fields.push_back(fd);
+                add_frame_field(f);
             }
         }
         if (!frame_fields.empty()) {
