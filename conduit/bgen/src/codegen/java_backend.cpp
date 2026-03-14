@@ -236,6 +236,9 @@ struct JFieldInfo {
     bool is_bytes = false;
     bool is_float = false;
     bool is_bool = false;
+    bool is_type_wrapper = false; // true for TypeDef wrappers (string/scaled/flags/constrained)
+    bool is_string_wrapper = false;
+    bool is_scaled_wrapper = false;
     int bits = 0;
     bool is_signed = false;
     bool has_scale = false;
@@ -265,6 +268,20 @@ JFieldInfo j_resolve_field(const model::Field& f, const analyzer::TypeIndex& ind
     ji.raw_signed = cfi.raw_signed;
     ji.endian = f.endian;
     ji.wire_enc = cfi.wire_encoding;
+    // Detect type wrappers: TypeDef resolved as struct (not a real StructDef/MessageDef)
+    if (ji.is_struct && !f.type_ref.empty()) {
+        auto resolved = index.find(f.type_ref);
+        if (resolved) {
+            std::visit([&ji](const auto* def) {
+                using T = std::decay_t<decltype(*def)>;
+                if constexpr (std::is_same_v<T, model::TypeDef>) {
+                    ji.is_type_wrapper = true;
+                    ji.is_string_wrapper = (def->base == model::PrimitiveBase::String);
+                    ji.is_scaled_wrapper = def->scale.has_value() || def->offset.has_value();
+                }
+            }, *resolved);
+        }
+    }
 
     if (ji.is_string) { ji.j_type = "String"; ji.j_boxed = "String"; }
     else if (ji.is_bytes) { ji.j_type = "byte[]"; ji.j_boxed = "byte[]"; }
@@ -686,6 +703,13 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("public long readBits(int n) {");
     ctx.indent();
     ctx.line("check(n);");
+    ctx.line("if ((bitPos & 7) == 0 && (n & 7) == 0) {");
+    ctx.indent();
+    ctx.line("long val = 0; int idx = bitPos / 8; int bytes = n / 8;");
+    ctx.line("for (int i = 0; i < bytes; i++) val = (val << 8) | (data[idx + i] & 0xFF);");
+    ctx.line("bitPos += n; return val;");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line("long val = 0;");
     ctx.line("int rem = n;");
     ctx.line("while (rem > 0) {");
@@ -876,6 +900,13 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("public void writeBits(long value, int n) {");
     ctx.indent();
     ctx.line("ensure(n);");
+    ctx.line("if ((bitPos & 7) == 0 && (n & 7) == 0) {");
+    ctx.indent();
+    ctx.line("int idx = bitPos / 8; int bytes = n / 8;");
+    ctx.line("for (int i = bytes - 1; i >= 0; i--) { buf[idx + bytes - 1 - i] = (byte)(value >> (i * 8)); }");
+    ctx.line("bitPos += n; return;");
+    ctx.dedent();
+    ctx.line("}");
     ctx.line("int rem = n;");
     ctx.line("while (rem > 0) {");
     ctx.indent();
@@ -1032,6 +1063,12 @@ struct JFieldDef {
     bool is_string = false;
     bool is_bytes = false;
     bool is_bool = false;
+    bool is_type_wrapper = false; // TypeDef wrapper (string/scaled/flags/constrained) vs real struct
+    bool is_string_wrapper = false; // String type wrapper (AsciiStr etc)
+    bool is_scaled_wrapper = false; // Scaled type wrapper (ScaledTemp etc)
+    bool is_list_of_type_wrappers = false; // List<TypeWrapper> elements
+    bool is_list_of_string_wrappers = false;
+    bool is_list_of_scaled_wrappers = false;
     std::optional<int> max_length;
     // Scaled field raw accessors
     bool has_scale = false;
@@ -1172,6 +1209,9 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             jf.is_signed = fi.is_signed;
             jf.is_enum = fi.is_enum;
             jf.is_struct = fi.is_struct;
+            jf.is_type_wrapper = fi.is_type_wrapper;
+            jf.is_string_wrapper = fi.is_string_wrapper;
+            jf.is_scaled_wrapper = fi.is_scaled_wrapper;
             jf.is_string = fi.is_string;
             jf.is_bytes = fi.is_bytes;
             jf.is_bool = fi.is_bool;
@@ -1201,6 +1241,20 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             adf.name = j_field(ad->name);
             adf.bmdl_name = ad->name;
             adf.is_optional = in_fx || ad->present_when != nullptr || ad->bit.has_value();
+            // Check if array element type is a type wrapper
+            if (!ad->type_ref.empty()) {
+                auto resolved = index.find(ad->type_ref);
+                if (resolved) {
+                    std::visit([&adf](const auto* def) {
+                        using T = std::decay_t<decltype(*def)>;
+                        if constexpr (std::is_same_v<T, model::TypeDef>) {
+                            adf.is_list_of_type_wrappers = true;
+                            adf.is_list_of_string_wrappers = (def->base == model::PrimitiveBase::String);
+                            adf.is_list_of_scaled_wrappers = def->scale.has_value() || def->offset.has_value();
+                        }
+                    }, *resolved);
+                }
+            }
             if (in_fx) {
                 adf.j_type = "java.util.List<" + elem + ">";
                 adf.init = "null";
@@ -2113,6 +2167,9 @@ struct JBitmapField {
     bool is_float = false;
     bool is_bool = false;
     bool is_signed = false;
+    bool is_type_wrapper = false;
+    bool is_string_wrapper = false;
+    bool is_scaled_wrapper = false;
     bool has_scale = false;
     double scale = 1.0;
     double offset = 0.0;
@@ -2143,7 +2200,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                                      const std::unordered_map<std::string, uint64_t>& /*tid_map*/,
                                      const JOuterScopeMap& scope_map = {},
                                      const JInlineNameMap& name_map = {},
-                                     const std::string& class_name_override = {}) {
+                                     const std::string& class_name_override = {},
+                                     const analyzer::WireSizeInfo* sizes = nullptr) {
     std::string cn = class_name_override.empty() ? j_class(sd.name) : class_name_override;
 
     // Collect bitmap-controlled fields
@@ -2163,6 +2221,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 bf.is_float = fi.is_float;
                 bf.is_bool = fi.is_bool;
                 bf.is_signed = fi.is_signed;
+                bf.is_type_wrapper = fi.is_type_wrapper;
+                bf.is_string_wrapper = fi.is_string_wrapper;
+                bf.is_scaled_wrapper = fi.is_scaled_wrapper;
                 bf.has_scale = fi.has_scale;
                 bf.scale = fi.scale;
                 bf.offset = fi.offset;
@@ -2241,6 +2302,12 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     j_emit_doc(ctx, sd.doc);
     ctx.line("public final class " + cn + " {");
     ctx.indent();
+    if (sizes) {
+        auto ws = sizes->get(sd.name);
+        if (ws) {
+            ctx.line("public static final int WIRE_SIZE = " + std::to_string(*ws) + ";");
+        }
+    }
 
     // Fields — all nullable
     for (const auto& bf : bfields) {
@@ -2663,6 +2730,113 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     ctx.dedent();
     ctx.line("}");
 
+    // equals()
+    ctx.line();
+    ctx.line("@Override public boolean equals(Object o) {");
+    ctx.indent();
+    ctx.line("if (this == o) return true;");
+    ctx.line("if (!(o instanceof " + cn + ")) return false;");
+    ctx.line(cn + " that = (" + cn + ") o;");
+    if (bfields.empty()) {
+        ctx.line("return true;");
+    } else {
+        std::string eq_expr;
+        for (size_t i = 0; i < bfields.size(); i++) {
+            if (i > 0) eq_expr += " && ";
+            eq_expr += "java.util.Objects.equals(" + j_field(bfields[i].name) + ", that." + j_field(bfields[i].name) + ")";
+        }
+        ctx.line("return " + eq_expr + ";");
+    }
+    ctx.dedent();
+    ctx.line("}");
+
+    // hashCode()
+    ctx.line();
+    ctx.line("@Override public int hashCode() {");
+    ctx.indent();
+    if (bfields.empty()) {
+        ctx.line("return 0;");
+    } else {
+        std::string args;
+        for (size_t i = 0; i < bfields.size(); i++) {
+            if (i > 0) args += ", ";
+            args += j_field(bfields[i].name);
+        }
+        ctx.line("return java.util.Objects.hash(" + args + ");");
+    }
+    ctx.dedent();
+    ctx.line("}");
+
+    // toMap()
+    ctx.line();
+    ctx.line("public java.util.Map<String, Object> toMap() {");
+    ctx.indent();
+    ctx.line("java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();");
+    for (const auto& bf : bfields) {
+        std::string fn = j_field(bf.name);
+        std::string key = bf.name;
+        ctx.line("if (" + fn + " != null) {");
+        ctx.indent();
+        if (bf.is_enum) {
+            ctx.line("m.put(\"" + key + "\", " + fn + ".value);");
+        } else if (bf.is_type_wrapper) {
+            ctx.line("m.put(\"" + key + "\", " + fn + ".value());");
+        } else if (bf.is_struct) {
+            ctx.line("m.put(\"" + key + "\", " + fn + ".toMap());");
+        } else if (bf.is_bytes) {
+            ctx.line("{ java.util.List<Integer> _bl = new java.util.ArrayList<>(); for (byte _b : " + fn + ") _bl.add((int)_b & 0xFF); m.put(\"" + key + "\", _bl); }");
+        } else {
+            ctx.line("m.put(\"" + key + "\", " + fn + ");");
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+    ctx.line("return m;");
+    ctx.dedent();
+    ctx.line("}");
+
+    // fromMap()
+    ctx.line();
+    ctx.line("@SuppressWarnings(\"unchecked\")");
+    ctx.line("public static " + cn + " fromMap(java.util.Map<String, Object> d) {");
+    ctx.indent();
+    ctx.line(cn + " obj = new " + cn + "();");
+    for (const auto& bf : bfields) {
+        std::string fn = j_field(bf.name);
+        std::string key = bf.name;
+        ctx.line("if (d.containsKey(\"" + key + "\")) {");
+        ctx.indent();
+        if (bf.is_enum) {
+            // Enum from int value
+            ctx.line("{ int _rv = ((Number) d.get(\"" + key + "\")).intValue(); for (" + bf.j_type + " v : " + bf.j_type + ".values()) { if (v.value == _rv) { obj." + fn + " = v; break; } } }");
+        } else if (bf.is_string_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof String) obj." + fn + " = new " + bf.j_type + "((String)_sv); }");
+        } else if (bf.is_scaled_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof Number) { obj." + fn + " = new " + bf.j_type + "(); obj." + fn + ".setValue(((Number)_sv).doubleValue()); } }");
+        } else if (bf.is_type_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof Number) obj." + fn + " = new " + bf.j_type + "(((Number)_sv).longValue()); }");
+        } else if (bf.has_scale || bf.is_float) {
+            ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).doubleValue();");
+        } else if (bf.is_struct) {
+            ctx.line("obj." + fn + " = " + bf.j_type + ".fromMap((java.util.Map<String, Object>) d.get(\"" + key + "\"));");
+        } else if (bf.is_bytes) {
+            ctx.line("{ java.util.List<Number> _bl = (java.util.List<Number>) d.get(\"" + key + "\"); byte[] _ba = new byte[_bl.size()]; for (int _i = 0; _i < _bl.size(); _i++) _ba[_i] = _bl.get(_i).byteValue(); obj." + fn + " = _ba; }");
+        } else if (bf.is_bool) {
+            ctx.line("obj." + fn + " = (Boolean) d.get(\"" + key + "\");");
+        } else if (bf.is_string) {
+            ctx.line("obj." + fn + " = (String) d.get(\"" + key + "\");");
+        } else if (bf.j_type == "long" || bf.j_type == "Long") {
+            ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).longValue();");
+        } else {
+            ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).intValue();");
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+    ctx.line("return obj;");
+    ctx.dedent();
+    ctx.line("}");
+
     // validate() for bitmap class
     {
         bool has_any = false;
@@ -2777,7 +2951,8 @@ std::string generate_j_class(const std::string& name,
                               const JInlineNameMap& name_map = {},
                               const std::string& class_name_override = {},
                               const std::vector<JFieldDef>& extra_fields = {},
-                              const std::string& doc = {}) {
+                              const std::string& doc = {},
+                              const analyzer::WireSizeInfo* sizes = nullptr) {
     std::string cn = class_name_override.empty() ? j_class(name) : class_name_override;
     std::vector<JFieldDef> fields;
     // Add frame header/footer fields if this is a message used in a frame
@@ -2803,6 +2978,12 @@ std::string generate_j_class(const std::string& name,
         ctx.line("public static final String TYPE_NAME = \"" + name + "\";");
     }
     if (!msg_id.empty()) ctx.line("public static final int ID_VALUE = " + msg_id + ";");
+    if (sizes) {
+        auto ws = sizes->get(name);
+        if (ws) {
+            ctx.line("public static final int WIRE_SIZE = " + std::to_string(*ws) + ";");
+        }
+    }
     ctx.line();
 
     // Fields
@@ -3003,6 +3184,114 @@ std::string generate_j_class(const std::string& name,
     ctx.line("public byte[] encodeBytes() { BitWriter w = new BitWriter(); encode(w); return w.toBytes(); }");
     ctx.line();
 
+    // toMap
+    ctx.line("public java.util.Map<String, Object> toMap() {");
+    ctx.indent();
+    ctx.line("java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();");
+    for (const auto& f : fields) {
+        std::string key = f.bmdl_name.empty() ? f.name : f.bmdl_name;
+        std::string val = f.name;
+        if (f.j_type == "byte[]") {
+            ctx.line("{ java.util.List<Integer> _bl = new java.util.ArrayList<>(); if (" + val + " != null) for (byte b : " + val + ") _bl.add(b & 0xFF); m.put(\"" + key + "\", _bl); }");
+        } else if (f.is_enum) {
+            ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value : null);");
+        } else if (f.is_type_wrapper || (f.is_struct && f.is_string)) {
+            // Type wrappers (string/scaled/flags/constrained) and string structs use .value()
+            ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".value() : null);");
+        } else if (f.is_struct) {
+            ctx.line("m.put(\"" + key + "\", " + val + " != null ? " + val + ".toMap() : null);");
+        } else if (f.j_type.find("java.util.List") == 0) {
+            // Extract element type from java.util.List<ElemType>
+            std::string elem_type;
+            auto lt_pos = f.j_type.find('<');
+            if (lt_pos != std::string::npos && f.j_type.back() == '>') {
+                elem_type = f.j_type.substr(lt_pos + 1, f.j_type.size() - lt_pos - 2);
+            }
+            if (!elem_type.empty() && f.is_list_of_type_wrappers) {
+                ctx.line("{ java.util.List<Object> _al = new java.util.ArrayList<>(); if (" + val + " != null) for (" + elem_type + " _e : " + val + ") _al.add(_e != null ? _e.value() : null); m.put(\"" + key + "\", _al); }");
+            } else if (!elem_type.empty()) {
+                ctx.line("{ java.util.List<Object> _al = new java.util.ArrayList<>(); if (" + val + " != null) for (" + elem_type + " _e : " + val + ") _al.add(_e != null ? _e.toMap() : null); m.put(\"" + key + "\", _al); }");
+            } else {
+                ctx.line("m.put(\"" + key + "\", " + val + ");");
+            }
+        } else {
+            ctx.line("m.put(\"" + key + "\", " + val + ");");
+        }
+    }
+    ctx.line("return m;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
+    // fromMap
+    ctx.line("@SuppressWarnings(\"unchecked\")");
+    ctx.line("public static " + cn + " fromMap(java.util.Map<String, Object> m) {");
+    ctx.indent();
+    ctx.line(cn + " obj = new " + cn + "();");
+    for (const auto& f : fields) {
+        std::string key = f.bmdl_name.empty() ? f.name : f.bmdl_name;
+        std::string target = "obj." + f.name;
+        ctx.line("if (m.containsKey(\"" + key + "\")) {");
+        ctx.indent();
+        if (f.j_type == "byte[]") {
+            ctx.line("Object _bv = m.get(\"" + key + "\"); if (_bv instanceof java.util.List) { java.util.List<?> _bl = (java.util.List<?>)_bv; byte[] _ba = new byte[_bl.size()]; for (int _i=0;_i<_bl.size();_i++) _ba[_i] = ((Number)_bl.get(_i)).byteValue(); " + target + " = _ba; }");
+        } else if (f.is_enum) {
+            ctx.line("Object _ev = m.get(\"" + key + "\"); if (_ev instanceof Number) { int _rv = ((Number)_ev).intValue(); for (" + f.j_type + " v : " + f.j_type + ".values()) { if (v.value == _rv) { " + target + " = v; break; } } }");
+        } else if (f.is_string_wrapper) {
+            // String type wrapper: construct from String value
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = new " + f.j_type + "((String)_sv);");
+        } else if (f.is_scaled_wrapper) {
+            // Scaled type wrapper: construct + setValue from double
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof Number) { " + target + " = new " + f.j_type + "(); " + target + ".setValue(((Number)_sv).doubleValue()); }");
+        } else if (f.is_type_wrapper) {
+            // Flags/constrained type wrapper: construct from raw long
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof Number) " + target + " = new " + f.j_type + "(((Number)_sv).longValue());");
+        } else if (f.is_struct && f.is_string) {
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = new " + f.j_type + "((String)_sv);");
+        } else if (f.is_struct) {
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof java.util.Map) " + target + " = " + f.j_type + ".fromMap((java.util.Map<String, Object>)_sv);");
+        } else if (f.j_type.find("java.util.List") == 0) {
+            // List fields: deserialize from List<Object>
+            std::string elem_type;
+            auto lt_pos = f.j_type.find('<');
+            if (lt_pos != std::string::npos && f.j_type.back() == '>') {
+                elem_type = f.j_type.substr(lt_pos + 1, f.j_type.size() - lt_pos - 2);
+            }
+            if (!elem_type.empty() && f.is_list_of_string_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof String) " + target + ".add(new " + elem_type + "((String)_e)); }");
+            } else if (!elem_type.empty() && f.is_list_of_scaled_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof Number) { " + elem_type + " _tw = new " + elem_type + "(); _tw.setValue(((Number)_e).doubleValue()); " + target + ".add(_tw); } }");
+            } else if (!elem_type.empty() && f.is_list_of_type_wrappers) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof Number) " + target + ".add(new " + elem_type + "(((Number)_e).longValue())); }");
+            } else if (!elem_type.empty()) {
+                ctx.line("Object _lv = m.get(\"" + key + "\"); if (_lv instanceof java.util.List) { java.util.List<?> _sl = (java.util.List<?>)_lv; " + target + " = new java.util.ArrayList<>(); for (Object _e : _sl) if (_e instanceof java.util.Map) " + target + ".add(" + elem_type + ".fromMap((java.util.Map<String, Object>)_e)); }");
+            } else {
+                ctx.line(target + " = m.get(\"" + key + "\");");
+            }
+        } else if (f.has_scale || f.j_type == "double" || f.j_type == "Double") {
+            ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).doubleValue();");
+        } else if (f.j_type == "float" || f.j_type == "Float") {
+            ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).floatValue();");
+        } else if (f.is_numeric) {
+            if (f.j_type == "long" || f.j_type == "Long")
+                ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).longValue();");
+            else
+                ctx.line("Object _nv = m.get(\"" + key + "\"); if (_nv instanceof Number) " + target + " = ((Number)_nv).intValue();");
+        } else if (f.is_bool) {
+            ctx.line("Object _bv = m.get(\"" + key + "\"); if (_bv instanceof Boolean) " + target + " = (Boolean)_bv;");
+        } else if (f.is_string) {
+            ctx.line("Object _sv = m.get(\"" + key + "\"); if (_sv instanceof String) " + target + " = (String)_sv;");
+        } else {
+            ctx.line(target + " = m.get(\"" + key + "\");");
+        }
+        ctx.dedent();
+        ctx.line("}");
+    }
+    ctx.line("return obj;");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line();
+
     // toString
     ctx.line("@Override public String toString() {");
     ctx.indent();
@@ -3025,6 +3314,72 @@ std::string generate_j_class(const std::string& name,
         }
         fmt += " + \")\";";
         ctx.line(fmt);
+    }
+    ctx.dedent();
+    ctx.line("}");
+
+    // equals()
+    ctx.line();
+    ctx.line("@Override public boolean equals(Object o) {");
+    ctx.indent();
+    ctx.line("if (this == o) return true;");
+    ctx.line("if (!(o instanceof " + cn + ")) return false;");
+    ctx.line(cn + " that = (" + cn + ") o;");
+    if (fields.empty()) {
+        ctx.line("return true;");
+    } else {
+        std::string eq_expr;
+        for (size_t i = 0; i < fields.size(); i++) {
+            if (i > 0) eq_expr += " && ";
+            if (fields[i].j_type == "byte[]") {
+                eq_expr += "java.util.Arrays.equals(" + fields[i].name + ", that." + fields[i].name + ")";
+            } else if (fields[i].is_numeric && !fields[i].is_optional) {
+                eq_expr += fields[i].name + " == that." + fields[i].name;
+            } else {
+                eq_expr += "java.util.Objects.equals(" + fields[i].name + ", that." + fields[i].name + ")";
+            }
+        }
+        ctx.line("return " + eq_expr + ";");
+    }
+    ctx.dedent();
+    ctx.line("}");
+
+    // hashCode()
+    ctx.line();
+    ctx.line("@Override public int hashCode() {");
+    ctx.indent();
+    if (fields.empty()) {
+        ctx.line("return 0;");
+    } else {
+        // Collect hash components -- use Arrays.hashCode for byte[], otherwise Objects.hash
+        bool has_byte_array = false;
+        for (const auto& f : fields) {
+            if (f.j_type == "byte[]") { has_byte_array = true; break; }
+        }
+        if (has_byte_array) {
+            ctx.line("int result = 17;");
+            for (const auto& f : fields) {
+                if (f.j_type == "byte[]") {
+                    ctx.line("result = 31 * result + java.util.Arrays.hashCode(" + f.name + ");");
+                } else if (f.is_numeric && !f.is_optional) {
+                    if (f.j_type == "long" || f.j_type == "Long") {
+                        ctx.line("result = 31 * result + Long.hashCode(" + f.name + ");");
+                    } else {
+                        ctx.line("result = 31 * result + Integer.hashCode(" + f.name + ");");
+                    }
+                } else {
+                    ctx.line("result = 31 * result + java.util.Objects.hashCode(" + f.name + ");");
+                }
+            }
+            ctx.line("return result;");
+        } else {
+            std::string args;
+            for (size_t i = 0; i < fields.size(); i++) {
+                if (i > 0) args += ", ";
+                args += fields[i].name;
+            }
+            ctx.line("return java.util.Objects.hash(" + args + ");");
+        }
     }
     ctx.dedent();
     ctx.line("}");
@@ -3188,6 +3543,9 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
             if (!f->enum_values.empty() && f->type_ref.empty()) {
                 std::string enum_name = j_class(prefix) + j_class(f->name);
                 int bits = f->bits.value_or(8);
+                bool use_long = (bits > 32);
+                std::string val_type = use_long ? "long" : "int";
+                std::string lit_suffix = use_long ? "L" : "";
                 EmitContext tctx;
                 tctx.line("// Generated by bgen - DO NOT EDIT");
                 tctx.line("package " + pkg + ";");
@@ -3198,15 +3556,15 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                 tctx.indent();
                 for (size_t i = 0; i < f->enum_values.size(); i++) {
                     std::string comma = (i + 1 < f->enum_values.size()) ? "," : ";";
-                    tctx.line(j_const(f->enum_values[i].name) + "(" + std::to_string(f->enum_values[i].id) + ")" + comma);
+                    tctx.line(j_const(f->enum_values[i].name) + "(" + std::to_string(f->enum_values[i].id) + lit_suffix + ")" + comma);
                 }
                 tctx.line();
-                tctx.line("public final int value;");
-                tctx.line(enum_name + "(int v) { this.value = v; }");
+                tctx.line("public final " + val_type + " value;");
+                tctx.line(enum_name + "(" + val_type + " v) { this.value = v; }");
                 tctx.line();
                 tctx.line("public static " + enum_name + " decode(BitReader r) {");
                 tctx.indent();
-                tctx.line("int raw = (int) r.readBits(" + std::to_string(bits) + ");");
+                tctx.line(val_type + " raw = " + (use_long ? "" : "(int) ") + "r.readBits(" + std::to_string(bits) + ");");
                 tctx.line("for (" + enum_name + " v : values()) if (v.value == raw) return v;");
                 tctx.line("throw new ConduitCodecException(\"unknown " + enum_name + " value: \" + raw);");
                 tctx.dedent();
@@ -4345,8 +4703,6 @@ bool JavaBackend::generate(
     const std::string& ns,
     const std::filesystem::path& output_dir) {
 
-    (void)sizes;
-
     std::string pkg = ns.empty() ? "io.conduit.gen" : ns;
     // Replace :: and hyphens for Java package naming
     std::string java_pkg;
@@ -4576,6 +4932,13 @@ bool JavaBackend::generate(
                         tctx.line("public static " + name + " decode(BitReader r) { return new " + name + "(r." + rd + "(" + std::to_string(t.bits) + ")); }");
                     }
                     tctx.line("public void encode(BitWriter w) { w." + wr + "(raw, " + std::to_string(t.bits) + "); }");
+                    if (is_flags) {
+                        tctx.line("@Override public String toString() { return \"" + name + "(0x\" + Long.toHexString(raw) + \")\"; }");
+                    } else if (has_scale) {
+                        tctx.line("@Override public String toString() { return \"" + name + "(\" + value() + \")\"; }");
+                    } else {
+                        tctx.line("@Override public String toString() { return \"" + name + "(\" + raw + \")\"; }");
+                    }
                     tctx.dedent();
                     tctx.line("}");
                 }
@@ -4605,9 +4968,9 @@ bool JavaBackend::generate(
         }
         std::string code;
         if (sd.is_bitmap) {
-            code = generate_j_bitmap_class(sd, index, java_pkg, empty, scope_map, name_map);
+            code = generate_j_bitmap_class(sd, index, java_pkg, empty, scope_map, name_map, {}, &sizes);
         } else {
-            code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map, {}, {}, sd.doc);
+            code = generate_j_class(sd.name, sd.children, index, java_pkg, empty, {}, scope_map, name_map, {}, {}, sd.doc, &sizes);
         }
         ok &= write_file(pkg_dir / (j_class(sd.name) + ".java"), code);
         file_count++;
@@ -4618,32 +4981,38 @@ bool JavaBackend::generate(
     for (const auto& si : sessions) {
         if (!si.is_frame_based || !si.frame) continue;
         std::vector<JFieldDef> frame_fields;
+        auto add_frame_field = [&](const model::Field* f) {
+            auto fi = j_resolve_field(*f, index);
+            JFieldDef fd;
+            fd.name = j_field(f->name);
+            fd.bmdl_name = f->name;
+            fd.j_type = fi.j_type;
+            fd.is_numeric = !fi.is_struct && !fi.is_enum && !fi.is_string && !fi.is_bytes && !fi.is_bool &&
+                            !fi.is_float && !fi.has_scale && (fi.bits > 0);
+            fd.is_struct = fi.is_struct;
+            fd.is_type_wrapper = fi.is_type_wrapper;
+            fd.is_string_wrapper = fi.is_string_wrapper;
+            fd.is_scaled_wrapper = fi.is_scaled_wrapper;
+            fd.is_string = fi.is_string;
+            fd.is_bytes = fi.is_bytes;
+            fd.is_bool = fi.is_bool;
+            fd.is_enum = fi.is_enum;
+            fd.has_scale = fi.has_scale;
+            if (fi.is_string) fd.init = "\"\"";
+            else if (fi.is_bytes) fd.init = "new byte[0]";
+            else if (fi.is_bool) fd.init = "false";
+            else if (fi.j_type == "long") fd.init = "0L";
+            else fd.init = "0";
+            frame_fields.push_back(fd);
+        };
         for (const auto& child : si.frame->header_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = j_resolve_field(*f, index);
-                JFieldDef fd;
-                fd.name = j_field(f->name);
-                fd.j_type = fi.j_type;
-                if (fi.is_string) fd.init = "\"\"";
-                else if (fi.is_bytes) fd.init = "new byte[0]";
-                else if (fi.is_bool) fd.init = "false";
-                else if (fi.j_type == "long") fd.init = "0L";
-                else fd.init = "0";
-                frame_fields.push_back(fd);
+                add_frame_field(f);
             }
         }
         for (const auto& child : si.frame->footer_fields) {
             if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = j_resolve_field(*f, index);
-                JFieldDef fd;
-                fd.name = j_field(f->name);
-                fd.j_type = fi.j_type;
-                if (fi.is_string) fd.init = "\"\"";
-                else if (fi.is_bytes) fd.init = "new byte[0]";
-                else if (fi.is_bool) fd.init = "false";
-                else if (fi.j_type == "long") fd.init = "0L";
-                else fd.init = "0";
-                frame_fields.push_back(fd);
+                add_frame_field(f);
             }
         }
         if (!frame_fields.empty()) {
@@ -4665,7 +5034,7 @@ bool JavaBackend::generate(
         }
         auto mff_it = msg_frame_fields.find(md.name);
         std::vector<JFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<JFieldDef>{};
-        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc);
+        std::string code = generate_j_class(md.name, md.children, index, java_pkg, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc, &sizes);
         ok &= write_file(pkg_dir / (j_class(md.name) + ".java"), code);
         file_count++;
     }

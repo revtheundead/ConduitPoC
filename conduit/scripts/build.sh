@@ -374,7 +374,12 @@ if [ "$RUN_TESTS" = true ]; then
             # Install pytest from vendored wheels if available
             if [ -d "$PYTEST_WHEEL_DIR" ]; then
                 $PYTHON_CMD -m pip install --no-index --find-links "$PYTEST_WHEEL_DIR" \
-                    pytest 2>/dev/null || true
+                    pytest 2>/dev/null \
+                || $PYTHON_CMD -m pip install --no-index --find-links "$PYTEST_WHEEL_DIR" \
+                    --user pytest 2>/dev/null \
+                || $PYTHON_CMD -m pip install --no-index --find-links "$PYTEST_WHEEL_DIR" \
+                    --break-system-packages pytest 2>/dev/null \
+                || true
             fi
             if $PYTHON_CMD -c "import pytest" 2>/dev/null; then
                 # Generate Python packages from BMDL fixtures

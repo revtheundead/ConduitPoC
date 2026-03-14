@@ -652,6 +652,12 @@ class BitReader:
 
     def read_bits(self, n: int) -> int:
         self._check(n)
+        if (self._bit_pos & 7) == 0 and (n & 7) == 0:
+            start = self._bit_pos >> 3
+            nbytes = n >> 3
+            val = int.from_bytes(self._data[start:start + nbytes], 'big')
+            self._bit_pos += n
+            return val
         val = 0
         remaining = n
         while remaining > 0:
@@ -808,6 +814,13 @@ class BitWriter:
 
     def write_bits(self, value: int, n: int) -> None:
         self._ensure(n)
+        if (self._bit_pos & 7) == 0 and (n & 7) == 0:
+            start = self._bit_pos >> 3
+            nbytes = n >> 3
+            if nbytes > 0:
+                self._buf[start:start + nbytes] = value.to_bytes(nbytes, 'big')
+            self._bit_pos += n
+            return
         remaining = n
         while remaining > 0:
             byte_idx = self._bit_pos // 8
@@ -1052,6 +1065,10 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.indent();
             ctx.line("return isinstance(o, " + name + ") and self._raw == o._raw");
             ctx.dedent();
+            ctx.line();
+            ctx.line("def __hash__(self) -> int: return hash(self._raw)");
+            ctx.line();
+            ctx.line("def __repr__(self) -> str: return f'{type(self).__name__}(0x{self._raw:x})'");
             ctx.dedent();
             ctx.line();
         } else if (has_scale) {
@@ -1109,6 +1126,10 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.indent();
             ctx.line("return isinstance(o, " + name + ") and self._raw == o._raw");
             ctx.dedent();
+            ctx.line();
+            ctx.line("def __hash__(self) -> int: return hash(self._raw)");
+            ctx.line();
+            ctx.line("def __repr__(self) -> str: return f'{type(self).__name__}({self.value})'");
             ctx.dedent();
             ctx.line();
         } else if (is_string && t.length) {
@@ -1217,6 +1238,10 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.indent();
             ctx.line("return isinstance(o, " + name + ") and self._raw == o._raw");
             ctx.dedent();
+            ctx.line();
+            ctx.line("def __hash__(self) -> int: return hash(self._raw)");
+            ctx.line();
+            ctx.line("def __repr__(self) -> str: return f'{type(self).__name__}({self._raw})'");
             ctx.dedent();
             ctx.line();
         }
@@ -1497,7 +1522,7 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
             // Auto-count: write the length of the referenced array
             std::string ref_name = f.auto_expr->field_ref.empty() ? "" : py_field(f.auto_expr->field_ref);
             if (!ref_name.empty()) {
-                ctx.line(py_write_stmt("len(" + pfx + "." + ref_name + ")", fi, tracker.is_byte_aligned()));
+                ctx.line(py_write_stmt("(len(" + pfx + "." + ref_name + ") if " + pfx + "." + ref_name + " is not None else 0)", fi, tracker.is_byte_aligned()));
             } else {
                 ctx.line(py_write_stmt("0", fi, tracker.is_byte_aligned()));
             }
@@ -2289,7 +2314,8 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                            const std::unordered_map<std::string, uint64_t>& /*tid_map*/,
                            const PyOuterScopeMap& scope_map = {},
                            const PyInlineNameMap& name_map = {},
-                           const std::string& class_name_override = {}) {
+                           const std::string& class_name_override = {},
+                           const analyzer::WireSizeInfo* sizes = nullptr) {
     std::string cn = class_name_override.empty() ? py_class(sd.name) : class_name_override;
 
     // Collect bitmap-controlled fields
@@ -2367,6 +2393,12 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.line("class " + cn + ":");
     ctx.indent();
     py_emit_docstring(ctx, sd.doc);
+    if (sizes) {
+        auto ws = sizes->get(sd.name);
+        if (ws) {
+            ctx.line("WIRE_SIZE = " + std::to_string(*ws));
+        }
+    }
 
     // __slots__
     if (!bfields.empty()) {
@@ -2749,6 +2781,43 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.dedent();
     ctx.line();
 
+    // to_dict
+    ctx.line("def to_dict(self) -> dict:");
+    ctx.indent();
+    ctx.line("d = {}");
+    for (const auto& bf : bfields) {
+        std::string key = bf.name;
+        std::string val = "self." + py_field(bf.name);
+        if (bf.is_enum) {
+            ctx.line("d['" + key + "'] = " + val + ".value if " + val + " is not None else None");
+        } else if (bf.has_scale) {
+            ctx.line("d['" + key + "'] = " + val + ".value if " + val + " is not None else None");
+        } else if (bf.is_struct && !bf.is_string && !bf.is_bytes) {
+            ctx.line("d['" + key + "'] = " + val + ".to_dict() if " + val + " is not None else None");
+        } else if (bf.is_bytes) {
+            ctx.line("d['" + key + "'] = list(" + val + ") if " + val + " is not None else None");
+        } else {
+            ctx.line("d['" + key + "'] = " + val);
+        }
+    }
+    ctx.line("return d");
+    ctx.dedent();
+    ctx.line();
+
+    // from_dict
+    ctx.line("@classmethod");
+    ctx.line("def from_dict(cls, d: dict) -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("obj = cls()");
+    for (const auto& bf : bfields) {
+        std::string key = bf.name;
+        std::string target = "obj." + py_field(bf.name);
+        ctx.line("if '" + key + "' in d: " + target + " = d['" + key + "']");
+    }
+    ctx.line("return obj");
+    ctx.dedent();
+    ctx.line();
+
     // __repr__
     ctx.line("def __repr__(self) -> str:");
     ctx.indent();
@@ -2830,7 +2899,8 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                    const PyInlineNameMap& name_map = {},
                    const std::string& class_name_override = {},
                    const std::vector<PyFieldDef>& extra_fields = {},
-                   const std::string& doc = {}) {
+                   const std::string& doc = {},
+                   const analyzer::WireSizeInfo* sizes = nullptr) {
     std::string cn = class_name_override.empty() ? py_class(name) : class_name_override;
     std::vector<PyFieldDef> fields;
     // Add frame header/footer fields if this is a message used in a frame
@@ -2848,6 +2918,12 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         ctx.line("TYPE_NAME = '" + name + "'");
     }
     if (!msg_id.empty()) ctx.line("ID_VALUE = " + msg_id);
+    if (sizes) {
+        auto ws = sizes->get(name);
+        if (ws) {
+            ctx.line("WIRE_SIZE = " + std::to_string(*ws));
+        }
+    }
 
     if (!fields.empty()) {
         std::string slots = "__slots__ = (";
@@ -3060,6 +3136,91 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.dedent();
     ctx.line();
 
+    // to_dict
+    ctx.line("def to_dict(self) -> dict:");
+    ctx.indent();
+    ctx.line("d = {}");
+    for (const auto& f : fields) {
+        std::string key = f.bmdl_name.empty() ? f.name : f.bmdl_name;
+        std::string val = "self." + f.name;
+        bool nullable = (f.default_val == "None" || f.is_optional);
+        if (f.py_type == "list") {
+            if (nullable)
+                ctx.line("d['" + key + "'] = [x.to_dict() if hasattr(x, 'to_dict') else x for x in " + val + "] if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = [x.to_dict() if hasattr(x, 'to_dict') else x for x in " + val + "]");
+        } else if (f.py_type == "object") {
+            ctx.line("d['" + key + "'] = " + val + ".to_dict() if " + val + " is not None and hasattr(" + val + ", 'to_dict') else " + val);
+        } else if (f.is_enum) {
+            if (nullable)
+                ctx.line("d['" + key + "'] = " + val + ".value if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = " + val + ".value");
+        } else if (f.has_scale) {
+            if (nullable)
+                ctx.line("d['" + key + "'] = " + val + ".value if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = " + val + ".value");
+        } else if (f.is_struct && f.is_string_struct) {
+            if (nullable)
+                ctx.line("d['" + key + "'] = str(" + val + ") if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = str(" + val + ")");
+        } else if (f.is_struct) {
+            if (nullable)
+                ctx.line("d['" + key + "'] = " + val + ".to_dict() if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = " + val + ".to_dict()");
+        } else if (f.is_bytes) {
+            if (nullable)
+                ctx.line("d['" + key + "'] = list(" + val + ") if " + val + " is not None else None");
+            else
+                ctx.line("d['" + key + "'] = list(" + val + ")");
+        } else {
+            ctx.line("d['" + key + "'] = " + val);
+        }
+    }
+    ctx.line("return d");
+    ctx.dedent();
+    ctx.line();
+
+    // from_dict
+    ctx.line("@classmethod");
+    ctx.line("def from_dict(cls, d: dict) -> '" + cn + "':");
+    ctx.indent();
+    ctx.line("obj = cls()");
+    for (const auto& f : fields) {
+        std::string key = f.bmdl_name.empty() ? f.name : f.bmdl_name;
+        std::string target = "obj." + f.name;
+        ctx.line("if '" + key + "' in d:");
+        ctx.indent();
+        if (f.py_type == "list") {
+            ctx.line(target + " = d['" + key + "'] if d['" + key + "'] is None else list(d['" + key + "'])");
+        } else if (f.py_type == "object") {
+            ctx.line(target + " = d['" + key + "']");
+        } else if (f.is_enum) {
+            ctx.line("_ev = d['" + key + "']");
+            ctx.line("if isinstance(_ev, int): " + target + " = next((e for e in " + f.py_type + " if e.value == _ev), _ev)");
+            ctx.line("else: " + target + " = _ev");
+        } else if (f.has_scale) {
+            ctx.line("_sv = " + f.py_type + "()");
+            ctx.line("_sv.value = d['" + key + "']");
+            ctx.line(target + " = _sv");
+        } else if (f.is_struct && f.is_string_struct) {
+            ctx.line(target + " = " + f.py_type + "(d['" + key + "']) if d['" + key + "'] is not None else None");
+        } else if (f.is_struct) {
+            ctx.line(target + " = " + f.py_type + ".from_dict(d['" + key + "']) if isinstance(d['" + key + "'], dict) else d['" + key + "']");
+        } else if (f.is_bytes) {
+            ctx.line(target + " = bytes(d['" + key + "']) if d['" + key + "'] is not None else None");
+        } else {
+            ctx.line(target + " = d['" + key + "']");
+        }
+        ctx.dedent();
+    }
+    ctx.line("return obj");
+    ctx.dedent();
+    ctx.line();
+
     // __repr__
     ctx.line("def __repr__(self) -> str:");
     ctx.indent();
@@ -3251,7 +3412,8 @@ void emit_py_inline_types(EmitContext& ctx, const std::vector<model::StructChild
 }
 
 std::string generate_py_structs(const model::Protocol& protocol,
-                                 const analyzer::TypeIndex& index) {
+                                 const analyzer::TypeIndex& index,
+                                 const analyzer::WireSizeInfo& sizes) {
     EmitContext ctx;
     ctx.line("\"\"\"Generated by bgen - DO NOT EDIT\"\"\"");
     ctx.line("from __future__ import annotations");
@@ -3265,9 +3427,9 @@ std::string generate_py_structs(const model::Protocol& protocol,
         PyInlineNameMap name_map;
         emit_py_inline_types(ctx, sd.children, index, empty, scope_map, sd.name, name_map);
         if (sd.is_bitmap) {
-            emit_py_bitmap_class(ctx, sd, index, empty, scope_map, name_map);
+            emit_py_bitmap_class(ctx, sd, index, empty, scope_map, name_map, {}, &sizes);
         } else {
-            emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map, {}, {}, sd.doc);
+            emit_py_class(ctx, sd.name, sd.children, index, empty, {}, scope_map, name_map, {}, {}, sd.doc, &sizes);
         }
     }
 
@@ -3724,7 +3886,8 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
 
 std::string generate_py_messages(const model::Protocol& protocol,
                                   const analyzer::TypeIndex& index,
-                                  const std::vector<analyzer::SessionInfo>& sessions) {
+                                  const std::vector<analyzer::SessionInfo>& sessions,
+                                  const analyzer::WireSizeInfo& sizes) {
     EmitContext ctx;
     ctx.line("\"\"\"Generated by bgen - DO NOT EDIT\"\"\"");
     ctx.line("from __future__ import annotations");
@@ -3784,7 +3947,7 @@ std::string generate_py_messages(const model::Protocol& protocol,
         emit_py_inline_types(ctx, md.children, index, tid_map, scope_map, md.name, name_map);
         auto mff_it = msg_frame_fields.find(md.name);
         std::vector<PyFieldDef> extra_fields = (mff_it != msg_frame_fields.end()) ? mff_it->second : std::vector<PyFieldDef>{};
-        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc);
+        emit_py_class(ctx, md.name, md.children, index, tid_map, md.id, scope_map, name_map, {}, extra_fields, md.doc, &sizes);
     }
 
     // Generate frame classes (Packet, Frame, etc.)
@@ -4018,7 +4181,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         ctx.indent();
         ctx.line("frame = " + frame_class + ".decode_bytes(data)");
         ctx.dedent();
-        ctx.line("except Exception:");
+        ctx.line("except (DecodeError, ConstraintError):");
         ctx.indent();
         ctx.line("return []");
         ctx.dedent();
@@ -4346,15 +4509,14 @@ bool PythonBackend::generate(
     const std::string& ns,
     const std::filesystem::path& output_dir) {
 
-    (void)sizes;
     (void)ns;
 
     bool ok = true;
     ok &= write_file(output_dir / "bit_io.py", generate_bit_io());
     ok &= write_file(output_dir / "constants.py", generate_py_constants(protocol));
     ok &= write_file(output_dir / "types.py", generate_py_types(protocol, index));
-    ok &= write_file(output_dir / "structs.py", generate_py_structs(protocol, index));
-    ok &= write_file(output_dir / "messages.py", generate_py_messages(protocol, index, sessions));
+    ok &= write_file(output_dir / "structs.py", generate_py_structs(protocol, index, sizes));
+    ok &= write_file(output_dir / "messages.py", generate_py_messages(protocol, index, sessions, sizes));
     ok &= write_file(output_dir / "sessions.py", generate_py_sessions(protocol, index, sessions));
     ok &= write_file(output_dir / "protocol.py", generate_py_protocol(protocol, sessions));
     ok &= write_file(output_dir / "__init__.py", generate_py_init(protocol));

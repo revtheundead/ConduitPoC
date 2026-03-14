@@ -479,7 +479,11 @@ if "%RUN_TESTS%"=="1" (
         if not errorlevel 1 (
             :: Install pytest from vendored wheels if available
             if exist "!PYTEST_WHEEL_DIR!" (
-                python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1
+                python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
+                    python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
+                        python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --break-system-packages pytest >nul 2>&1
+                    )
+                )
             )
             python -c "import pytest" >nul 2>&1
             if not errorlevel 1 (
