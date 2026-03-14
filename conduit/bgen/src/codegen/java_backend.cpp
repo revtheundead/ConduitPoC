@@ -2167,6 +2167,9 @@ struct JBitmapField {
     bool is_float = false;
     bool is_bool = false;
     bool is_signed = false;
+    bool is_type_wrapper = false;
+    bool is_string_wrapper = false;
+    bool is_scaled_wrapper = false;
     bool has_scale = false;
     double scale = 1.0;
     double offset = 0.0;
@@ -2218,6 +2221,9 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 bf.is_float = fi.is_float;
                 bf.is_bool = fi.is_bool;
                 bf.is_signed = fi.is_signed;
+                bf.is_type_wrapper = fi.is_type_wrapper;
+                bf.is_string_wrapper = fi.is_string_wrapper;
+                bf.is_scaled_wrapper = fi.is_scaled_wrapper;
                 bf.has_scale = fi.has_scale;
                 bf.scale = fi.scale;
                 bf.offset = fi.offset;
@@ -2773,6 +2779,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.indent();
         if (bf.is_enum) {
             ctx.line("m.put(\"" + key + "\", " + fn + ".value);");
+        } else if (bf.is_type_wrapper) {
+            ctx.line("m.put(\"" + key + "\", " + fn + ".value());");
         } else if (bf.is_struct) {
             ctx.line("m.put(\"" + key + "\", " + fn + ".toMap());");
         } else if (bf.is_bytes) {
@@ -2801,6 +2809,12 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         if (bf.is_enum) {
             // Enum from int value
             ctx.line("{ int _rv = ((Number) d.get(\"" + key + "\")).intValue(); for (" + bf.j_type + " v : " + bf.j_type + ".values()) { if (v.value == _rv) { obj." + fn + " = v; break; } } }");
+        } else if (bf.is_string_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof String) obj." + fn + " = new " + bf.j_type + "((String)_sv); }");
+        } else if (bf.is_scaled_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof Number) { obj." + fn + " = new " + bf.j_type + "(); obj." + fn + ".setValue(((Number)_sv).doubleValue()); } }");
+        } else if (bf.is_type_wrapper) {
+            ctx.line("{ Object _sv = d.get(\"" + key + "\"); if (_sv instanceof Number) obj." + fn + " = new " + bf.j_type + "(((Number)_sv).longValue()); }");
         } else if (bf.has_scale || bf.is_float) {
             ctx.line("obj." + fn + " = ((Number) d.get(\"" + key + "\")).doubleValue();");
         } else if (bf.is_struct) {
