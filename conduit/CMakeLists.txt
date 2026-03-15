@@ -583,19 +583,34 @@ endif()\n\
                 format_binary
                 auto_count
                 auto_struct_length
+                auto_sequence
                 bitmap_advanced
+                bitmap_fx
+                bitmap_wide_fixed
+                nested_bitmap
                 fx_block
                 fx_advanced
                 fx_choice
+                fx_ia5_string
+                fx_string
+                empty_fx
                 frame_basic
                 frame_footer
                 frame_direction
                 frame_array
                 frame_config
+                frame_count
+                frame_length_arith
+                frame_payload_length
                 bytes_numeric
                 outer_scope
                 string_features
+                ebcdic_strings
+                inline_struct
                 boundary_types
+                default_initial
+                hex_default
+                annotation_scope
             )
 
             # Generate Java code from each test fixture

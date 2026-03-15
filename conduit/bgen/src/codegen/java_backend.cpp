@@ -543,7 +543,7 @@ std::string j_expr_ctx(const model::Expr& e, const std::string& obj,
             case model::ExprOp::BitOr:     return "(" + l + " | " + r + ")";
             case model::ExprOp::BitXor:    return "(" + l + " ^ " + r + ")";
             case model::ExprOp::ShiftLeft: return "(" + l + " << " + r + ")";
-            case model::ExprOp::ShiftRight:return "(" + l + " >> " + r + ")";
+            case model::ExprOp::ShiftRight:return "(" + l + " >>> " + r + ")";
             default: break;
         }
     }
@@ -2025,6 +2025,7 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                 case model::ArithOp::Sub: op_str = " - "; break;
                 case model::ArithOp::Mul: op_str = " * "; break;
                 case model::ArithOp::Div: op_str = " / "; break;
+                case model::ArithOp::Mod: op_str = " % "; break;
                 default: break;
             }
             if (!op_str.empty()) {
@@ -3164,6 +3165,7 @@ std::string generate_j_class(const std::string& name,
                     case model::ArithOp::Sub: op_str = " - "; break;
                     case model::ArithOp::Mul: op_str = " * "; break;
                     case model::ArithOp::Div: op_str = " / "; break;
+                    case model::ArithOp::Mod: op_str = " % "; break;
                     default: break;
                 }
                 if (!op_str.empty()) {
@@ -3841,6 +3843,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                 case model::ArithOp::Sub: op_str = " - "; break;
                 case model::ArithOp::Mul: op_str = " * "; break;
                 case model::ArithOp::Div: op_str = " / "; break;
+                case model::ArithOp::Mod: op_str = " % "; break;
                 default: break;
             }
             if (!op_str.empty()) {
