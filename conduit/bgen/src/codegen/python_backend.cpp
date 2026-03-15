@@ -1360,7 +1360,8 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                              const std::string& len_ref_target = {},
                              const model::Field* auto_len_ref_field = nullptr,
                              const PyInlineNameMap& name_map = {},
-                             const std::string& parent_class_name = {});
+                             const std::string& parent_class_name = {},
+                             const PyOuterContext& outer_ctx = {});
 
 void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
                           const analyzer::TypeIndex& index, const std::string& pfx,
@@ -2006,7 +2007,8 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                              const std::string& len_ref_target,
                              const model::Field* auto_len_ref_field,
                              const PyInlineNameMap& name_map,
-                             const std::string& parent_class_name) {
+                             const std::string& parent_class_name,
+                             const PyOuterContext& outer_ctx) {
     // Helper lambda: get BMDL name from a StructChild
     auto get_child_name = [](const model::StructChild& c) -> std::string {
         if (auto* f = std::get_if<model::Field>(&c)) return f->name;
@@ -2037,6 +2039,9 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                     break;
                 case model::ArithOp::Div:
                     size_expr = "(" + size_expr + " // " + std::to_string(mod.literal) + ")";
+                    break;
+                case model::ArithOp::Mod:
+                    size_expr = "(" + size_expr + " % " + std::to_string(mod.literal) + ")";
                     break;
                 default: break;
             }
@@ -2071,7 +2076,7 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                 ctx.line("except Exception as _e: raise type(_e)(\"field '" + f->name + "': \" + str(_e)) from _e");
             };
             if (f->present_when) {
-                ctx.line("if " + py_expr(*f->present_when, pfx) + ":");
+                ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
                 ctx.indent(); emit_field_encode_wrapped(); ctx.dedent();
                 tracker.advance_bits_variable();
             } else emit_field_encode_wrapped();
@@ -3093,7 +3098,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
         }
         std::string len_ref_target = (auto_len_ref_field && auto_len_ref_field->auto_expr) ? auto_len_ref_field->auto_expr->field_ref : "";
         PyBitTracker encode_tracker;
-        emit_py_encode_children(ctx, children, index, "self", encode_tracker, len_ref_target, auto_len_ref_field, name_map, cn);
+        emit_py_encode_children(ctx, children, index, "self", encode_tracker, len_ref_target, auto_len_ref_field, name_map, cn, outer_ctx);
         // Auto-length backpatching (struct-level only: auto="length" with no field_ref)
         for (const auto& child : children) {
             if (auto* f = std::get_if<model::Field>(&child)) {
@@ -3116,6 +3121,9 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                                 break;
                             case model::ArithOp::Div:
                                 length_expr = "(" + length_expr + " // " + std::to_string(mod.literal) + ")";
+                                break;
+                            case model::ArithOp::Mod:
+                                length_expr = "(" + length_expr + " % " + std::to_string(mod.literal) + ")";
                                 break;
                             default: break;
                         }
@@ -3654,6 +3662,7 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
                 case model::ArithOp::Sub: op_str = " - "; break;
                 case model::ArithOp::Mul: op_str = " * "; break;
                 case model::ArithOp::Div: op_str = " // "; break;
+                case model::ArithOp::Mod: op_str = " % "; break;
                 default: break;
             }
             if (!op_str.empty()) {
