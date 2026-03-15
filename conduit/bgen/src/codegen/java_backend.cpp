@@ -732,7 +732,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("public long readSignedBits(int n) {");
     ctx.indent();
     ctx.line("long val = readBits(n);");
-    ctx.line("if (n > 0 && ((val >> (n - 1)) & 1) != 0) val -= (1L << n);");
+    ctx.line("if (n < 64 && n > 0 && ((val >> (n - 1)) & 1) != 0) val -= (1L << n);");
     ctx.line("return val;");
     ctx.dedent();
     ctx.line("}");
@@ -926,6 +926,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line();
     ctx.line("public void writeSignedBits(long value, int n) {");
     ctx.indent();
+    ctx.line("if (n >= 64) { writeBits(value, n); return; }");
     ctx.line("if (value < 0) value += (1L << n);");
     ctx.line("writeBits(value & ((1L << n) - 1), n);");
     ctx.dedent();

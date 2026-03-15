@@ -55,7 +55,8 @@ public class TestFxCoverage {
 
         assertEquals(msg.header, decoded.header);
         assertEquals((Integer) 42, decoded.item1);
-        assertNull(decoded.item2);
+        assertEquals((Integer) 0, decoded.item2);
+        assertEquals((Integer) 0, decoded.item3);
     }
 
     @Test
