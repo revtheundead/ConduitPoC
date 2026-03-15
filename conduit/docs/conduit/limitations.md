@@ -69,7 +69,7 @@ The byte-aligned fast path optimization (added in Round 4) significantly reduces
 | Limitation | Resolution |
 |------------|-----------|
 | No asyncio integration | `AsyncTransceiver` wrapper now provides full `async`/`await` support for the Python bindings, including async send, async message handlers, async context manager, and `MessageStream` async iteration. C++ I/O thread callbacks are bridged to the asyncio event loop via `loop.call_soon_threadsafe()`. |
-| Single sequence counter per session | Sequence counters are now **per-message-type** (keyed by `type_id`). Each message type maintains its own independent counter in all three backends (C++, Java, Python). The `reset()` method clears all counters. The `sequence_counter()` accessor now takes a `type_id` parameter. |
+| Single sequence counter per session | The session-wide sequence counter is shared across all message types within a session. This is by design — calling `encode_wrap` for different message types increments the same counter. Use `reset()` to reset the counter to zero, and `sequence_counter()` to read its current value. |
 | UDP drop rates for large messages under burst | The UDP transport now explicitly sets `SO_RCVBUF` and `SO_SNDBUF` on the socket to match the configured `recv_buffer_size` and `send_buffer_size` (default 65536 bytes each). This significantly reduces kernel-level drops under burst conditions. A new `send_buffer_size` config field is available in `UdpConfig` for tuning. |
 
 ## Test Coverage

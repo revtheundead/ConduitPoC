@@ -193,7 +193,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             std::string mask = "0x" + to_hex64(mask_val);
             std::string cast_type = storage_type_for_bits(bits, false);
             std::string field_acc = to_accessor_name(lt.auto_fields[ai]);
-            ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counters_[type_id]++ & " + mask + ");");
+            ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counter_++ & " + mask + ");");
             ctx.line("  frame.set_" + field_acc + "(seq_val);");
             ctx.line("  result.auto_fields.push_back({\"" + lt.auto_fields[ai] + "\", std::to_string(seq_val)}); }");
         }
@@ -307,7 +307,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
                 std::string mask = "0x" + to_hex64(mask_val);
                 std::string cast_type = storage_type_for_bits(bits, false);
                 std::string field_acc = to_accessor_name(lt.auto_fields[ai]);
-                ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counters_[type_id]++ & " + mask + ");");
+                ctx.line("{ auto seq_val = static_cast<" + cast_type + ">(sequence_counter_++ & " + mask + ");");
                 ctx.line("  frame.set_" + field_acc + "(seq_val);");
                 ctx.line("  result.auto_fields.push_back({\"" + lt.auto_fields[ai] + "\", std::to_string(seq_val)}); }");
             }
@@ -557,7 +557,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
     ctx.line("void reset() override {");
     ctx.indent();
     if (has_auto_fields) {
-        ctx.line("sequence_counters_.clear();");
+        ctx.line("sequence_counter_ = 0;");
     }
     ctx.dedent();
     ctx.line("}");
@@ -572,19 +572,14 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             }
         }
         counter_type = storage_type_for_bits(auto_bits, false);
-        ctx.line(counter_type + " sequence_counter(uint64_t type_id) const {");
-        ctx.indent();
-        ctx.line("auto it = sequence_counters_.find(type_id);");
-        ctx.line("return it != sequence_counters_.end() ? static_cast<" + counter_type + ">(it->second) : 0;");
-        ctx.dedent();
-        ctx.line("}");
+        ctx.line(counter_type + " sequence_counter() const { return sequence_counter_; }");
     }
 
     ctx.dedent();
     ctx.line("private:");
     ctx.indent();
     if (has_auto_fields) {
-        ctx.line("std::unordered_map<uint64_t, uint64_t> sequence_counters_;");
+        ctx.line(counter_type + " sequence_counter_ = 0;");
     }
     if (has_config) {
         ctx.line("Config config_;");
@@ -621,7 +616,6 @@ std::string generate_sessions(const model::Protocol& protocol,
     // Check if any session has direction-constrained types (for logger include)
     bool needs_logger = false;
     bool needs_chrono = false;
-    bool needs_unordered_map = false;
     for (const auto& si : sessions) {
         if (has_direction_constraints(si)) {
             needs_logger = true;
@@ -629,9 +623,6 @@ std::string generate_sessions(const model::Protocol& protocol,
         for (const auto& lt : si.leaf_types) {
             if (!lt.timestamp_fields.empty()) {
                 needs_chrono = true;
-            }
-            if (!lt.auto_fields.empty()) {
-                needs_unordered_map = true;
             }
         }
     }
@@ -652,9 +643,6 @@ std::string generate_sessions(const model::Protocol& protocol,
     ctx.line("#include <span>");
     ctx.line("#include <string>");
     ctx.line("#include <string_view>");
-    if (needs_unordered_map) {
-        ctx.line("#include <unordered_map>");
-    }
     ctx.line("#include <vector>");
     ctx.line();
     ctx.line("namespace " + ns + " {");
