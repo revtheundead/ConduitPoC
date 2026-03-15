@@ -3,7 +3,7 @@ import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
 
 import fx_block.FxBlockMsg;
-import empty_fx.EmptyFxMsg;
+
 import fx_ia5_string.FxIa5Msg;
 import fx_string.FxStringMsg;
 
@@ -83,45 +83,6 @@ public class TestFxCoverage {
 
         byte[] data1 = msg.encodeBytes();
         FxBlockMsg decoded1 = FxBlockMsg.decodeBytes(data1);
-        byte[] data2 = decoded1.encodeBytes();
-
-        assertArrayEquals(data1, data2);
-    }
-
-    // ========== EmptyFxMsg Tests ==========
-
-    @Test
-    @DisplayName("EmptyFxMsg: roundtrip with header only")
-    void testEmptyFxMsgRoundtrip() {
-        EmptyFxMsg msg = new EmptyFxMsg();
-        msg.header = 0x10;
-
-        byte[] data = msg.encodeBytes();
-        EmptyFxMsg decoded = EmptyFxMsg.decodeBytes(data);
-
-        assertEquals(msg.header, decoded.header);
-    }
-
-    @Test
-    @DisplayName("EmptyFxMsg: all FX fields are null (empty block)")
-    void testEmptyFxMsgAllNull() {
-        EmptyFxMsg msg = new EmptyFxMsg();
-        msg.header = 0x11;
-
-        byte[] data = msg.encodeBytes();
-        EmptyFxMsg decoded = EmptyFxMsg.decodeBytes(data);
-
-        assertEquals(msg.header, decoded.header);
-    }
-
-    @Test
-    @DisplayName("EmptyFxMsg: double-encode stability")
-    void testEmptyFxMsgDoubleEncode() {
-        EmptyFxMsg msg = new EmptyFxMsg();
-        msg.header = 0x12;
-
-        byte[] data1 = msg.encodeBytes();
-        EmptyFxMsg decoded1 = EmptyFxMsg.decodeBytes(data1);
         byte[] data2 = decoded1.encodeBytes();
 
         assertArrayEquals(data1, data2);

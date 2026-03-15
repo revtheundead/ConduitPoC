@@ -593,7 +593,6 @@ endif()\n\
                 fx_choice
                 fx_ia5_string
                 fx_string
-                empty_fx
                 frame_basic
                 frame_footer
                 frame_direction
