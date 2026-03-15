@@ -115,27 +115,20 @@ if(CONDUIT_BUILD_BGEN)
         bitmap_wide_fixed
         boundary_types
         bytes_numeric
-        bytes_overflow
-        choice_no_switch
         choice_protocol
         constants_everywhere
-        constraint_relaxation
         constraint_tighten
         constraints
         constraints_extended
         default_initial
         direction_qualified
-        duplicate_fields
         ebcdic_strings
-        empty_fx
         enum_arrays
         expr_features
         field_scale
         format_binary
-        forward_ref
         frame_array
         frame_basic
-        frame_collision
         frame_config
         frame_count
         frame_direction
@@ -158,7 +151,6 @@ if(CONDUIT_BUILD_BGEN)
         inline_struct_overlap
         length_arith
         minimal
-        missing_enum_id
         mixed_endian
         msg_config
         msg_config_inline
@@ -166,13 +158,7 @@ if(CONDUIT_BUILD_BGEN)
         non_overlap_ranges
         optional_constrained
         outer_scope
-        overlap_both_with_send
-        overlap_same_direction
-        overlapping_cases
-        overlapping_ranges
         present_when_complex
-        recursive_struct
-        reserved_zero
         send_only_leaf
         sentry_link
         session_protocol

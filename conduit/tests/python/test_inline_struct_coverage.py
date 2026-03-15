@@ -368,11 +368,15 @@ class TestInlineStructOverlapMsgAlpha:
 
     def test_roundtrip(self):
         from inline_struct_overlap import MsgAlpha
+        from inline_struct_overlap.messages import MsgAlphaEntries
 
         msg = MsgAlpha()
         msg.tag = 0x42
-        msg.entries[0].alpha_val = 0x11111111
-        msg.entries[1].alpha_val = 0x22222222
+        e0 = MsgAlphaEntries()
+        e0.alpha_val = 0x11111111
+        e1 = MsgAlphaEntries()
+        e1.alpha_val = 0x22222222
+        msg.entries = [e0, e1]
 
         data = msg.encode_bytes()
         msg2 = MsgAlpha.decode_bytes(data)
@@ -382,11 +386,15 @@ class TestInlineStructOverlapMsgAlpha:
 
     def test_double_encode(self):
         from inline_struct_overlap import MsgAlpha
+        from inline_struct_overlap.messages import MsgAlphaEntries
 
         msg = MsgAlpha()
         msg.tag = 0xAA
-        msg.entries[0].alpha_val = 0xCAFEBABE
-        msg.entries[1].alpha_val = 0xDEADBEEF
+        e0 = MsgAlphaEntries()
+        e0.alpha_val = 0xCAFEBABE
+        e1 = MsgAlphaEntries()
+        e1.alpha_val = 0xDEADBEEF
+        msg.entries = [e0, e1]
 
         data1 = msg.encode_bytes()
         msg2 = MsgAlpha.decode_bytes(data1)
@@ -395,11 +403,15 @@ class TestInlineStructOverlapMsgAlpha:
 
     def test_wire_size(self):
         from inline_struct_overlap import MsgAlpha
+        from inline_struct_overlap.messages import MsgAlphaEntries
 
         msg = MsgAlpha()
         msg.tag = 1
-        msg.entries[0].alpha_val = 1
-        msg.entries[1].alpha_val = 1
+        e0 = MsgAlphaEntries()
+        e0.alpha_val = 1
+        e1 = MsgAlphaEntries()
+        e1.alpha_val = 1
+        msg.entries = [e0, e1]
 
         data = msg.encode_bytes()
         # tag(1) + 2 * alpha_val(4) = 9
@@ -411,12 +423,17 @@ class TestInlineStructOverlapMsgBeta:
 
     def test_roundtrip(self):
         from inline_struct_overlap import MsgBeta
+        from inline_struct_overlap.messages import MsgBetaEntries
 
         msg = MsgBeta()
         msg.tag = 0x55
-        msg.entries[0].beta_val = 0x1111
-        msg.entries[1].beta_val = 0x2222
-        msg.entries[2].beta_val = 0x3333
+        e0 = MsgBetaEntries()
+        e0.beta_val = 0x1111
+        e1 = MsgBetaEntries()
+        e1.beta_val = 0x2222
+        e2 = MsgBetaEntries()
+        e2.beta_val = 0x3333
+        msg.entries = [e0, e1, e2]
 
         data = msg.encode_bytes()
         msg2 = MsgBeta.decode_bytes(data)
@@ -427,12 +444,17 @@ class TestInlineStructOverlapMsgBeta:
 
     def test_double_encode(self):
         from inline_struct_overlap import MsgBeta
+        from inline_struct_overlap.messages import MsgBetaEntries
 
         msg = MsgBeta()
         msg.tag = 0xBB
-        msg.entries[0].beta_val = 100
-        msg.entries[1].beta_val = 200
-        msg.entries[2].beta_val = 300
+        e0 = MsgBetaEntries()
+        e0.beta_val = 100
+        e1 = MsgBetaEntries()
+        e1.beta_val = 200
+        e2 = MsgBetaEntries()
+        e2.beta_val = 300
+        msg.entries = [e0, e1, e2]
 
         data1 = msg.encode_bytes()
         msg2 = MsgBeta.decode_bytes(data1)
@@ -441,12 +463,17 @@ class TestInlineStructOverlapMsgBeta:
 
     def test_wire_size(self):
         from inline_struct_overlap import MsgBeta
+        from inline_struct_overlap.messages import MsgBetaEntries
 
         msg = MsgBeta()
         msg.tag = 1
-        msg.entries[0].beta_val = 1
-        msg.entries[1].beta_val = 1
-        msg.entries[2].beta_val = 1
+        e0 = MsgBetaEntries()
+        e0.beta_val = 1
+        e1 = MsgBetaEntries()
+        e1.beta_val = 1
+        e2 = MsgBetaEntries()
+        e2.beta_val = 1
+        msg.entries = [e0, e1, e2]
 
         data = msg.encode_bytes()
         # tag(1) + 3 * beta_val(2) = 7
@@ -457,11 +484,11 @@ class TestInlineStructOverlapArrayDistinctTypes:
     """MsgAlpha.entries and MsgBeta.entries elements should be distinct types."""
 
     def test_entries_are_different_types(self):
-        from inline_struct_overlap import MsgAlpha, MsgBeta
+        from inline_struct_overlap.messages import MsgAlphaEntries, MsgBetaEntries
 
-        alpha = MsgAlpha()
-        beta = MsgBeta()
-        assert type(alpha.entries[0]) is not type(beta.entries[0])
+        alpha_entry = MsgAlphaEntries()
+        beta_entry = MsgBetaEntries()
+        assert type(alpha_entry) is not type(beta_entry)
 
 
 # ============================================================================
@@ -480,12 +507,8 @@ class TestInlineCaseCollisionMsgAlpha:
         msg.tag = 1
 
         # Build TypeA case
-        try:
-            from inline_case_collision.structs import MsgAlphaTypeA
-            body = MsgAlphaTypeA()
-        except ImportError:
-            from inline_case_collision.structs import TypeA
-            body = TypeA()
+        from inline_case_collision.messages import MsgAlphaTypeA
+        body = MsgAlphaTypeA()
         body.alpha_val = 0xDEADBEEF
         msg.payload = body
 
@@ -500,12 +523,8 @@ class TestInlineCaseCollisionMsgAlpha:
         msg = MsgAlpha()
         msg.tag = 2
 
-        try:
-            from inline_case_collision.structs import MsgAlphaTypeB
-            body = MsgAlphaTypeB()
-        except ImportError:
-            from inline_case_collision.structs import TypeB
-            body = TypeB()
+        from inline_case_collision.messages import MsgAlphaTypeB
+        body = MsgAlphaTypeB()
         body.alpha_flag = 0xAA
         msg.payload = body
 
@@ -520,12 +539,8 @@ class TestInlineCaseCollisionMsgAlpha:
         msg = MsgAlpha()
         msg.tag = 1
 
-        try:
-            from inline_case_collision.structs import MsgAlphaTypeA
-            body = MsgAlphaTypeA()
-        except ImportError:
-            from inline_case_collision.structs import TypeA
-            body = TypeA()
+        from inline_case_collision.messages import MsgAlphaTypeA
+        body = MsgAlphaTypeA()
         body.alpha_val = 0x12345678
         msg.payload = body
 
@@ -545,12 +560,8 @@ class TestInlineCaseCollisionMsgBeta:
         msg = MsgBeta()
         msg.tag = 1
 
-        try:
-            from inline_case_collision.structs import MsgBetaTypeA
-            body = MsgBetaTypeA()
-        except ImportError:
-            from inline_case_collision.structs import TypeA
-            body = TypeA()
+        from inline_case_collision.messages import MsgBetaTypeA
+        body = MsgBetaTypeA()
         body.beta_x = 0x1111
         body.beta_y = 0x2222
         msg.payload = body
@@ -567,12 +578,8 @@ class TestInlineCaseCollisionMsgBeta:
         msg = MsgBeta()
         msg.tag = 2
 
-        try:
-            from inline_case_collision.structs import MsgBetaTypeB
-            body = MsgBetaTypeB()
-        except ImportError:
-            from inline_case_collision.structs import TypeB
-            body = TypeB()
+        from inline_case_collision.messages import MsgBetaTypeB
+        body = MsgBetaTypeB()
         body.beta_code = 0xAAAA
         msg.payload = body
 
@@ -587,12 +594,8 @@ class TestInlineCaseCollisionMsgBeta:
         msg = MsgBeta()
         msg.tag = 1
 
-        try:
-            from inline_case_collision.structs import MsgBetaTypeA
-            body = MsgBetaTypeA()
-        except ImportError:
-            from inline_case_collision.structs import TypeA
-            body = TypeA()
+        from inline_case_collision.messages import MsgBetaTypeA
+        body = MsgBetaTypeA()
         body.beta_x = 0xFFFF
         body.beta_y = 0xFFFF
         msg.payload = body
@@ -615,12 +618,8 @@ class TestInlineCaseCollisionDistinctCases:
         msg_b.tag = 1
 
         # Build both TypeA cases
-        try:
-            from inline_case_collision.structs import MsgAlphaTypeA, MsgBetaTypeA
-            body_a = MsgAlphaTypeA()
-            body_b = MsgBetaTypeA()
-        except ImportError:
-            # If they share the same TypeA, this test documents that
-            pytest.skip("TypeA classes not separately importable")
+        from inline_case_collision.messages import MsgAlphaTypeA, MsgBetaTypeA
+        body_a = MsgAlphaTypeA()
+        body_b = MsgBetaTypeA()
 
         assert type(body_a) is not type(body_b)

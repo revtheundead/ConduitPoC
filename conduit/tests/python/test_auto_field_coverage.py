@@ -19,7 +19,7 @@ class TestAutoSeqBodyA:
     """BodyA standalone message roundtrip."""
 
     def test_roundtrip(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         msg = BodyA()
         msg.data = 0x1234
@@ -29,7 +29,7 @@ class TestAutoSeqBodyA:
         assert msg2.data == 0x1234
 
     def test_zero_value(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         msg = BodyA()
         msg.data = 0
@@ -39,7 +39,7 @@ class TestAutoSeqBodyA:
         assert msg2.data == 0
 
     def test_max_value(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         msg = BodyA()
         msg.data = 0xFFFF
@@ -49,7 +49,7 @@ class TestAutoSeqBodyA:
         assert msg2.data == 0xFFFF
 
     def test_double_encode(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         msg = BodyA()
         msg.data = 0xABCD
@@ -60,7 +60,7 @@ class TestAutoSeqBodyA:
         assert data1 == data2
 
     def test_wire_size(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         msg = BodyA()
         msg.data = 1
@@ -73,7 +73,7 @@ class TestAutoSeqConstants:
     """Constants defined in auto_seq protocol."""
 
     def test_sync_constant(self):
-        from auto_seq.constants import Constants
+        from auto_sequence.constants import Constants
 
         assert Constants.SYNC == 0xBEEF
 
@@ -82,13 +82,13 @@ class TestAutoSeqBodyAMetadata:
     """BodyA metadata (TYPE_ID, ID_VALUE)."""
 
     def test_id_value(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         assert hasattr(BodyA, 'ID_VALUE')
         assert BodyA.ID_VALUE == 1
 
     def test_type_id_exists(self):
-        from auto_seq import BodyA
+        from auto_sequence import BodyA
 
         assert hasattr(BodyA, 'TYPE_ID')
 
@@ -97,26 +97,26 @@ class TestAutoSeqFrameSession:
     """Frame session for auto_seq protocol."""
 
     def test_session_creation(self):
-        from auto_seq import FrameSession
+        from auto_sequence import FrameSession
 
         session = FrameSession()
         assert session is not None
 
     def test_initial_seq_is_zero(self):
-        from auto_seq import FrameSession
+        from auto_sequence import FrameSession
 
         session = FrameSession()
         assert session._seq == 0
 
     def test_sync_pattern(self):
-        from auto_seq import FrameSession
+        from auto_sequence import FrameSession
 
         session = FrameSession()
         sync = session.sync_pattern()
         assert sync == b'\xBE\xEF'
 
     def test_encode_wrap_body_a(self):
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         msg = BodyA()
@@ -127,7 +127,7 @@ class TestAutoSeqFrameSession:
         assert 'bytes' in result
 
     def test_encode_wrap_decode_frame_roundtrip(self):
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         msg = BodyA()
@@ -143,7 +143,7 @@ class TestAutoSeqFrameSession:
         assert decoded.data == 0x9999
 
     def test_sequence_increments(self):
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         msg = BodyA()
@@ -155,7 +155,7 @@ class TestAutoSeqFrameSession:
         assert r1['bytes'] != r2['bytes']
 
     def test_reset_clears_sequence(self):
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         msg = BodyA()
@@ -167,7 +167,7 @@ class TestAutoSeqFrameSession:
         assert session._seq == 0
 
     def test_encode_wrap_unknown_type(self):
-        from auto_seq import FrameSession
+        from auto_sequence import FrameSession
 
         session = FrameSession()
         result = session.encode_wrap(0xDEADDEADDEADDEAD, object())
@@ -175,7 +175,7 @@ class TestAutoSeqFrameSession:
 
     def test_multiple_roundtrips(self):
         """Multiple encode_wrap/decode_frame cycles should all succeed."""
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         for val in [0, 100, 0xFFFF, 0x8000, 1]:
@@ -188,7 +188,7 @@ class TestAutoSeqFrameSession:
             assert messages[0]['payload'].data == val
 
     def test_leaf_type_ids(self):
-        from auto_seq import FrameSession, BodyA
+        from auto_sequence import FrameSession, BodyA
 
         session = FrameSession()
         ids = session.leaf_type_ids()

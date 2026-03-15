@@ -288,6 +288,7 @@ class TestNestedBitmapSubItems:
     def test_sub_items_all_fields(self):
         from nested_bitmap import NestedBitmapMsg
         from nested_bitmap.structs import OuterItems, SubItems
+        from nested_bitmap.types import ScaledTemp
 
         msg = NestedBitmapMsg()
         msg.header = 0x06
@@ -297,7 +298,7 @@ class TestNestedBitmapSubItems:
         sub = SubItems()
         sub.alpha = 0xDD
         sub.beta = 0x5678
-        sub.temp = 250  # raw value; scaled-temp with scale=0.1, offset=-40
+        sub.temp = ScaledTemp(250)  # raw value; scaled-temp with scale=0.1, offset=-40
         items.sub_items = sub
         msg.items = items
 
@@ -309,6 +310,7 @@ class TestNestedBitmapSubItems:
         # temp is a scaled type: value = raw * 0.1 + (-40)
         # We check the raw roundtrips correctly
         assert msg2.items.sub_items.temp is not None
+        assert msg2.items.sub_items.temp.raw == 250
 
     def test_sub_items_partial(self):
         from nested_bitmap import NestedBitmapMsg

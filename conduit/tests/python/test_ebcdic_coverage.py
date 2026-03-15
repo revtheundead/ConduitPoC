@@ -16,7 +16,7 @@ class TestEbcdicMsgBasicRoundtrip:
     """Basic encode/decode roundtrip for EBCDIC string fields."""
 
     def test_simple_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0x42
@@ -30,7 +30,7 @@ class TestEbcdicMsgBasicRoundtrip:
         assert msg2.trailer == 0x1234
 
     def test_full_length_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0x01
@@ -43,7 +43,7 @@ class TestEbcdicMsgBasicRoundtrip:
         assert msg2.trailer == 0xFFFF
 
     def test_single_char_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0x02
@@ -60,7 +60,7 @@ class TestEbcdicMsgEmptyLabel:
     """Empty label should be space-padded and trimmed back to empty."""
 
     def test_empty_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0x03
@@ -78,7 +78,7 @@ class TestEbcdicMsgBoundaryValues:
     """Boundary values for surrounding numeric fields."""
 
     def test_id_max(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0xFF
@@ -90,7 +90,7 @@ class TestEbcdicMsgBoundaryValues:
         assert msg2.id == 0xFF
 
     def test_id_zero(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0
@@ -103,7 +103,7 @@ class TestEbcdicMsgBoundaryValues:
         assert msg2.trailer == 0xFFFF
 
     def test_trailer_max(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 1
@@ -119,7 +119,7 @@ class TestEbcdicMsgWireFormat:
     """Verify wire format size: 1 (id) + 8 (label) + 2 (trailer) = 11 bytes."""
 
     def test_wire_size(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0x10
@@ -134,7 +134,7 @@ class TestEbcdicMsgDoubleEncode:
     """Encode -> decode -> encode should produce identical bytes."""
 
     def test_double_encode_stability(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0xAB
@@ -147,7 +147,7 @@ class TestEbcdicMsgDoubleEncode:
         assert data1 == data2
 
     def test_double_encode_empty_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0
@@ -160,7 +160,7 @@ class TestEbcdicMsgDoubleEncode:
         assert data1 == data2
 
     def test_double_encode_full_label(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 0xFF
@@ -177,7 +177,7 @@ class TestEbcdicMsgVariousStrings:
     """Test various string content through EBCDIC encoding."""
 
     def test_numeric_string(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 1
@@ -189,7 +189,7 @@ class TestEbcdicMsgVariousStrings:
         assert msg2.label == "12345678"
 
     def test_uppercase_alpha(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 2
@@ -201,7 +201,7 @@ class TestEbcdicMsgVariousStrings:
         assert msg2.label == "ABCDEFGH"
 
     def test_mixed_content(self):
-        from ebcdic_test import EbcdicMsg
+        from ebcdic_strings import EbcdicMsg
 
         msg = EbcdicMsg()
         msg.id = 3

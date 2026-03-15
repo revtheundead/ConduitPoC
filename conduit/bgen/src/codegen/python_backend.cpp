@@ -1764,13 +1764,17 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                         if (dot_pos != std::string::npos) {
                             std::string min_s = cs.range->substr(0, dot_pos);
                             std::string max_s = cs.range->substr(dot_pos + 2);
+                            if (index.constants.count(min_s)) min_s = "Constants." + py_snake(min_s);
+                            if (index.constants.count(max_s)) max_s = "Constants." + py_snake(max_s);
                             if (min_s == "0") {
                                 cond = sv + " <= " + max_s;
                             } else {
                                 cond = min_s + " <= " + sv + " <= " + max_s;
                             }
                         } else {
-                            cond = sv + " == " + *cs.range;
+                            std::string range_val = *cs.range;
+                            if (index.constants.count(range_val)) range_val = "Constants." + py_snake(range_val);
+                            cond = sv + " == " + range_val;
                         }
                     } else {
                         continue;
@@ -2552,13 +2556,17 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                     if (dot_pos != std::string::npos) {
                         std::string min_s = cs.range->substr(0, dot_pos);
                         std::string max_s = cs.range->substr(dot_pos + 2);
+                        if (index.constants.count(min_s)) min_s = "Constants." + py_snake(min_s);
+                        if (index.constants.count(max_s)) max_s = "Constants." + py_snake(max_s);
                         if (min_s == "0") {
                             cond = sv + " <= " + max_s;
                         } else {
                             cond = min_s + " <= " + sv + " <= " + max_s;
                         }
                     } else {
-                        cond = sv + " == " + *cs.range;
+                        std::string range_val = *cs.range;
+                        if (index.constants.count(range_val)) range_val = "Constants." + py_snake(range_val);
+                        cond = sv + " == " + range_val;
                     }
                 } else {
                     continue;

@@ -1735,13 +1735,17 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                         if (dot_pos != std::string::npos) {
                             std::string min_s = cs.range->substr(0, dot_pos);
                             std::string max_s = cs.range->substr(dot_pos + 2);
+                            if (index.constants.count(min_s)) min_s = "Constants." + j_const(min_s);
+                            if (index.constants.count(max_s)) max_s = "Constants." + j_const(max_s);
                             if (min_s == "0") {
                                 cond = sv_cmp + " <= " + max_s;
                             } else {
                                 cond = sv_cmp + " >= " + min_s + " && " + sv_cmp + " <= " + max_s;
                             }
                         } else {
-                            cond = sv_cmp + " == " + *cs.range;
+                            std::string range_val = *cs.range;
+                            if (index.constants.count(range_val)) range_val = "Constants." + j_const(range_val);
+                            cond = sv_cmp + " == " + range_val;
                         }
                     } else {
                         continue;
@@ -2465,13 +2469,17 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                     if (dot_pos != std::string::npos) {
                         std::string min_s = cs.range->substr(0, dot_pos);
                         std::string max_s = cs.range->substr(dot_pos + 2);
+                        if (index.constants.count(min_s)) min_s = "Constants." + j_const(min_s);
+                        if (index.constants.count(max_s)) max_s = "Constants." + j_const(max_s);
                         if (min_s == "0") {
                             cond = sv + " <= " + max_s;
                         } else {
                             cond = sv + " >= " + min_s + " && " + sv + " <= " + max_s;
                         }
                     } else {
-                        cond = sv + " == " + *cs.range;
+                        std::string range_val = *cs.range;
+                        if (index.constants.count(range_val)) range_val = "Constants." + j_const(range_val);
+                        cond = sv + " == " + range_val;
                     }
                 } else {
                     continue;
