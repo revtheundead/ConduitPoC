@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.class
 build/
+Testing/
 build_*/
 build-*/
 conduit/lib/
