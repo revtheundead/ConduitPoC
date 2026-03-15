@@ -112,6 +112,7 @@ class UdpConfig:
     remote_address:   str           = ""
     remote_port:      int           = 0
     recv_buffer_size: int           = 0
+    send_buffer_size: int           = 0
     max_datagram_size: int          = 0
     max_peers:        int           = 0
     peer_timeout_s:   int           = 0

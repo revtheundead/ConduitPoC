@@ -9,6 +9,11 @@ _generated_dir = os.path.join(os.path.dirname(__file__), "generated")
 if _generated_dir not in sys.path:
     sys.path.insert(0, _generated_dir)
 
+# Add the Python bindings directory so the 'conduit' package is importable
+_bindings_dir = os.path.join(os.path.dirname(__file__), "..", "..", "bindings", "python")
+if os.path.isdir(_bindings_dir) and _bindings_dir not in sys.path:
+    sys.path.insert(0, _bindings_dir)
+
 
 # ---------------------------------------------------------------------------
 # Shared native library resolution (used by test_codec_cabi and test_transceiver_cabi)

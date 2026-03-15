@@ -103,17 +103,26 @@ if(CONDUIT_BUILD_BGEN)
 
     set(_PYTEST_SCHEMAS
         all_types
+        annotation_scope
         arrays_choices
+        asterix
         auto_count
+        auto_sequence
         auto_struct_length
+        bit_alignment
         bitmap_advanced
+        bitmap_fx
+        bitmap_wide_fixed
         boundary_types
         bytes_numeric
         choice_protocol
         constants_everywhere
+        constraint_tighten
         constraints
         constraints_extended
+        default_initial
         direction_qualified
+        ebcdic_strings
         enum_arrays
         expr_features
         field_scale
@@ -121,20 +130,45 @@ if(CONDUIT_BUILD_BGEN)
         frame_array
         frame_basic
         frame_config
+        frame_count
         frame_direction
         frame_footer
+        frame_length_arith
+        frame_length_offset
+        frame_payload_length
+        frame_payload_length_from
+        frame_timestamp
         fx_advanced
         fx_block
         fx_choice
+        fx_ia5_string
+        fx_string
+        hex_default
+        inline_case_collision
         inline_enum
         inline_field_types
+        inline_struct
+        inline_struct_overlap
+        length_arith
+        minimal
         mixed_endian
+        msg_config
+        msg_config_inline
+        nested_bitmap
+        non_overlap_ranges
+        optional_constrained
         outer_scope
         present_when_complex
+        send_only_leaf
         sentry_link
         session_protocol
+        signed_length
+        stress_large
         string_features
+        string_prefix_incl
         struct_features
+        type_name_override
+        uint64_max_default
         wire_encodings
     )
 

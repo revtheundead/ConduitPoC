@@ -22,6 +22,7 @@ struct UdpConfig {
     std::string remote_address;       // Single-peer "connected" mode
     uint16_t remote_port = 0;
     size_t recv_buffer_size = 65536;
+    size_t send_buffer_size = 65536;  // OS socket send buffer (SO_SNDBUF)
     size_t max_datagram_size = 65507; // Max UDP payload for IPv4
     size_t max_peers = 1024;          // 0 = unlimited (multi-peer mode only)
     std::chrono::seconds peer_timeout{0};  // 0 = no timeout (multi-peer mode only)

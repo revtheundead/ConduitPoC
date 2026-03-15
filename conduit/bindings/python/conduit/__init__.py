@@ -2,6 +2,7 @@
 
 from conduit.transceiver import Transceiver, ConduitError
 from conduit.codec_binding import CodecSession, CodecFramer, DecodedMessage, ConduitCodecError
+from conduit.async_transceiver import AsyncTransceiver
 from conduit.types import (
     TransportType, TransportConfig,
     UdpConfig, TcpClientConfig, TcpServerConfig, SerialConfig,
@@ -11,7 +12,7 @@ from conduit.types import (
 )
 
 __all__ = [
-    "Transceiver", "ConduitError",
+    "Transceiver", "AsyncTransceiver", "ConduitError",
     "CodecSession", "CodecFramer", "DecodedMessage", "ConduitCodecError",
     "TransportType", "TransportConfig",
     "UdpConfig", "TcpClientConfig", "TcpServerConfig", "SerialConfig",

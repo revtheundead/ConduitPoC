@@ -47,6 +47,7 @@ class _CONDUIT_TRANSPORT_CONFIG(ctypes.Structure):
         ("bind_address",                ctypes.c_char_p),
         ("bind_port",                   ctypes.c_uint16),
         ("remote_port",                 ctypes.c_uint16),
+        ("send_buffer_size",            ctypes.c_size_t),
         ("max_datagram_size",           ctypes.c_size_t),
         ("max_peers",                   ctypes.c_size_t),
         ("peer_timeout_s",              ctypes.c_uint32),
@@ -722,6 +723,7 @@ class Transceiver:
                 cfg.bind_address = transport.bind_address.encode("utf-8")
             cfg.bind_port         = transport.bind_port
             cfg.remote_port       = transport.remote_port
+            cfg.send_buffer_size  = transport.send_buffer_size
             cfg.max_datagram_size = transport.max_datagram_size
             cfg.max_peers         = transport.max_peers
             cfg.peer_timeout_s    = transport.peer_timeout_s

@@ -1764,13 +1764,17 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                         if (dot_pos != std::string::npos) {
                             std::string min_s = cs.range->substr(0, dot_pos);
                             std::string max_s = cs.range->substr(dot_pos + 2);
+                            if (index.constants.count(min_s)) min_s = "Constants." + py_snake(min_s);
+                            if (index.constants.count(max_s)) max_s = "Constants." + py_snake(max_s);
                             if (min_s == "0") {
                                 cond = sv + " <= " + max_s;
                             } else {
                                 cond = min_s + " <= " + sv + " <= " + max_s;
                             }
                         } else {
-                            cond = sv + " == " + *cs.range;
+                            std::string range_val = *cs.range;
+                            if (index.constants.count(range_val)) range_val = "Constants." + py_snake(range_val);
+                            cond = sv + " == " + range_val;
                         }
                     } else {
                         continue;
@@ -2552,13 +2556,17 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                     if (dot_pos != std::string::npos) {
                         std::string min_s = cs.range->substr(0, dot_pos);
                         std::string max_s = cs.range->substr(dot_pos + 2);
+                        if (index.constants.count(min_s)) min_s = "Constants." + py_snake(min_s);
+                        if (index.constants.count(max_s)) max_s = "Constants." + py_snake(max_s);
                         if (min_s == "0") {
                             cond = sv + " <= " + max_s;
                         } else {
                             cond = min_s + " <= " + sv + " <= " + max_s;
                         }
                     } else {
-                        cond = sv + " == " + *cs.range;
+                        std::string range_val = *cs.range;
+                        if (index.constants.count(range_val)) range_val = "Constants." + py_snake(range_val);
+                        cond = sv + " == " + range_val;
                     }
                 } else {
                     continue;
@@ -4341,9 +4349,9 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                         int bits = (ai < lt.auto_field_bits.size()) ? lt.auto_field_bits[ai] : 8;
                         uint64_t mask_val = (bits >= 64) ? ~uint64_t(0) : ((uint64_t(1) << bits) - 1);
                         std::string field = py_field(lt.auto_fields[ai]);
-                        ctx.line("_seq_val = self._seq & " + std::to_string(mask_val));
+                        ctx.line("_seq_val = self._seq.get(type_id, 0) & " + std::to_string(mask_val));
                         ctx.line("frame." + field + " = _seq_val");
-                        ctx.line("self._seq += 1");
+                        ctx.line("self._seq[type_id] = self._seq.get(type_id, 0) + 1");
                         ctx.line("_auto_fields.append(('" + lt.auto_fields[ai] + "', str(_seq_val)))");
                     }
 

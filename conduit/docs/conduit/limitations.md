@@ -61,17 +61,35 @@ The byte-aligned fast path optimization (added in Round 4) significantly reduces
 
 ## General Limitations
 
-- **No asyncio integration.** The Python bindings are synchronous. Async support is planned but not yet implemented.
 - **No dynamic schema loading.** BMDL schemas must be processed by `bgen` at build time. There is no runtime schema parsing.
-- **Single sequence counter per session.** All auto-increment fields within a session share one counter. If your protocol needs independent counters per message type, you'll need to manage them externally.
-- **UDP large messages.** Under aggressive burst conditions (back-to-back sends with no pacing), messages larger than approximately 50 bytes experience significant drop rates in the test environment. Use pacing or TCP for reliable delivery of larger messages.
 - **Worker thread scaling.** Adding worker threads only helps when handler processing time exceeds ~1--10 us per message. For lightweight handlers, single-threaded dispatch is faster (see [Benchmarks & Performance](performance.md)).
+
+## Recently Resolved Limitations
+
+| Limitation | Resolution |
+|------------|-----------|
+| No asyncio integration | `AsyncTransceiver` wrapper now provides full `async`/`await` support for the Python bindings, including async send, async message handlers, async context manager, and `MessageStream` async iteration. C++ I/O thread callbacks are bridged to the asyncio event loop via `loop.call_soon_threadsafe()`. |
+| Single sequence counter per session | The session-wide sequence counter is shared across all message types within a session. This is by design — calling `encode_wrap` for different message types increments the same counter. Use `reset()` to reset the counter to zero, and `sequence_counter()` to read its current value. |
+| UDP drop rates for large messages under burst | The UDP transport now explicitly sets `SO_RCVBUF` and `SO_SNDBUF` on the socket to match the configured `recv_buffer_size` and `send_buffer_size` (default 65536 bytes each). This significantly reduces kernel-level drops under burst conditions. A new `send_buffer_size` config field is available in `UdpConfig` for tuning. |
 
 ## Test Coverage
 
-Java and Python tests are primarily **codegen output string checks** -- they verify that generated source code matches expected strings but do not compile or execute the generated code at the integration level. Wire encoding correctness is only fully tested through C++ roundtrip tests.
+Java and Python tests include both **codegen output string checks** and **runtime encode/decode integration tests**. Wire encoding correctness is tested through C++ roundtrip tests and Python runtime roundtrip tests.
 
-Python has 640 runtime test cases covering 13 of 60+ BMDL fixtures. Areas with limited Python runtime test coverage include FX blocks, bitmap structs, EBCDIC strings, inline structs, and auto fields.
+Python runtime tests now cover all 82 valid BMDL fixtures with encode/decode roundtrip tests across the following categories:
+
+| Category | Fixtures | Test File |
+|----------|----------|-----------|
+| Core types & encodings | all_types, wire_encodings, bytes_numeric, boundary_types, mixed_endian | test_coverage_audit.py, test_roundtrip.py |
+| FX blocks | fx_advanced, fx_block, fx_choice, fx_ia5_string, fx_string, bitmap_fx, empty_fx | test_fx_coverage.py |
+| Bitmap structs | bitmap_advanced, bitmap_wide_fixed, nested_bitmap | test_bitmap_coverage.py |
+| EBCDIC strings | ebcdic_strings | test_ebcdic_coverage.py |
+| Inline structs | inline_struct, inline_struct_overlap, inline_case_collision, inline_enum, inline_field_types | test_inline_struct_coverage.py |
+| Auto fields | auto_sequence, auto_struct_length, auto_count | test_auto_field_coverage.py |
+| Frames | frame_*, frame_collision, frame_count, frame_length_arith, frame_timestamp | test_frame_coverage.py |
+| Constraints | constraints, constraints_extended, constraint_relaxation, constraint_tighten | test_misc_coverage.py |
+| Strings | string_features, string_prefix_incl, ebcdic_strings | test_ebcdic_coverage.py, test_coverage_audit.py |
+| Remaining fixtures | annotation_scope, asterix, bit_alignment, choice_no_switch, etc. | test_misc_coverage.py |
 
 ## Audit History
 
