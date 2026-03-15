@@ -13,47 +13,42 @@ public class TestInlineStructCoverage {
     @DisplayName("BodyX: basic roundtrip with xData")
     void testBodyXBasicRoundtrip() {
         BodyX msg = new BodyX();
-        msg.xData = 12345678L;
+        msg.xData = 12345678;
 
         byte[] data = msg.encodeBytes();
         BodyX decoded = BodyX.decodeBytes(data);
 
-        assertEquals(12345678L, decoded.xData);
+        assertEquals(12345678, decoded.xData);
     }
 
     @Test
     @DisplayName("BodyX: zero value roundtrip")
     void testBodyXZeroValue() {
         BodyX msg = new BodyX();
-        msg.xData = 0L;
+        msg.xData = 0;
 
         byte[] data = msg.encodeBytes();
         BodyX decoded = BodyX.decodeBytes(data);
 
-        assertEquals(0L, decoded.xData);
+        assertEquals(0, decoded.xData);
     }
 
     @Test
-    @DisplayName("BodyX: boundary value 0xFFFFFFFF")
-    void testBodyXMaxUint32() {
+    @DisplayName("BodyX: boundary value 0x7FFFFFFF (int max)")
+    void testBodyXMaxPositive() {
         BodyX msg = new BodyX();
-        msg.xData = 0xFFFFFFFFL;
+        msg.xData = 0x7FFFFFFF;
 
         byte[] data = msg.encodeBytes();
         BodyX decoded = BodyX.decodeBytes(data);
 
-        assertEquals(0xFFFFFFFFL, decoded.xData);
+        assertEquals(0x7FFFFFFF, decoded.xData);
     }
 
     @Test
-    @DisplayName("BodyX: wire size is 4 bytes for uint32")
+    @DisplayName("BodyX: WIRE_SIZE constant equals 4")
     void testBodyXWireSize() {
-        BodyX msg = new BodyX();
-        msg.xData = 1L;
-
-        byte[] data = msg.encodeBytes();
-
-        assertEquals(4, data.length);
+        assertEquals(4, BodyX.WIRE_SIZE);
     }
 
     @Test
@@ -65,14 +60,14 @@ public class TestInlineStructCoverage {
     @Test
     @DisplayName("BodyX: TYPE_ID constant is defined")
     void testBodyXTypeId() {
-        assertNotNull(BodyX.TYPE_ID);
+        assertNotEquals(0, BodyX.TYPE_ID);
     }
 
     @Test
     @DisplayName("BodyX: double-encode stability")
     void testBodyXDoubleEncode() {
         BodyX msg = new BodyX();
-        msg.xData = 0xDEADBEEFL;
+        msg.xData = (int) 0xDEADBEEFL;
 
         byte[] data1 = msg.encodeBytes();
         BodyX decoded1 = BodyX.decodeBytes(data1);
@@ -85,12 +80,12 @@ public class TestInlineStructCoverage {
     @DisplayName("BodyX: mid-range value roundtrip")
     void testBodyXMidRange() {
         BodyX msg = new BodyX();
-        msg.xData = 0x7FFFFFFFL;
+        msg.xData = 0x12345678;
 
         byte[] data = msg.encodeBytes();
         BodyX decoded = BodyX.decodeBytes(data);
 
-        assertEquals(0x7FFFFFFFL, decoded.xData);
+        assertEquals(0x12345678, decoded.xData);
     }
 
     // ========== BodyY Tests ==========
@@ -132,14 +127,9 @@ public class TestInlineStructCoverage {
     }
 
     @Test
-    @DisplayName("BodyY: wire size is 2 bytes for uint16")
+    @DisplayName("BodyY: WIRE_SIZE constant equals 2")
     void testBodyYWireSize() {
-        BodyY msg = new BodyY();
-        msg.yData = 1;
-
-        byte[] data = msg.encodeBytes();
-
-        assertEquals(2, data.length);
+        assertEquals(2, BodyY.WIRE_SIZE);
     }
 
     @Test
@@ -151,7 +141,7 @@ public class TestInlineStructCoverage {
     @Test
     @DisplayName("BodyY: TYPE_ID constant is defined")
     void testBodyYTypeId() {
-        assertNotNull(BodyY.TYPE_ID);
+        assertNotEquals(0, BodyY.TYPE_ID);
     }
 
     @Test

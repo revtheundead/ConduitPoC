@@ -328,8 +328,7 @@ public class TestMiscCoverage {
         msg.signedWord = 0;
         msg.signedDword = 0;
         msg.signedQword = 0;
-        msg.temp = 0;
-        msg.level = 0;
+
 
         byte[] encoded = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(encoded);
@@ -354,8 +353,6 @@ public class TestMiscCoverage {
         msg.signedWord = 0;
         msg.signedDword = 0;
         msg.signedQword = 0;
-        msg.temp = 0;
-        msg.level = 0;
 
         byte[] encoded = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(encoded);
@@ -379,8 +376,6 @@ public class TestMiscCoverage {
         msg.signedWord = -32768;
         msg.signedDword = Integer.MIN_VALUE;
         msg.signedQword = Long.MIN_VALUE;
-        msg.temp = 0;
-        msg.level = 0;
 
         byte[] encoded = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(encoded);
@@ -405,8 +400,6 @@ public class TestMiscCoverage {
         msg.signedWord = 32767;
         msg.signedDword = Integer.MAX_VALUE;
         msg.signedQword = Long.MAX_VALUE;
-        msg.temp = 0;
-        msg.level = 0;
 
         byte[] encoded = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(encoded);
@@ -431,8 +424,6 @@ public class TestMiscCoverage {
         msg.signedWord = 0;
         msg.signedDword = 0;
         msg.signedQword = 0;
-        msg.temp = 0;
-        msg.level = 0;
 
         byte[] encoded = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(encoded);
@@ -442,11 +433,11 @@ public class TestMiscCoverage {
         assertEquals(0, decoded.byteVal);
         assertEquals(0, decoded.word);
         assertEquals(0, decoded.dword);
-        assertEquals(0, decoded.qword);
+        assertEquals(0L, decoded.qword);
         assertEquals(0, decoded.signedByte);
         assertEquals(0, decoded.signedWord);
         assertEquals(0, decoded.signedDword);
-        assertEquals(0, decoded.signedQword);
+        assertEquals(0L, decoded.signedQword);
     }
 
     @Test
@@ -494,8 +485,6 @@ public class TestMiscCoverage {
         msg.signedWord = -1000;
         msg.signedDword = -100000;
         msg.signedQword = -999999999L;
-        msg.temp = 500;
-        msg.level = 3;
 
         byte[] first = msg.encodeBytes();
         boundary_types.BoundaryMsg decoded = boundary_types.BoundaryMsg.decodeBytes(first);

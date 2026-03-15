@@ -19,13 +19,13 @@ public class TestBitmapCoverage {
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
         msg.bitmapData.alpha = 0x42;
         msg.bitmapData.beta = 0x1234;
-        msg.bitmapData.gamma = 0xDEADBEEFL;
+        msg.bitmapData.gamma = 0xDEADBEEF;
         byte[] encoded = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(encoded);
         assertEquals(0x01, d.header);
         assertEquals((Integer) 0x42, d.bitmapData.alpha);
         assertEquals((Integer) 0x1234, d.bitmapData.beta);
-        assertEquals((Long) 0xDEADBEEFL, d.bitmapData.gamma);
+        assertEquals((Integer) 0xDEADBEEF, d.bitmapData.gamma);
     }
 
     @Test
@@ -76,12 +76,12 @@ public class TestBitmapCoverage {
         bitmap_wide_fixed.WideBitmapMsg msg = new bitmap_wide_fixed.WideBitmapMsg();
         msg.header = 0x05;
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
-        msg.bitmapData.gamma = 0xFFFFFFFFL;
+        msg.bitmapData.gamma = (int) 0xFFFFFFFFL;
         byte[] encoded = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(encoded);
         assertNull(d.bitmapData.alpha);
         assertNull(d.bitmapData.beta);
-        assertEquals((Long) 0xFFFFFFFFL, d.bitmapData.gamma);
+        assertEquals((Integer) (int) 0xFFFFFFFFL, d.bitmapData.gamma);
     }
 
     @Test
@@ -91,12 +91,12 @@ public class TestBitmapCoverage {
         msg.header = 0x06;
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
         msg.bitmapData.alpha = 0x0A;
-        msg.bitmapData.gamma = 0x12345678L;
+        msg.bitmapData.gamma = 0x12345678;
         byte[] encoded = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(encoded);
         assertEquals((Integer) 0x0A, d.bitmapData.alpha);
         assertNull(d.bitmapData.beta);
-        assertEquals((Long) 0x12345678L, d.bitmapData.gamma);
+        assertEquals((Integer) 0x12345678, d.bitmapData.gamma);
     }
 
     @Test
@@ -107,12 +107,12 @@ public class TestBitmapCoverage {
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
         msg.bitmapData.alpha = 0;
         msg.bitmapData.beta = 0;
-        msg.bitmapData.gamma = 0L;
+        msg.bitmapData.gamma = 0;
         byte[] encoded = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(encoded);
         assertEquals((Integer) 0, d.bitmapData.alpha);
         assertEquals((Integer) 0, d.bitmapData.beta);
-        assertEquals((Long) 0L, d.bitmapData.gamma);
+        assertEquals((Integer) 0, d.bitmapData.gamma);
     }
 
     @Test
@@ -123,12 +123,12 @@ public class TestBitmapCoverage {
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
         msg.bitmapData.alpha = 0xFF;
         msg.bitmapData.beta = 0xFFFF;
-        msg.bitmapData.gamma = 0xFFFFFFFFL;
+        msg.bitmapData.gamma = (int) 0xFFFFFFFFL;
         byte[] encoded = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(encoded);
         assertEquals((Integer) 0xFF, d.bitmapData.alpha);
         assertEquals((Integer) 0xFFFF, d.bitmapData.beta);
-        assertEquals((Long) 0xFFFFFFFFL, d.bitmapData.gamma);
+        assertEquals((Integer) (int) 0xFFFFFFFFL, d.bitmapData.gamma);
     }
 
     @Test
@@ -139,7 +139,7 @@ public class TestBitmapCoverage {
         msg.bitmapData = new bitmap_wide_fixed.WideBitmap();
         msg.bitmapData.alpha = 0x55;
         msg.bitmapData.beta = 0xAAAA;
-        msg.bitmapData.gamma = 0x55555555L;
+        msg.bitmapData.gamma = 0x55555555;
         byte[] data1 = msg.encodeBytes();
         bitmap_wide_fixed.WideBitmapMsg d = bitmap_wide_fixed.WideBitmapMsg.decodeBytes(data1);
         byte[] data2 = d.encodeBytes();
