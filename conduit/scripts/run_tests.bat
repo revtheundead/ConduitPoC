@@ -147,6 +147,7 @@ if defined JUNIT_JAR (
                 java "-Djava.library.path=%~dp0..\lib" ^
                     !JAVA_JVM_FLAGS! ^
                     -jar "!JUNIT_JAR!" ^
+                    execute ^
                     --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                     --scan-class-path "!JAVA_TEST_CLASSES!" ^
                     --include-classname "^Test.*" ^

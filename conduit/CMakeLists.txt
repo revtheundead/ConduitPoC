@@ -733,6 +733,7 @@ endif()
                             "-Djava.library.path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
                             ${_java_test_jvm_flags}
                             -jar "${_junit_jar}"
+                            execute
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"
                             --include-classname "^Test.*"

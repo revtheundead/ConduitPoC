@@ -120,6 +120,7 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
             "-Djava.library.path=$PROJECT_DIR/lib" \
             "${JAVA_JVM_FLAGS[@]}" \
             -jar "$JUNIT_JAR" \
+            execute \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
