@@ -2,6 +2,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
 
+import session_test.PingBody;
+import session_test.DataBody;
+import session_test.AckBody;
 
 /**
  * Advanced roundtrip encode/decode tests: edge cases, complex messages,
