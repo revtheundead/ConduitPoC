@@ -326,8 +326,10 @@ if(CONDUIT_BUILD_JNI)
         )
         target_link_libraries(conduit_codec_jni PRIVATE
             conduit_codec conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        target_include_directories(conduit_codec_jni PRIVATE
+        target_include_directories(conduit_codec_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
+        )
+        target_include_directories(conduit_codec_jni PRIVATE
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         # The JNI wrapper calls CABI functions bundled in the same DLL.
@@ -350,8 +352,10 @@ if(CONDUIT_BUILD_JNI)
         )
         target_link_libraries(conduit_jni PRIVATE
             conduit conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        target_include_directories(conduit_jni PRIVATE
+        target_include_directories(conduit_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
+        )
+        target_include_directories(conduit_jni PRIVATE
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         # The JNI wrapper calls CABI functions bundled in the same DLL.
