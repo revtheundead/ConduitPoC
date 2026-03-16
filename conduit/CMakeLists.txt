@@ -574,6 +574,7 @@ endif()\n\
                 arrays_choices
                 choice_protocol
                 wire_encodings
+                mixed_endian
                 direction_qualified
                 sentry_link
                 expr_features
@@ -724,13 +725,15 @@ endif()
                     if(NOT CONDUIT_BUILD_JNI OR NOT CONDUIT_BUILD_CABI)
                         list(APPEND _java_test_excludes
                             --exclude-classname "TestTransceiverJni"
-                            --exclude-classname "TestXcvrScenarios")
+                            --exclude-classname "TestXcvrScenarios"
+                            --exclude-classname "TestTransceiverAdvanced")
                     endif()
                     add_custom_target(java_test_run
                         COMMAND ${_java_exe}
                             "-Djava.library.path=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
                             ${_java_test_jvm_flags}
                             -jar "${_junit_jar}"
+                            execute
                             --class-path "${_java_test_classes_dir}${_cp_sep}${_java_jar}"
                             --scan-class-path "${_java_test_classes_dir}"
                             --include-classname "^Test.*"

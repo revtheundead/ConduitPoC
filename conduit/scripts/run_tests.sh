@@ -107,7 +107,8 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
         fi
         if [ "$_has_jni_test_libs" != true ]; then
             JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
-                             --exclude-classname "TestXcvrScenarios")
+                             --exclude-classname "TestXcvrScenarios"
+                             --exclude-classname "TestTransceiverAdvanced")
         fi
         # Panama FFI tests require --enable-preview on JDK 21+
         JAVA_JVM_FLAGS=()
@@ -119,6 +120,7 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
             "-Djava.library.path=$PROJECT_DIR/lib" \
             "${JAVA_JVM_FLAGS[@]}" \
             -jar "$JUNIT_JAR" \
+            execute \
             --class-path "${JAVA_TEST_CLASSES}:${JAVA_JAR}" \
             --scan-class-path "$JAVA_TEST_CLASSES" \
             --include-classname "^Test.*" \
@@ -178,7 +180,8 @@ if [ -d "$PYTHON_TESTS" ]; then
             if [ "$_has_cabi_libs" != true ]; then
                 PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
                                  --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
-                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py"
+                                 --ignore="$PYTHON_TESTS/test_async_roundtrip.py")
             fi
             run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
                 "${PYTEST_IGNORES[@]}"
