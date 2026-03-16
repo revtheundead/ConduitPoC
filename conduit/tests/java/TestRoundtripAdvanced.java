@@ -109,7 +109,7 @@ public class TestRoundtripAdvanced {
         w.writeF32(-0.0f, true);
         all_types.codec.BitReader r = new all_types.codec.BitReader(w.toBytes());
         float result = r.readF32(true);
-        assertEquals(0.0f, result);
+        assertEquals(-0.0f, result);
         assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(result));
     }
 
@@ -120,7 +120,7 @@ public class TestRoundtripAdvanced {
         w.writeF64(-0.0, true);
         all_types.codec.BitReader r = new all_types.codec.BitReader(w.toBytes());
         double result = r.readF64(true);
-        assertEquals(0.0, result);
+        assertEquals(-0.0, result);
         assertEquals(Double.doubleToRawLongBits(-0.0), Double.doubleToRawLongBits(result));
     }
 
