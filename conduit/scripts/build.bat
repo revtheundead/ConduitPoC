@@ -16,9 +16,12 @@ setlocal enabledelayedexpansion
 ::   scripts\build.bat --sanitize   Enable address + undefined-behavior sanitizers
 ::   scripts\build.bat --third-party Build only third-party dependencies
 ::   scripts\build.bat --test       Run all tests after build
+::   scripts\build.bat --clang      Use Clang (clang / clang++) with Ninja
+::   scripts\build.bat --msvc       Use MSVC (cl.exe) — the default on Windows
 ::
 :: Flags may be combined freely, e.g.:
 ::   scripts\build.bat --debug --jni --test
+::   scripts\build.bat --clang --release
 :: ============================================================================
 
 :: Navigate to project root (parent of scripts\)
@@ -33,6 +36,7 @@ set "BUILD_CABI=0"
 set "BUILD_JNI=0"
 set "BUILD_JAVA=0"
 set "ENABLE_SANITIZERS=0"
+set "USE_COMPILER="
 set "BUILD_DIR=build"
 
 :: Auto-detect number of CPU cores for parallel builds
@@ -54,8 +58,10 @@ if /i "%~1"=="--cabi"         ( set "BUILD_CABI=1"        & shift & goto :parse_
 if /i "%~1"=="--jni"          ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & shift & goto :parse_args )
 if /i "%~1"=="--java"         ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & set "BUILD_JAVA=1" & shift & goto :parse_args )
 if /i "%~1"=="--sanitize"     ( set "ENABLE_SANITIZERS=1" & shift & goto :parse_args )
+if /i "%~1"=="--clang"        ( set "USE_COMPILER=clang"  & shift & goto :parse_args )
+if /i "%~1"=="--msvc"         ( set "USE_COMPILER=msvc"   & shift & goto :parse_args )
 echo Unknown argument: %~1
-echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--third-party] [--test]
+echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--msvc] [--third-party] [--test]
 exit /b 1
 :done_args
 
@@ -96,12 +102,51 @@ for /f "tokens=3" %%v in ('cmake --version 2^>^&1 ^| findstr /r "cmake version"'
     echo   cmake %%v ... ok
 )
 
-:: Detect generator.
+:: Detect generator and compiler.
 :: Use HAS_GENERATOR flag to avoid the "if defined VAR" pitfall with empty
 :: string variables — in CMD, a variable set to "" is still "defined".
 set "GENERATOR="
 set "HAS_GENERATOR=0"
+set "CMAKE_COMPILER_FLAGS="
 
+:: --clang: force Clang compiler with Ninja generator
+if "%USE_COMPILER%"=="clang" (
+    where clang++ >nul 2>&1
+    if errorlevel 1 (
+        echo Error: --clang specified but clang++ not found on PATH.
+        exit /b 1
+    )
+    where ninja >nul 2>&1
+    if errorlevel 1 (
+        echo Error: --clang requires Ninja. Install ninja ^(choco install ninja^).
+        exit /b 1
+    )
+    set "GENERATOR=Ninja"
+    set "HAS_GENERATOR=1"
+    set "CMAKE_COMPILER_FLAGS=-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
+    echo   clang++ ... ok ^(using Ninja generator^)
+    goto :generator_done
+)
+
+:: --msvc: force MSVC cl.exe — let CMake pick the Visual Studio generator
+if "%USE_COMPILER%"=="msvc" (
+    where cl >nul 2>&1
+    if not errorlevel 1 (
+        echo   cl.exe ... ok ^(using Visual Studio generator^)
+        goto :generator_done
+    )
+    set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+    if exist "!VSWHERE!" (
+        for /f "tokens=*" %%i in ('"!VSWHERE!" -latest -property installationPath 2^>nul') do (
+            echo   Visual Studio found at %%i
+        )
+        goto :generator_done
+    )
+    echo Error: --msvc specified but cl.exe and Visual Studio not found.
+    exit /b 1
+)
+
+:: Auto-detect: prefer Ninja, then cl.exe/VS, then vswhere fallback
 where ninja >nul 2>&1
 if not errorlevel 1 (
     set "GENERATOR=Ninja"
@@ -181,12 +226,12 @@ if "%THIRD_PARTY_ONLY%"=="1" (
     echo ==^> Building third-party dependencies only
 
     if "%HAS_GENERATOR%"=="1" (
-        cmake -B "%BUILD_DIR%" -G "!GENERATOR!" ^
+        cmake -B "%BUILD_DIR%" -G "!GENERATOR!" !CMAKE_COMPILER_FLAGS! ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=OFF -DCONDUIT_BUILD_TESTS=ON ^
             -DCONDUIT_BUILD_EXAMPLES=OFF -DCONDUIT_BUILD_BENCHMARKS=OFF
     ) else (
-        cmake -B "%BUILD_DIR%" ^
+        cmake -B "%BUILD_DIR%" !CMAKE_COMPILER_FLAGS! ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=OFF -DCONDUIT_BUILD_TESTS=ON ^
             -DCONDUIT_BUILD_EXAMPLES=OFF -DCONDUIT_BUILD_BENCHMARKS=OFF
@@ -299,13 +344,13 @@ if "%NEEDS_CONFIGURE%"=="1" (
     echo ==^> Configuring ^(!BUILD_TYPE!^)
 
     if "%HAS_GENERATOR%"=="1" (
-        cmake -B "%BUILD_DIR%" -G "!GENERATOR!" ^
+        cmake -B "%BUILD_DIR%" -G "!GENERATOR!" !CMAKE_COMPILER_FLAGS! ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^
             !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_SANITIZE!
     ) else (
-        cmake -B "%BUILD_DIR%" ^
+        cmake -B "%BUILD_DIR%" !CMAKE_COMPILER_FLAGS! ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^

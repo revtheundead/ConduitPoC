@@ -11,9 +11,11 @@ All three language backends produce wire-compatible output from the same BMDL sc
 ## Quick Start
 
 ```bash
-# 1. Build
-cmake -B build -S conduit -DCONDUIT_BUILD_EXAMPLES=ON -DCONDUIT_BUILD_BGEN=ON
-cmake --build build
+# 1. Build (Linux / macOS)
+./conduit/scripts/build.sh --release
+
+# 1. Build (Windows)
+conduit\scripts\build.bat --release
 
 # 2. Define a protocol (see conduit/docs/bmdl/ for the full language reference)
 #    Example protocols are in conduit/examples/
@@ -29,16 +31,20 @@ cmake --build build
 
 ## Requirements
 
-- **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+)
+- **C++23** compiler: GCC 12+, Clang 15+ (Linux/macOS/Windows), MSVC 19.30+
 - CMake 3.20+
+- **Ninja** -- required when building with Clang on Windows; recommended elsewhere
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional
 - No external runtime dependencies
+
+The build scripts support explicit compiler selection (`--clang`, `--gcc`, `--msvc`). See [Building & Testing](conduit/docs/building.md) for full details.
 
 ## Documentation
 
 Full documentation is at [`conduit/docs/index.md`](conduit/docs/index.md), covering:
 
+- [Building & Testing](conduit/docs/building.md) -- Build scripts, compiler selection, CMake options, running tests
 - [BMDL Language Reference](conduit/docs/bmdl/index.md) -- Protocol definition language
 - [bgen Code Generator](conduit/docs/bgen/index.md) -- Code generation for C++, Java, Python
 - [conduit Runtime Library](conduit/docs/conduit/index.md) -- Transports, transceiver, error handling, bit I/O

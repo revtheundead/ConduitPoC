@@ -59,78 +59,34 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 
 ## Requirements
 
-- **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+) -- required for the conduit runtime and bgen itself
-- CMake 3.20+ (build system)
-- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional, for Java backend
-- **Python** 3.7+ -- optional, for Python backend
-- No external runtime dependencies (header-only generated code, conduit is a static library). Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
+- **C++23** compiler: GCC 12+ (Linux), Clang 15+ (Linux/macOS/Windows), MSVC 19.30+ (Windows)
+- CMake 3.20+, Ninja (required for Clang on Windows; recommended elsewhere)
+- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
+- **Python** 3.7+ -- optional
+- No external runtime dependencies. Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
 
 ## Building from Source
 
-### Using the build script (recommended)
+See [Building & Testing](building.md) for complete instructions, including compiler selection (`--clang`, `--gcc`, `--msvc`), CMake options, and test runner usage.
+
+Quick start:
 
 ```bash
-./conduit/scripts/build.sh              # Debug build (C++ runtime + bgen)
-./conduit/scripts/build.sh --release    # Release build with examples, CABI, JNI, Java
-./conduit/scripts/build.sh --cabi       # Build C ABI shared libraries
-./conduit/scripts/build.sh --jni        # Build JNI shared libraries (implies --cabi)
-./conduit/scripts/build.sh --java       # Build Java JAR + JNI + CABI
-./conduit/scripts/build.sh --test       # Run all test suites after build
-./conduit/scripts/build.sh --sanitize   # Enable AddressSanitizer + UBSan
-./conduit/scripts/build.sh --clean      # Wipe build directory and rebuild
+# Linux / macOS
+./conduit/scripts/build.sh                          # Debug build
+./conduit/scripts/build.sh --release --test          # Release build + run tests
+./conduit/scripts/build.sh --release --clang --test  # Same, using Clang
+
+# Windows
+scripts\build.bat --release --test                   # Release build + run tests (MSVC)
+scripts\build.bat --release --clang --test           # Same, using Clang + Ninja
 ```
-
-Flags can be combined freely, e.g. `./conduit/scripts/build.sh --debug --jni --test`. The script auto-detects Ninja (preferred) or Make as the build generator.
-
-### Using CMake directly
-
-```bash
-# Basic build (C++ runtime + bgen code generator)
-cmake -B build -S conduit
-cmake --build build
-
-# With examples
-cmake -B build -S conduit -DCONDUIT_BUILD_EXAMPLES=ON -DCONDUIT_BUILD_BGEN=ON
-cmake --build build
-
-# With cross-language bindings (CABI + JNI)
-cmake -B build -S conduit -DCONDUIT_BUILD_CABI=ON -DCONDUIT_BUILD_JNI=ON -DCONDUIT_BUILD_BGEN=ON
-cmake --build build
-
-# Run C++ tests directly
-./build/tests/conduit_tests
-./build/bgen/tests/bgen_tests
-```
-
-### Key CMake options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `CONDUIT_BUILD_BGEN` | ON | Build the bgen code generator |
-| `CONDUIT_BUILD_TESTS` | ON | Build unit tests |
-| `CONDUIT_BUILD_EXAMPLES` | OFF | Build example applications |
-| `CONDUIT_BUILD_BENCHMARKS` | OFF | Build performance benchmarks |
-| `CONDUIT_BUILD_CABI` | OFF | Build full Transceiver C ABI shared library |
-| `CONDUIT_BUILD_CODEC_CABI` | OFF | Build codec-only C ABI shared library |
-| `CONDUIT_BUILD_JNI` | OFF | Build JNI shared libraries (Java 11+) |
-| `CONDUIT_BUILD_JAVA_JAR` | OFF | Build conduit-java JAR and compile Java tests |
-| `CONDUIT_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer + UBSan |
-| `CONDUIT_ENABLE_COVERAGE` | OFF | Enable code coverage instrumentation (GCC/Clang) |
-
-### Vendored dependencies
-
-All build-time dependencies are vendored in `third_party/` — no network access is required:
-
-- **Catch2** — C++ test framework (v3)
-- **pugixml** — XML parser used by bgen
-- **nlohmann/json** — Header-only JSON library used by generated C++ code
-
-For full build and run instructions for each language, see [Examples](examples.md).
 
 ## Documentation
 
 | Section | Description |
 |---------|-------------|
+| [Building & Testing](building.md) | Build scripts, compiler selection, CMake options, running tests |
 | [BMDL Language Reference](bmdl/index.md) | XML language for defining binary message formats |
 | [bgen Code Generator](bgen/index.md) | Reads BMDL, validates, generates C++, Java, or Python code |
 | [conduit Runtime Library](conduit/index.md) | Error handling, bit I/O, transports, transceiver |

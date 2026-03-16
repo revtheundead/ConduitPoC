@@ -168,31 +168,6 @@ python -m src.poc_app 127.0.0.1 5000 --interval-ms 500
 
 ---
 
-## Running Tests
+## Building & Testing
 
-Conduit includes test suites for C++ (Catch2), Java (JUnit 5), and Python (pytest). Both JUnit and pytest are vendored in `third_party/` for fully offline use.
-
-**Standalone test runner scripts:**
-
-```bash
-# Linux / macOS
-./scripts/run_tests.sh [BUILD_DIR]
-
-# Windows
-scripts\run_tests.bat [BUILD_DIR]
-```
-
-These scripts run all three test suites and report a summary. Java and Python tests are non-fatal -- failures are logged but do not prevent other suites from running.
-
-**Via the build script:**
-
-```bash
-./scripts/build.sh --test       # runs C++ tests + Java/Python if available
-scripts\build.bat --test        # same on Windows
-```
-
-**Vendored test dependencies:**
-- `third_party/junit5/` -- JUnit Platform Console Standalone 1.11.4 JAR
-- `third_party/pytest/` -- pytest and its dependencies as Python wheel files (iniconfig, pluggy, packaging)
-
-These are automatically used by the test runner scripts when running offline.
+For build instructions (compiler selection, CMake options, flags) and test runner usage, see [Building & Testing](building.md).
