@@ -200,6 +200,14 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
         "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
         "${CMAKE_BINARY_DIR}/_deps/Catch2"
     )
+    # Mark Catch2 headers as SYSTEM so that the project's strict warning
+    # flags (applied via conduit_warnings) do not trigger warnings inside
+    # Catch2 header code when test sources #include them.
+    get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+    if(_catch2_inc)
+        set_target_properties(Catch2 PROPERTIES
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+    endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
 
