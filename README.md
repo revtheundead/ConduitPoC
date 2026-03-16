@@ -31,7 +31,7 @@ conduit\scripts\build.bat --release
 
 ## Requirements
 
-- **C++23** compiler: GCC 12+, Clang 15+ (Linux/macOS/Windows), MSVC 19.30+
+- **C++23** compiler: GCC 12+, Clang 19+ (Linux/macOS/Windows), MSVC 19.30+
 - CMake 3.20+
 - **Ninja** -- required when building with Clang on Windows; recommended elsewhere
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
