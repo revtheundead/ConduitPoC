@@ -107,7 +107,8 @@ if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; the
         fi
         if [ "$_has_jni_test_libs" != true ]; then
             JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
-                             --exclude-classname "TestXcvrScenarios")
+                             --exclude-classname "TestXcvrScenarios"
+                             --exclude-classname "TestTransceiverAdvanced")
         fi
         # Panama FFI tests require --enable-preview on JDK 21+
         JAVA_JVM_FLAGS=()

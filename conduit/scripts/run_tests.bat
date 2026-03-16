@@ -130,7 +130,7 @@ if defined JUNIT_JAR (
                 )
                 if not exist "%~dp0..\lib\conduit_jni_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
-                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                     )
                 )
                 :: Panama FFI tests require --enable-preview on JDK 21+

@@ -725,7 +725,8 @@ endif()
                     if(NOT CONDUIT_BUILD_JNI OR NOT CONDUIT_BUILD_CABI)
                         list(APPEND _java_test_excludes
                             --exclude-classname "TestTransceiverJni"
-                            --exclude-classname "TestXcvrScenarios")
+                            --exclude-classname "TestXcvrScenarios"
+                            --exclude-classname "TestTransceiverAdvanced")
                     endif()
                     add_custom_target(java_test_run
                         COMMAND ${_java_exe}
