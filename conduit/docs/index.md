@@ -59,7 +59,7 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 
 ## Requirements
 
-- **C++23** compiler: GCC 12+ (Linux), Clang 15+ (Linux/macOS/Windows), MSVC 19.30+ (Windows)
+- **C++23** compiler: GCC 12+ (Linux), Clang 19+ (Linux/macOS/Windows), MSVC 19.30+ (Windows)
 - CMake 3.20+, Ninja (required for Clang on Windows; recommended elsewhere)
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional

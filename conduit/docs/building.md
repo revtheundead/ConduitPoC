@@ -4,7 +4,7 @@
 
 - **C++23** compiler -- required for the conduit runtime and bgen itself
   - **GCC** 12+ (Linux)
-  - **Clang** 15+ (Linux, macOS, Windows)
+  - **Clang** 19+ (Linux, macOS, Windows)
   - **MSVC** 19.30+ / Visual Studio 2022 (Windows)
 - CMake 3.20+ (build system)
 - **Ninja** -- required when building with Clang on Windows; recommended on all platforms
@@ -89,7 +89,7 @@ cmake --build build
 CXX=clang++ cmake -B build -S conduit
 cmake --build build
 
-# Build with Clang on Windows (requires Ninja, Clang 15+)
+# Build with Clang on Windows (requires Ninja, Clang 19+)
 cmake -B build -S conduit -G Ninja -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 

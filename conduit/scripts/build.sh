@@ -127,14 +127,14 @@ if [ "$USE_COMPILER" = "clang" ]; then
     if ! command -v clang++ &>/dev/null; then
         fail "clang++ not found on PATH. Install LLVM/Clang or check your PATH."
     fi
-    # Check clang version (minimum 15 required for C++23 support)
+    # Check clang version (minimum 19 required for full C++23 support)
     CLANG_VERSION=$(clang++ --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     CLANG_MAJOR=${CLANG_VERSION%%.*}
     if [ -z "$CLANG_MAJOR" ]; then
         fail "Could not determine clang++ version."
     fi
-    if [ "$CLANG_MAJOR" -lt 15 ] 2>/dev/null; then
-        fail "Clang $CLANG_VERSION is too old. Minimum required version is 15. Please upgrade LLVM/Clang: https://releases.llvm.org/"
+    if [ "$CLANG_MAJOR" -lt 19 ] 2>/dev/null; then
+        fail "Clang $CLANG_VERSION is too old. Minimum required version is 19. Please upgrade LLVM/Clang: https://releases.llvm.org/"
     fi
     export CXX=clang++
     CMAKE_COMPILER_FLAGS+=(-DCMAKE_CXX_COMPILER=clang++)
