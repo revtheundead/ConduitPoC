@@ -121,7 +121,7 @@ if defined JUNIT_JAR (
             where java >nul 2>&1
             if not errorlevel 1 (
                 echo   Running Java JUnit tests...
-                :: Conditionally exclude CABI/JNI tests based on native test library presence
+                rem Conditionally exclude CABI/JNI tests based on native test library presence
                 set "JUNIT_EXCLUDES="
                 if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
@@ -133,7 +133,7 @@ if defined JUNIT_JAR (
                         set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                     )
                 )
-                :: Panama FFI tests require --enable-preview on JDK 21+
+                rem Panama FFI tests require --enable-preview on JDK 21+
                 set "JAVA_JVM_FLAGS="
                 for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
                     set "_java_ver=%%~v"
@@ -185,7 +185,7 @@ set "PYTHON_TESTS=%~dp0..\tests\python"
 if exist "!PYTHON_TESTS!" (
     where python >nul 2>&1
     if not errorlevel 1 (
-        :: Install pytest from vendored wheels if available
+        rem Install pytest from vendored wheels if available
         if exist "!PYTEST_WHEEL_DIR!" (
             python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
                 python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
@@ -195,14 +195,14 @@ if exist "!PYTHON_TESTS!" (
         )
         python -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
-            :: Exclude CABI-dependent tests if native test libraries are not available
+            rem Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
             if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
                 if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                     set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
                 )
             )
-            :: Generate Python test packages from BMDL fixtures
+            rem Generate Python test packages from BMDL fixtures
             if exist "!BUILD_DIR!" (
                 cmake --build "!BUILD_DIR!" --target pytest_generated >nul 2>&1
             )
