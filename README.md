@@ -31,7 +31,7 @@ cmake --build build
 
 - **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+)
 - CMake 3.20+
-- **Java** (JDK 8+ for JNI, JDK 19+ for Panama FFI) -- optional
+- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional
 - No external runtime dependencies
 

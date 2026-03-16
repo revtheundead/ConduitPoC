@@ -61,7 +61,7 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 
 - **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+) -- required for the conduit runtime and bgen itself
 - CMake 3.20+ (build system)
-- **Java** (JDK 8+ for JNI, JDK 19+ for Panama FFI) -- optional, for Java backend
+- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional, for Java backend
 - **Python** 3.7+ -- optional, for Python backend
 - No external runtime dependencies (header-only generated code, conduit is a static library). Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
 
