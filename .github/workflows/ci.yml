@@ -70,13 +70,14 @@ jobs:
           Write-Host "=== Client stderr ==="
           Get-Content client_err.txt -ErrorAction SilentlyContinue
 
-          # Verify both produced output (basic smoke check)
+          # Verify startup AND actual message exchange
           $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
           $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
-          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
-            Write-Host "Smoke test PASSED: both apps started successfully"
+          if ($serverOut -match "Listening" -and $clientOut -match "Started" -and
+              $serverOut -match "\[SEND\]" -and $clientOut -match "\[SEND\]") {
+            Write-Host "Smoke test PASSED: both apps started and exchanged messages"
           } else {
-            Write-Host "Smoke test FAILED: apps did not start properly"
+            Write-Host "Smoke test FAILED: apps did not start or communicate properly"
             if ($client.HasExited) {
               Write-Host "Client exit code: $($client.ExitCode)"
             }
@@ -157,10 +158,11 @@ jobs:
 
           $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
           $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
-          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
-            Write-Host "Smoke test PASSED: both MinGW apps started successfully"
+          if ($serverOut -match "Listening" -and $clientOut -match "Started" -and
+              $serverOut -match "\[SEND\]" -and $clientOut -match "\[SEND\]") {
+            Write-Host "Smoke test PASSED: both MinGW apps started and exchanged messages"
           } else {
-            Write-Host "Smoke test FAILED: apps did not start properly"
+            Write-Host "Smoke test FAILED: apps did not start or communicate properly"
             exit 1
           }
 
@@ -217,24 +219,25 @@ jobs:
           cd build
           ctest --output-on-failure --timeout 120
 
-      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+      - name: Smoke-test xcvr apps (server + client for 10 seconds)
         shell: pwsh
         run: |
           $buildDir = "conduit/examples/xcvr-cpp"
 
+          # LLVM MinGW / Clang builds may take longer to initialize on CI
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
             -ArgumentList "server","--port","15000","--interval-ms","500" `
             -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
             -RedirectStandardError server_err.txt
 
-          Start-Sleep -Seconds 2
+          Start-Sleep -Seconds 5
 
           $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
             -ArgumentList "127.0.0.1","15000","--interval-ms","500" `
             -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
             -RedirectStandardError client_err.txt
 
-          Start-Sleep -Seconds 5
+          Start-Sleep -Seconds 10
 
           if (!$client.HasExited) { $client.Kill() }
           if (!$server.HasExited) { $server.Kill() }
@@ -251,10 +254,12 @@ jobs:
 
           $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
           $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
-          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
-            Write-Host "Smoke test PASSED: both Clang apps started successfully"
+          # Verify startup AND actual message exchange
+          if ($serverOut -match "Listening" -and $clientOut -match "Started" -and
+              $serverOut -match "\[SEND\]" -and $clientOut -match "\[SEND\]") {
+            Write-Host "Smoke test PASSED: both Clang apps started and exchanged messages"
           } else {
-            Write-Host "Smoke test FAILED: apps did not start properly"
+            Write-Host "Smoke test FAILED: apps did not start or communicate properly"
             exit 1
           }
 
@@ -301,7 +306,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "Smoke test PASSED"
           else
             echo "Smoke test FAILED"
@@ -935,7 +942,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "Smoke test PASSED"
           else
             echo "Smoke test FAILED"
@@ -984,7 +993,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "Smoke test PASSED"
           else
             echo "Smoke test FAILED"
@@ -1027,15 +1038,15 @@ jobs:
       - name: Run conduit tests
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+      - name: Smoke-test xcvr apps (server + client for 10 seconds)
         run: |
           cd conduit/examples/xcvr-cpp
           ./dummy_peer server --port 15000 --interval-ms 500 > ../../../server_out.txt 2>&1 &
           SERVER_PID=$!
-          sleep 2
+          sleep 3
           ./poc_app 127.0.0.1 15000 --interval-ms 500 > ../../../client_out.txt 2>&1 &
           CLIENT_PID=$!
-          sleep 5
+          sleep 10
           kill $CLIENT_PID 2>/dev/null || true
           kill $SERVER_PID 2>/dev/null || true
           wait $CLIENT_PID 2>/dev/null || true
@@ -1045,7 +1056,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "Smoke test PASSED"
           else
             echo "Smoke test FAILED"
@@ -1101,7 +1114,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "Sanitizer smoke test PASSED"
           else
             echo "Sanitizer smoke test FAILED"
@@ -1160,7 +1175,9 @@ jobs:
           cat server_out.txt
           echo "=== Client output ==="
           cat client_out.txt
-          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt; then
+          # Verify startup AND actual message exchange
+          if grep -q "Listening" server_out.txt && grep -q "Started" client_out.txt &&
+             grep -q "\[SEND\]" server_out.txt && grep -q "\[SEND\]" client_out.txt; then
             echo "TSan smoke test PASSED"
           else
             echo "TSan smoke test FAILED"
