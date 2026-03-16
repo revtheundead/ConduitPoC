@@ -110,6 +110,16 @@ if not errorlevel 1 (
     goto :generator_done
 )
 
+:: Clang: prefer Ninja if available, otherwise let CMake pick a generator.
+where clang++ >nul 2>&1
+if not errorlevel 1 (
+    echo   clang++ ... ok
+    if "%HAS_GENERATOR%"=="0" (
+        echo   ^(no Ninja found; CMake will select a generator^)
+    )
+    goto :generator_done
+)
+
 :: MSVC cl.exe: CMake will auto-select the installed Visual Studio generator.
 where cl >nul 2>&1
 if not errorlevel 1 (

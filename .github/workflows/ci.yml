@@ -168,6 +168,93 @@ jobs:
         shell: cmd
         run: conduit\scripts\run_tests.bat build-mingw
 
+  # ── C++ / Windows Clang ───────────────────────────────────────────────────
+  cpp-windows-clang:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM/Clang
+        shell: pwsh
+        run: |
+          choco install llvm --version=19.1.7 -y --no-progress
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          Update-SessionEnvironment
+          clang++ --version
+
+      - name: Install Ninja
+        shell: pwsh
+        run: |
+          choco install ninja -y --no-progress
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          Update-SessionEnvironment
+          ninja --version
+
+      - name: Configure conduit (Clang, with tests + examples)
+        env:
+          CC: clang
+          CXX: clang++
+        run: >
+          cmake -B build -S conduit -G Ninja
+          -DCONDUIT_BUILD_BGEN=ON
+          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build conduit
+        run: cmake --build build --parallel
+
+      - name: Run conduit tests
+        run: |
+          cd build
+          ctest --output-on-failure --timeout 120
+
+      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+        shell: pwsh
+        run: |
+          $buildDir = "conduit/examples/xcvr-cpp"
+
+          $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
+            -ArgumentList "server","--port","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
+            -RedirectStandardError server_err.txt
+
+          Start-Sleep -Seconds 2
+
+          $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
+            -ArgumentList "127.0.0.1","15000","--interval-ms","500" `
+            -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
+            -RedirectStandardError client_err.txt
+
+          Start-Sleep -Seconds 5
+
+          if (!$client.HasExited) { $client.Kill() }
+          if (!$server.HasExited) { $server.Kill() }
+          Start-Sleep -Milliseconds 500
+
+          Write-Host "=== Server stdout ==="
+          Get-Content server_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Server stderr ==="
+          Get-Content server_err.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stdout ==="
+          Get-Content client_out.txt -ErrorAction SilentlyContinue
+          Write-Host "=== Client stderr ==="
+          Get-Content client_err.txt -ErrorAction SilentlyContinue
+
+          $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
+          $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
+          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
+            Write-Host "Smoke test PASSED: both Clang apps started successfully"
+          } else {
+            Write-Host "Smoke test FAILED: apps did not start properly"
+            exit 1
+          }
+
+      - name: Run standalone test suite
+        shell: cmd
+        run: conduit\scripts\run_tests.bat build
+
   # ── C++ / Linux GCC ────────────────────────────────────────────────────────
   cpp-linux:
     runs-on: ubuntu-latest

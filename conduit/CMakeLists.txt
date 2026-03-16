@@ -93,10 +93,19 @@ else()
             -Wlogical-op
         )
     endif()
-    # MinGW: COFF object format has a 65536 section limit; heavy template
-    # instantiation (especially with C++23) can exceed this in debug builds.
-    if(MINGW)
+    # MinGW / Clang-on-Windows: COFF object format has a 65536 section limit;
+    # heavy template instantiation (especially with C++23) can exceed this in
+    # debug builds.  Both MinGW-GCC and Clang targeting Windows COFF need this.
+    if(MINGW OR (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
         target_compile_options(conduit_warnings INTERFACE -Wa,-mbig-obj)
+    endif()
+
+    # Clang (non-clang-cl) on Windows: the MSVC branch above is not taken, but
+    # we still need the same Win32 header-cleanup defines so that <windows.h>
+    # behaves identically to an MSVC build.
+    if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_definitions(conduit_warnings INTERFACE
+            NOMINMAX WIN32_LEAN_AND_MEAN)
     endif()
 endif()
 
