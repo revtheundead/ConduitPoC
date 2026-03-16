@@ -116,6 +116,25 @@ if "%USE_COMPILER%"=="clang" (
         echo Error: --clang specified but clang++ not found on PATH.
         exit /b 1
     )
+    :: Check clang version (minimum 15 required for C++23 support)
+    set "CLANG_VERSION="
+    for /f "tokens=3" %%v in ('clang++ --version 2^>^&1 ^| findstr /r "version"') do (
+        set "CLANG_VERSION=%%v"
+    )
+    if not defined CLANG_VERSION (
+        echo Error: Could not determine clang++ version.
+        exit /b 1
+    )
+    for /f "delims=." %%m in ("!CLANG_VERSION!") do set "CLANG_MAJOR=%%m"
+    if not defined CLANG_MAJOR (
+        echo Error: Could not parse clang++ major version from "!CLANG_VERSION!".
+        exit /b 1
+    )
+    if !CLANG_MAJOR! lss 15 (
+        echo Error: Clang !CLANG_VERSION! is too old. Minimum required version is 15.
+        echo   Please upgrade LLVM/Clang: https://releases.llvm.org/
+        exit /b 1
+    )
     where ninja >nul 2>&1
     if errorlevel 1 (
         echo Error: --clang requires Ninja. Install ninja ^(choco install ninja^).
@@ -123,8 +142,8 @@ if "%USE_COMPILER%"=="clang" (
     )
     set "GENERATOR=Ninja"
     set "HAS_GENERATOR=1"
-    set "CMAKE_COMPILER_FLAGS=-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
-    echo   clang++ ... ok ^(using Ninja generator^)
+    set "CMAKE_COMPILER_FLAGS=-DCMAKE_CXX_COMPILER=clang++"
+    echo   clang++ !CLANG_VERSION! ... ok ^(using Ninja generator^)
     goto :generator_done
 )
 

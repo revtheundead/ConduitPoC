@@ -86,11 +86,11 @@ cmake -B build -S conduit -DCONDUIT_BUILD_CABI=ON -DCONDUIT_BUILD_JNI=ON -DCONDU
 cmake --build build
 
 # Build with Clang on Linux
-CC=clang CXX=clang++ cmake -B build -S conduit
+CXX=clang++ cmake -B build -S conduit
 cmake --build build
 
-# Build with Clang on Windows (requires Ninja)
-cmake -B build -S conduit -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+# Build with Clang on Windows (requires Ninja, Clang 15+)
+cmake -B build -S conduit -G Ninja -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 
 # Run C++ tests directly
