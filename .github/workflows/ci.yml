@@ -175,13 +175,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install LLVM/Clang
+      - name: Install LLVM MinGW
         shell: pwsh
         run: |
-          choco install llvm --version=19.1.7 -y --no-progress
-          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
-          Update-SessionEnvironment
-          clang++ --version
+          $llvmMingwVer = "20250114"
+          $llvmMingwUrl = "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmMingwVer/llvm-mingw-$llvmMingwVer-ucrt-x86_64.zip"
+          $zipPath = "$env:RUNNER_TEMP\llvm-mingw.zip"
+          $installDir = "C:\llvm-mingw"
+          Write-Host "Downloading LLVM MinGW $llvmMingwVer..."
+          Invoke-WebRequest -Uri $llvmMingwUrl -OutFile $zipPath
+          Write-Host "Extracting..."
+          Expand-Archive -Path $zipPath -DestinationPath $env:RUNNER_TEMP
+          Move-Item "$env:RUNNER_TEMP\llvm-mingw-$llvmMingwVer-ucrt-x86_64" $installDir
+          echo "$installDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          & "$installDir\bin\clang++.exe" --version
 
       - name: Install Ninja
         shell: pwsh
@@ -191,7 +198,7 @@ jobs:
           Update-SessionEnvironment
           ninja --version
 
-      - name: Configure conduit (Clang, with tests + examples)
+      - name: Configure conduit (Clang LLVM MinGW, with tests + examples)
         env:
           CC: clang
           CXX: clang++
