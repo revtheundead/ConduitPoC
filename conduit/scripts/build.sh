@@ -306,6 +306,13 @@ step "Build succeeded"
 # ============================================================================
 
 if [ "$BUILD_ALL" = true ]; then
+    # Install conduit-java JAR to local Maven repo (examples depend on it)
+    if command -v mvn &>/dev/null && [ -f "bindings/java/pom.xml" ]; then
+        step "Installing conduit-java to local Maven repo"
+        mvn install -q -f "bindings/java/pom.xml" \
+            || warn "conduit-java install failed (non-fatal)"
+    fi
+
     # xcvr-java11
     if command -v mvn &>/dev/null && [ -f "examples/xcvr-java11/pom.xml" ]; then
         step "Building xcvr-java11 example (Maven)"

@@ -493,6 +493,13 @@ echo ==^> Build succeeded
 if "%BUILD_ALL%"=="1" (
     where mvn >nul 2>&1
     if not errorlevel 1 (
+        :: Install conduit-java JAR to local Maven repo (examples depend on it)
+        if exist "bindings\java\pom.xml" (
+            echo.
+            echo ==^> Installing conduit-java to local Maven repo
+            mvn install -q -f "bindings\java\pom.xml"
+            if errorlevel 1 echo Warning: conduit-java install failed ^(non-fatal^)
+        )
         :: Determine bgen path: multi-config generators (MSVC) place bgen.exe
         :: under a config subdir; single-config (Ninja) place it directly.
         set "BGEN_EXTRA_FLAGS="
