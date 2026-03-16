@@ -1007,46 +1007,61 @@ class TestBitReaderExhaustion:
 # ===========================================================================
 
 # ---- Native library setup (mirrors test_xcvr_scenarios.py) ----
+# Guarded so codec-only tests above still run when the native lib is absent.
 
 from conftest import resolve_native_lib
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
-_CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_TEST_LIB", "conduit_cabi_test")
-os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
+_NATIVE_AVAILABLE = False
+_native_skip_reason = "native library not available"
 
-_CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
-if not os.path.isfile(_CODEC_LIB_PATH):
-    _CODEC_LIB_PATH = _CABI_LIB_PATH
-os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
+try:
+    _CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_TEST_LIB", "conduit_cabi_test")
+    if not os.path.isfile(_CABI_LIB_PATH):
+        raise OSError(f"Not found: {_CABI_LIB_PATH}")
+    os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
 
-_BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
-if _BINDINGS_DIR not in sys.path:
-    sys.path.insert(0, _BINDINGS_DIR)
+    _CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
+    if not os.path.isfile(_CODEC_LIB_PATH):
+        _CODEC_LIB_PATH = _CABI_LIB_PATH
+    os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
-if sys.platform == "win32":
-    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
-        os.add_dll_directory(_lib_dir)
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
-else:
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
+    _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
+    if _BINDINGS_DIR not in sys.path:
+        sys.path.insert(0, _BINDINGS_DIR)
 
-import conduit.transceiver as _xcvr_mod
-_xcvr_mod._lib = None
+    if sys.platform == "win32":
+        _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
+        if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
+            os.add_dll_directory(_lib_dir)
+        _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
+    else:
+        _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
 
-from conduit.transceiver import Transceiver, ConduitError
-from conduit.types import UdpConfig
+    import conduit.transceiver as _xcvr_mod
+    _xcvr_mod._lib = None
 
-_GENERATED_DIR = os.path.join(_TESTS_DIR, "generated")
-if _GENERATED_DIR not in sys.path:
-    sys.path.insert(0, _GENERATED_DIR)
+    from conduit.transceiver import Transceiver, ConduitError
+    from conduit.types import UdpConfig
 
-from session_protocol.messages import PingBody, DataBody, AckBody
+    _GENERATED_DIR = os.path.join(_TESTS_DIR, "generated")
+    if _GENERATED_DIR not in sys.path:
+        sys.path.insert(0, _GENERATED_DIR)
 
-PING_TYPE_ID = 0x0AD7BB3ECC473399
-DATA_TYPE_ID = 0x29D16B9E73F85835
+    from session_protocol.messages import PingBody, DataBody, AckBody
+
+    PING_TYPE_ID = 0x0AD7BB3ECC473399
+    DATA_TYPE_ID = 0x29D16B9E73F85835
+
+    _NATIVE_AVAILABLE = True
+except (OSError, ImportError) as exc:
+    _native_skip_reason = f"native library not available: {exc}"
+
+_requires_native = pytest.mark.skipif(
+    not _NATIVE_AVAILABLE, reason=_native_skip_reason
+)
 
 
 def _find_free_udp_port() -> int:
@@ -1057,6 +1072,7 @@ def _find_free_udp_port() -> int:
 
 # ---- Transceiver test classes ----
 
+@_requires_native
 class TestTransceiverPingRoundtrip:
 
     @pytest.mark.parametrize("timestamp", [0, 1, 0x7FFFFFFF, 0xFFFFFFFF])
@@ -1092,6 +1108,7 @@ class TestTransceiverPingRoundtrip:
             assert received[0].timestamp == timestamp
 
 
+@_requires_native
 class TestTransceiverDataBodyRoundtrip:
 
     def test_data_body_full_fields(self):
@@ -1130,6 +1147,7 @@ class TestTransceiverDataBodyRoundtrip:
             assert received[0].payload_b == 0xCAFEBABE
 
 
+@_requires_native
 class TestTransceiverMultiTypeRoundtrip:
 
     def test_interleaved_ping_and_data(self):
@@ -1185,6 +1203,7 @@ class TestTransceiverMultiTypeRoundtrip:
                 assert d.channel in (0, 1)
 
 
+@_requires_native
 class TestTransceiverRawBytesRoundtrip:
 
     def test_manual_encode_send_raw_decode(self):
@@ -1223,6 +1242,7 @@ class TestTransceiverRawBytesRoundtrip:
             assert decoded.timestamp == 0xABCD1234
 
 
+@_requires_native
 class TestTransceiverSendReceiveStress:
 
     def test_50_messages_roundtrip(self):
@@ -1263,6 +1283,7 @@ class TestTransceiverSendReceiveStress:
                 assert 0 <= ts < count
 
 
+@_requires_native
 class TestTransceiverErrorOnCorruptedRaw:
 
     def test_corrupted_raw_triggers_error(self):
