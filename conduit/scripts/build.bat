@@ -133,17 +133,16 @@ if "%USE_COMPILER%"=="clang" (
             exit /b 1
         )
         :: Detect whether clang++ on PATH is a MinGW build by checking its default target
+        :: Write to temp file instead of using for /f subshell or pipes, which can
+        :: produce "cannot find the drive specified" on some Windows configurations.
         set "_CLANG_TARGET="
-        for /f "tokens=2" %%t in ('clang++ -print-effective-triple 2^>^&1') do (
-            set "_CLANG_TARGET=%%t"
-        )
-        :: clang++ -print-effective-triple prints the triple directly (single token)
-        set "_CLANG_TARGET="
-        for /f "tokens=*" %%t in ('clang++ -print-effective-triple 2^>^&1') do (
+        clang++ -print-effective-triple > "%TEMP%\_conduit_clangtgt.tmp" 2>&1
+        for /f "usebackq tokens=*" %%t in ("%TEMP%\_conduit_clangtgt.tmp") do (
             if not defined _CLANG_TARGET set "_CLANG_TARGET=%%t"
         )
-        echo !_CLANG_TARGET! | findstr /i "mingw" >nul 2>&1
-        if errorlevel 1 (
+        del /q "%TEMP%\_conduit_clangtgt.tmp" 2>nul
+        :: Use string substitution instead of echo|findstr pipe to avoid subshells
+        if "!_CLANG_TARGET:mingw=!"=="!_CLANG_TARGET!" (
             echo Error: clang++ on PATH targets "!_CLANG_TARGET!" ^(not MinGW^).
             echo   --clang requires an LLVM MinGW toolchain to avoid VS header/linker deps.
             echo   Set LLVM_MINGW_DIR to your llvm-mingw installation or use --clang-msvc.
@@ -153,9 +152,12 @@ if "%USE_COMPILER%"=="clang" (
         set "LLVM_MINGW_CXX=clang++"
     )
     :: Check clang version (minimum 19 required for full C++23 support)
-    :: Pipe via temp file to avoid for /f quoting issues with paths containing spaces
+    :: Write to temp file then filter with findstr (no pipes) to avoid
+    :: "cannot find the drive specified" errors from pipe subshells.
     set "CLANG_VERSION="
-    "!LLVM_MINGW_CXX!" --version 2>nul | findstr /i "version" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    "!LLVM_MINGW_CXX!" --version > "%TEMP%\_conduit_clangraw.tmp" 2>&1
+    findstr /i "version" "%TEMP%\_conduit_clangraw.tmp" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    del /q "%TEMP%\_conduit_clangraw.tmp" 2>nul
     for /f "usebackq tokens=3" %%v in ("%TEMP%\_conduit_clangver.tmp") do (
         if not defined CLANG_VERSION set "CLANG_VERSION=%%v"
     )
@@ -194,9 +196,12 @@ if "%USE_COMPILER%"=="clang-msvc" (
         exit /b 1
     )
     :: Check clang version (minimum 19 required for full C++23 support)
-    :: Pipe via temp file to avoid for /f quoting issues
+    :: Write to temp file then filter with findstr (no pipes) to avoid
+    :: "cannot find the drive specified" errors from pipe subshells.
     set "CLANG_VERSION="
-    clang++ --version 2>nul | findstr /i "version" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    clang++ --version > "%TEMP%\_conduit_clangraw.tmp" 2>&1
+    findstr /i "version" "%TEMP%\_conduit_clangraw.tmp" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    del /q "%TEMP%\_conduit_clangraw.tmp" 2>nul
     for /f "usebackq tokens=3" %%v in ("%TEMP%\_conduit_clangver.tmp") do (
         if not defined CLANG_VERSION set "CLANG_VERSION=%%v"
     )
