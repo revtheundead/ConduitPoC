@@ -153,10 +153,13 @@ if "%USE_COMPILER%"=="clang" (
         set "LLVM_MINGW_CXX=clang++"
     )
     :: Check clang version (minimum 19 required for full C++23 support)
+    :: Pipe via temp file to avoid for /f quoting issues with paths containing spaces
     set "CLANG_VERSION="
-    for /f "tokens=3" %%v in ('"!LLVM_MINGW_CXX!" --version 2^>^&1 ^| findstr /r "version"') do (
-        set "CLANG_VERSION=%%v"
+    "!LLVM_MINGW_CXX!" --version 2>nul | findstr /i "version" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    for /f "usebackq tokens=3" %%v in ("%TEMP%\_conduit_clangver.tmp") do (
+        if not defined CLANG_VERSION set "CLANG_VERSION=%%v"
     )
+    del /q "%TEMP%\_conduit_clangver.tmp" 2>nul
     if not defined CLANG_VERSION (
         echo Error: Could not determine clang++ version.
         exit /b 1
@@ -191,10 +194,13 @@ if "%USE_COMPILER%"=="clang-msvc" (
         exit /b 1
     )
     :: Check clang version (minimum 19 required for full C++23 support)
+    :: Pipe via temp file to avoid for /f quoting issues
     set "CLANG_VERSION="
-    for /f "tokens=3" %%v in ('clang++ --version 2^>^&1 ^| findstr /r "version"') do (
-        set "CLANG_VERSION=%%v"
+    clang++ --version 2>nul | findstr /i "version" > "%TEMP%\_conduit_clangver.tmp" 2>nul
+    for /f "usebackq tokens=3" %%v in ("%TEMP%\_conduit_clangver.tmp") do (
+        if not defined CLANG_VERSION set "CLANG_VERSION=%%v"
     )
+    del /q "%TEMP%\_conduit_clangver.tmp" 2>nul
     if not defined CLANG_VERSION (
         echo Error: Could not determine clang++ version.
         exit /b 1
