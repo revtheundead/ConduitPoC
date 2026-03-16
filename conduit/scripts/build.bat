@@ -493,16 +493,22 @@ echo ==^> Build succeeded
 if "%BUILD_ALL%"=="1" (
     where mvn >nul 2>&1
     if not errorlevel 1 (
+        :: Determine bgen path: multi-config generators (MSVC) place bgen.exe
+        :: under a config subdir; single-config (Ninja) place it directly.
+        set "BGEN_EXTRA_FLAGS="
+        if exist "!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen.exe" (
+            set "BGEN_EXTRA_FLAGS=-Dbgen.path=!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen"
+        )
         if exist "examples\xcvr-java11\pom.xml" (
             echo.
             echo ==^> Building xcvr-java11 example ^(Maven^)
-            mvn package -q -f "examples\xcvr-java11\pom.xml" -Dskip.bgen=true "-Dconduit.build.dir=!BUILD_DIR!"
+            mvn package -q -f "examples\xcvr-java11\pom.xml" "-Dconduit.build.dir=!BUILD_DIR!" !BGEN_EXTRA_FLAGS!
             if errorlevel 1 echo Warning: xcvr-java11 build failed ^(non-fatal^)
         )
         if exist "examples\xcvr-java21\pom.xml" (
             echo.
             echo ==^> Building xcvr-java21 example ^(Maven^)
-            mvn package -q -f "examples\xcvr-java21\pom.xml" -Dskip.bgen=true
+            mvn package -q -f "examples\xcvr-java21\pom.xml" "-Dconduit.build.dir=!BUILD_DIR!" !BGEN_EXTRA_FLAGS!
             if errorlevel 1 echo Warning: xcvr-java21 build failed ^(non-fatal^)
         )
     )
@@ -511,7 +517,7 @@ if "%BUILD_ALL%"=="1" (
         if exist "examples\xcvr-python\pyproject.toml" (
             echo.
             echo ==^> Installing xcvr-python example ^(pip^)
-            pip install --quiet "examples\xcvr-python\"
+            pip install --quiet "examples\xcvr-python"
             if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
         )
     )

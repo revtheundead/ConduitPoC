@@ -22,7 +22,6 @@ if(_mvn_exe AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-java11/pom.xml")
     add_custom_target(xcvr_java11_build
         COMMAND ${_mvn_exe} package -q
             -f "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-java11/pom.xml"
-            -Dskip.bgen=true
             "-Dconduit.build.dir=${CMAKE_BINARY_DIR}"
         COMMENT "Building xcvr-java11 example (Maven)"
         VERBATIM
@@ -40,7 +39,7 @@ if(_mvn_exe AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-java21/pom.xml")
     add_custom_target(xcvr_java21_build
         COMMAND ${_mvn_exe} package -q
             -f "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-java21/pom.xml"
-            -Dskip.bgen=true
+            "-Dconduit.build.dir=${CMAKE_BINARY_DIR}"
         COMMENT "Building xcvr-java21 example (Maven)"
         VERBATIM
     )
