@@ -113,7 +113,7 @@ set "CMAKE_COMPILER_FLAGS="
 
 :: --clang: use LLVM MinGW toolchain (self-contained, no VS dependency)
 if "%USE_COMPILER%"=="clang" (
-    :: Locate LLVM MinGW: check LLVM_MINGW_DIR env var, then PATH
+    rem Locate LLVM MinGW: check LLVM_MINGW_DIR env var, then PATH
     set "LLVM_MINGW_CXX="
     if defined LLVM_MINGW_DIR (
         if exist "!LLVM_MINGW_DIR!\bin\clang++.exe" (
@@ -124,7 +124,7 @@ if "%USE_COMPILER%"=="clang" (
         )
     )
     if not defined LLVM_MINGW_CXX (
-        :: Check if clang++ on PATH is an LLVM MinGW build (targets mingw)
+        rem Check if clang++ on PATH is an LLVM MinGW build (targets mingw)
         where clang++ >nul 2>&1
         if errorlevel 1 (
             echo Error: --clang specified but no LLVM MinGW toolchain found.
@@ -132,16 +132,16 @@ if "%USE_COMPILER%"=="clang" (
             echo   Download from: https://github.com/mstorsjo/llvm-mingw/releases
             exit /b 1
         )
-        :: Detect whether clang++ on PATH is a MinGW build by checking its default target
-        :: Write to temp file instead of using for /f subshell or pipes, which can
-        :: produce "cannot find the drive specified" on some Windows configurations.
+        rem Detect whether clang++ on PATH is a MinGW build by checking its default target.
+        rem Write to temp file instead of using for /f subshell or pipes, which can
+        rem produce "cannot find the drive specified" on some Windows configurations.
         set "_CLANG_TARGET="
         clang++ -print-effective-triple > "%TEMP%\_conduit_clangtgt.tmp" 2>&1
         for /f "usebackq tokens=*" %%t in ("%TEMP%\_conduit_clangtgt.tmp") do (
             if not defined _CLANG_TARGET set "_CLANG_TARGET=%%t"
         )
         del /q "%TEMP%\_conduit_clangtgt.tmp" 2>nul
-        :: Use string substitution instead of echo|findstr pipe to avoid subshells
+        rem Use string substitution instead of echo|findstr pipe to avoid subshells
         if "!_CLANG_TARGET:mingw=!"=="!_CLANG_TARGET!" (
             echo Error: clang++ on PATH targets "!_CLANG_TARGET!" ^(not MinGW^).
             echo   --clang requires an LLVM MinGW toolchain to avoid VS header/linker deps.
@@ -151,9 +151,9 @@ if "%USE_COMPILER%"=="clang" (
         )
         set "LLVM_MINGW_CXX=clang++"
     )
-    :: Check clang version (minimum 19 required for full C++23 support)
-    :: Write to temp file then filter with findstr (no pipes) to avoid
-    :: "cannot find the drive specified" errors from pipe subshells.
+    rem Check clang version (minimum 19 required for full C++23 support).
+    rem Write to temp file then filter with findstr (no pipes) to avoid
+    rem "cannot find the drive specified" errors from pipe subshells.
     set "CLANG_VERSION="
     "!LLVM_MINGW_CXX!" --version > "%TEMP%\_conduit_clangraw.tmp" 2>&1
     findstr /i "version" "%TEMP%\_conduit_clangraw.tmp" > "%TEMP%\_conduit_clangver.tmp" 2>nul
@@ -195,9 +195,9 @@ if "%USE_COMPILER%"=="clang-msvc" (
         echo Error: --clang-msvc specified but clang++ not found on PATH.
         exit /b 1
     )
-    :: Check clang version (minimum 19 required for full C++23 support)
-    :: Write to temp file then filter with findstr (no pipes) to avoid
-    :: "cannot find the drive specified" errors from pipe subshells.
+    rem Check clang version (minimum 19 required for full C++23 support).
+    rem Write to temp file then filter with findstr (no pipes) to avoid
+    rem "cannot find the drive specified" errors from pipe subshells.
     set "CLANG_VERSION="
     clang++ --version > "%TEMP%\_conduit_clangraw.tmp" 2>&1
     findstr /i "version" "%TEMP%\_conduit_clangraw.tmp" > "%TEMP%\_conduit_clangver.tmp" 2>nul
@@ -493,15 +493,15 @@ echo ==^> Build succeeded
 if "%BUILD_ALL%"=="1" (
     where mvn >nul 2>&1
     if not errorlevel 1 (
-        :: Install conduit-java JAR to local Maven repo (examples depend on it)
+        rem Install conduit-java JAR to local Maven repo (examples depend on it)
         if exist "bindings\java\pom.xml" (
             echo.
             echo ==^> Installing conduit-java to local Maven repo
             mvn install -q -f "bindings\java\pom.xml"
             if errorlevel 1 echo Warning: conduit-java install failed ^(non-fatal^)
         )
-        :: Determine bgen path: multi-config generators (MSVC) place bgen.exe
-        :: under a config subdir; single-config (Ninja) place it directly.
+        rem Determine bgen path: multi-config generators (MSVC) place bgen.exe
+        rem under a config subdir; single-config (Ninja) place it directly.
         set "BGEN_EXTRA_FLAGS="
         if exist "!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen.exe" (
             set "BGEN_EXTRA_FLAGS=-Dbgen.path=!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen"
@@ -535,7 +535,7 @@ if "%BUILD_ALL%"=="1" (
 :: ============================================================================
 
 if "%RUN_TESTS%"=="1" (
-    :: Detect test binary path: multi-config (MSVC) vs single-config (Ninja)
+    rem Detect test binary path: multi-config (MSVC) vs single-config (Ninja)
     set "TEST_PREFIX=%BUILD_DIR%\tests"
     set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests"
     if exist "%BUILD_DIR%\tests\!BUILD_TYPE!\conduit_tests.exe" (
@@ -579,7 +579,7 @@ if "%RUN_TESTS%"=="1" (
         )
     )
 
-    :: --- Java JUnit tests (non-fatal) ---
+    rem --- Java JUnit tests (non-fatal) ---
     set "JUNIT_JAR="
     if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
         set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
@@ -598,14 +598,14 @@ if "%RUN_TESTS%"=="1" (
                     if not "%BUILD_CABI%"=="1" (
                         set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                     )
-                    :: JNI tests require both JNI and CABI libraries
+                    rem JNI tests require both JNI and CABI libraries
                     set "_exclude_jni=0"
                     if not "%BUILD_JNI%"=="1" set "_exclude_jni=1"
                     if not "%BUILD_CABI%"=="1" set "_exclude_jni=1"
                     if "!_exclude_jni!"=="1" (
                         set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
                     )
-                    :: Panama FFI tests require --enable-preview on JDK 21+
+                    rem Panama FFI tests require --enable-preview on JDK 21+
                     for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
                         set "_java_ver=%%~v"
                     )
@@ -634,13 +634,13 @@ if "%RUN_TESTS%"=="1" (
         echo   Java JUnit tests not available ^(build with --java or CONDUIT_BUILD_JAVA_JAR=ON^)
     )
 
-    :: --- Python pytest tests (non-fatal) ---
+    rem --- Python pytest tests (non-fatal) ---
     set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
     set "PYTHON_TESTS=%~dp0..\tests\python"
     if exist "!PYTHON_TESTS!" (
         where python >nul 2>&1
         if not errorlevel 1 (
-            :: Install pytest from vendored wheels if available
+            rem Install pytest from vendored wheels if available
             if exist "!PYTEST_WHEEL_DIR!" (
                 python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
                     python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
