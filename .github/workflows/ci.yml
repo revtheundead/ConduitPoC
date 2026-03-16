@@ -33,18 +33,26 @@ jobs:
           cd build
           ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
 
-      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+      - name: Smoke-test xcvr apps (server + client for 10 seconds)
         shell: pwsh
         run: |
           $buildDir = "conduit/examples/xcvr-cpp"
 
+          # Verify executables exist before starting
+          if (!(Test-Path "$buildDir/dummy_peer.exe")) {
+            Write-Host "ERROR: dummy_peer.exe not found at $buildDir"
+            Get-ChildItem $buildDir -ErrorAction SilentlyContinue
+            exit 1
+          }
+
           # Start server in background
+          # MSVC Debug builds have significant runtime overhead on CI runners
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
             -ArgumentList "server","--port","15000","--interval-ms","500" `
             -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
             -RedirectStandardError server_err.txt
 
-          Start-Sleep -Seconds 2
+          Start-Sleep -Seconds 5
 
           # Start client in background
           $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
@@ -52,13 +60,15 @@ jobs:
             -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
             -RedirectStandardError client_err.txt
 
-          Start-Sleep -Seconds 5
+          Start-Sleep -Seconds 10
 
-          # Stop both
+          # Stop both — Kill() does not flush CRT buffers, so output
+          # written with "\n" (not std::endl) may be lost.  This is
+          # expected for MSVC builds where redirected stdout uses full
+          # buffering (4 KB).
           if (!$client.HasExited) { $client.Kill() }
           if (!$server.HasExited) { $server.Kill() }
 
-          # Wait briefly for output files to finalize
           Start-Sleep -Milliseconds 500
 
           Write-Host "=== Server stdout ==="
@@ -70,16 +80,31 @@ jobs:
           Write-Host "=== Client stderr ==="
           Get-Content client_err.txt -ErrorAction SilentlyContinue
 
-          # Verify startup AND actual message exchange
+          # Verify both apps started and exchanged messages.
+          # The apps use std::unitbuf so all output is flushed immediately,
+          # making [SEND] lines reliably appear even when Kill() terminates
+          # the process without flushing CRT buffers.
           $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
           $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
           if ($serverOut -match "Listening" -and $clientOut -match "Started" -and
               $serverOut -match "\[SEND\]" -and $clientOut -match "\[SEND\]") {
-            Write-Host "Smoke test PASSED: both apps started and exchanged messages"
+            Write-Host "Smoke test PASSED: both MSVC apps started and exchanged messages"
           } else {
             Write-Host "Smoke test FAILED: apps did not start or communicate properly"
+            if (!$serverOut -or !($serverOut -match "Listening")) {
+              Write-Host "  Server did not reach Listening state"
+            }
+            if (!$clientOut -or !($clientOut -match "Started")) {
+              Write-Host "  Client did not reach Started state"
+            }
+            if ($serverOut -and !($serverOut -match "\[SEND\]")) {
+              Write-Host "  Server output missing [SEND] lines"
+            }
+            if ($clientOut -and !($clientOut -match "\[SEND\]")) {
+              Write-Host "  Client output missing [SEND] lines"
+            }
             if ($client.HasExited) {
-              Write-Host "Client exit code: $($client.ExitCode)"
+              Write-Host "  Client exit code: $($client.ExitCode)"
             }
             exit 1
           }

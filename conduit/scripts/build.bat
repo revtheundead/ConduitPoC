@@ -490,45 +490,7 @@ echo ==^> Build succeeded
 :: Build examples (only with --release or relevant flags)
 :: ============================================================================
 
-if "%BUILD_ALL%"=="1" (
-    where mvn >nul 2>&1
-    if not errorlevel 1 (
-        rem Install conduit-java JAR to local Maven repo (examples depend on it)
-        if exist "bindings\java\pom.xml" (
-            echo.
-            echo ==^> Installing conduit-java to local Maven repo
-            mvn install -q -f "bindings\java\pom.xml"
-            if errorlevel 1 echo Warning: conduit-java install failed ^(non-fatal^)
-        )
-        rem Determine bgen path: multi-config generators (MSVC) place bgen.exe
-        rem under a config subdir; single-config (Ninja) place it directly.
-        set "BGEN_EXTRA_FLAGS="
-        if exist "!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen.exe" (
-            set "BGEN_EXTRA_FLAGS=-Dbgen.path=!BUILD_DIR!\bgen\!BUILD_TYPE!\bgen"
-        )
-        if exist "examples\xcvr-java11\pom.xml" (
-            echo.
-            echo ==^> Building xcvr-java11 example ^(Maven^)
-            mvn package -q -f "examples\xcvr-java11\pom.xml" "-Dconduit.build.dir=!BUILD_DIR!" !BGEN_EXTRA_FLAGS!
-            if errorlevel 1 echo Warning: xcvr-java11 build failed ^(non-fatal^)
-        )
-        if exist "examples\xcvr-java21\pom.xml" (
-            echo.
-            echo ==^> Building xcvr-java21 example ^(Maven^)
-            mvn package -q -f "examples\xcvr-java21\pom.xml" "-Dconduit.build.dir=!BUILD_DIR!" !BGEN_EXTRA_FLAGS!
-            if errorlevel 1 echo Warning: xcvr-java21 build failed ^(non-fatal^)
-        )
-    )
-    where pip >nul 2>&1
-    if not errorlevel 1 (
-        if exist "examples\xcvr-python\pyproject.toml" (
-            echo.
-            echo ==^> Installing xcvr-python example ^(pip^)
-            pip install --quiet "examples\xcvr-python"
-            if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
-        )
-    )
-)
+if "%BUILD_ALL%"=="1" call :build_examples
 
 :: ============================================================================
 :: Test (only with --test)
@@ -674,3 +636,52 @@ if "%RUN_TESTS%"=="1" (
 
 echo.
 echo Done.
+goto :eof
+
+:: ============================================================================
+:: Subroutine: build_examples
+:: Extracted to a subroutine so that variables set inside this block are
+:: expanded correctly with normal %VAR% syntax (each `call` starts a fresh
+:: parse phase).  The previous inline version relied on delayed expansion
+:: (!VAR!) inside deeply nested `if` blocks, which can fail depending on
+:: how cmd.exe is invoked (e.g. from PowerShell or certain CI runners).
+:: ============================================================================
+:build_examples
+where mvn >nul 2>&1
+if errorlevel 1 goto :build_examples_pip
+
+rem Install conduit-java JAR to local Maven repo (examples depend on it)
+if exist "bindings\java\pom.xml" (
+    echo.
+    echo ==^> Installing conduit-java to local Maven repo
+    mvn install -q -f "bindings\java\pom.xml"
+    if errorlevel 1 echo Warning: conduit-java install failed ^(non-fatal^)
+)
+
+rem Determine bgen path: multi-config generators (MSVC) place bgen.exe
+rem under a config subdir; single-config (Ninja) place it directly.
+set "BGEN_EXTRA_FLAGS="
+if exist "%BUILD_DIR%\bgen\%BUILD_TYPE%\bgen.exe" (
+    set "BGEN_EXTRA_FLAGS=-Dbgen.path=%BUILD_DIR%\bgen\%BUILD_TYPE%\bgen"
+)
+call :build_maven_example "examples\xcvr-java11\pom.xml" "xcvr-java11"
+call :build_maven_example "examples\xcvr-java21\pom.xml" "xcvr-java21"
+
+:build_examples_pip
+where pip >nul 2>&1
+if errorlevel 1 goto :eof
+if exist "examples\xcvr-python\pyproject.toml" (
+    echo.
+    echo ==^> Installing xcvr-python example ^(pip^)
+    pip install --quiet "examples\xcvr-python"
+    if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
+)
+goto :eof
+
+:build_maven_example
+if not exist %~1 goto :eof
+echo.
+echo ==^> Building %~2 example ^(Maven^)
+mvn package -q -f %1 "-Dconduit.build.dir=%BUILD_DIR%" %BGEN_EXTRA_FLAGS%
+if errorlevel 1 echo Warning: %~2 build failed ^(non-fatal^)
+goto :eof

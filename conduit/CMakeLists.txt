@@ -200,6 +200,14 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
         "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
         "${CMAKE_BINARY_DIR}/_deps/Catch2"
     )
+    # Mark Catch2 headers as SYSTEM so that the project's strict warning
+    # flags (applied via conduit_warnings) do not trigger warnings inside
+    # Catch2 header code when test sources #include them.
+    get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+    if(_catch2_inc)
+        set_target_properties(Catch2 PROPERTIES
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+    endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
 
@@ -326,8 +334,10 @@ if(CONDUIT_BUILD_JNI)
         )
         target_link_libraries(conduit_codec_jni PRIVATE
             conduit_codec conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        target_include_directories(conduit_codec_jni PRIVATE
+        target_include_directories(conduit_codec_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
+        )
+        target_include_directories(conduit_codec_jni PRIVATE
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         # The JNI wrapper calls CABI functions bundled in the same DLL.
@@ -350,8 +360,10 @@ if(CONDUIT_BUILD_JNI)
         )
         target_link_libraries(conduit_jni PRIVATE
             conduit conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        target_include_directories(conduit_jni PRIVATE
+        target_include_directories(conduit_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
+        )
+        target_include_directories(conduit_jni PRIVATE
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         )
         # The JNI wrapper calls CABI functions bundled in the same DLL.

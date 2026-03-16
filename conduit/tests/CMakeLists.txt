@@ -292,8 +292,10 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_JNI AND CONDUIT_BUILD_CABI)
         conduit_warnings
         ${JNI_LIBRARIES}
     )
-    target_include_directories(conduit_jni_test PRIVATE
+    target_include_directories(conduit_jni_test SYSTEM PRIVATE
         ${JNI_INCLUDE_DIRS}
+    )
+    target_include_directories(conduit_jni_test PRIVATE
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     )
     set_target_properties(conduit_jni_test PROPERTIES

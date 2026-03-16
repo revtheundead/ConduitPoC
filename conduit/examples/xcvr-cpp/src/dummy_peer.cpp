@@ -190,6 +190,10 @@ static void print_usage() {
 }
 
 int main(int argc, char* argv[]) {
+    // Flush stdout after every output operation so that redirected output
+    // (e.g. CI smoke tests) is never lost when the process is killed.
+    std::cout << std::unitbuf;
+
     if (argc < 2) {
         print_usage();
         return 1;
