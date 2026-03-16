@@ -16,7 +16,8 @@ setlocal enabledelayedexpansion
 ::   scripts\build.bat --sanitize   Enable address + undefined-behavior sanitizers
 ::   scripts\build.bat --third-party Build only third-party dependencies
 ::   scripts\build.bat --test       Run all tests after build
-::   scripts\build.bat --clang      Use Clang (clang / clang++) with Ninja
+::   scripts\build.bat --clang      Use Clang via LLVM MinGW (no VS dependency)
+::   scripts\build.bat --clang-msvc Use Clang targeting MSVC STL (requires VS)
 ::   scripts\build.bat --msvc       Use MSVC (cl.exe) — the default on Windows
 ::
 :: Flags may be combined freely, e.g.:
@@ -58,10 +59,11 @@ if /i "%~1"=="--cabi"         ( set "BUILD_CABI=1"        & shift & goto :parse_
 if /i "%~1"=="--jni"          ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & shift & goto :parse_args )
 if /i "%~1"=="--java"         ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & set "BUILD_JAVA=1" & shift & goto :parse_args )
 if /i "%~1"=="--sanitize"     ( set "ENABLE_SANITIZERS=1" & shift & goto :parse_args )
-if /i "%~1"=="--clang"        ( set "USE_COMPILER=clang"  & shift & goto :parse_args )
-if /i "%~1"=="--msvc"         ( set "USE_COMPILER=msvc"   & shift & goto :parse_args )
+if /i "%~1"=="--clang"        ( set "USE_COMPILER=clang"      & shift & goto :parse_args )
+if /i "%~1"=="--clang-msvc"   ( set "USE_COMPILER=clang-msvc" & shift & goto :parse_args )
+if /i "%~1"=="--msvc"         ( set "USE_COMPILER=msvc"       & shift & goto :parse_args )
 echo Unknown argument: %~1
-echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--msvc] [--third-party] [--test]
+echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--clang-msvc] [--msvc] [--third-party] [--test]
 exit /b 1
 :done_args
 
@@ -109,11 +111,83 @@ set "GENERATOR="
 set "HAS_GENERATOR=0"
 set "CMAKE_COMPILER_FLAGS="
 
-:: --clang: force Clang compiler with Ninja generator
+:: --clang: use LLVM MinGW toolchain (self-contained, no VS dependency)
 if "%USE_COMPILER%"=="clang" (
+    :: Locate LLVM MinGW: check LLVM_MINGW_DIR env var, then PATH
+    set "LLVM_MINGW_CXX="
+    if defined LLVM_MINGW_DIR (
+        if exist "!LLVM_MINGW_DIR!\bin\clang++.exe" (
+            set "LLVM_MINGW_CXX=!LLVM_MINGW_DIR!\bin\clang++.exe"
+        ) else (
+            echo Error: LLVM_MINGW_DIR is set to "!LLVM_MINGW_DIR!" but clang++.exe not found there.
+            exit /b 1
+        )
+    )
+    if not defined LLVM_MINGW_CXX (
+        :: Check if clang++ on PATH is an LLVM MinGW build (targets mingw)
+        where clang++ >nul 2>&1
+        if errorlevel 1 (
+            echo Error: --clang specified but no LLVM MinGW toolchain found.
+            echo   Set LLVM_MINGW_DIR to your llvm-mingw installation, or add it to PATH.
+            echo   Download from: https://github.com/mstorsjo/llvm-mingw/releases
+            exit /b 1
+        )
+        :: Detect whether clang++ on PATH is a MinGW build by checking its default target
+        set "_CLANG_TARGET="
+        for /f "tokens=2" %%t in ('clang++ -print-effective-triple 2^>^&1') do (
+            set "_CLANG_TARGET=%%t"
+        )
+        :: clang++ -print-effective-triple prints the triple directly (single token)
+        set "_CLANG_TARGET="
+        for /f "tokens=*" %%t in ('clang++ -print-effective-triple 2^>^&1') do (
+            if not defined _CLANG_TARGET set "_CLANG_TARGET=%%t"
+        )
+        echo !_CLANG_TARGET! | findstr /i "mingw" >nul 2>&1
+        if errorlevel 1 (
+            echo Error: clang++ on PATH targets "!_CLANG_TARGET!" ^(not MinGW^).
+            echo   --clang requires an LLVM MinGW toolchain to avoid VS header/linker deps.
+            echo   Set LLVM_MINGW_DIR to your llvm-mingw installation or use --clang-msvc.
+            echo   Download LLVM MinGW from: https://github.com/mstorsjo/llvm-mingw/releases
+            exit /b 1
+        )
+        set "LLVM_MINGW_CXX=clang++"
+    )
+    :: Check clang version (minimum 19 required for full C++23 support)
+    set "CLANG_VERSION="
+    for /f "tokens=3" %%v in ('"!LLVM_MINGW_CXX!" --version 2^>^&1 ^| findstr /r "version"') do (
+        set "CLANG_VERSION=%%v"
+    )
+    if not defined CLANG_VERSION (
+        echo Error: Could not determine clang++ version.
+        exit /b 1
+    )
+    for /f "delims=." %%m in ("!CLANG_VERSION!") do set "CLANG_MAJOR=%%m"
+    if not defined CLANG_MAJOR (
+        echo Error: Could not parse clang++ major version from "!CLANG_VERSION!".
+        exit /b 1
+    )
+    if !CLANG_MAJOR! lss 19 (
+        echo Error: Clang !CLANG_VERSION! is too old. Minimum required version is 19.
+        echo   Download LLVM MinGW 19+: https://github.com/mstorsjo/llvm-mingw/releases
+        exit /b 1
+    )
+    where ninja >nul 2>&1
+    if errorlevel 1 (
+        echo Error: --clang requires Ninja. Install ninja ^(choco install ninja^).
+        exit /b 1
+    )
+    set "GENERATOR=Ninja"
+    set "HAS_GENERATOR=1"
+    set "CMAKE_COMPILER_FLAGS=-DCMAKE_CXX_COMPILER="!LLVM_MINGW_CXX!""
+    echo   clang++ !CLANG_VERSION! ... ok ^(LLVM MinGW, Ninja generator^)
+    goto :generator_done
+)
+
+:: --clang-msvc: use stock Clang targeting MSVC STL (requires VS headers/linker)
+if "%USE_COMPILER%"=="clang-msvc" (
     where clang++ >nul 2>&1
     if errorlevel 1 (
-        echo Error: --clang specified but clang++ not found on PATH.
+        echo Error: --clang-msvc specified but clang++ not found on PATH.
         exit /b 1
     )
     :: Check clang version (minimum 19 required for full C++23 support)
@@ -137,13 +211,14 @@ if "%USE_COMPILER%"=="clang" (
     )
     where ninja >nul 2>&1
     if errorlevel 1 (
-        echo Error: --clang requires Ninja. Install ninja ^(choco install ninja^).
+        echo Error: --clang-msvc requires Ninja. Install ninja ^(choco install ninja^).
         exit /b 1
     )
     set "GENERATOR=Ninja"
     set "HAS_GENERATOR=1"
     set "CMAKE_COMPILER_FLAGS=-DCMAKE_CXX_COMPILER=clang++"
-    echo   clang++ !CLANG_VERSION! ... ok ^(using Ninja generator^)
+    echo   clang++ !CLANG_VERSION! ... ok ^(MSVC target, Ninja generator^)
+    echo   Note: Clang will use VS headers and linker. Use --clang for LLVM MinGW instead.
     goto :generator_done
 )
 

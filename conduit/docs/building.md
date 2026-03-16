@@ -29,7 +29,8 @@
 
 # Windows
 scripts\build.bat --release             # Release build (same flags as Linux)
-scripts\build.bat --clang               # Use Clang + Ninja (requires both on PATH)
+scripts\build.bat --clang               # Use Clang via LLVM MinGW (no VS dependency)
+scripts\build.bat --clang-msvc          # Use Clang targeting MSVC STL (requires VS)
 scripts\build.bat --msvc                # Use MSVC cl.exe (the default)
 ```
 
@@ -47,9 +48,13 @@ When both MSVC and Clang are installed on Windows (or both GCC and Clang on Linu
 | Platform | Default | Override |
 |----------|---------|----------|
 | Linux / macOS | System default (usually GCC) | `--clang` or `--gcc` |
-| Windows | MSVC (cl.exe / Visual Studio) | `--clang` or `--msvc` |
+| Windows | MSVC (cl.exe / Visual Studio) | `--clang`, `--clang-msvc`, or `--msvc` |
 
-The `--clang` flag on Windows requires **Ninja** as the build generator (install via `choco install ninja`). On Linux, the script auto-detects Ninja (preferred) or Make regardless of compiler choice.
+The `--clang` flag on Windows uses an **LLVM MinGW** toolchain — a self-contained Clang distribution that includes its own libc++, LLD linker, and mingw-w64 headers, so it does **not** depend on Visual Studio headers or the MSVC linker. Set the `LLVM_MINGW_DIR` environment variable to point to your installation, or ensure the LLVM MinGW `bin/` directory is on `PATH`. Download it from [mstorsjo/llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases).
+
+If you prefer to use stock Clang targeting the MSVC STL (which uses VS headers and `link.exe`), use `--clang-msvc` instead. This requires Visual Studio to be installed.
+
+Both `--clang` and `--clang-msvc` require **Ninja** as the build generator (install via `choco install ninja`). On Linux, the script auto-detects Ninja (preferred) or Make regardless of compiler choice.
 
 The scripts validate that the requested compiler is on `PATH` and fail early with a clear error if it is not found.
 
@@ -66,7 +71,8 @@ The scripts validate that the requested compiler is on `PATH` and fail early wit
 | `--sanitize` | Enable AddressSanitizer + UBSan |
 | `--test` | Run all test suites after the build completes |
 | `--third-party` | Build only vendored third-party dependencies, then stop |
-| `--clang` | Use Clang compiler (Linux/macOS/Windows) |
+| `--clang` | Use Clang via LLVM MinGW (Linux/macOS/Windows). On Windows, requires LLVM MinGW toolchain |
+| `--clang-msvc` | Use Clang targeting MSVC STL (Windows only, requires VS) |
 | `--gcc` | Use GCC compiler (Linux/macOS only) |
 | `--msvc` | Use MSVC compiler (Windows only) |
 
@@ -89,7 +95,12 @@ cmake --build build
 CXX=clang++ cmake -B build -S conduit
 cmake --build build
 
-# Build with Clang on Windows (requires Ninja, Clang 19+)
+# Build with Clang on Windows via LLVM MinGW (requires Ninja, Clang 19+)
+# Point CMAKE_CXX_COMPILER at the LLVM MinGW clang++ binary
+cmake -B build -S conduit -G Ninja -DCMAKE_CXX_COMPILER=C:/llvm-mingw/bin/clang++.exe
+cmake --build build
+
+# Build with stock Clang targeting MSVC STL (uses VS headers + link.exe)
 cmake -B build -S conduit -G Ninja -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 
