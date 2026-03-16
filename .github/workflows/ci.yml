@@ -33,18 +33,19 @@ jobs:
           cd build
           ctest --build-config ${{ matrix.build_type }} --output-on-failure --timeout 120
 
-      - name: Smoke-test xcvr apps (server + client for 5 seconds)
+      - name: Smoke-test xcvr apps (server + client for 10 seconds)
         shell: pwsh
         run: |
           $buildDir = "conduit/examples/xcvr-cpp"
 
           # Start server in background
+          # MSVC Debug builds have significant runtime overhead on CI runners
           $server = Start-Process -FilePath "$buildDir/dummy_peer.exe" `
             -ArgumentList "server","--port","15000","--interval-ms","500" `
             -PassThru -NoNewWindow -RedirectStandardOutput server_out.txt `
             -RedirectStandardError server_err.txt
 
-          Start-Sleep -Seconds 2
+          Start-Sleep -Seconds 5
 
           # Start client in background
           $client = Start-Process -FilePath "$buildDir/poc_app.exe" `
@@ -52,7 +53,7 @@ jobs:
             -PassThru -NoNewWindow -RedirectStandardOutput client_out.txt `
             -RedirectStandardError client_err.txt
 
-          Start-Sleep -Seconds 5
+          Start-Sleep -Seconds 10
 
           # Stop both
           if (!$client.HasExited) { $client.Kill() }
