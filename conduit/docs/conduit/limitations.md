@@ -103,7 +103,7 @@ Four audit rounds have been performed against the C++ reference implementation:
 | 4 | 10+ | JSON serialization, WIRE_SIZE, equals/hashCode/__hash__, toString/__repr__, BitReader/BitWriter fast paths, enum truncation fix, decode_frame safety, optional array handling |
 | **Total** | **50+** | All fixes verified against C++ reference test suite |
 
-For the complete audit findings including per-file diffs, see [Backend Audit Findings](../backend-audit-findings.md).
+The audit findings are summarized in the tables above. Each round's key findings and per-backend fixes are tracked in this document.
 
 ## See Also
 

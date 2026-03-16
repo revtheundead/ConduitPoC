@@ -4,7 +4,7 @@
 
 Conduit delivers sub-microsecond codec latency across all message types and sustains 700K--900K messages/second through TCP loopback end-to-end. The codec alone can process 10--34 million messages/second for decode and 2.8--14.6 million messages/second for encode, depending on message complexity.
 
-> **Note:** All benchmarks below were measured using the C++ backend. Java and Python backends will exhibit higher latencies due to interpreter/JIT overhead and the bit-by-bit read strategy in the generated `BitReader` implementations.
+> **Note:** All benchmarks below were measured using the C++ backend. Java and Python backends will exhibit higher latencies due to interpreter/JIT overhead, though both now use **byte-aligned fast paths** for whole-byte reads/writes (added in audit Round 4), falling back to bit-by-bit only for unaligned access.
 
 ## Codec Latency (Per-Message)
 

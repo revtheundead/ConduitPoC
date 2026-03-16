@@ -9,7 +9,7 @@ The guiding principle: **bring Conduit to the user's stack, not the user to C++.
 > **Current implementation status:** Several strategies described below are already implemented or in progress:
 >
 > - **Strategy 1 (bgen backends):** Java and Python code generation backends are implemented and shipping. bgen supports `--language java` and `--language python` in addition to the default C++ backend. All three produce wire-compatible output from the same BMDL schema. See the [bgen documentation](../bgen/index.md) for usage.
-> - **Strategy 2 (C ABI / FFI bindings):** JNI bindings (Java 8--17) and Panama FFI bindings (Java 19+) exist at `conduit/bindings/java/`. Python ctypes bindings exist at `conduit/bindings/python/`.
+> - **Strategy 2 (C ABI / FFI bindings):** JNI bindings (Java 8--17) and Panama FFI bindings (Java 21+) exist at `conduit/bindings/java/`. Python ctypes bindings exist at `conduit/bindings/python/`.
 > - **Strategies 3--8:** Not yet implemented. These remain as architectural recommendations for future development.
 >
 > For known feature gaps between backends, see [Limitations & Known Issues](limitations.md).
