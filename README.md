@@ -4,7 +4,7 @@ Conduit is a three-part system for working with binary protocols:
 
 - **BMDL** -- An XML language for defining binary message formats (bit-packed fields, FSPEC bitmaps, FX extension chains, discriminated unions, and more)
 - **bgen** -- A code generator that reads BMDL definitions and produces wire-compatible encode/decode code in C++, Java, or Python
-- **conduit** -- A C++20 runtime library providing network transports (TCP, UDP, Serial), stream framing, and a transceiver orchestrator that connects generated protocol code to real-world I/O
+- **conduit** -- A C++23 runtime library providing network transports (TCP, UDP, Serial), stream framing, and a transceiver orchestrator that connects generated protocol code to real-world I/O
 
 All three language backends produce wire-compatible output from the same BMDL schema -- a Java sender and a C++ receiver interoperate seamlessly.
 
@@ -19,7 +19,7 @@ cmake --build build
 #    Example protocols are in conduit/examples/
 
 # 3. Generate code
-./build/bin/bgen --input my-protocol.bmdl.xml --output generated/ --language cpp
+./build/bgen/bgen --input my-protocol.bmdl.xml --output generated/ --language cpp
 
 # 4. Run the ASTERIX example
 ./conduit/examples/xcvr-cpp/dummy_peer server --port 5000 --interval-ms 500
@@ -29,9 +29,9 @@ cmake --build build
 
 ## Requirements
 
-- **C++20** compiler (GCC 12+, Clang 15+, MSVC 19.30+)
+- **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+)
 - CMake 3.20+
-- **Java** (JDK 8+ for JNI, JDK 19+ for Panama FFI) -- optional
+- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional
 - No external runtime dependencies
 

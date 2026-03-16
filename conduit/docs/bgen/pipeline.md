@@ -89,11 +89,11 @@ The target language is selected by `--language` (`cpp`, `java`, or `python`; def
 **C++ backend** (`cpp_backend.cpp`) generates 7 header files:
    - `constants.hpp`, `types.hpp`, `structs.hpp`, `messages.hpp`, `sessions.hpp`, `protocol.hpp`, `<protocol-name>.hpp`
 
-**Java backend** (`java_backend.cpp`) generates `.java` source files:
-   - `BitReader.java` / `BitWriter.java`, per-type/struct/message classes, session classes, `Constants.java`
+**Java backend** (`java_backend.cpp`) generates `.java` source files in a package subdirectory matching the Java package name (e.g., `--output src/gen` with package `io.conduit.asterix` produces `src/gen/io/conduit/asterix/*.java`):
+   - `BitReader.java` / `BitWriter.java`, `ConduitCodecException.java`, `Constants.java`, `Protocol.java`, per-type/struct/message classes, session classes
 
 **Python backend** (`python_backend.cpp`) generates `.py` module files:
-   - `bit_io.py`, `constants.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`
+   - `__init__.py`, `bit_io.py`, `constants.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`
 
 If any file write fails, bgen reports the error and exits with code 3.
 

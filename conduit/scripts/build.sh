@@ -10,7 +10,7 @@
 #   ./scripts/build.sh --clean      Wipe build dir, then configure + build
 #   ./scripts/build.sh --cabi       Build CABI shared libraries
 #   ./scripts/build.sh --jni        Build JNI shared libraries (implies --cabi)
-#   ./scripts/build.sh --java       Build Java bindings via Maven (implies --jni)
+#   ./scripts/build.sh --java       Build Java JAR + JNI + CABI (implies --jni --cabi)
 #   ./scripts/build.sh --sanitize   Enable address + undefined-behavior sanitizers
 #   ./scripts/build.sh --third-party Build only third-party dependencies
 #   ./scripts/build.sh --test       Run all tests after build

@@ -2,10 +2,10 @@
 
 [Back to top-level documentation](../index.md)
 
-conduit is the C++20 runtime library that powers protocol communication. It provides error handling, bit-level I/O, network transports, stream framing, and the `Transceiver` orchestrator that connects generated protocol sessions to real-world I/O -- letting you send and receive typed messages without touching raw bytes.
+conduit is the C++23 runtime library that powers protocol communication. It provides error handling, bit-level I/O, network transports, stream framing, and the `Transceiver` orchestrator that connects generated protocol sessions to real-world I/O -- letting you send and receive typed messages without touching raw bytes.
 
 While the core runtime is written in C++, **Java and Python users** can access Conduit's full capabilities through native bindings:
-- **Java:** JNI bindings (Java 8--17) and Panama FFI bindings (Java 19+) at `conduit/bindings/java/`
+- **Java:** JNI bindings (Java 8--17) and Panama FFI bindings (Java 21+) at `conduit/bindings/java/`
 - **Python:** ctypes-based bindings at `conduit/bindings/python/`
 
 Additionally, the bgen code generator produces standalone codec code in Java and Python that can be used independently of the C++ runtime for encode/decode operations. See the [bgen documentation](../bgen/index.md) for details on multi-language code generation.

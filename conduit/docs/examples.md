@@ -146,6 +146,7 @@ pip install conduit/examples/xcvr-python/
 **How to run:**
 
 ```bash
+# Run from the repository root directory
 export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.so
 
 # Server (using pip-installed entry points)
