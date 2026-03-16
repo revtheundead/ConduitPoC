@@ -47,6 +47,10 @@ static void install_signal_handler() {
 }
 
 int main(int argc, char* argv[]) {
+    // Flush stdout after every output operation so that redirected output
+    // (e.g. CI smoke tests) is never lost when the process is killed.
+    std::cout << std::unitbuf;
+
     // Parse args
     std::string host = "127.0.0.1";
     uint16_t port = 5000;

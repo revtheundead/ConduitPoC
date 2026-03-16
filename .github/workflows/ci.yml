@@ -80,26 +80,28 @@ jobs:
           Write-Host "=== Client stderr ==="
           Get-Content client_err.txt -ErrorAction SilentlyContinue
 
-          # Verify both apps started successfully.
-          # NOTE: We do NOT check [SEND] output on MSVC.  When stdout is
-          # redirected to a file on Windows (MSVC CRT), full buffering
-          # (4 KB) is used.  Kill() terminates the process without
-          # flushing CRT buffers, so any output written with "\n"
-          # (rather than std::endl) may be lost.  The "Listening" and
-          # "Started" lines ARE flushed (they use std::endl), so they
-          # reliably appear.  [SEND] verification is covered by the
-          # MinGW, Clang, and Linux CI jobs.
+          # Verify both apps started and exchanged messages.
+          # The apps use std::unitbuf so all output is flushed immediately,
+          # making [SEND] lines reliably appear even when Kill() terminates
+          # the process without flushing CRT buffers.
           $serverOut = Get-Content server_out.txt -Raw -ErrorAction SilentlyContinue
           $clientOut = Get-Content client_out.txt -Raw -ErrorAction SilentlyContinue
-          if ($serverOut -match "Listening" -and $clientOut -match "Started") {
-            Write-Host "Smoke test PASSED: both MSVC apps started and connected"
+          if ($serverOut -match "Listening" -and $clientOut -match "Started" -and
+              $serverOut -match "\[SEND\]" -and $clientOut -match "\[SEND\]") {
+            Write-Host "Smoke test PASSED: both MSVC apps started and exchanged messages"
           } else {
-            Write-Host "Smoke test FAILED: apps did not start properly"
+            Write-Host "Smoke test FAILED: apps did not start or communicate properly"
             if (!$serverOut -or !($serverOut -match "Listening")) {
               Write-Host "  Server did not reach Listening state"
             }
             if (!$clientOut -or !($clientOut -match "Started")) {
               Write-Host "  Client did not reach Started state"
+            }
+            if ($serverOut -and !($serverOut -match "\[SEND\]")) {
+              Write-Host "  Server output missing [SEND] lines"
+            }
+            if ($clientOut -and !($clientOut -match "\[SEND\]")) {
+              Write-Host "  Client output missing [SEND] lines"
             }
             if ($client.HasExited) {
               Write-Host "  Client exit code: $($client.ExitCode)"
