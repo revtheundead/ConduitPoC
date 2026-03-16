@@ -143,7 +143,6 @@ TEST_CASE("HandlerRegistry: per-peer overrides global", "[handler]") {
 
 TEST_CASE("HandlerRegistry: global handler used when no per-peer handler", "[handler]") {
     HandlerRegistry registry;
-    PeerId peer(1);
     PeerId other(2);
 
     int global_count = 0;

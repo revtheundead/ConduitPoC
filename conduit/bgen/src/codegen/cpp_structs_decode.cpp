@@ -632,7 +632,7 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
                 + " - (auto_len_start_ - r.remaining_bytes()))";
             ctx_.line("{");
             ctx_.indent();
-            ctx_.line("#if defined(__GNUC__) && !defined(__clang__)");
+            ctx_.line("#ifdef __GNUC__");
             ctx_.line("#pragma GCC diagnostic push");
             ctx_.line("#pragma GCC diagnostic ignored \"-Wshadow\"");
             ctx_.line("#endif");
@@ -643,7 +643,7 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
             ctx_.line("auto auto_len_sub_ = r.sub_reader(" + remaining + ");");
             ctx_.line("if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());");
             ctx_.line("auto& r = *auto_len_sub_;");
-            ctx_.line("#if defined(__GNUC__) && !defined(__clang__)");
+            ctx_.line("#ifdef __GNUC__");
             ctx_.line("#pragma GCC diagnostic pop");
             ctx_.line("#endif");
             ctx_.line("#ifdef _MSC_VER");

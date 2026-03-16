@@ -1111,7 +1111,7 @@ TEST_CASE("ASTERIX DataBlock wire format header bytes", "[asterix][wire]") {
     REQUIRE(bytes.size() >= 3);
     CHECK(bytes[0] == 48);  // CAT048
     // len in big-endian at bytes[1..2]
-    uint16_t len = (static_cast<uint16_t>(bytes[1]) << 8) | bytes[2];
+    uint16_t len = static_cast<uint16_t>((static_cast<uint16_t>(bytes[1]) << 8) | bytes[2]);
     CHECK(len == db.len());
 }
 
@@ -1680,6 +1680,6 @@ TEST_CASE("SentryLink Frame length field on wire", "[sentry_link][wire]") {
     auto bytes = std::move(*enc_result);
     // length is at offset 3-4 (after sync(2) + msg_type(1)), big-endian
     REQUIRE(bytes.size() >= 5);
-    uint16_t wire_len = (static_cast<uint16_t>(bytes[3]) << 8) | bytes[4];
+    uint16_t wire_len = static_cast<uint16_t>((static_cast<uint16_t>(bytes[3]) << 8) | bytes[4]);
     CHECK(wire_len == 29);
 }
