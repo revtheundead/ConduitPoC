@@ -59,8 +59,12 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 
 ## Requirements
 
-- **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+) -- required for the conduit runtime and bgen itself
+- **C++23** compiler -- required for the conduit runtime and bgen itself
+  - **GCC** 12+ (Linux)
+  - **Clang** 15+ (Linux, macOS, Windows)
+  - **MSVC** 19.30+ / Visual Studio 2022 (Windows)
 - CMake 3.20+ (build system)
+- **Ninja** -- required when building with Clang on Windows; recommended on all platforms
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional, for Java backend
 - **Python** 3.7+ -- optional, for Python backend
 - No external runtime dependencies (header-only generated code, conduit is a static library). Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
@@ -70,6 +74,7 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 ### Using the build script (recommended)
 
 ```bash
+# Linux / macOS
 ./conduit/scripts/build.sh              # Debug build (C++ runtime + bgen)
 ./conduit/scripts/build.sh --release    # Release build with examples, CABI, JNI, Java
 ./conduit/scripts/build.sh --cabi       # Build C ABI shared libraries
@@ -78,9 +83,34 @@ For Java and Python quick-start examples, see the [Quick Start](conduit/quick-st
 ./conduit/scripts/build.sh --test       # Run all test suites after build
 ./conduit/scripts/build.sh --sanitize   # Enable AddressSanitizer + UBSan
 ./conduit/scripts/build.sh --clean      # Wipe build directory and rebuild
+./conduit/scripts/build.sh --clang      # Use Clang (clang / clang++)
+./conduit/scripts/build.sh --gcc        # Use GCC (gcc / g++)
+
+# Windows
+scripts\build.bat --release             # Release build (same flags as Linux)
+scripts\build.bat --clang               # Use Clang + Ninja (requires both on PATH)
+scripts\build.bat --msvc                # Use MSVC cl.exe (the default)
 ```
 
-Flags can be combined freely, e.g. `./conduit/scripts/build.sh --debug --jni --test`. The script auto-detects Ninja (preferred) or Make as the build generator.
+Flags can be combined freely in any order, e.g.:
+
+```bash
+./conduit/scripts/build.sh --release --clang --test
+scripts\build.bat --release --clang --test
+```
+
+#### Compiler selection
+
+When both MSVC and Clang are installed on Windows (or both GCC and Clang on Linux), the build scripts default to the platform's native compiler unless overridden:
+
+| Platform | Default | Override |
+|----------|---------|----------|
+| Linux / macOS | System default (usually GCC) | `--clang` or `--gcc` |
+| Windows | MSVC (cl.exe / Visual Studio) | `--clang` or `--msvc` |
+
+The `--clang` flag on Windows requires **Ninja** as the build generator (install via `choco install ninja`). On Linux, the script auto-detects Ninja (preferred) or Make regardless of compiler choice.
+
+The scripts validate that the requested compiler is on `PATH` and fail early with a clear error if it is not found.
 
 ### Using CMake directly
 
@@ -95,6 +125,14 @@ cmake --build build
 
 # With cross-language bindings (CABI + JNI)
 cmake -B build -S conduit -DCONDUIT_BUILD_CABI=ON -DCONDUIT_BUILD_JNI=ON -DCONDUIT_BUILD_BGEN=ON
+cmake --build build
+
+# Build with Clang on Linux
+CC=clang CXX=clang++ cmake -B build -S conduit
+cmake --build build
+
+# Build with Clang on Windows (requires Ninja)
+cmake -B build -S conduit -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 cmake --build build
 
 # Run C++ tests directly

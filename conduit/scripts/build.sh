@@ -120,6 +120,27 @@ else
     fail "No build tool found. Please install ninja-build or make."
 fi
 
+# Compiler selection (printed right after generator, before JNI/Java checks)
+CMAKE_COMPILER_FLAGS=()
+
+if [ "$USE_COMPILER" = "clang" ]; then
+    if ! command -v clang++ &>/dev/null; then
+        fail "clang++ not found on PATH. Install LLVM/Clang or check your PATH."
+    fi
+    export CC=clang
+    export CXX=clang++
+    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+    echo "  clang++ ... ok ($(clang++ --version | head -1))"
+elif [ "$USE_COMPILER" = "gcc" ]; then
+    if ! command -v g++ &>/dev/null; then
+        fail "g++ not found on PATH. Install GCC or check your PATH."
+    fi
+    export CC=gcc
+    export CXX=g++
+    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++)
+    echo "  g++ ... ok ($(g++ --version | head -1))"
+fi
+
 # JNI/Java toolchain checks
 if [ "$BUILD_JNI" = true ]; then
     if ! command -v java &>/dev/null; then
@@ -139,30 +160,6 @@ if [ "$BUILD_JAVA" = true ]; then
     else
         warn "No Java build tool found (mvn, gradle, or javac) — Java JAR may not build"
     fi
-fi
-
-# ============================================================================
-# Compiler selection
-# ============================================================================
-
-CMAKE_COMPILER_FLAGS=()
-
-if [ "$USE_COMPILER" = "clang" ]; then
-    if ! command -v clang++ &>/dev/null; then
-        fail "clang++ not found on PATH. Install LLVM/Clang or check your PATH."
-    fi
-    export CC=clang
-    export CXX=clang++
-    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
-    echo "  Using compiler: clang++ ($(clang++ --version | head -1))"
-elif [ "$USE_COMPILER" = "gcc" ]; then
-    if ! command -v g++ &>/dev/null; then
-        fail "g++ not found on PATH. Install GCC or check your PATH."
-    fi
-    export CC=gcc
-    export CXX=g++
-    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++)
-    echo "  Using compiler: g++ ($(g++ --version | head -1))"
 fi
 
 # ============================================================================

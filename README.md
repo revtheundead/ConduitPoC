@@ -29,11 +29,14 @@ cmake --build build
 
 ## Requirements
 
-- **C++23** compiler (GCC 12+, Clang 15+, MSVC 19.30+)
+- **C++23** compiler: GCC 12+, Clang 15+ (Linux/macOS/Windows), MSVC 19.30+
 - CMake 3.20+
+- **Ninja** -- required when building with Clang on Windows; recommended elsewhere
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional
 - No external runtime dependencies
+
+The build scripts support explicit compiler selection (`--clang`, `--gcc`, `--msvc`). See [`conduit/docs/index.md`](conduit/docs/index.md) for details.
 
 ## Documentation
 

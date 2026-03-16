@@ -187,8 +187,10 @@ These scripts run all three test suites and report a summary. Java and Python te
 **Via the build script:**
 
 ```bash
-./scripts/build.sh --test       # runs C++ tests + Java/Python if available
-scripts\build.bat --test        # same on Windows
+./scripts/build.sh --test                   # runs C++ tests + Java/Python if available
+./scripts/build.sh --clang --test           # same, using Clang
+scripts\build.bat --test                    # same on Windows (MSVC by default)
+scripts\build.bat --clang --test            # same on Windows, using Clang + Ninja
 ```
 
 **Vendored test dependencies:**
