@@ -216,7 +216,7 @@ TEST_CASE("BitWriter float writes little-endian", "[bit_writer]") {
         BitReader reader(data);
         auto val = reader.read_f32(Endian::Little);
         REQUIRE(val.has_value());
-        CHECK_THAT(*val, Catch::Matchers::WithinAbs(3.14f, 0.001));
+        CHECK_THAT(static_cast<double>(*val), Catch::Matchers::WithinAbs(static_cast<double>(3.14f), 0.001));
     }
 
     SECTION("write_f32 little-endian raw bytes") {
@@ -286,7 +286,7 @@ TEST_CASE("BitWriter float writes", "[bit_writer]") {
         BitReader reader(data);
         auto val = reader.read_f32(Endian::Big);
         REQUIRE(val.has_value());
-        CHECK_THAT(*val, Catch::Matchers::WithinAbs(3.14f, 0.001));
+        CHECK_THAT(static_cast<double>(*val), Catch::Matchers::WithinAbs(static_cast<double>(3.14f), 0.001));
     }
 
     SECTION("write_f64 round-trip") {

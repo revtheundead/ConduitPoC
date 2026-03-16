@@ -480,10 +480,8 @@ TEST_CASE("BoundedQueue DropOldest under contention", "[bounded_queue]") {
     });
 
     std::thread consumer([&] {
-        int consumed = 0;
         for (int i = 0; i < count; ++i) {
-            auto val = q.pop_for(std::chrono::milliseconds(100));
-            if (val.has_value()) ++consumed;
+            q.pop_for(std::chrono::milliseconds(100));
         }
     });
 

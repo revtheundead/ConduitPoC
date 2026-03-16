@@ -336,7 +336,7 @@ private:
                     } else if (!c.type_ref.empty()) {
                         auto resolved = index_.find(c.type_ref);
                         if (resolved) {
-                            std::visit([this, &total_bits](const auto* def) {
+                            std::visit([&total_bits](const auto* def) {
                                 using DT = std::decay_t<decltype(*def)>;
                                 if constexpr (std::is_same_v<DT, model::TypeDef>) {
                                     total_bits += static_cast<size_t>(def->bits);
