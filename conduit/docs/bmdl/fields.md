@@ -343,7 +343,7 @@ Inside a `presence="bitmap"` struct, `<reserved>` does not take a `bit` attribut
 
 ## Alignment
 
-`<align>` pads to a byte boundary:
+`<align>` pads to a specified alignment boundary:
 
 ```xml
 <field name="type" type="uint8"/>
