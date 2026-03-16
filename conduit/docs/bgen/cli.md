@@ -30,9 +30,9 @@ The `--language` argument selects the code generation backend. If omitted, C++ i
 
 | Language | Value | Output |
 |----------|-------|--------|
-| C++ | `cpp` (default) | 7 `.hpp` header files |
-| Java | `java` | `.java` source files (one per class + BitReader/BitWriter) |
-| Python | `python` | `.py` module files (bit_io, types, structs, messages, sessions, protocol) |
+| C++ | `cpp` (default) | 7 `.hpp` header files in the output directory |
+| Java | `java` | `.java` source files in a package subdirectory (e.g., `--output src/gen` with package `io.conduit.asterix` produces `src/gen/io/conduit/asterix/*.java`) |
+| Python | `python` | `.py` module files in the output directory (bit_io, types, structs, messages, sessions, protocol, \_\_init\_\_) |
 
 All backends produce wire-compatible serialization from the same BMDL schema.
 

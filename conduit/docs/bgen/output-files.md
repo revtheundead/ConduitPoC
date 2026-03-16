@@ -161,7 +161,9 @@ The Java backend generates one `.java` file per class, plus shared utility class
 |------|---------|
 | `BitReader.java` | Bit-level reader (reads bits, bytes, BCD, sign-magnitude from a byte array) |
 | `BitWriter.java` | Bit-level writer (accumulates bits into a byte array) |
+| `ConduitCodecException.java` | Runtime exception for codec errors (underflow, constraint violations) |
 | `Constants.java` | Named constants as `public static final` fields |
+| `Protocol.java` | Protocol descriptor with type registry and session factory |
 | Per-type `.java` files | Wrapper classes for enums, flags, scaled, constrained, and string types |
 | Per-struct `.java` files | Struct classes with public fields, `encode(BitWriter)`/`static decode(BitReader)` |
 | Per-message `.java` files | Message classes with `TYPE_ID`, `TYPE_NAME`, `ID_VALUE`, `encodeBytes()`/`decodeBytes()` |
