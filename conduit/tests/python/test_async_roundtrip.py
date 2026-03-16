@@ -2,10 +2,8 @@
 
 Tests async send/receive, message streams, concurrent sends, error handling,
 lifecycle management, and cancellation — all exercised over UDP loopback.
-
-Requires the native library (libconduit_cabi_test) and asyncio.  The entire
-module is skipped when either dependency is unavailable.
 """
+import asyncio
 import ctypes
 import os
 import socket
@@ -14,11 +12,6 @@ import time
 import threading
 
 import pytest
-
-try:
-    import asyncio
-except ImportError:
-    pytest.skip("asyncio not available", allow_module_level=True)
 
 from conftest import resolve_native_lib
 
@@ -30,10 +23,6 @@ _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
 
 _CABI_LIB_PATH = resolve_native_lib("CONDUIT_CABI_TEST_LIB", "conduit_cabi_test")
-if not os.path.isfile(_CABI_LIB_PATH):
-    pytest.skip(
-        f"Native library not found: {_CABI_LIB_PATH}", allow_module_level=True
-    )
 os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
 
 _CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
@@ -45,18 +34,13 @@ _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
 if _BINDINGS_DIR not in sys.path:
     sys.path.insert(0, _BINDINGS_DIR)
 
-try:
-    if sys.platform == "win32":
-        _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-        if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
-            os.add_dll_directory(_lib_dir)
-        _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
-    else:
-        _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
-except OSError as exc:
-    pytest.skip(
-        f"Cannot load native library: {exc}", allow_module_level=True
-    )
+if sys.platform == "win32":
+    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
+    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(_lib_dir)
+    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
+else:
+    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
 
 import conduit.transceiver as _xcvr_mod
 _xcvr_mod._lib = None

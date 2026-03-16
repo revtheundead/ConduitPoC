@@ -178,7 +178,8 @@ if [ -d "$PYTHON_TESTS" ]; then
             if [ "$_has_cabi_libs" != true ]; then
                 PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
                                  --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
-                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+                                 --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py"
+                                 --ignore="$PYTHON_TESTS/test_async_roundtrip.py")
             fi
             run_suite "Python pytest (standalone)" $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
                 "${PYTEST_IGNORES[@]}"

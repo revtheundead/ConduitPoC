@@ -574,6 +574,7 @@ endif()\n\
                 arrays_choices
                 choice_protocol
                 wire_encodings
+                mixed_endian
                 direction_qualified
                 sentry_link
                 expr_features

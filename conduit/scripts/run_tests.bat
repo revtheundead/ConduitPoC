@@ -198,7 +198,7 @@ if exist "!PYTHON_TESTS!" (
             set "PYTEST_IGNORES="
             if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
                 if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
-                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
                 )
             )
             :: Generate Python test packages from BMDL fixtures

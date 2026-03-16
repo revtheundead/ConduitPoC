@@ -529,6 +529,27 @@ public class TestRoundtripAdvanced {
     }
 
     // ========================================================================
+    // Mixed endian
+    // ========================================================================
+
+    @Test
+    @DisplayName("MixedMsg: alternating bit patterns roundtrip")
+    void mixedEndianAlternatingPatterns() {
+        mixed_endian.MixedMsg msg = new mixed_endian.MixedMsg();
+        msg.be16 = 0xAAAA;
+        msg.le16 = 0x5555;
+        msg.be32 = 0xAAAAAAAA;
+        msg.le32 = 0x55555555;
+
+        byte[] encoded = msg.encodeBytes();
+        mixed_endian.MixedMsg decoded = mixed_endian.MixedMsg.decodeBytes(encoded);
+        assertEquals(0xAAAA, decoded.be16);
+        assertEquals(0x5555, decoded.le16);
+        assertEquals(0xAAAAAAAA, decoded.be32);
+        assertEquals(0x55555555, decoded.le32);
+    }
+
+    // ========================================================================
     // Array and choice
     // ========================================================================
 
