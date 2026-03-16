@@ -103,9 +103,12 @@ else()
     # Clang (non-clang-cl) on Windows: the MSVC branch above is not taken, but
     # we still need the same Win32 header-cleanup defines so that <windows.h>
     # behaves identically to an MSVC build.
+    # _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR is also required here because Clang
+    # on Windows links against MSVC's STL (msvcp140.dll) and is subject to the
+    # same constexpr-mutex ABI mismatch described above.
     if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_definitions(conduit_warnings INTERFACE
-            NOMINMAX WIN32_LEAN_AND_MEAN)
+            NOMINMAX WIN32_LEAN_AND_MEAN _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
     endif()
 endif()
 

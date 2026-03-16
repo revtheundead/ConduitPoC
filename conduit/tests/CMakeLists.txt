@@ -229,7 +229,7 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
     target_compile_definitions(conduit_codec_cabi_test PRIVATE CONDUIT_CODEC_CABI_EXPORTS)
-    if(MSVC)
+    if(MSVC OR (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
         target_compile_definitions(conduit_codec_cabi_test PRIVATE
             _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
     endif()
@@ -266,7 +266,7 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
         ${CMAKE_CURRENT_BINARY_DIR}/generated
     )
     target_compile_definitions(conduit_cabi_test PRIVATE CONDUIT_CABI_EXPORTS CONDUIT_CODEC_CABI_EXPORTS)
-    if(MSVC)
+    if(MSVC OR (WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
         target_compile_definitions(conduit_cabi_test PRIVATE
             _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
     endif()

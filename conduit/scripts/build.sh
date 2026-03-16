@@ -14,9 +14,12 @@
 #   ./scripts/build.sh --sanitize   Enable address + undefined-behavior sanitizers
 #   ./scripts/build.sh --third-party Build only third-party dependencies
 #   ./scripts/build.sh --test       Run all tests after build
+#   ./scripts/build.sh --clang      Use Clang (clang / clang++)
+#   ./scripts/build.sh --gcc        Use GCC (gcc / g++)
 #
 # Flags may be combined freely, e.g.:
 #   ./scripts/build.sh --debug --jni --test
+#   ./scripts/build.sh --clang --release
 # ============================================================================
 
 set -euo pipefail
@@ -34,6 +37,7 @@ BUILD_CABI=false
 BUILD_JNI=false
 BUILD_JAVA=false
 ENABLE_SANITIZERS=false
+USE_COMPILER=""
 BUILD_DIR="build"
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
@@ -53,9 +57,11 @@ for arg in "$@"; do
         --jni)         BUILD_CABI=true; BUILD_JNI=true ;;
         --java)        BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true ;;
         --sanitize)    ENABLE_SANITIZERS=true ;;
+        --clang)       USE_COMPILER="clang" ;;
+        --gcc)         USE_COMPILER="gcc" ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--third-party] [--test]"
+            echo "Usage: $0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--gcc] [--third-party] [--test]"
             exit 1 ;;
     esac
 done
@@ -136,6 +142,30 @@ if [ "$BUILD_JAVA" = true ]; then
 fi
 
 # ============================================================================
+# Compiler selection
+# ============================================================================
+
+CMAKE_COMPILER_FLAGS=()
+
+if [ "$USE_COMPILER" = "clang" ]; then
+    if ! command -v clang++ &>/dev/null; then
+        fail "clang++ not found on PATH. Install LLVM/Clang or check your PATH."
+    fi
+    export CC=clang
+    export CXX=clang++
+    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+    echo "  Using compiler: clang++ ($(clang++ --version | head -1))"
+elif [ "$USE_COMPILER" = "gcc" ]; then
+    if ! command -v g++ &>/dev/null; then
+        fail "g++ not found on PATH. Install GCC or check your PATH."
+    fi
+    export CC=gcc
+    export CXX=g++
+    CMAKE_COMPILER_FLAGS+=(-DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++)
+    echo "  Using compiler: g++ ($(g++ --version | head -1))"
+fi
+
+# ============================================================================
 # Clean
 # ============================================================================
 
@@ -152,6 +182,7 @@ if [ "$THIRD_PARTY_ONLY" = true ]; then
     step "Building third-party dependencies only"
     cmake -B "$BUILD_DIR" \
         -G "$GENERATOR" \
+        "${CMAKE_COMPILER_FLAGS[@]}" \
         -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
         -DCONDUIT_BUILD_BGEN=OFF \
         -DCONDUIT_BUILD_TESTS=ON \
@@ -250,6 +281,7 @@ if [ "$NEEDS_CONFIGURE" = true ]; then
     step "Configuring ($BUILD_TYPE)"
     cmake -B "$BUILD_DIR" \
         -G "$GENERATOR" \
+        "${CMAKE_COMPILER_FLAGS[@]}" \
         -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
         "${CMAKE_FLAGS[@]}"
 else
