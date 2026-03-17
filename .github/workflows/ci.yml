@@ -1223,9 +1223,10 @@ jobs:
 
       - name: Install Clang 19 and clang-tidy
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | \
+            sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm.gpg
           . /etc/lsb-release
-          echo "deb http://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-19 main" | \
+          echo "deb [signed-by=/etc/apt/trusted.gpg.d/llvm.gpg] https://apt.llvm.org/${DISTRIB_CODENAME}/ llvm-toolchain-${DISTRIB_CODENAME}-19 main" | \
             sudo tee /etc/apt/sources.list.d/llvm-19.list
           sudo apt-get update -q
           sudo apt-get install -y clang-19 clang-tidy-19
