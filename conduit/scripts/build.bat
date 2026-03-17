@@ -565,7 +565,7 @@ if "%RUN_TESTS%"=="1" (
                     if not "%BUILD_JNI%"=="1" set "_exclude_jni=1"
                     if not "%BUILD_CABI%"=="1" set "_exclude_jni=1"
                     if "!_exclude_jni!"=="1" (
-                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
                     )
                     rem Panama FFI tests require --enable-preview on JDK 21+
                     for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (

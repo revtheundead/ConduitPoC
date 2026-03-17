@@ -380,8 +380,7 @@ if [ "$RUN_TESTS" = true ]; then
             fi
             if [ "$BUILD_JNI" != true ] || [ "$BUILD_CABI" != true ]; then
                 JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverJni"
-                                 --exclude-classname "TestXcvrScenarios"
-                                 --exclude-classname "TestTransceiverAdvanced")
+                                 --exclude-classname "TestXcvrScenarios")
             fi
             # Panama FFI tests require --enable-preview on JDK 21+
             _java_major="$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)"
