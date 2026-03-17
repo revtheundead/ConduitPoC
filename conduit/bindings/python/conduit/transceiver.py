@@ -10,6 +10,7 @@ import ctypes
 import ctypes.util
 import inspect
 import os
+import sys
 from collections import namedtuple
 from typing import Callable, Optional
 
