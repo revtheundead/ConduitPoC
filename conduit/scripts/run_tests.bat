@@ -23,9 +23,10 @@ pushd "!BUILD_DIR!" 2>nul && (
 )
 
 cd /d "%~dp0.."
+set "PROJECT_DIR=%CD%"
 
 :: Ensure DLL dependencies in lib\ are findable (JNI, Python ctypes, etc.)
-set "PATH=%CD%\lib;%PATH%"
+set "PATH=!PROJECT_DIR!\lib;%PATH%"
 
 set "PASSED=0"
 set "FAILED=0"
@@ -109,11 +110,11 @@ echo.
 echo ==^> Java JUnit Tests
 
 set "JUNIT_JAR="
-if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
-    set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+if exist "!PROJECT_DIR!\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+    set "JUNIT_JAR=!PROJECT_DIR!\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
 )
 set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
-set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
+set "JAVA_JAR=!PROJECT_DIR!\lib\conduit-java-0.1.0.jar"
 
 if defined JUNIT_JAR (
     if exist "!JAVA_TEST_CLASSES!" (
@@ -123,15 +124,21 @@ if defined JUNIT_JAR (
                 echo   Running Java JUnit tests...
                 rem Conditionally exclude CABI/JNI tests based on native test library presence
                 set "JUNIT_EXCLUDES="
-                if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
-                    if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
-                        set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
-                    )
+                set "_have_cabi=0"
+                if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
+                if exist "!PROJECT_DIR!\lib\libconduit_cabi_test.dll" set "_have_cabi=1"
+                if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
+                if exist "!BUILD_DIR!\tests\libconduit_cabi_test.dll" set "_have_cabi=1"
+                if "!_have_cabi!"=="0" (
+                    set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                 )
-                if not exist "%~dp0..\lib\conduit_jni_test.dll" (
-                    if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
-                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
-                    )
+                set "_have_jni=0"
+                if exist "!PROJECT_DIR!\lib\conduit_jni_test.dll" set "_have_jni=1"
+                if exist "!PROJECT_DIR!\lib\libconduit_jni_test.dll" set "_have_jni=1"
+                if exist "!BUILD_DIR!\tests\conduit_jni_test.dll" set "_have_jni=1"
+                if exist "!BUILD_DIR!\tests\libconduit_jni_test.dll" set "_have_jni=1"
+                if "!_have_jni!"=="0" (
+                    set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                 )
                 rem Panama FFI tests require --enable-preview on JDK 21+
                 set "JAVA_JVM_FLAGS="
@@ -144,7 +151,7 @@ if defined JUNIT_JAR (
                         set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                     )
                 )
-                java "-Djava.library.path=%~dp0..\lib" ^
+                java "-Djava.library.path=!PROJECT_DIR!\lib" ^
                     !JAVA_JVM_FLAGS! ^
                     -jar "!JUNIT_JAR!" ^
                     execute ^
@@ -179,18 +186,18 @@ if defined JUNIT_JAR (
 echo.
 echo ==^> Python pytest Tests
 
-set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
-set "PYTHON_TESTS=%~dp0..\tests\python"
+set "PYTEST_WHEEL_DIR=!PROJECT_DIR!\third_party\pytest"
+set "PYTHON_TESTS=!PROJECT_DIR!\tests\python"
 
 if exist "!PYTHON_TESTS!" (
     set "PYTHON_CMD="
-    python --version >nul 2>&1
+    py -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
     if not errorlevel 1 (
-        set "PYTHON_CMD=python"
+        set "PYTHON_CMD=py"
     ) else (
-        py --version >nul 2>&1
+        python -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
         if not errorlevel 1 (
-            set "PYTHON_CMD=py"
+            set "PYTHON_CMD=python"
         )
     )
     if defined PYTHON_CMD (
@@ -206,10 +213,13 @@ if exist "!PYTHON_TESTS!" (
         if not errorlevel 1 (
             rem Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
-            if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
-                if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
-                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
-                )
+            set "_have_cabi=0"
+            if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
+            if exist "!PROJECT_DIR!\lib\libconduit_cabi_test.dll" set "_have_cabi=1"
+            if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
+            if exist "!BUILD_DIR!\tests\libconduit_cabi_test.dll" set "_have_cabi=1"
+            if "!_have_cabi!"=="0" (
+                set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
             )
             rem Generate Python test packages from BMDL fixtures
             if exist "!BUILD_DIR!" (
@@ -228,7 +238,7 @@ if exist "!PYTHON_TESTS!" (
             echo   Warning: pytest not available -- skipping Python tests
         )
     ) else (
-        echo   Warning: python not found -- skipping Python tests
+        echo   Warning: Python 3.11+ not found -- skipping Python tests
     )
 ) else (
     echo   Python tests directory not found

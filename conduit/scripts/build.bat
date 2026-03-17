@@ -27,6 +27,7 @@ setlocal enabledelayedexpansion
 
 :: Navigate to project root (parent of scripts\)
 cd /d "%~dp0.."
+set "PROJECT_DIR=%CD%"
 
 set "BUILD_TYPE=Debug"
 set "CLEAN=0"
@@ -543,11 +544,11 @@ if "%RUN_TESTS%"=="1" (
 
     rem --- Java JUnit tests (non-fatal) ---
     set "JUNIT_JAR="
-    if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
-        set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+    if exist "!PROJECT_DIR!\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+        set "JUNIT_JAR=!PROJECT_DIR!\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
     )
     set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
-    set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
+    set "JAVA_JAR=!PROJECT_DIR!\lib\conduit-java-0.1.0.jar"
     if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (
@@ -577,7 +578,7 @@ if "%RUN_TESTS%"=="1" (
                             set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                         )
                     )
-                    java "-Djava.library.path=%~dp0..\lib" ^
+                    java "-Djava.library.path=!PROJECT_DIR!\lib" ^
                         !JAVA_JVM_FLAGS! ^
                         -jar "!JUNIT_JAR!" ^
                         execute ^
@@ -598,17 +599,17 @@ if "%RUN_TESTS%"=="1" (
     )
 
     rem --- Python pytest tests (non-fatal) ---
-    set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
-    set "PYTHON_TESTS=%~dp0..\tests\python"
+    set "PYTEST_WHEEL_DIR=!PROJECT_DIR!\third_party\pytest"
+    set "PYTHON_TESTS=!PROJECT_DIR!\tests\python"
     if exist "!PYTHON_TESTS!" (
         set "PYTHON_CMD="
-        python --version >nul 2>&1
+        py -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
         if not errorlevel 1 (
-            set "PYTHON_CMD=python"
+            set "PYTHON_CMD=py"
         ) else (
-            py --version >nul 2>&1
+            python -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
             if not errorlevel 1 (
-                set "PYTHON_CMD=py"
+                set "PYTHON_CMD=python"
             )
         )
         if defined PYTHON_CMD (
@@ -638,7 +639,7 @@ if "%RUN_TESTS%"=="1" (
                 echo Warning: pytest not available -- skipping Python tests
             )
         ) else (
-            echo Warning: python not found -- skipping Python tests
+            echo Warning: Python 3.11+ not found -- skipping Python tests
         )
     )
 
