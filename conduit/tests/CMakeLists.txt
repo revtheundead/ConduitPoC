@@ -275,6 +275,9 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
     )
+    if(WIN32)
+        set_target_properties(conduit_cabi_test PROPERTIES PREFIX "")
+    endif()
 endif()
 
 # ============================================================================
@@ -303,4 +306,7 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_JNI AND CONDUIT_BUILD_CABI)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
     )
+    if(WIN32)
+        set_target_properties(conduit_jni_test PROPERTIES PREFIX "")
+    endif()
 endif()
