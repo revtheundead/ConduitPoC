@@ -29,6 +29,13 @@ if not os.path.isfile(_CODEC_LIB_PATH):
         _CODEC_LIB_PATH = _CABI_LIB_PATH
 os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
 
+# On Windows, Python 3.8+ no longer searches PATH for DLL dependencies.
+# Register the library directory so transitive DLL deps can be resolved.
+if sys.platform == "win32":
+    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
+    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(_lib_dir)
+
 # Ensure Python bindings are importable
 _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
 if _BINDINGS_DIR not in sys.path:

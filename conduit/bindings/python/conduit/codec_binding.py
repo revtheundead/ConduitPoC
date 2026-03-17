@@ -42,11 +42,20 @@ class _Frame(ctypes.Structure):
 # Library loading
 # ============================================================================
 
+def _add_dll_directory(lib_path: str) -> None:
+    """On Windows/Python 3.8+, register the DLL's directory for dependency resolution."""
+    if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+        lib_dir = os.path.dirname(lib_path)
+        if os.path.isdir(lib_dir):
+            os.add_dll_directory(lib_dir)
+
+
 def _load_codec_lib() -> ctypes.CDLL:
     """Load the conduit_codec_cabi shared library."""
     # If CONDUIT_CODEC_LIB points directly to a file, load it
     env_path = os.environ.get("CONDUIT_CODEC_LIB", "")
     if env_path and os.path.isfile(env_path):
+        _add_dll_directory(env_path)
         return ctypes.CDLL(env_path)
 
     # Search in common locations (aligned with transceiver.py's _load_cabi_lib)
@@ -68,11 +77,13 @@ def _load_codec_lib() -> ctypes.CDLL:
         for name in names:
             path = os.path.join(search_dir, name)
             if os.path.isfile(path):
+                _add_dll_directory(path)
                 return ctypes.CDLL(path)
 
     # Try system library path
     lib_path = ctypes.util.find_library("conduit_codec_cabi")
     if lib_path:
+        _add_dll_directory(lib_path)
         return ctypes.CDLL(lib_path)
 
     raise OSError(
