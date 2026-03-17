@@ -283,7 +283,7 @@ exit /b 1
 
 :: JNI/Java tool checks
 if "%BUILD_JNI%"=="1" (
-    where java >nul 2>&1
+    java -version >nul 2>&1
     if errorlevel 1 (
         echo Warning: java not found -- JNI build may fail if JAVA_HOME is not set.
     ) else (
@@ -551,7 +551,7 @@ if "%RUN_TESTS%"=="1" (
     if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (
-                where java >nul 2>&1
+                java -version >nul 2>&1
                 if not errorlevel 1 (
                     echo.
                     echo ==^> Running Java JUnit tests
@@ -602,11 +602,11 @@ if "%RUN_TESTS%"=="1" (
     set "PYTHON_TESTS=%~dp0..\tests\python"
     if exist "!PYTHON_TESTS!" (
         set "PYTHON_CMD="
-        where python >nul 2>&1
+        python --version >nul 2>&1
         if not errorlevel 1 (
             set "PYTHON_CMD=python"
         ) else (
-            where py >nul 2>&1
+            py --version >nul 2>&1
             if not errorlevel 1 (
                 set "PYTHON_CMD=py"
             )

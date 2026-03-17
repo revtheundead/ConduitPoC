@@ -118,7 +118,7 @@ set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
 if defined JUNIT_JAR (
     if exist "!JAVA_TEST_CLASSES!" (
         if exist "!JAVA_JAR!" (
-            where java >nul 2>&1
+            java -version >nul 2>&1
             if not errorlevel 1 (
                 echo   Running Java JUnit tests...
                 rem Conditionally exclude CABI/JNI tests based on native test library presence
@@ -184,11 +184,11 @@ set "PYTHON_TESTS=%~dp0..\tests\python"
 
 if exist "!PYTHON_TESTS!" (
     set "PYTHON_CMD="
-    where python >nul 2>&1
+    python --version >nul 2>&1
     if not errorlevel 1 (
         set "PYTHON_CMD=python"
     ) else (
-        where py >nul 2>&1
+        py --version >nul 2>&1
         if not errorlevel 1 (
             set "PYTHON_CMD=py"
         )
