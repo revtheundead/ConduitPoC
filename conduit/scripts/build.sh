@@ -330,6 +330,12 @@ if [ "$BUILD_ALL" = true ]; then
     fi
 
     # xcvr-python
+    # Generate Python code from BMDL before pip install
+    if [ -x "examples/xcvr-python/generate.sh" ]; then
+        step "Generating Python code for xcvr-python example"
+        BGEN="$BUILD_DIR/bgen/bgen" "examples/xcvr-python/generate.sh" \
+            || warn "xcvr-python code generation failed (non-fatal)"
+    fi
     _pip_cmd=""
     if command -v pip3 &>/dev/null; then _pip_cmd="pip3"
     elif command -v pip &>/dev/null; then _pip_cmd="pip"
@@ -439,7 +445,8 @@ if [ "$RUN_TESTS" = true ]; then
                 if [ "$BUILD_CABI" != true ]; then
                     PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
                                      --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
-                                     --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+                                     --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py"
+                                     --ignore="$PYTHON_TESTS/test_async_roundtrip.py")
                 fi
                 $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
                     "${PYTEST_IGNORES[@]}" \

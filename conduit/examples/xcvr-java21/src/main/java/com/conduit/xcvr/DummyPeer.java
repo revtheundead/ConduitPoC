@@ -173,6 +173,7 @@ public class DummyPeer {
         int intervalMs = 1000;
         String logDir = "./logs";
         String logPrefix = null;  // default set per mode below
+        boolean logContent = true;
 
         // Parse common options
         for (int i = 1; i < args.length; i++) {
@@ -182,19 +183,21 @@ public class DummyPeer {
                 logDir = args[++i];
             } else if (args[i].equals("--log-prefix") && i + 1 < args.length) {
                 logPrefix = args[++i];
+            } else if (args[i].equals("--no-content")) {
+                logContent = false;
             }
         }
 
         if (isServer) {
-            runServer(args, intervalMs, logDir, logPrefix != null ? logPrefix : "server");
+            runServer(args, intervalMs, logDir, logPrefix != null ? logPrefix : "server", logContent);
         } else {
-            runClient(args, intervalMs, logDir, logPrefix != null ? logPrefix : "client");
+            runClient(args, intervalMs, logDir, logPrefix != null ? logPrefix : "client", logContent);
         }
 
         System.out.println("[dummy_peer] Done.");
     }
 
-    private static void runServer(String[] args, int intervalMs, String logDir, String logPrefix) {
+    private static void runServer(String[] args, int intervalMs, String logDir, String logPrefix, boolean logContent) {
         int port = 5000;
         String sessionName = "asterix_alt";
 
@@ -216,7 +219,7 @@ public class DummyPeer {
             logCfg.output  = Transceiver.MessageLogOutput.FILE;
             logCfg.directory = logDir;
             logCfg.prefix    = logPrefix;
-            logCfg.includeMessageContent = false;
+            logCfg.includeMessageContent = logContent;
             tx.setMessageLogConfig(logCfg);
 
             // Register the session (Java uses passthrough mode — codec runs in Java)
@@ -257,7 +260,7 @@ public class DummyPeer {
         }
     }
 
-    private static void runClient(String[] args, int intervalMs, String logDir, String logPrefix) {
+    private static void runClient(String[] args, int intervalMs, String logDir, String logPrefix, boolean logContent) {
         String host = "127.0.0.1";
         int port = 5000;
         String sessionName = "asterix";
@@ -291,7 +294,7 @@ public class DummyPeer {
             logCfg.output  = Transceiver.MessageLogOutput.FILE;
             logCfg.directory = logDir;
             logCfg.prefix    = logPrefix;
-            logCfg.includeMessageContent = false;
+            logCfg.includeMessageContent = logContent;
             tx.setMessageLogConfig(logCfg);
 
             // Register the session (Java uses passthrough mode — codec runs in Java)

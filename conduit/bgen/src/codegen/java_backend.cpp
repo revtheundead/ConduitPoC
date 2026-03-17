@@ -3304,27 +3304,41 @@ std::string generate_j_class(const std::string& name,
     ctx.line();
 
     // toString
-    ctx.line("@Override public String toString() {");
+    ctx.line("@Override public String toString() { return toString(null); }");
+    ctx.line();
+
+    // toString with overrides (for formatOutbound — auto-managed fields like cat/len)
+    ctx.line("public String toString(java.util.List<String[]> overrides) {");
     ctx.indent();
     if (fields.empty()) {
         ctx.line("return \"" + cn + "()\";");
     } else {
-        std::string fmt = "return \"" + cn + "(\" + ";
+        ctx.line("StringBuilder sb = new StringBuilder(\"" + cn + "(\");");
         for (size_t i = 0; i < fields.size(); i++) {
-            if (i > 0) fmt += " + \", \" + ";
+            if (i > 0) ctx.line("sb.append(\", \");");
+            std::string fname = fields[i].name;
+            // Check overrides for this field
+            ctx.line("sb.append(\"" + fname + "=\");");
+            ctx.line("{");
+            ctx.indent();
+            ctx.line("String _ov = null;");
+            ctx.line("if (overrides != null) { for (String[] kv : overrides) { if (kv[0].equals(\"" + fname + "\")) { _ov = kv[1]; break; } } }");
+            ctx.line("if (_ov != null) { sb.append(_ov); }");
             if (fields[i].j_type == "byte[]")
-                fmt += "\"" + fields[i].name + "=\" + java.util.Arrays.toString(" + fields[i].name + ")";
+                ctx.line("else { sb.append(java.util.Arrays.toString(" + fname + ")); }");
             else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
-                fmt += "\"" + fields[i].name + "=0x\" + Long.toHexString(" + fields[i].name + ")";
+                ctx.line("else { sb.append(\"0x\").append(Long.toHexString(" + fname + ")); }");
             else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
-                fmt += "\"" + fields[i].name + "=0\" + Long.toOctalString(" + fields[i].name + ")";
+                ctx.line("else { sb.append(\"0\").append(Long.toOctalString(" + fname + ")); }");
             else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
-                fmt += "\"" + fields[i].name + "=0b\" + Long.toBinaryString(" + fields[i].name + ")";
+                ctx.line("else { sb.append(\"0b\").append(Long.toBinaryString(" + fname + ")); }");
             else
-                fmt += "\"" + fields[i].name + "=\" + " + fields[i].name;
+                ctx.line("else { sb.append(" + fname + "); }");
+            ctx.dedent();
+            ctx.line("}");
         }
-        fmt += " + \")\";";
-        ctx.line(fmt);
+        ctx.line("sb.append(\")\");");
+        ctx.line("return sb.toString();");
     }
     ctx.dedent();
     ctx.line("}");
@@ -4502,6 +4516,25 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             }
 
             ctx.line("byte[] encoded = frame.encodeBytes();");
+
+            // Record auto-length (wire value, with arithmetic modifier applied)
+            if (!si.length_field_name.empty()) {
+                std::string len_expr = "encoded.length";
+                if (si.frame_length_modifier.has_modifier()) {
+                    std::string op;
+                    switch (si.frame_length_modifier.op) {
+                        case model::ArithOp::Add: op = " + "; break;
+                        case model::ArithOp::Sub: op = " - "; break;
+                        case model::ArithOp::Mul: op = " * "; break;
+                        case model::ArithOp::Div: op = " / "; break;
+                        default: break;
+                    }
+                    if (!op.empty())
+                        len_expr = "(" + len_expr + op + std::to_string(si.frame_length_modifier.literal) + ")";
+                }
+                ctx.line("autoFields.add(new String[]{\"" + si.length_field_name + "\", String.valueOf(" + len_expr + ")});");
+            }
+
             ctx.line("Map<String, Object> result = new HashMap<>();");
             ctx.line("result.put(\"bytes\", encoded);");
             ctx.line("result.put(\"type_id\", typeId);");
@@ -4623,6 +4656,25 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 }
 
                 ctx.line("byte[] encoded = frame.encodeBytes();");
+
+                // Record auto-length (wire value, with arithmetic modifier applied)
+                if (!si.length_field_name.empty()) {
+                    std::string len_expr = "encoded.length";
+                    if (si.frame_length_modifier.has_modifier()) {
+                        std::string op;
+                        switch (si.frame_length_modifier.op) {
+                            case model::ArithOp::Add: op = " + "; break;
+                            case model::ArithOp::Sub: op = " - "; break;
+                            case model::ArithOp::Mul: op = " * "; break;
+                            case model::ArithOp::Div: op = " / "; break;
+                            default: break;
+                        }
+                        if (!op.empty())
+                            len_expr = "(" + len_expr + op + std::to_string(si.frame_length_modifier.literal) + ")";
+                    }
+                    ctx.line("autoFields.add(new String[]{\"" + si.length_field_name + "\", String.valueOf(" + len_expr + ")});");
+                }
+
                 ctx.line("Map<String, Object> result = new HashMap<>();");
                 ctx.line("result.put(\"bytes\", encoded);");
                 ctx.line("result.put(\"type_id\", typeId);");
@@ -4672,7 +4724,7 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             ctx.line(prefix + " (typeId == " + j_hex64(lt.type_id) + " && payload instanceof " + leaf_class + ") {");
             ctx.indent();
             ctx.line(leaf_class + " _m = (" + leaf_class + ") payload;");
-            ctx.line("return _m.toString();");
+            ctx.line("return _m.toString(autoFields);");
             ctx.dedent();
         }
         if (!first) ctx.line("}");

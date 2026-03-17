@@ -57,6 +57,7 @@ int main(int argc, char* argv[]) {
     int interval_ms = 1000;
     std::string log_dir = "./logs";
     std::string log_prefix = "poc";
+    bool log_content = true;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -66,6 +67,8 @@ int main(int argc, char* argv[]) {
             log_dir = argv[++i];
         } else if (arg == "--log-prefix" && i + 1 < argc) {
             log_prefix = argv[++i];
+        } else if (arg == "--no-content") {
+            log_content = false;
         } else if (port == 5000 && i >= 2) {
             port = static_cast<uint16_t>(std::atoi(argv[i]));
         } else if (host == "127.0.0.1" && i == 1) {
@@ -85,6 +88,7 @@ int main(int argc, char* argv[]) {
     cfg.message_log.output = MessageLogOutput::File;
     cfg.message_log.directory = log_dir;
     cfg.message_log.prefix = log_prefix;
+    cfg.message_log.include_message_content = log_content;
     cfg.add_peer("server",
                  asterix::create_asterix_data_block_session,
                  transport::TcpClientConfig{.host = host, .port = port});

@@ -808,8 +808,9 @@ class Transceiver:
             if result is None:
                 raise ConduitError(-1, f"Session encode_wrap failed for type_id=0x{type_id:x}")
             data = result['bytes']
+            auto_fields = result.get('auto_fields')
             self.send_raw(peer_id, type_id, data)
-            self._log_decoded_send(peer_id, type_id, msg, len(data))
+            self._log_decoded_send(peer_id, type_id, msg, len(data), auto_fields)
         else:
             data = msg.encode_bytes()
             self.send_raw(peer_id, type_id, data)
@@ -1060,7 +1061,8 @@ class Transceiver:
             pass  # best-effort logging
 
     def _log_decoded_send(self, peer_id: int, type_id: int,
-                          msg, frame_bytes: int) -> None:
+                          msg, frame_bytes: int,
+                          auto_fields=None) -> None:
         """Log a decoded sent message (passthrough mode)."""
         if self._session is None:
             return
@@ -1071,7 +1073,10 @@ class Transceiver:
             content = None
             if self._log_include_content:
                 try:
-                    content = self._session.format_message(type_id, msg)
+                    if auto_fields is not None and hasattr(self._session, 'format_outbound'):
+                        content = self._session.format_outbound(type_id, msg, auto_fields)
+                    else:
+                        content = self._session.format_message(type_id, msg)
                 except Exception:
                     pass
             self._lib.conduit_log_send_message(

@@ -629,7 +629,7 @@ if "%RUN_TESTS%"=="1" (
                 echo ==^> Running Python pytest tests
                 set "PYTEST_IGNORES="
                 if not "%BUILD_CABI%"=="1" (
-                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
                 )
                 !PYTHON_CMD! -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
                 if errorlevel 1 (
@@ -681,6 +681,15 @@ call :build_maven_example "examples\xcvr-java11\pom.xml" "xcvr-java11"
 call :build_maven_example "examples\xcvr-java21\pom.xml" "xcvr-java21"
 
 :build_examples_pip
+rem Generate Python code from BMDL before pip install
+if exist "examples\xcvr-python\generate.bat" (
+    echo.
+    echo ==^> Generating Python code for xcvr-python example
+    set "BGEN=%BUILD_DIR%\bgen\%BUILD_TYPE%\bgen.exe"
+    if not exist "!BGEN!" set "BGEN=%BUILD_DIR%\bgen\bgen.exe"
+    call "examples\xcvr-python\generate.bat"
+    if errorlevel 1 echo Warning: xcvr-python code generation failed ^(non-fatal^)
+)
 where pip >nul 2>&1
 if errorlevel 1 goto :eof
 if exist "examples\xcvr-python\pyproject.toml" (

@@ -214,6 +214,7 @@ int main(int argc, char* argv[]) {
     int interval_ms = 1000;
     std::string log_dir = "./logs";
     std::string log_prefix;  // default set per mode below
+    bool log_content = true;
 
     // Parse common options from all args
     for (int i = 2; i < argc; ++i) {
@@ -224,6 +225,8 @@ int main(int argc, char* argv[]) {
             log_dir = argv[++i];
         } else if (a == "--log-prefix" && i + 1 < argc) {
             log_prefix = argv[++i];
+        } else if (a == "--no-content") {
+            log_content = false;
         }
     }
 
@@ -245,6 +248,7 @@ int main(int argc, char* argv[]) {
         cfg.message_log.output = MessageLogOutput::File;
         cfg.message_log.directory = log_dir;
         cfg.message_log.prefix = log_prefix;
+        cfg.message_log.include_message_content = log_content;
         cfg.add_peer("clients",
                      asterix_alt::create_asterix_data_block_session,
                      transport::TcpServerConfig{.bind_address = "0.0.0.0", .port = port});
@@ -309,6 +313,7 @@ int main(int argc, char* argv[]) {
         cfg.message_log.output = MessageLogOutput::File;
         cfg.message_log.directory = log_dir;
         cfg.message_log.prefix = log_prefix;
+        cfg.message_log.include_message_content = log_content;
         cfg.add_peer("server",
                      asterix::create_asterix_data_block_session,
                      transport::TcpClientConfig{.host = host, .port = port});

@@ -213,6 +213,8 @@ def main():
                         help="Message log directory (default: ./logs)")
     parser.add_argument("--log-prefix", default=None,
                         help="Message log file prefix (default: server/client)")
+    parser.add_argument("--no-content", action="store_true",
+                        help="Disable message content in logs")
     args = parser.parse_args()
 
     # Install signal handlers
@@ -247,6 +249,7 @@ def run_server(args, interval_s):
             output=0,  # File
             directory=args.log_dir,
             prefix=log_prefix,
+            include_message_content=not args.no_content,
         )
 
         # Register the session (Python uses passthrough mode — codec runs in Python)
@@ -298,6 +301,7 @@ def run_client(args, interval_s):
             output=0,  # File
             directory=args.log_dir,
             prefix=log_prefix,
+            include_message_content=not args.no_content,
         )
 
         # Register the session (Python uses passthrough mode — codec runs in Python)

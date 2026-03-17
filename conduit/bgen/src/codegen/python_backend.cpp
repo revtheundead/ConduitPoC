@@ -2832,17 +2832,23 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     ctx.line();
 
     // __repr__
-    ctx.line("def __repr__(self) -> str:");
+    ctx.line("def __repr__(self) -> str: return self._repr_with_overrides(None)");
+    ctx.line();
+
+    // _repr_with_overrides (for format_outbound — auto-managed fields like cat/len)
+    ctx.line("def _repr_with_overrides(self, overrides: dict = None) -> str:");
     ctx.indent();
     if (bfields.empty()) {
         ctx.line("return '" + cn + "()'");
     } else {
-        std::string fmt = "return f'" + cn + "(";
+        // Build a list of field-value expressions, checking overrides for each
+        ctx.line("parts = []");
         for (size_t i = 0; i < bfields.size(); i++) {
-            if (i > 0) fmt += ", ";
-            fmt += py_field(bfields[i].name) + "={self." + py_field(bfields[i].name) + "}";
+            std::string pf = py_field(bfields[i].name);
+            std::string orig_name = bfields[i].name;
+            ctx.line("parts.append('" + pf + "=' + (str(overrides['" + orig_name + "']) if overrides and '" + orig_name + "' in overrides else str(self." + pf + ")))");
         }
-        ctx.line(fmt + ")'");
+        ctx.line("return '" + cn + "(' + ', '.join(parts) + ')'");
     }
     ctx.dedent();
 
@@ -4298,6 +4304,25 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                 }
 
                 ctx.line("data = frame.encode_bytes()");
+
+                // Record auto-length (wire value, with arithmetic modifier applied)
+                if (!si.length_field_name.empty()) {
+                    std::string len_expr = "len(data)";
+                    if (si.frame_length_modifier.has_modifier()) {
+                        std::string op;
+                        switch (si.frame_length_modifier.op) {
+                            case model::ArithOp::Add: op = " + "; break;
+                            case model::ArithOp::Sub: op = " - "; break;
+                            case model::ArithOp::Mul: op = " * "; break;
+                            case model::ArithOp::Div: op = " // "; break;
+                            default: break;
+                        }
+                        if (!op.empty())
+                            len_expr = "(" + len_expr + op + std::to_string(si.frame_length_modifier.literal) + ")";
+                    }
+                    ctx.line("_auto_fields.append(('" + si.length_field_name + "', str(" + len_expr + ")))");
+                }
+
                 ctx.line("return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}");
                 ctx.dedent();
             }
@@ -4389,6 +4414,25 @@ std::string generate_py_sessions(const model::Protocol& protocol,
 
                     ctx.line("frame.payload = payloads");
                     ctx.line("data = frame.encode_bytes()");
+
+                    // Record auto-length (wire value, with arithmetic modifier applied)
+                    if (!si.length_field_name.empty()) {
+                        std::string len_expr = "len(data)";
+                        if (si.frame_length_modifier.has_modifier()) {
+                            std::string op;
+                            switch (si.frame_length_modifier.op) {
+                                case model::ArithOp::Add: op = " + "; break;
+                                case model::ArithOp::Sub: op = " - "; break;
+                                case model::ArithOp::Mul: op = " * "; break;
+                                case model::ArithOp::Div: op = " // "; break;
+                                default: break;
+                            }
+                            if (!op.empty())
+                                len_expr = "(" + len_expr + op + std::to_string(si.frame_length_modifier.literal) + ")";
+                        }
+                        ctx.line("_auto_fields.append(('" + si.length_field_name + "', str(" + len_expr + ")))");
+                    }
+
                     ctx.line("return {'bytes': data, 'type_id': type_id, 'auto_fields': _auto_fields}");
                     ctx.dedent();
                 }
@@ -4422,6 +4466,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         // format_outbound
         ctx.line("def format_outbound(self, type_id: int, payload, auto_fields: list = None) -> str:");
         ctx.indent();
+        ctx.line("_ov = dict(auto_fields) if auto_fields else None");
         {
             bool first = true;
             for (const auto& lt : si.leaf_types) {
@@ -4429,7 +4474,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                 first = false;
                 ctx.line(prefix + " type_id == " + py_hex64(lt.type_id) + ":");
                 ctx.indent();
-                ctx.line("return repr(payload)");
+                ctx.line("return payload._repr_with_overrides(_ov)");
                 ctx.dedent();
             }
         }

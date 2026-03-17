@@ -38,6 +38,7 @@ public class PocApp {
 
         String logDir = "./logs";
         String logPrefix = "poc";
+        boolean logContent = true;
 
         // Parse arguments (mirrors C++ poc_app arg parsing)
         for (int i = 0; i < args.length; i++) {
@@ -53,6 +54,9 @@ public class PocApp {
                     break;
                 case "--log-prefix":
                     if (i + 1 < args.length) logPrefix = args[++i];
+                    break;
+                case "--no-content":
+                    logContent = false;
                     break;
                 default:
                     if (!args[i].startsWith("--")) {
@@ -80,7 +84,7 @@ public class PocApp {
             logCfg.output = Transceiver.MessageLogOutput.FILE;
             logCfg.directory = logDir;
             logCfg.prefix = logPrefix;
-            logCfg.includeMessageContent = false;
+            logCfg.includeMessageContent = logContent;
             tx.setMessageLogConfig(logCfg);
 
             // Register Java session (no protocol-specific native .so needed).
