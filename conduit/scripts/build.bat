@@ -498,6 +498,9 @@ if "%BUILD_ALL%"=="1" call :build_examples
 :: ============================================================================
 
 if "%RUN_TESTS%"=="1" (
+    rem Ensure DLL dependencies in lib\ are findable (Python ctypes, etc.)
+    set "PATH=!PROJECT_DIR!\lib;!PATH!"
+
     rem Detect test binary path: multi-config (MSVC) vs single-config (Ninja)
     set "TEST_PREFIX=%BUILD_DIR%\tests"
     set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests"
