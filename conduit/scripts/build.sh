@@ -409,13 +409,14 @@ if [ "$RUN_TESTS" = true ]; then
     PYTEST_WHEEL_DIR="$PROJECT_DIR/third_party/pytest"
     PYTHON_TESTS="$PROJECT_DIR/tests/python"
     if [ -d "$PYTHON_TESTS" ]; then
-        if command -v python3 &>/dev/null; then
-            PYTHON_CMD="python3"
-        elif command -v python &>/dev/null; then
-            PYTHON_CMD="python"
-        else
-            PYTHON_CMD=""
-        fi
+        PYTHON_CMD=""
+        for _py_candidate in python3 python; do
+            if command -v "$_py_candidate" &>/dev/null \
+               && "$_py_candidate" -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" 2>/dev/null; then
+                PYTHON_CMD="$_py_candidate"
+                break
+            fi
+        done
         if [ -n "$PYTHON_CMD" ]; then
             # Install pytest from vendored wheels if available
             if [ -d "$PYTEST_WHEEL_DIR" ]; then
@@ -447,7 +448,7 @@ if [ "$RUN_TESTS" = true ]; then
                 warn "pytest not available — skipping Python tests"
             fi
         else
-            warn "python not found — skipping Python tests"
+            warn "Python 3.11+ not found — skipping Python tests"
         fi
     fi
 

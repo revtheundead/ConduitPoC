@@ -191,11 +191,11 @@ set "PYTHON_TESTS=!PROJECT_DIR!\tests\python"
 
 if exist "!PYTHON_TESTS!" (
     set "PYTHON_CMD="
-    py --version >nul 2>&1
+    py -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
     if not errorlevel 1 (
         set "PYTHON_CMD=py"
     ) else (
-        python --version >nul 2>&1
+        python -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" >nul 2>&1
         if not errorlevel 1 (
             set "PYTHON_CMD=python"
         )
@@ -238,7 +238,7 @@ if exist "!PYTHON_TESTS!" (
             echo   Warning: pytest not available -- skipping Python tests
         )
     ) else (
-        echo   Warning: python not found -- skipping Python tests
+        echo   Warning: Python 3.11+ not found -- skipping Python tests
     )
 ) else (
     echo   Python tests directory not found
