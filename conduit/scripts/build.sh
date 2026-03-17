@@ -352,20 +352,22 @@ fi
 # ============================================================================
 
 if [ "$RUN_TESTS" = true ]; then
+    TEST_FAILURES=0
+
     step "Running conduit tests"
-    "$BUILD_DIR/tests/conduit_tests"
+    "$BUILD_DIR/tests/conduit_tests" || { warn "conduit_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
 
     step "Running bgen tests"
-    "$BUILD_DIR/bgen/tests/bgen_tests"
+    "$BUILD_DIR/bgen/tests/bgen_tests" || { warn "bgen_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
 
     if [ -x "$BUILD_DIR/bgen/tests/bgen_python_tests" ]; then
         step "Running bgen Python backend tests"
-        "$BUILD_DIR/bgen/tests/bgen_python_tests"
+        "$BUILD_DIR/bgen/tests/bgen_python_tests" || { warn "bgen_python_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
     fi
 
     if [ -x "$BUILD_DIR/bgen/tests/bgen_java_tests" ]; then
         step "Running bgen Java backend tests"
-        "$BUILD_DIR/bgen/tests/bgen_java_tests"
+        "$BUILD_DIR/bgen/tests/bgen_java_tests" || { warn "bgen_java_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
     fi
 
     # --- Java JUnit tests (non-fatal) ---
@@ -460,6 +462,9 @@ if [ "$RUN_TESTS" = true ]; then
     fi
 
     step "Test run complete"
+    if [ "$TEST_FAILURES" -gt 0 ]; then
+        fail "$TEST_FAILURES test suite(s) failed"
+    fi
 fi
 
 echo ""

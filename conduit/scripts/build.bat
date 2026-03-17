@@ -506,20 +506,22 @@ if "%RUN_TESTS%"=="1" (
         set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests\!BUILD_TYPE!"
     )
 
+    set "TEST_FAILURES=0"
+
     echo.
     echo ==^> Running conduit tests
     "!TEST_PREFIX!\conduit_tests.exe"
     if errorlevel 1 (
-        echo Error: Conduit tests failed.
-        exit /b 1
+        echo Warning: conduit_tests failed
+        set /a TEST_FAILURES+=1
     )
 
     echo.
     echo ==^> Running bgen tests
     "!BGEN_TEST_PREFIX!\bgen_tests.exe"
     if errorlevel 1 (
-        echo Error: Bgen tests failed.
-        exit /b 1
+        echo Warning: bgen_tests failed
+        set /a TEST_FAILURES+=1
     )
 
     if exist "!BGEN_TEST_PREFIX!\bgen_python_tests.exe" (
@@ -527,8 +529,8 @@ if "%RUN_TESTS%"=="1" (
         echo ==^> Running bgen Python backend tests
         "!BGEN_TEST_PREFIX!\bgen_python_tests.exe"
         if errorlevel 1 (
-            echo Error: Bgen Python tests failed.
-            exit /b 1
+            echo Warning: bgen_python_tests failed
+            set /a TEST_FAILURES+=1
         )
     )
 
@@ -537,8 +539,8 @@ if "%RUN_TESTS%"=="1" (
         echo ==^> Running bgen Java backend tests
         "!BGEN_TEST_PREFIX!\bgen_java_tests.exe"
         if errorlevel 1 (
-            echo Error: Bgen Java tests failed.
-            exit /b 1
+            echo Warning: bgen_java_tests failed
+            set /a TEST_FAILURES+=1
         )
     )
 
@@ -645,6 +647,10 @@ if "%RUN_TESTS%"=="1" (
 
     echo.
     echo ==^> Test run complete
+    if !TEST_FAILURES! gtr 0 (
+        echo Error: !TEST_FAILURES! test suite^(s^) failed.
+        exit /b 1
+    )
 )
 
 echo.
