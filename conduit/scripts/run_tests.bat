@@ -109,11 +109,11 @@ echo.
 echo ==^> Java JUnit Tests
 
 set "JUNIT_JAR="
-if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
-    set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+if exist "%CD%\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+    set "JUNIT_JAR=%CD%\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
 )
 set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
-set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
+set "JAVA_JAR=%CD%\lib\conduit-java-0.1.0.jar"
 
 if defined JUNIT_JAR (
     if exist "!JAVA_TEST_CLASSES!" (
@@ -123,12 +123,12 @@ if defined JUNIT_JAR (
                 echo   Running Java JUnit tests...
                 rem Conditionally exclude CABI/JNI tests based on native test library presence
                 set "JUNIT_EXCLUDES="
-                if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
+                if not exist "%CD%\lib\conduit_cabi_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                         set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                     )
                 )
-                if not exist "%~dp0..\lib\conduit_jni_test.dll" (
+                if not exist "%CD%\lib\conduit_jni_test.dll" (
                     if not exist "!BUILD_DIR!\tests\conduit_jni_test.dll" (
                         set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                     )
@@ -144,7 +144,7 @@ if defined JUNIT_JAR (
                         set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                     )
                 )
-                java "-Djava.library.path=%~dp0..\lib" ^
+                java "-Djava.library.path=%CD%\lib" ^
                     !JAVA_JVM_FLAGS! ^
                     -jar "!JUNIT_JAR!" ^
                     execute ^
@@ -179,8 +179,8 @@ if defined JUNIT_JAR (
 echo.
 echo ==^> Python pytest Tests
 
-set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
-set "PYTHON_TESTS=%~dp0..\tests\python"
+set "PYTEST_WHEEL_DIR=%CD%\third_party\pytest"
+set "PYTHON_TESTS=%CD%\tests\python"
 
 if exist "!PYTHON_TESTS!" (
     set "PYTHON_CMD="
@@ -206,7 +206,7 @@ if exist "!PYTHON_TESTS!" (
         if not errorlevel 1 (
             rem Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
-            if not exist "%~dp0..\lib\conduit_cabi_test.dll" (
+            if not exist "%CD%\lib\conduit_cabi_test.dll" (
                 if not exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" (
                     set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
                 )

@@ -521,7 +521,7 @@ endif()\n\
             # Determine compiler release level
             set(_javac_flags -d "${_java_classes_dir}")
             if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
-                list(APPEND _javac_flags --release 21 --enable-preview)
+                list(APPEND _javac_flags --release 21 --enable-preview -Xlint:-preview)
                 message(STATUS "Java JAR: including Panama FFI sources (JDK ${_java_major})")
             else()
                 list(APPEND _javac_flags --release 11)
@@ -691,7 +691,7 @@ endif()\n\
             # (avoids the POSIX-only 'find' command for cross-platform support)
             set(_java_test_compile_script "${CMAKE_CURRENT_BINARY_DIR}/java_test_compile.cmake")
             if(CONDUIT_BUILD_JAVA_PANAMA AND _java_major GREATER_EQUAL 21)
-                set(_java_test_release_flags "--release 21 --enable-preview")
+                set(_java_test_release_flags "--release 21 --enable-preview -Xlint:-preview")
             else()
                 set(_java_test_release_flags "--release 11")
             endif()

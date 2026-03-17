@@ -543,11 +543,11 @@ if "%RUN_TESTS%"=="1" (
 
     rem --- Java JUnit tests (non-fatal) ---
     set "JUNIT_JAR="
-    if exist "%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
-        set "JUNIT_JAR=%~dp0..\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
+    if exist "%CD%\third_party\junit5\junit-platform-console-standalone-1.11.4.jar" (
+        set "JUNIT_JAR=%CD%\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
     )
     set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
-    set "JAVA_JAR=%~dp0..\lib\conduit-java-0.1.0.jar"
+    set "JAVA_JAR=%CD%\lib\conduit-java-0.1.0.jar"
     if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (
@@ -577,7 +577,7 @@ if "%RUN_TESTS%"=="1" (
                             set "JAVA_JVM_FLAGS=--enable-preview --enable-native-access=ALL-UNNAMED"
                         )
                     )
-                    java "-Djava.library.path=%~dp0..\lib" ^
+                    java "-Djava.library.path=%CD%\lib" ^
                         !JAVA_JVM_FLAGS! ^
                         -jar "!JUNIT_JAR!" ^
                         execute ^
@@ -598,8 +598,8 @@ if "%RUN_TESTS%"=="1" (
     )
 
     rem --- Python pytest tests (non-fatal) ---
-    set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
-    set "PYTHON_TESTS=%~dp0..\tests\python"
+    set "PYTEST_WHEEL_DIR=%CD%\third_party\pytest"
+    set "PYTHON_TESTS=%CD%\tests\python"
     if exist "!PYTHON_TESTS!" (
         set "PYTHON_CMD="
         python --version >nul 2>&1
