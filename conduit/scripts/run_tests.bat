@@ -126,17 +126,13 @@ if defined JUNIT_JAR (
                 set "JUNIT_EXCLUDES="
                 set "_have_cabi=0"
                 if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
-                if exist "!PROJECT_DIR!\lib\libconduit_cabi_test.dll" set "_have_cabi=1"
                 if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
-                if exist "!BUILD_DIR!\tests\libconduit_cabi_test.dll" set "_have_cabi=1"
                 if "!_have_cabi!"=="0" (
                     set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                 )
                 set "_have_jni=0"
                 if exist "!PROJECT_DIR!\lib\conduit_jni_test.dll" set "_have_jni=1"
-                if exist "!PROJECT_DIR!\lib\libconduit_jni_test.dll" set "_have_jni=1"
                 if exist "!BUILD_DIR!\tests\conduit_jni_test.dll" set "_have_jni=1"
-                if exist "!BUILD_DIR!\tests\libconduit_jni_test.dll" set "_have_jni=1"
                 if "!_have_jni!"=="0" (
                     set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                 )
@@ -215,9 +211,7 @@ if exist "!PYTHON_TESTS!" (
             set "PYTEST_IGNORES="
             set "_have_cabi=0"
             if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
-            if exist "!PROJECT_DIR!\lib\libconduit_cabi_test.dll" set "_have_cabi=1"
             if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
-            if exist "!BUILD_DIR!\tests\libconduit_cabi_test.dll" set "_have_cabi=1"
             if "!_have_cabi!"=="0" (
                 set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
             )

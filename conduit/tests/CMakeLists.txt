@@ -238,6 +238,9 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
     )
+    if(WIN32)
+        set_target_properties(conduit_codec_cabi_test PROPERTIES PREFIX "")
+    endif()
 endif()
 
 if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CABI)
