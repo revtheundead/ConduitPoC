@@ -603,13 +603,13 @@ if "%RUN_TESTS%"=="1" (
     set "PYTHON_TESTS=!PROJECT_DIR!\tests\python"
     if exist "!PYTHON_TESTS!" (
         set "PYTHON_CMD="
-        python --version >nul 2>&1
+        py --version >nul 2>&1
         if not errorlevel 1 (
-            set "PYTHON_CMD=python"
+            set "PYTHON_CMD=py"
         ) else (
-            py --version >nul 2>&1
+            python --version >nul 2>&1
             if not errorlevel 1 (
-                set "PYTHON_CMD=py"
+                set "PYTHON_CMD=python"
             )
         )
         if defined PYTHON_CMD (
