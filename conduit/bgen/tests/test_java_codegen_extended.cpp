@@ -1269,8 +1269,9 @@ TEST_CASE("JCG: display format binary in toString", "[java][codegen][display_for
     CHECK(msg_file.find("Long.toBinaryString(mask)") != std::string::npos);
     // flags has type bin8 with format="binary" → toString should use Long.toBinaryString
     CHECK(msg_file.find("Long.toBinaryString(flags)") != std::string::npos);
-    // tag has no format → standard toString (just field name)
-    CHECK(msg_file.find("\"tag=\" + tag") != std::string::npos);
+    // tag has no format → standard toString (just field name via StringBuilder)
+    CHECK(msg_file.find("sb.append(\"tag=\")") != std::string::npos);
+    CHECK(msg_file.find("sb.append(tag)") != std::string::npos);
 }
 
 TEST_CASE("JCG: display format hex in toString", "[java][codegen][display_format]") {

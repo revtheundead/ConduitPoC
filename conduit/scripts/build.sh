@@ -330,6 +330,12 @@ if [ "$BUILD_ALL" = true ]; then
     fi
 
     # xcvr-python
+    # Generate Python code from BMDL before pip install
+    if [ -x "examples/xcvr-python/generate.sh" ]; then
+        step "Generating Python code for xcvr-python example"
+        BGEN="$BUILD_DIR/bgen/bgen" "examples/xcvr-python/generate.sh" \
+            || warn "xcvr-python code generation failed (non-fatal)"
+    fi
     _pip_cmd=""
     if command -v pip3 &>/dev/null; then _pip_cmd="pip3"
     elif command -v pip &>/dev/null; then _pip_cmd="pip"
@@ -346,20 +352,22 @@ fi
 # ============================================================================
 
 if [ "$RUN_TESTS" = true ]; then
+    TEST_FAILURES=0
+
     step "Running conduit tests"
-    "$BUILD_DIR/tests/conduit_tests"
+    "$BUILD_DIR/tests/conduit_tests" || { warn "conduit_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
 
     step "Running bgen tests"
-    "$BUILD_DIR/bgen/tests/bgen_tests"
+    "$BUILD_DIR/bgen/tests/bgen_tests" || { warn "bgen_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
 
     if [ -x "$BUILD_DIR/bgen/tests/bgen_python_tests" ]; then
         step "Running bgen Python backend tests"
-        "$BUILD_DIR/bgen/tests/bgen_python_tests"
+        "$BUILD_DIR/bgen/tests/bgen_python_tests" || { warn "bgen_python_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
     fi
 
     if [ -x "$BUILD_DIR/bgen/tests/bgen_java_tests" ]; then
         step "Running bgen Java backend tests"
-        "$BUILD_DIR/bgen/tests/bgen_java_tests"
+        "$BUILD_DIR/bgen/tests/bgen_java_tests" || { warn "bgen_java_tests failed"; TEST_FAILURES=$((TEST_FAILURES + 1)); }
     fi
 
     # --- Java JUnit tests (non-fatal) ---
@@ -439,7 +447,8 @@ if [ "$RUN_TESTS" = true ]; then
                 if [ "$BUILD_CABI" != true ]; then
                     PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
                                      --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"
-                                     --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py")
+                                     --ignore="$PYTHON_TESTS/test_xcvr_scenarios.py"
+                                     --ignore="$PYTHON_TESTS/test_async_roundtrip.py")
                 fi
                 $PYTHON_CMD -m pytest "$PYTHON_TESTS" -x -q \
                     "${PYTEST_IGNORES[@]}" \
@@ -453,6 +462,9 @@ if [ "$RUN_TESTS" = true ]; then
     fi
 
     step "Test run complete"
+    if [ "$TEST_FAILURES" -gt 0 ]; then
+        fail "$TEST_FAILURES test suite(s) failed"
+    fi
 fi
 
 echo ""

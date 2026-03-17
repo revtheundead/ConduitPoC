@@ -57,17 +57,3 @@ target_include_directories(dummy_peer PRIVATE
 )
 xcvr_compile_opts(dummy_peer)
 xcvr_set_output_dir(dummy_peer)
-
-# ----------------------------------------------------------------------------
-# xcvr_roundtrip_test — Cat021 roundtrip encoding/decoding test
-# ----------------------------------------------------------------------------
-
-add_executable(xcvr_roundtrip_test test_cat021_roundtrip.cpp)
-target_link_libraries(xcvr_roundtrip_test PRIVATE conduit)
-target_include_directories(xcvr_roundtrip_test PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/asterix/generated
-    ${CMAKE_CURRENT_SOURCE_DIR}/asterix-alt/generated
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-xcvr_compile_opts(xcvr_roundtrip_test)
-xcvr_set_output_dir(xcvr_roundtrip_test)

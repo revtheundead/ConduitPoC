@@ -35,6 +35,7 @@ public class PocApp {
         // Parse arguments (mirrors C++ poc_app arg parsing)
         String logDir = "./logs";
         String logPrefix = "poc";
+        boolean logContent = true;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -42,6 +43,7 @@ public class PocApp {
                 case "--session"     -> { if (i + 1 < args.length) sessionName = args[++i]; }
                 case "--log-dir"     -> { if (i + 1 < args.length) logDir = args[++i]; }
                 case "--log-prefix"  -> { if (i + 1 < args.length) logPrefix = args[++i]; }
+                case "--no-content"  -> logContent = false;
                 default -> {
                     if (!args[i].startsWith("--")) {
                         if (host.equals("127.0.0.1") && i == 0) {
@@ -68,7 +70,7 @@ public class PocApp {
             logCfg.output = Transceiver.MessageLogOutput.FILE;
             logCfg.directory = logDir;
             logCfg.prefix = logPrefix;
-            logCfg.includeMessageContent = false;
+            logCfg.includeMessageContent = logContent;
             tx.setMessageLogConfig(logCfg);
 
             // Register the session (Java uses passthrough mode — codec runs in Java)

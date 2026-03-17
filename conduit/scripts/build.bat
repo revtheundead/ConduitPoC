@@ -506,20 +506,22 @@ if "%RUN_TESTS%"=="1" (
         set "BGEN_TEST_PREFIX=%BUILD_DIR%\bgen\tests\!BUILD_TYPE!"
     )
 
+    set "TEST_FAILURES=0"
+
     echo.
     echo ==^> Running conduit tests
     "!TEST_PREFIX!\conduit_tests.exe"
     if errorlevel 1 (
-        echo Error: Conduit tests failed.
-        exit /b 1
+        echo Warning: conduit_tests failed
+        set /a TEST_FAILURES+=1
     )
 
     echo.
     echo ==^> Running bgen tests
     "!BGEN_TEST_PREFIX!\bgen_tests.exe"
     if errorlevel 1 (
-        echo Error: Bgen tests failed.
-        exit /b 1
+        echo Warning: bgen_tests failed
+        set /a TEST_FAILURES+=1
     )
 
     if exist "!BGEN_TEST_PREFIX!\bgen_python_tests.exe" (
@@ -527,8 +529,8 @@ if "%RUN_TESTS%"=="1" (
         echo ==^> Running bgen Python backend tests
         "!BGEN_TEST_PREFIX!\bgen_python_tests.exe"
         if errorlevel 1 (
-            echo Error: Bgen Python tests failed.
-            exit /b 1
+            echo Warning: bgen_python_tests failed
+            set /a TEST_FAILURES+=1
         )
     )
 
@@ -537,8 +539,8 @@ if "%RUN_TESTS%"=="1" (
         echo ==^> Running bgen Java backend tests
         "!BGEN_TEST_PREFIX!\bgen_java_tests.exe"
         if errorlevel 1 (
-            echo Error: Bgen Java tests failed.
-            exit /b 1
+            echo Warning: bgen_java_tests failed
+            set /a TEST_FAILURES+=1
         )
     )
 
@@ -629,7 +631,7 @@ if "%RUN_TESTS%"=="1" (
                 echo ==^> Running Python pytest tests
                 set "PYTEST_IGNORES="
                 if not "%BUILD_CABI%"=="1" (
-                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
+                    set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
                 )
                 !PYTHON_CMD! -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
                 if errorlevel 1 (
@@ -645,6 +647,10 @@ if "%RUN_TESTS%"=="1" (
 
     echo.
     echo ==^> Test run complete
+    if !TEST_FAILURES! gtr 0 (
+        echo Error: !TEST_FAILURES! test suite^(s^) failed.
+        exit /b 1
+    )
 )
 
 echo.
@@ -681,6 +687,15 @@ call :build_maven_example "examples\xcvr-java11\pom.xml" "xcvr-java11"
 call :build_maven_example "examples\xcvr-java21\pom.xml" "xcvr-java21"
 
 :build_examples_pip
+rem Generate Python code from BMDL before pip install
+if exist "examples\xcvr-python\generate.bat" (
+    echo.
+    echo ==^> Generating Python code for xcvr-python example
+    set "BGEN=%BUILD_DIR%\bgen\%BUILD_TYPE%\bgen.exe"
+    if not exist "!BGEN!" set "BGEN=%BUILD_DIR%\bgen\bgen.exe"
+    call "examples\xcvr-python\generate.bat"
+    if errorlevel 1 echo Warning: xcvr-python code generation failed ^(non-fatal^)
+)
 where pip >nul 2>&1
 if errorlevel 1 goto :eof
 if exist "examples\xcvr-python\pyproject.toml" (

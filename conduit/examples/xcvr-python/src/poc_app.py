@@ -69,6 +69,8 @@ def main():
                         help="Message log directory (default: ./logs)")
     parser.add_argument("--log-prefix", default="poc",
                         help="Message log file prefix (default: poc)")
+    parser.add_argument("--no-content", action="store_true",
+                        help="Disable message content in logs")
     args = parser.parse_args()
 
     # Install signal handlers (mirrors C++ signal_handler)
@@ -86,6 +88,7 @@ def main():
             output=MessageLogOutput.FILE,
             directory=args.log_dir,
             prefix=args.log_prefix,
+            include_message_content=not args.no_content,
         )
 
         # Register the session (Python uses passthrough mode — codec runs in Python)

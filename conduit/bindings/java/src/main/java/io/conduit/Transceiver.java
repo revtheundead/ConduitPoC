@@ -227,6 +227,7 @@ public class Transceiver implements AutoCloseable {
     private java.lang.reflect.Method sessionEncodeWrap;
     private java.lang.reflect.Method sessionDecodeFrame;
     private java.lang.reflect.Method sessionFormatMessage;
+    private java.lang.reflect.Method sessionFormatOutbound;
     private java.lang.reflect.Method sessionTypeName;
     private volatile boolean logIncludeContent;
     private final ConcurrentHashMap<Long, CopyOnWriteArrayList<TypedMessageCallback<?>>>
@@ -485,6 +486,7 @@ public class Transceiver implements AutoCloseable {
             this.sessionEncodeWrap = cls.getMethod("encodeWrap", long.class, Object.class);
             this.sessionDecodeFrame = cls.getMethod("decodeFrame", byte[].class);
             this.sessionFormatMessage = cls.getMethod("formatMessage", long.class, Object.class);
+            this.sessionFormatOutbound = cls.getMethod("formatOutbound", long.class, Object.class, List.class);
             this.sessionTypeName = cls.getMethod("typeName", long.class);
 
             // Install a raw frame dispatcher: PassthroughSession delivers raw
@@ -590,8 +592,10 @@ public class Transceiver implements AutoCloseable {
                         "Session encodeWrap returned null for type " + cls.getSimpleName());
                 }
                 byte[] frameBytes = (byte[]) result.get("bytes");
+                @SuppressWarnings("unchecked")
+                List<String[]> autoFields = (List<String[]>) result.get("auto_fields");
                 sendRaw(peerId, typeId, frameBytes);
-                logDecodedSend(peerId, typeId, msg, frameBytes.length);
+                logDecodedSend(peerId, typeId, msg, frameBytes.length, autoFields);
             } else {
                 // Original path: encode message bytes, let C++ session wrap them.
                 byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
@@ -663,14 +667,22 @@ public class Transceiver implements AutoCloseable {
         }
     }
 
-    private void logDecodedSend(int peerId, long typeId, Object payload, int frameBytes) {
+    private void logDecodedSend(int peerId, long typeId, Object payload,
+                                int frameBytes, List<String[]> autoFields) {
         if (sessionFormatMessage == null) return;
         try {
             String tname = (String) sessionTypeName.invoke(javaSession, typeId);
             if (tname == null) tname = "unknown";
-            String content = logIncludeContent
-                ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
-                : null;
+            String content = null;
+            if (logIncludeContent) {
+                if (sessionFormatOutbound != null && autoFields != null) {
+                    content = (String) sessionFormatOutbound.invoke(
+                        javaSession, typeId, payload, autoFields);
+                } else {
+                    content = (String) sessionFormatMessage.invoke(
+                        javaSession, typeId, payload);
+                }
+            }
             binding.logSendMessage(handle, peerId, tname, frameBytes, content);
         } catch (Exception e) {
             System.err.println("[conduit] message log error: " + e.getMessage());
