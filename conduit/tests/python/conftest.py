@@ -1,4 +1,5 @@
 """Pytest configuration and shared fixtures for Conduit generated Python codec tests."""
+import ctypes
 import sys
 import os
 import platform
@@ -74,6 +75,22 @@ def resolve_native_lib(env_var: str, base_name: str) -> str:
 
     # Fallback — will fail with a clear error at load time
     return os.path.join(_PROJECT_ROOT, "lib", lib_name)
+
+
+def load_native_lib(path: str, *, global_symbols: bool = False) -> ctypes.CDLL:
+    """Load a native shared library with correct platform flags.
+
+    On Windows/Python 3.8+, uses winmode=0 to restore traditional LoadLibrary
+    search behaviour so DLL dependencies in PATH are found (matching Java's
+    System.loadLibrary).  On POSIX with global_symbols=True, uses RTLD_GLOBAL
+    so exported symbols are available to subsequently loaded libraries.
+    """
+    if sys.platform == "win32":
+        return ctypes.CDLL(path, winmode=0)
+    elif global_symbols:
+        return ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+    else:
+        return ctypes.CDLL(path)
 
 
 # ---------------------------------------------------------------------------
