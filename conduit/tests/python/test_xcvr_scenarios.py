@@ -7,7 +7,7 @@ import threading
 import socket
 import pytest
 
-from conftest import resolve_native_lib
+from conftest import resolve_native_lib, load_native_lib
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
@@ -28,13 +28,7 @@ _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
 if _BINDINGS_DIR not in sys.path:
     sys.path.insert(0, _BINDINGS_DIR)
 
-if sys.platform == "win32":
-    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
-        os.add_dll_directory(_lib_dir)
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
-else:
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
+_codec_preload = load_native_lib(_CODEC_LIB_PATH, global_symbols=True)
 
 import conduit.transceiver as _xcvr_mod
 _xcvr_mod._lib = None

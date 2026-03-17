@@ -11,7 +11,7 @@ import time
 import threading
 import pytest
 
-from conftest import resolve_native_lib
+from conftest import resolve_native_lib, load_native_lib
 
 # ---------------------------------------------------------------------------
 # Environment setup: point to the test CABI libraries before importing bindings
@@ -41,14 +41,8 @@ if _BINDINGS_DIR not in sys.path:
 # The transceiver CABI test library references conduit_register_session (from
 # the codec CABI) because test_sessions_register.cpp includes the codec header.
 # On POSIX we preload with RTLD_GLOBAL so the linker can resolve the symbol.
-# On Windows, DLL dependencies are resolved automatically via LoadLibrary.
-if sys.platform == "win32":
-    _lib_dir = os.path.dirname(_CODEC_LIB_PATH)
-    if os.path.isdir(_lib_dir) and hasattr(os, "add_dll_directory"):
-        os.add_dll_directory(_lib_dir)
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH)
-else:
-    _codec_preload = ctypes.CDLL(_CODEC_LIB_PATH, mode=ctypes.RTLD_GLOBAL)
+# On Windows, winmode=0 restores traditional DLL search (incl. PATH).
+_codec_preload = load_native_lib(_CODEC_LIB_PATH, global_symbols=True)
 
 # Force the transceiver module to reload with the new env var
 import conduit.transceiver as _xcvr_mod

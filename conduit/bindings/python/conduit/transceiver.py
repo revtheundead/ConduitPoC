@@ -140,12 +140,11 @@ Stats = namedtuple("Stats", [
 # Library loading
 # ============================================================================
 
-def _add_dll_directory(lib_path: str) -> None:
-    """On Windows/Python 3.8+, register the DLL's directory for dependency resolution."""
-    if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
-        lib_dir = os.path.dirname(lib_path)
-        if os.path.isdir(lib_dir):
-            os.add_dll_directory(lib_dir)
+# On Windows, Python 3.8+ restricts DLL dependency search to system dirs only
+# (no longer searches PATH).  Using winmode=0 restores the traditional
+# LoadLibrary behaviour so that DLLs in PATH (e.g. lib/) are found — matching
+# Java's System.loadLibrary semantics.
+_cdll_kwargs: dict = {"winmode": 0} if sys.platform == "win32" else {}
 
 
 def _load_cabi_lib() -> ctypes.CDLL:
@@ -153,8 +152,7 @@ def _load_cabi_lib() -> ctypes.CDLL:
     # If CONDUIT_CABI_LIB points directly to a file, load it
     env_path = os.environ.get("CONDUIT_CABI_LIB", "")
     if env_path and os.path.isfile(env_path):
-        _add_dll_directory(env_path)
-        return ctypes.CDLL(env_path)
+        return ctypes.CDLL(env_path, **_cdll_kwargs)
 
     # Search relative to the conduit package location.
     # In a development (editable) install the layout is:
@@ -178,13 +176,11 @@ def _load_cabi_lib() -> ctypes.CDLL:
         for name in names:
             path = os.path.join(search_dir, name)
             if os.path.isfile(path):
-                _add_dll_directory(path)
-                return ctypes.CDLL(path)
+                return ctypes.CDLL(path, **_cdll_kwargs)
 
     lib_path = ctypes.util.find_library("conduit_cabi")
     if lib_path:
-        _add_dll_directory(lib_path)
-        return ctypes.CDLL(lib_path)
+        return ctypes.CDLL(lib_path, **_cdll_kwargs)
 
     raise OSError(
         "Cannot find libconduit_cabi. Set CONDUIT_CABI_LIB environment "
