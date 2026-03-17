@@ -140,10 +140,11 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
 
     if (session == 0) return nullptr;
 
-    auto** payloads = new const uint8_t*[count]{};
-    auto* lens = new size_t[count]{};
-    auto** jbuffers = new jbyte*[count]{};
-    auto* jarrs = new jbyteArray[count]{}; // save refs for proper release
+    auto ucount = static_cast<size_t>(count);
+    auto** payloads = new const uint8_t*[ucount]{};
+    auto* lens = new size_t[ucount]{};
+    auto** jbuffers = new jbyte*[ucount]{};
+    auto* jarrs = new jbyteArray[ucount]{}; // save refs for proper release
 
     for (int i = 0; i < count; i++) {
         jarrs[i] = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));

@@ -565,7 +565,7 @@ if "%RUN_TESTS%"=="1" (
                     if not "%BUILD_JNI%"=="1" set "_exclude_jni=1"
                     if not "%BUILD_CABI%"=="1" set "_exclude_jni=1"
                     if "!_exclude_jni!"=="1" (
-                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios"
+                        set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
                     )
                     rem Panama FFI tests require --enable-preview on JDK 21+
                     for /f "tokens=3" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
@@ -580,6 +580,7 @@ if "%RUN_TESTS%"=="1" (
                     java "-Djava.library.path=%~dp0..\lib" ^
                         !JAVA_JVM_FLAGS! ^
                         -jar "!JUNIT_JAR!" ^
+                        execute ^
                         --class-path "!JAVA_TEST_CLASSES!;!JAVA_JAR!" ^
                         --scan-class-path "!JAVA_TEST_CLASSES!" ^
                         --include-classname "^Test.*" ^
@@ -600,25 +601,36 @@ if "%RUN_TESTS%"=="1" (
     set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
     set "PYTHON_TESTS=%~dp0..\tests\python"
     if exist "!PYTHON_TESTS!" (
+        set "PYTHON_CMD="
         where python >nul 2>&1
         if not errorlevel 1 (
+            set "PYTHON_CMD=python"
+        ) else (
+            where py >nul 2>&1
+            if not errorlevel 1 (
+                set "PYTHON_CMD=py"
+            )
+        )
+        if defined PYTHON_CMD (
             rem Install pytest from vendored wheels if available
             if exist "!PYTEST_WHEEL_DIR!" (
-                python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
-                    python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
-                        python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --break-system-packages pytest >nul 2>&1
+                !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
+                    !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
+                        !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --break-system-packages pytest >nul 2>&1
                     )
                 )
             )
-            python -c "import pytest" >nul 2>&1
+            !PYTHON_CMD! -c "import pytest" >nul 2>&1
             if not errorlevel 1 (
+                rem Generate Python test packages from BMDL fixtures
+                cmake --build "!BUILD_DIR!" --config !BUILD_TYPE! --target pytest_generated -j !JOBS! >nul 2>&1
                 echo.
                 echo ==^> Running Python pytest tests
                 set "PYTEST_IGNORES="
                 if not "%BUILD_CABI%"=="1" (
                     set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py""
                 )
-                python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
+                !PYTHON_CMD! -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
                 if errorlevel 1 (
                     echo Warning: Python tests failed ^(non-fatal^)
                 )

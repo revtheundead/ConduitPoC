@@ -352,10 +352,11 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     // Build C arrays of pointers and lengths
-    auto** payloads = new const uint8_t*[count]{};
-    auto* lens = new size_t[count]{};
-    auto** jbuffers = new jbyte*[count]{};
-    auto* jarrs = new jbyteArray[count]{}; // save refs for proper release
+    auto ucount = static_cast<size_t>(count);
+    auto** payloads = new const uint8_t*[ucount]{};
+    auto* lens = new size_t[ucount]{};
+    auto** jbuffers = new jbyte*[ucount]{};
+    auto* jarrs = new jbyteArray[ucount]{}; // save refs for proper release
 
     int validCount = 0;
     for (int i = 0; i < count; i++) {
@@ -730,7 +731,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nRegisterPassthroughSess
 
     // Allocate C arrays — use max(typeCount, 1) to avoid zero-sized allocations
     // which some compilers handle inconsistently
-    jsize allocCount = typeCount > 0 ? typeCount : 1;
+    size_t allocCount = static_cast<size_t>(typeCount > 0 ? typeCount : 1);
     auto* type_ids_c = new uint64_t[allocCount]{};
     auto** type_names_c = new const char*[allocCount]{};
     auto* recv_only_c = new int[allocCount]{};

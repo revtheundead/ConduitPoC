@@ -183,17 +183,26 @@ set "PYTEST_WHEEL_DIR=%~dp0..\third_party\pytest"
 set "PYTHON_TESTS=%~dp0..\tests\python"
 
 if exist "!PYTHON_TESTS!" (
+    set "PYTHON_CMD="
     where python >nul 2>&1
     if not errorlevel 1 (
+        set "PYTHON_CMD=python"
+    ) else (
+        where py >nul 2>&1
+        if not errorlevel 1 (
+            set "PYTHON_CMD=py"
+        )
+    )
+    if defined PYTHON_CMD (
         rem Install pytest from vendored wheels if available
         if exist "!PYTEST_WHEEL_DIR!" (
-            python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
-                python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
-                    python -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --break-system-packages pytest >nul 2>&1
+            !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" pytest >nul 2>&1 || (
+                !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --user pytest >nul 2>&1 || (
+                    !PYTHON_CMD! -m pip install --no-index --find-links "!PYTEST_WHEEL_DIR!" --break-system-packages pytest >nul 2>&1
                 )
             )
         )
-        python -c "import pytest" >nul 2>&1
+        !PYTHON_CMD! -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
             rem Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
@@ -207,7 +216,7 @@ if exist "!PYTHON_TESTS!" (
                 cmake --build "!BUILD_DIR!" --target pytest_generated >nul 2>&1
             )
             echo   Running Python pytest tests...
-            python -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
+            !PYTHON_CMD! -m pytest "!PYTHON_TESTS!" -x -q !PYTEST_IGNORES!
             if errorlevel 1 (
                 echo   FAIL: Python pytest tests
                 set /a FAILED+=1
