@@ -11,6 +11,46 @@ with identical message payloads, ensuring wire-compatible, apples-to-apples comp
 - Python: CPython 3.11.14 (ctypes FFI to C ABI)
 - Java: OpenJDK 21.0.10 (JNI and Panama FFI to C ABI)
 
+## How to Build and Run
+
+### Via the build script
+
+```bash
+# Release build includes all benchmarks automatically
+./scripts/build.sh --release
+```
+
+### Via CMake
+
+```bash
+# C++ benchmarks only
+cmake -B build -DCONDUIT_BUILD_BENCHMARKS=ON -DCONDUIT_BUILD_BGEN=ON
+cmake --build build
+./build/benchmarks/conduit_benchmarks
+
+# Python benchmarks (requires CABI + bgen)
+cmake -B build -DCONDUIT_BUILD_PYTHON_BENCHMARKS=ON -DCONDUIT_BUILD_BGEN=ON \
+      -DCONDUIT_BUILD_CODEC_CABI=ON
+cmake --build build --target python_bench_run
+
+# Java benchmarks (requires CABI + bgen + Java JAR)
+cmake -B build -DCONDUIT_BUILD_JAVA_BENCHMARKS=ON -DCONDUIT_BUILD_BGEN=ON \
+      -DCONDUIT_BUILD_CODEC_CABI=ON -DCONDUIT_BUILD_JAVA_JAR=ON -DCONDUIT_BUILD_JNI=ON
+cmake --build build --target jni_bench_run       # JNI benchmark
+cmake --build build --target panama_bench_run    # Panama FFI benchmark (JDK 21+)
+```
+
+### CMake targets
+
+| Target | Description |
+|--------|-------------|
+| `conduit_benchmarks` | C++ benchmark binary (Catch2) |
+| `python_bench_run` | Run Python codec benchmarks |
+| `jni_bench_compile` | Compile Java JNI benchmark classes |
+| `jni_bench_run` | Run Java JNI codec benchmark |
+| `panama_bench_compile` | Compile Java Panama benchmark classes (JDK 21+) |
+| `panama_bench_run` | Run Java Panama FFI codec benchmark (JDK 21+) |
+
 ## Per-Message Codec Latency
 
 ### Encode (ns/msg)
