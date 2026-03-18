@@ -25,6 +25,17 @@
     </properties>
 
     <build>
+        <!--
+          Native libraries for the fat JAR are placed under
+          src/main/resources/native/<os>-<arch>/ by the release workflow.
+          During normal development builds this directory is empty/absent
+          and the JAR contains only Java classes.
+        -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+        </resources>
         <plugins>
             <!--
               Default compilation: Java 11 target.

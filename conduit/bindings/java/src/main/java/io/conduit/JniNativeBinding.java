@@ -34,12 +34,9 @@ public final class JniNativeBinding implements NativeBinding {
         if (libPath != null) {
             System.load(libPath);
         } else {
-            try {
-                System.loadLibrary("conduit_jni");
-            } catch (UnsatisfiedLinkError e) {
-                throw new RuntimeException(
-                    "Cannot load libconduit_jni. Set -Dconduit.jni.path or add to java.library.path", e);
-            }
+            // NativeLoader tries java.library.path first, then extracts from
+            // bundled JAR resources (native/<os>-<arch>/libconduit_jni.so|.dll|.dylib)
+            NativeLoader.load("conduit_jni");
         }
         loaded = true;
     }

@@ -25,12 +25,9 @@ public final class JniCodecBinding implements NativeCodecBinding {
         if (libPath != null) {
             System.load(libPath);
         } else {
-            try {
-                System.loadLibrary("conduit_codec_jni");
-            } catch (UnsatisfiedLinkError e) {
-                throw new RuntimeException(
-                    "Cannot load libconduit_codec_jni. Set -Dconduit.codec.jni.path or add to java.library.path", e);
-            }
+            // NativeLoader tries java.library.path first, then extracts from
+            // bundled JAR resources (native/<os>-<arch>/libconduit_codec_jni.so|.dll|.dylib)
+            NativeLoader.load("conduit_codec_jni");
         }
         loaded = true;
     }
