@@ -184,4 +184,4 @@ All three backends generate code from the same resolved AST -- they receive iden
 
 - [BMDL Language Reference](../bmdl/index.md) -- The BMDL XML language specification
 - [conduit Runtime Library](../conduit/index.md) -- The runtime library that generated code depends on
-- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity status across backends
+- [Limitations & Design Boundaries](../conduit/limitations.md) -- Scope boundaries and design decisions

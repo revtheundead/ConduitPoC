@@ -361,11 +361,11 @@ The Java and Python backends generate functionally equivalent struct and message
 
 All three backends generate a Frame class with `wrap()` methods, encode/decode with auto-length backpatching, and message dispatch by ID. The semantics are identical; only the syntax differs per language.
 
-> **Known limitations:** Java/Python backends have gaps in some advanced features including inline struct flattening, choice decode with range-based cases, and deferred constraint validation. See [Limitations & Known Issues](../conduit/limitations.md) for the full parity matrix.
+> **Note:** For backend architectural differences and scope boundaries, see [Limitations & Design Boundaries](../conduit/limitations.md).
 
 ## See Also
 
 - [Naming Conventions](naming-conventions.md) -- BMDL-to-code name mapping rules for all backends
 - [Error Handling](../conduit/error-handling.md) -- `Result<T>` and `VoidResult` returned by C++ encode/decode methods
 - [Bit I/O](../conduit/bit-io.md) -- `BitReader` and `BitWriter` used by generated encode/decode
-- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity across backends
+- [Limitations & Design Boundaries](../conduit/limitations.md) -- Scope boundaries and design decisions

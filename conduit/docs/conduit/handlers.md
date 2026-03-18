@@ -24,6 +24,62 @@ xcvr.remove_handler<Heartbeat>();           // remove global
 xcvr.remove_handler<Heartbeat>(peer_id);    // remove per-peer
 ```
 
+### Java
+
+```java
+// Typed handler — auto-deserializes message
+tx.onMessage(Heartbeat.class, (peerId, msg) -> {
+    System.out.println("heartbeat seq=" + msg.sequence);
+});
+
+// Raw handler — receives byte[] payload
+tx.onMessage(Heartbeat.TYPE_ID, (peerId, typeId, typeName, data) -> {
+    System.out.println("raw: " + typeName + " (" + data.length + " bytes)");
+});
+
+// Catch-all
+tx.onAnyMessage((peerId, typeId, typeName, data) -> {
+    System.out.println("unhandled: " + typeName);
+});
+
+// Remove
+tx.removeHandler(peerId, Heartbeat.TYPE_ID);
+```
+
+### Python
+
+```python
+# Typed handler — decorator style
+@tx.on(Heartbeat)
+def on_heartbeat(peer_id, msg):
+    print(f"heartbeat seq={msg.sequence}")
+
+# Raw handler by type ID
+@tx.on(type_id=Heartbeat.TYPE_ID)
+def on_heartbeat_raw(peer_id, type_id, type_name, data):
+    print(f"raw: {type_name} ({len(data)} bytes)")
+
+# Catch-all
+tx.on_any(lambda peer_id, type_id, type_name, data:
+    print(f"unhandled: {type_name}"))
+
+# Remove
+tx.remove_handler(peer_id, Heartbeat.TYPE_ID)
+```
+
+### Python Async Handlers
+
+```python
+# AsyncTransceiver supports async handler functions
+@tx.on(Heartbeat)
+async def on_heartbeat(peer_id, msg):
+    await process_heartbeat(msg)
+
+# Async message stream — alternative to callback-based handlers
+async for peer_id, msg in tx.messages(Heartbeat):
+    await process_heartbeat(msg)
+```
+
 ## MessageHandler Builder
 
 ```cpp
@@ -97,6 +153,19 @@ xcvr.remove_state_change(id);
 ```
 
 `CallbackId` is an opaque `uint32_t`-based enum returned by `on_state_change()`.
+
+```java
+// Java — ConnectionState is an enum
+int id = tx.onStateChange((peerId, newState) ->
+    System.out.println(peerId + " -> " + newState.name()));
+tx.removeStateChange(id);
+```
+
+```python
+# Python — state is an integer (0=Disconnected .. 4=Failed)
+tx.on_state_change(lambda peer_id, state:
+    print(f"peer {peer_id} -> {state}"))
+```
 
 ## HandlerRegistry Internals
 

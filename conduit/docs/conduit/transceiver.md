@@ -4,6 +4,8 @@
 
 The `Transceiver` is the main orchestrator. It wires protocol sessions to transports, manages peers, dispatches decoded messages to typed handlers, and encodes outgoing messages -- all without exposing raw bytes to user code.
 
+The Transceiver API is available in C++, Java (via JNI or Panama FFI), and Python (via ctypes). All three provide the same capabilities: peer management, typed message handlers, state/error callbacks, statistics, and message logging.
+
 ```cpp
 #include <conduit/transceiver/transceiver.hpp>
 
@@ -12,7 +14,19 @@ class Transceiver;
 }
 ```
 
-`Transceiver` is default-constructible (no config required for imperative peer setup), non-copyable, and non-movable.
+```java
+import io.conduit.Transceiver;
+import io.conduit.TransportConfig;
+import io.conduit.ConduitNative;
+```
+
+```python
+from conduit import Transceiver, TcpClientConfig, UdpConfig
+# or for async usage:
+from conduit import AsyncTransceiver
+```
+
+`Transceiver` is default-constructible (no config required for imperative peer setup). In Java it implements `AutoCloseable`; in Python it supports the context manager protocol (`with` statement).
 
 ## Architecture
 
@@ -89,6 +103,31 @@ For TCP client, UDP (single-peer), and serial transports.
 
 For TCP server and UDP (multi-peer). Each connecting client gets a session instance from the factory.
 
+### Java and Python Peer Management
+
+In Java and Python, peer setup follows the same pattern: register a session, add a peer with a name and transport config, then start. The `Transceiver` handles framing and codec dispatch identically to C++.
+
+```java
+// Java — register session, add peer, start
+try (Transceiver tx = new Transceiver()) {
+    tx.registerSession("asterix", new AsterixDataBlockSession());
+    int peerId = tx.addPeer("server", "asterix",
+            TransportConfig.tcpClient("10.0.0.1:5000"));
+    tx.start();
+    // ...
+}
+```
+
+```python
+# Python — register session, add peer, start
+with Transceiver() as tx:
+    tx.register_session("asterix", AsterixDataBlockSession())
+    peer_id = tx.add_peer("server", "asterix",
+                          TcpClientConfig("10.0.0.1:5000"))
+    tx.start()
+    # ...
+```
+
 ### Peer Lookup
 
 ```cpp
@@ -96,7 +135,17 @@ Result<PeerId> sole_peer() const;            // exactly one peer, else error
 Result<PeerId> peer(std::string_view name) const;  // lookup by name
 ```
 
-> **Pitfall:** `sole_peer()` returns `MultiplePeers` error if more than one peer exists. Use `peer("name")` for named lookup.
+```java
+int peerId = tx.solePeer();              // exactly one peer, else ConduitError
+int peerId = tx.peerByName("server");    // lookup by name
+```
+
+```python
+peer_id = tx.sole_peer()              # exactly one peer, else ConduitError
+peer_id = tx.peer_by_name("server")   # lookup by name
+```
+
+> **Pitfall:** `sole_peer()` returns an error if more than one peer exists. Use named lookup instead.
 
 ## Handler Registration
 
@@ -116,6 +165,49 @@ xcvr.on<Heartbeat>(peer_id, [](const Heartbeat& msg) { ... });
 // Remove handlers (returns true if a handler was found and removed)
 bool removed = xcvr.remove_handler<Heartbeat>();        // global
 bool removed = xcvr.remove_handler<Heartbeat>(peer_id); // per-peer
+```
+
+### Java Handler Registration
+
+```java
+// Typed handler — auto-deserializes to the message class
+tx.onMessage(Heartbeat.class, (peerId, msg) -> {
+    System.out.println("heartbeat seq=" + msg.sequence);
+});
+
+// Raw handler — receives byte[] payload
+tx.onMessage(Heartbeat.TYPE_ID, (peerId, typeId, typeName, data) -> {
+    System.out.println("raw message: " + typeName);
+});
+
+// Catch-all handler — fires for any unmatched type
+tx.onAnyMessage((peerId, typeId, typeName, data) -> {
+    System.out.println("unhandled: " + typeName);
+});
+
+// Remove a handler
+tx.removeHandler(peerId, Heartbeat.TYPE_ID);
+```
+
+### Python Handler Registration
+
+```python
+# Typed handler — decorator style, auto-deserializes
+@tx.on(Heartbeat)
+def on_heartbeat(peer_id, msg):
+    print(f"heartbeat seq={msg.sequence}")
+
+# Raw handler — receives bytes payload
+@tx.on(type_id=Heartbeat.TYPE_ID)
+def on_heartbeat_raw(peer_id, type_id, type_name, data):
+    print(f"raw message: {type_name}")
+
+# Catch-all handler
+tx.on_any(lambda peer_id, type_id, type_name, data:
+    print(f"unhandled: {type_name}"))
+
+# Remove a handler
+tx.remove_handler(peer_id, Heartbeat.TYPE_ID)
 ```
 
 ### MessageHandler Builder
@@ -140,6 +232,22 @@ CallbackId id = xcvr.on_state_change([](PeerId peer, net::ConnectionState state)
 xcvr.remove_state_change(id);
 ```
 
+### Connection State Callbacks (Java / Python)
+
+```java
+// Java
+int callbackId = tx.onStateChange((peerId, newState) ->
+    System.out.println("peer " + peerId + " -> " + newState.name()));
+
+tx.removeStateChange(callbackId);
+```
+
+```python
+# Python
+tx.on_state_change(lambda peer_id, state:
+    print(f"peer {peer_id} -> {state}"))
+```
+
 ### Error Callbacks
 
 ```cpp
@@ -150,6 +258,20 @@ CallbackId id = xcvr.on_error([](const ErrorEvent& event) {
 });
 
 xcvr.remove_error_callback(id);
+```
+
+```java
+// Java
+int callbackId = tx.onError((peerId, peerName, errorCode, errorMsg) ->
+    System.err.println("[ERROR] " + peerName + ": " + errorMsg));
+
+tx.removeErrorCallback(callbackId);
+```
+
+```python
+# Python
+tx.on_error(lambda peer_id, peer_name, code, msg:
+    print(f"[ERROR] {peer_name}: {msg}", file=sys.stderr))
 ```
 
 Error callbacks fire for decode errors, queue drops, handler exceptions/timeouts, and session factory failures. The `ErrorEvent` struct provides full context:
@@ -179,7 +301,19 @@ VoidResult r = xcvr.send<Heartbeat>(msg);
 
 `send()` encodes the message through the peer's session (`encode_wrap`) and transmits the resulting bytes via the transport.
 
-`send()` checks `is_receive_only()` on the session before encoding. If the message type has `direction="receive"`, the call returns a `DirectionViolation` error without transmitting.
+```java
+// Java — send to specific peer or sole peer
+tx.send(peerId, heartbeatMsg);
+tx.send(heartbeatMsg);              // sole peer convenience
+```
+
+```python
+# Python — send to specific peer or sole peer
+tx.send(peer_id, heartbeat_msg)
+tx.send(heartbeat_msg)              # sole peer convenience
+```
+
+`send()` checks `is_receive_only()` on the session before encoding. If the message type has `direction="receive"`, the call returns an error without transmitting.
 
 ### Batch Sending
 
@@ -204,6 +338,33 @@ void stop();                        // stop transports, drain queue, join worker
 [[nodiscard]] bool is_running() const noexcept;
 ```
 
+```java
+// Java — AutoCloseable, so use try-with-resources
+try (Transceiver tx = new Transceiver()) {
+    // ... register sessions, add peers, register handlers ...
+    tx.start();
+    // ...
+    tx.stop();
+}   // tx.close() called automatically
+```
+
+```python
+# Python — context manager handles cleanup
+with Transceiver() as tx:
+    # ... register sessions, add peers, register handlers ...
+    tx.start()
+    # ...
+    tx.stop()
+# tx.close() called automatically
+
+# Async variant
+async with AsyncTransceiver() as tx:
+    # ... same setup ...
+    await tx.start()
+    # ...
+    await tx.stop()
+```
+
 > **Pitfall:** Add all peers and register all handlers before calling `start()`. Adding peers after `start()` is not supported.
 
 ## Query
@@ -213,6 +374,20 @@ net::ConnectionState peer_state(PeerId peer) const;
 size_t peer_count() const;
 std::vector<PeerId> peer_ids() const;
 const TransceiverStats& stats() const noexcept;
+```
+
+```java
+// Java
+Transceiver.ConnectionState state = tx.peerState(peerId);
+long count = tx.peerCount();
+Transceiver.StatsSnapshot s = tx.stats();
+```
+
+```python
+# Python
+state = tx.peer_state(peer_id)  # int: 0=Disconnected .. 4=Failed
+count = tx.peer_count()
+s = tx.stats()                  # Stats namedtuple
 ```
 
 ## TransceiverStats
@@ -243,6 +418,21 @@ The `Snapshot` struct mirrors the same fields as plain (non-atomic) `uint64_t` v
 auto s = xcvr.stats().snapshot();
 std::cout << "received: " << s.messages_received
           << " dropped: " << s.messages_dropped << "\n";
+```
+
+```java
+// Java — StatsSnapshot with accessor methods
+Transceiver.StatsSnapshot s = tx.stats();
+System.out.println("received: " + s.messagesReceived()
+                 + " dropped: " + s.messagesDropped());
+tx.statsReset();  // zero all counters
+```
+
+```python
+# Python — Stats namedtuple
+s = tx.stats()
+print(f"received: {s.messages_received} dropped: {s.messages_dropped}")
+tx.stats_reset()  # zero all counters
 ```
 
 ## Data Flow: Receive Path
@@ -331,6 +521,32 @@ config.message_log.output = MessageLogOutput::Stdout;
 config.message_log.include_message_content = false; // headers only, less noise
 ```
 
+### Message Logging (Java)
+
+```java
+Transceiver.MessageLogConfig logCfg = new Transceiver.MessageLogConfig();
+logCfg.enabled = true;
+logCfg.mode = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+logCfg.output = Transceiver.MessageLogOutput.FILE;
+logCfg.directory = "./logs";
+logCfg.prefix = "myapp";
+logCfg.includeMessageContent = true;
+tx.setMessageLogConfig(logCfg);
+```
+
+### Message Logging (Python)
+
+```python
+tx.set_message_log_config(
+    enabled=True,
+    mode=MessageLogMode.SEPARATE_DIRECTION,
+    output=MessageLogOutput.FILE,
+    directory="./logs",
+    prefix="myapp",
+    include_message_content=True,
+)
+```
+
 ### Log Format
 
 ```
@@ -417,6 +633,46 @@ The logging system uses two `ISession` virtual methods:
 - `format_message(type_id, payload)` -- formats a decoded message as a string using `to_string()`. Generated sessions override this automatically.
 
 Custom `ISession` implementations can override these for logging support. The defaults return `"unknown"` and `""` respectively.
+
+## Python AsyncTransceiver
+
+The `AsyncTransceiver` wraps the synchronous `Transceiver` for use with Python's `asyncio`. It bridges C++ I/O thread callbacks into the asyncio event loop via `loop.call_soon_threadsafe()`.
+
+```python
+from conduit import AsyncTransceiver, TcpClientConfig
+
+async def main():
+    async with AsyncTransceiver() as tx:
+        tx.register_session("asterix", AsterixDataBlockSession())
+        tx.add_peer("server", "asterix", TcpClientConfig("10.0.0.1:5000"))
+
+        # Handlers can be async
+        @tx.on(Heartbeat)
+        async def on_heartbeat(peer_id, msg):
+            print(f"heartbeat seq={msg.sequence}")
+
+        # State/error callbacks work the same
+        tx.on_state_change(lambda peer_id, state:
+            print(f"peer {peer_id} -> {state}"))
+
+        await tx.start()
+
+        # Async message stream — iterate over incoming messages
+        async for peer_id, msg in tx.messages(Heartbeat):
+            print(f"stream: {msg.sequence}")
+            break  # or continue processing
+
+        # Async send
+        await tx.send(peer_id, heartbeat_msg)
+
+        await tx.stop()
+```
+
+Key differences from the synchronous `Transceiver`:
+- `start()`, `stop()`, `send()`, and `send_raw()` are `async` methods
+- Handlers registered with `@tx.on()` can be `async def` functions
+- `tx.messages(MsgClass)` returns an async iterator for streaming message consumption
+- Query methods (`peer_count()`, `peer_state()`, `stats()`) remain synchronous (non-blocking)
 
 ## Common Pitfalls
 

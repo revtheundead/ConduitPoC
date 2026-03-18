@@ -4,12 +4,11 @@ The `examples/` directory contains complete working applications that demonstrat
 
 ## xcvr-cpp -- C++ ASTERIX Transceiver
 
-**What it does.** Two executables -- `poc_app` (TCP client) and `dummy_peer` (TCP server/client) -- that exchange ASTERIX Cat007, Cat021, Cat048, and Cat253 messages using Conduit's transceiver framework. An optional `asterix_sessions` shared library registers ASTERIX session factories for use by Java/Python apps via the CABI registry.
+**What it does.** Two executables -- `poc_app` (TCP client) and `dummy_peer` (TCP server/client) -- that exchange ASTERIX Cat007, Cat021, Cat048, and Cat253 messages using Conduit's transceiver framework.
 
 **How it works.** Each executable creates a `Transceiver` with a TCP transport, registers typed message handlers (callbacks for specific message types), and sends randomly-generated ASTERIX messages at a configurable interval. `dummy_peer` can run as either a server (using `asterix-alt` session with reversed directions) or a client (using `asterix` session). Both apps log messages, track statistics, and handle graceful Ctrl+C shutdown.
 
 **Practices demonstrated:**
-- Session factory registration with the Conduit transceiver
 - Typed message handlers with compile-time type safety
 - TCP transport configuration (client and server modes)
 - Cross-namespace interoperability (`asterix` vs `asterix-alt` with swapped directions)
@@ -53,9 +52,9 @@ cmake --build build
 - bgen code generation integrated into Maven build lifecycle
 - Cross-language protocol interoperability (Java client talks to C++ server)
 
-**Prerequisites:** conduit-java JAR installed to local Maven repo, `conduit_jni` shared library built.
+**Prerequisites:** conduit-java JAR installed to local Maven repo, `conduit_jni` shared library built. Requires `javac`/`java` (JDK 11+) and either Maven 3.6+ or Gradle 7+.
 
-**How to build:**
+**How to build (Maven):**
 
 ```bash
 # 1. Build conduit with CABI + JNI + bgen
@@ -70,12 +69,27 @@ mvn package -q -f conduit/examples/xcvr-java11/pom.xml -Dskip.bgen=true \
     -Dconduit.build.dir=$(pwd)/build
 ```
 
-**How to run:**
+**How to build (Gradle):**
 
 ```bash
+# After steps 1-2 above:
+cd conduit/examples/xcvr-java11
+gradle build
+```
+
+**How to run:**
+
+The native shared libraries in `conduit/lib/` must be on the JVM library path. The Maven and Gradle run targets set `-Djava.library.path` automatically. If running the JAR directly, set `LD_LIBRARY_PATH` (Linux), `DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows) to include `conduit/lib/`, or pass `-Djava.library.path` to the JVM. See [Native library path](building.md#native-library-path-conduitlib) for details.
+
+```bash
+# Maven
 mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
     -Dconduit.build.dir=$(pwd)/build \
     -Dexec.appArgs="server --port 5000 --interval-ms 500"
+
+# Gradle
+cd conduit/examples/xcvr-java11
+gradle runDummyPeer -DappArgs="server --port 5000 --interval-ms 500"
 ```
 
 ---
@@ -91,9 +105,9 @@ mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
 - `--enable-preview` usage for Foreign Function & Memory API
 - Direct CABI function invocation from Java
 
-**Prerequisites:** conduit-java JAR installed, `conduit_cabi` shared library built.
+**Prerequisites:** conduit-java JAR installed, `conduit_cabi` shared library built. Requires `javac`/`java` (JDK 21+) and either Maven 3.6+ or Gradle 7+.
 
-**How to build:**
+**How to build (Maven):**
 
 ```bash
 # 1. Build conduit with CABI + bgen
@@ -107,12 +121,27 @@ mvn install -q -f conduit/bindings/java/pom.xml
 mvn package -q -f conduit/examples/xcvr-java21/pom.xml -Dskip.bgen=true
 ```
 
-**How to run:**
+**How to build (Gradle):**
 
 ```bash
+# After steps 1-2 above:
+cd conduit/examples/xcvr-java21
+gradle build
+```
+
+**How to run:**
+
+The CABI shared library in `conduit/lib/` must be on the JVM library path. The Maven and Gradle run targets set `-Djava.library.path` and `-Dconduit.cabi.path` automatically. If running the JAR directly, see [Native library path](building.md#native-library-path-conduitlib) for details.
+
+```bash
+# Maven
 MAVEN_OPTS="--enable-preview --enable-native-access=ALL-UNNAMED" \
 mvn exec:java -f conduit/examples/xcvr-java21/pom.xml -PrunDummyPeer \
     -Dexec.appArgs="server --port 5000 --interval-ms 500"
+
+# Gradle
+cd conduit/examples/xcvr-java21
+gradle runDummyPeer -DappArgs="server --port 5000 --interval-ms 500"
 ```
 
 ---
@@ -144,6 +173,8 @@ pip install conduit/examples/xcvr-python/
 ```
 
 **How to run:**
+
+The Python bindings need `CONDUIT_CABI_LIB` set to the full path of the CABI shared library in `conduit/lib/`. You may also need `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) if the CABI library has dependencies in the same directory. See [Native library path](building.md#native-library-path-conduitlib) for all platforms.
 
 ```bash
 # Run from the repository root directory
