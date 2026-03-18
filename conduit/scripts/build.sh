@@ -12,6 +12,7 @@
 #   ./scripts/build.sh --jni        Build JNI shared libraries (implies --cabi)
 #   ./scripts/build.sh --java       Build Java JAR + JNI + CABI (implies --jni --cabi)
 #   ./scripts/build.sh --sanitize   Enable address + undefined-behavior sanitizers
+#   ./scripts/build.sh --online     Use online PyPI packages (default: offline third_party/)
 #   ./scripts/build.sh --third-party Build only third-party dependencies
 #   ./scripts/build.sh --test       Run all tests after build
 #   ./scripts/build.sh --clang      Use Clang (clang / clang++)
@@ -38,6 +39,7 @@ BUILD_JNI=false
 BUILD_JAVA=false
 ENABLE_SANITIZERS=false
 USE_COMPILER=""
+PIP_ONLINE=false
 BUILD_DIR="build"
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
@@ -57,11 +59,12 @@ for arg in "$@"; do
         --jni)         BUILD_CABI=true; BUILD_JNI=true ;;
         --java)        BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true ;;
         --sanitize)    ENABLE_SANITIZERS=true ;;
+        --online)      PIP_ONLINE=true ;;
         --clang)       USE_COMPILER="clang" ;;
         --gcc)         USE_COMPILER="gcc" ;;
         *)
             echo "Unknown argument: $arg"
-            echo "Usage: $0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--gcc] [--third-party] [--test]"
+            echo "Usage: $0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--online] [--clang] [--gcc] [--third-party] [--test]"
             exit 1 ;;
     esac
 done
@@ -342,8 +345,32 @@ if [ "$BUILD_ALL" = true ]; then
     fi
     if [ -n "$_pip_cmd" ] && [ -f "examples/xcvr-python/pyproject.toml" ]; then
         step "Installing xcvr-python example (pip)"
-        $_pip_cmd install --quiet "examples/xcvr-python/" \
-            || warn "xcvr-python install failed (non-fatal)"
+        SETUPTOOLS_WHEEL_DIR="$PROJECT_DIR/third_party/setuptools"
+
+        # Pre-install setuptools and wheel from vendored wheels (needed for
+        # PEP 517 builds in offline / air-gapped environments).
+        if [ -d "$SETUPTOOLS_WHEEL_DIR" ]; then
+            $_pip_cmd install --no-index --find-links "$SETUPTOOLS_WHEEL_DIR" \
+                setuptools wheel 2>/dev/null \
+            || $_pip_cmd install --no-index --find-links "$SETUPTOOLS_WHEEL_DIR" \
+                --user setuptools wheel 2>/dev/null \
+            || $_pip_cmd install --no-index --find-links "$SETUPTOOLS_WHEEL_DIR" \
+                --break-system-packages setuptools wheel 2>/dev/null \
+            || true
+        fi
+
+        _pip_installed=false
+        if [ "$PIP_ONLINE" != true ]; then
+            # Offline-first: try installing from third_party without network
+            $_pip_cmd install --quiet --no-build-isolation \
+                "examples/xcvr-python/" 2>/dev/null \
+                && _pip_installed=true
+        fi
+        if [ "$_pip_installed" = false ]; then
+            # Fallback: online install (or explicit --online)
+            $_pip_cmd install --quiet "examples/xcvr-python/" \
+                || warn "xcvr-python install failed (non-fatal)"
+        fi
     fi
 fi
 
