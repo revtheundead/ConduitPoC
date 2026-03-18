@@ -192,7 +192,7 @@ jobs:
             conduit/lib/libconduit_codec_jni.dylib
 
   build-macos-x86_64:
-    runs-on: macos-13   # Intel
+    runs-on: macos-latest   # Cross-compile for Intel on Apple Silicon
 
     steps:
       - uses: actions/checkout@v4
@@ -203,22 +203,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure (Release, all artifacts)
+      - name: Configure (Release, cross-compile x86_64)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
-          -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_TESTS=OFF
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_CODEC_CABI=ON
           -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES=x86_64
 
       - name: Build
         run: cmake --build build --parallel
-
-      - name: Test
-        run: cd build && ctest --output-on-failure --timeout 120
 
       - name: Collect artifacts
         run: |
