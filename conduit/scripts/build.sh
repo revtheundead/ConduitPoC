@@ -37,6 +37,8 @@ RUN_TESTS=false
 BUILD_CABI=false
 BUILD_JNI=false
 BUILD_JAVA=false
+BUILD_PYTHON_BENCH=false
+BUILD_JAVA_BENCH=false
 ENABLE_SANITIZERS=false
 USE_COMPILER=""
 PIP_ONLINE=false
@@ -51,7 +53,8 @@ for arg in "$@"; do
     case "$arg" in
         --clean)       CLEAN=true ;;
         --release)     BUILD_TYPE="Release"; BUILD_ALL=true
-                       BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true ;;
+                       BUILD_CABI=true; BUILD_JNI=true; BUILD_JAVA=true
+                       BUILD_PYTHON_BENCH=true; BUILD_JAVA_BENCH=true ;;
         --debug)       BUILD_TYPE="Debug" ;;
         --third-party) THIRD_PARTY_ONLY=true ;;
         --test)        RUN_TESTS=true ;;
@@ -236,6 +239,18 @@ else
     CMAKE_FLAGS+=(-DCONDUIT_BUILD_JAVA_JAR=OFF)
 fi
 
+if [ "$BUILD_PYTHON_BENCH" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_PYTHON_BENCHMARKS=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_PYTHON_BENCHMARKS=OFF)
+fi
+
+if [ "$BUILD_JAVA_BENCH" = true ]; then
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JAVA_BENCHMARKS=ON)
+else
+    CMAKE_FLAGS+=(-DCONDUIT_BUILD_JAVA_BENCHMARKS=OFF)
+fi
+
 if [ "$ENABLE_SANITIZERS" = true ]; then
     CMAKE_FLAGS+=(-DCONDUIT_ENABLE_SANITIZERS=ON)
 else
@@ -258,6 +273,8 @@ else
     CACHED_CABI=$(_cache CONDUIT_BUILD_CABI)
     CACHED_JNI=$(_cache CONDUIT_BUILD_JNI)
     CACHED_JAVA_JAR=$(_cache CONDUIT_BUILD_JAVA_JAR)
+    CACHED_PY_BENCH=$(_cache CONDUIT_BUILD_PYTHON_BENCHMARKS)
+    CACHED_JAVA_BENCH=$(_cache CONDUIT_BUILD_JAVA_BENCHMARKS)
     CACHED_SANITIZE=$(_cache CONDUIT_ENABLE_SANITIZERS)
 
     WANT_EXAMPLES="OFF"; WANT_BENCHMARKS="OFF"
@@ -267,6 +284,10 @@ else
     [ "$BUILD_JNI"  = true ] && WANT_JNI="ON"
     WANT_JAVA_JAR="OFF"
     [ "$BUILD_JAVA" = true ] && WANT_JAVA_JAR="ON"
+    WANT_PY_BENCH="OFF"
+    [ "$BUILD_PYTHON_BENCH" = true ] && WANT_PY_BENCH="ON"
+    WANT_JAVA_BENCH="OFF"
+    [ "$BUILD_JAVA_BENCH" = true ] && WANT_JAVA_BENCH="ON"
     WANT_SANITIZE="OFF"
     [ "$ENABLE_SANITIZERS" = true ] && WANT_SANITIZE="ON"
 
@@ -277,6 +298,8 @@ else
         "$CACHED_CABI:$WANT_CABI" \
         "$CACHED_JNI:$WANT_JNI" \
         "$CACHED_JAVA_JAR:$WANT_JAVA_JAR" \
+        "$CACHED_PY_BENCH:$WANT_PY_BENCH" \
+        "$CACHED_JAVA_BENCH:$WANT_JAVA_BENCH" \
         "$CACHED_SANITIZE:$WANT_SANITIZE"
     do
         cached="${pair%%:*}"; want="${pair##*:}"

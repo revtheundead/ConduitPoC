@@ -17,12 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests + examples)
+      - name: Configure conduit (with tests + examples + benchmarks)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
       - name: Build conduit
@@ -132,15 +133,16 @@ jobs:
           echo $mingwBin | Out-File -Append -FilePath $env:GITHUB_PATH
           gcc --version
 
-      - name: Configure conduit with tests + examples (MinGW)
+      - name: Configure conduit with tests + examples + benchmarks (MinGW)
         run: >
           cmake -B build-mingw -S conduit -G "MinGW Makefiles"
           -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit with tests + examples (MinGW)
+      - name: Build conduit with tests + examples + benchmarks (MinGW)
         run: cmake --build build-mingw --parallel
 
       - name: Run conduit tests (MinGW)
@@ -225,7 +227,7 @@ jobs:
           Update-SessionEnvironment
           ninja --version
 
-      - name: Configure conduit (Clang LLVM MinGW, with tests + examples)
+      - name: Configure conduit (Clang LLVM MinGW, with tests + examples + benchmarks)
         env:
           CC: clang
           CXX: clang++
@@ -234,6 +236,7 @@ jobs:
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -299,12 +302,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests + examples)
+      - name: Configure conduit (with tests + examples + benchmarks)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -356,7 +360,7 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen + tests + examples)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
@@ -365,9 +369,11 @@ jobs:
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_JAVA_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen + tests + examples)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: cmake --build build-conduit --parallel
 
       - name: Run conduit tests
@@ -444,7 +450,7 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Configure conduit (CABI + JNI + bgen + tests + examples)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B build-conduit -S conduit
           -DCONDUIT_BUILD_CABI=ON
@@ -453,9 +459,11 @@ jobs:
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_JAVA_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + JNI + bgen + tests + examples)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: cmake --build build-conduit --config Release --parallel
 
       - name: Run conduit tests
@@ -563,17 +571,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen + tests + examples)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_JAVA_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests + examples)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: cmake --build conduit/build --parallel
 
       - name: Run conduit tests
@@ -648,17 +659,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Configure conduit (CABI + bgen + tests + examples)
+      - name: Configure conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
+          -DCONDUIT_BUILD_JNI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
           -DCONDUIT_BUILD_JAVA_JAR=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_JAVA_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests + examples)
+      - name: Build conduit (CABI + JNI + bgen + tests + examples + benchmarks)
         run: cmake --build conduit/build --config Release --parallel
 
       - name: Run conduit tests
@@ -763,16 +777,18 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen + tests + examples)
+      - name: Configure conduit (CABI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_PYTHON_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests + examples)
+      - name: Build conduit (CABI + bgen + tests + examples + benchmarks)
         run: cmake --build conduit/build --parallel
 
       - name: Run conduit tests
@@ -840,16 +856,18 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Configure conduit (CABI + bgen + tests + examples)
+      - name: Configure conduit (CABI + bgen + tests + examples + benchmarks)
         run: >
           cmake -B conduit/build -S conduit
           -DCONDUIT_BUILD_CABI=ON
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
+          -DCONDUIT_BUILD_PYTHON_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build conduit (CABI + bgen + tests + examples)
+      - name: Build conduit (CABI + bgen + tests + examples + benchmarks)
         run: cmake --build conduit/build --config Release --parallel
 
       - name: Run conduit tests
@@ -986,12 +1004,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure conduit (with tests + examples)
+      - name: Configure conduit (with tests + examples + benchmarks)
         run: >
           cmake -B build -S conduit
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit
@@ -1046,7 +1065,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y clang-19
 
-      - name: Configure conduit (Clang 19, with tests + examples)
+      - name: Configure conduit (Clang 19, with tests + examples + benchmarks)
         env:
           CC: clang-19
           CXX: clang++-19
@@ -1055,6 +1074,7 @@ jobs:
           -DCONDUIT_BUILD_BGEN=ON
           -DCONDUIT_BUILD_TESTS=ON
           -DCONDUIT_BUILD_EXAMPLES=ON
+          -DCONDUIT_BUILD_BENCHMARKS=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build conduit

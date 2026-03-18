@@ -56,6 +56,8 @@ option(CONDUIT_BUILD_JNI             "Build JNI shared libraries for Java 11+"  
 option(CONDUIT_BUILD_JAVA_JAR        "Build conduit-java JAR and compile Java tests" OFF)
 option(CONDUIT_BUILD_JAVA_PANAMA     "Include Panama FFI sources in JAR (requires JDK 21+)" ON)
 option(CONDUIT_BUILD_JAVA_JNI_SOURCES "Include JNI binding sources in JAR" ON)
+option(CONDUIT_BUILD_PYTHON_BENCHMARKS "Build Python codec benchmarks (requires CABI + bgen)" OFF)
+option(CONDUIT_BUILD_JAVA_BENCHMARKS   "Build Java codec benchmarks (requires CABI + bgen + JAR)" OFF)
 
 # ============================================================================
 # Compiler warnings
@@ -806,9 +808,14 @@ if(CONDUIT_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(CONDUIT_BUILD_BENCHMARKS)
+if(CONDUIT_BUILD_BENCHMARKS OR CONDUIT_BUILD_PYTHON_BENCHMARKS OR CONDUIT_BUILD_JAVA_BENCHMARKS)
     if(NOT CONDUIT_BUILD_BGEN)
-        message(FATAL_ERROR "CONDUIT_BUILD_BENCHMARKS requires CONDUIT_BUILD_BGEN=ON")
+        message(FATAL_ERROR "Benchmarks require CONDUIT_BUILD_BGEN=ON")
+    endif()
+    if((CONDUIT_BUILD_PYTHON_BENCHMARKS OR CONDUIT_BUILD_JAVA_BENCHMARKS)
+       AND NOT CONDUIT_BUILD_CODEC_CABI)
+        message(STATUS "Python/Java benchmarks imply CONDUIT_BUILD_CODEC_CABI; enabling automatically")
+        set(CONDUIT_BUILD_CODEC_CABI ON CACHE BOOL "" FORCE)
     endif()
     add_subdirectory(benchmarks)
 endif()

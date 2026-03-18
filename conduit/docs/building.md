@@ -65,7 +65,7 @@ The scripts validate that the requested compiler is on `PATH` and fail early wit
 
 | Flag | Description |
 |------|-------------|
-| `--release` | Release build; enables examples, benchmarks, CABI, JNI, Java |
+| `--release` | Release build; enables examples, benchmarks (C++, Python, Java), CABI, JNI, Java |
 | `--debug` | Debug build (the default) |
 | `--clean` | Wipe the build directory and reconfigure from scratch |
 | `--cabi` | Build C ABI shared libraries (`conduit_cabi`, `conduit_codec_cabi`) |
@@ -119,7 +119,9 @@ cmake --build build
 | `CONDUIT_BUILD_BGEN` | ON | Build the bgen code generator |
 | `CONDUIT_BUILD_TESTS` | ON | Build unit tests |
 | `CONDUIT_BUILD_EXAMPLES` | OFF | Build example applications |
-| `CONDUIT_BUILD_BENCHMARKS` | OFF | Build performance benchmarks |
+| `CONDUIT_BUILD_BENCHMARKS` | OFF | Build C++ performance benchmarks |
+| `CONDUIT_BUILD_PYTHON_BENCHMARKS` | OFF | Build Python codec benchmarks (requires CABI + bgen) |
+| `CONDUIT_BUILD_JAVA_BENCHMARKS` | OFF | Build Java codec benchmarks (requires CABI + bgen + JAR) |
 | `CONDUIT_BUILD_CABI` | OFF | Build full Transceiver C ABI shared library |
 | `CONDUIT_BUILD_CODEC_CABI` | OFF | Build codec-only C ABI shared library |
 | `CONDUIT_BUILD_JNI` | OFF | Build JNI shared libraries (Java 11+) |

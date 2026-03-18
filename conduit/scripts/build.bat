@@ -38,6 +38,8 @@ set "RUN_TESTS=0"
 set "BUILD_CABI=0"
 set "BUILD_JNI=0"
 set "BUILD_JAVA=0"
+set "BUILD_PYTHON_BENCH=0"
+set "BUILD_JAVA_BENCH=0"
 set "ENABLE_SANITIZERS=0"
 set "PIP_ONLINE=0"
 set "USE_COMPILER="
@@ -54,7 +56,7 @@ if not defined JOBS set "JOBS=4"
 :parse_args
 if "%~1"=="" goto :done_args
 if /i "%~1"=="--clean"        ( set "CLEAN=1"             & shift & goto :parse_args )
-if /i "%~1"=="--release"      ( set "BUILD_TYPE=Release"  & set "BUILD_ALL=1" & set "BUILD_CABI=1" & set "BUILD_JNI=1" & set "BUILD_JAVA=1" & shift & goto :parse_args )
+if /i "%~1"=="--release"      ( set "BUILD_TYPE=Release"  & set "BUILD_ALL=1" & set "BUILD_CABI=1" & set "BUILD_JNI=1" & set "BUILD_JAVA=1" & set "BUILD_PYTHON_BENCH=1" & set "BUILD_JAVA_BENCH=1" & shift & goto :parse_args )
 if /i "%~1"=="--debug"        ( set "BUILD_TYPE=Debug"    & shift & goto :parse_args )
 if /i "%~1"=="--third-party"  ( set "THIRD_PARTY_ONLY=1"  & shift & goto :parse_args )
 if /i "%~1"=="--test"         ( set "RUN_TESTS=1"         & shift & goto :parse_args )
@@ -389,6 +391,16 @@ if "%BUILD_JAVA%"=="1" (
     set "FLAG_JAVA_JAR=-DCONDUIT_BUILD_JAVA_JAR=ON"
 )
 
+set "FLAG_PY_BENCH=-DCONDUIT_BUILD_PYTHON_BENCHMARKS=OFF"
+if "%BUILD_PYTHON_BENCH%"=="1" (
+    set "FLAG_PY_BENCH=-DCONDUIT_BUILD_PYTHON_BENCHMARKS=ON"
+)
+
+set "FLAG_JAVA_BENCH=-DCONDUIT_BUILD_JAVA_BENCHMARKS=OFF"
+if "%BUILD_JAVA_BENCH%"=="1" (
+    set "FLAG_JAVA_BENCH=-DCONDUIT_BUILD_JAVA_BENCHMARKS=ON"
+)
+
 set "FLAG_SANITIZE=-DCONDUIT_ENABLE_SANITIZERS=OFF"
 if "%ENABLE_SANITIZERS%"=="1" (
     set "FLAG_SANITIZE=-DCONDUIT_ENABLE_SANITIZERS=ON"
@@ -420,6 +432,8 @@ for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr 
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_CABI:"') do set "CACHED_CABI=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_JNI"') do set "CACHED_JNI=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_JAVA_JAR"') do set "CACHED_JAVA_JAR=%%a"
+for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_PYTHON_BENCHMARKS"') do set "CACHED_PY_BENCH=%%a"
+for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_BUILD_JAVA_BENCHMARKS"') do set "CACHED_JAVA_BENCH=%%a"
 for /f "tokens=2 delims==" %%a in ('cmake -L -N "%BUILD_DIR%" 2^>nul ^| findstr "CONDUIT_ENABLE_SANITIZERS"') do set "CACHED_SANITIZE=%%a"
 
 :: Compute desired values
@@ -431,6 +445,10 @@ set "WANT_JNI=OFF"
 if "%BUILD_JNI%"=="1" set "WANT_JNI=ON"
 set "WANT_JAVA_JAR=OFF"
 if "%BUILD_JAVA%"=="1" set "WANT_JAVA_JAR=ON"
+set "WANT_PY_BENCH=OFF"
+if "%BUILD_PYTHON_BENCH%"=="1" set "WANT_PY_BENCH=ON"
+set "WANT_JAVA_BENCH=OFF"
+if "%BUILD_JAVA_BENCH%"=="1" set "WANT_JAVA_BENCH=ON"
 set "WANT_SANITIZE=OFF"
 if "%ENABLE_SANITIZERS%"=="1" set "WANT_SANITIZE=ON"
 
@@ -440,6 +458,8 @@ if not "!CACHED_BENCHMARKS!"=="!WANT_BENCHMARKS!" set "NEEDS_CONFIGURE=1"
 if not "!CACHED_CABI!"=="!WANT_CABI!"            set "NEEDS_CONFIGURE=1"
 if not "!CACHED_JNI!"=="!WANT_JNI!"             set "NEEDS_CONFIGURE=1"
 if not "!CACHED_JAVA_JAR!"=="!WANT_JAVA_JAR!"   set "NEEDS_CONFIGURE=1"
+if not "!CACHED_PY_BENCH!"=="!WANT_PY_BENCH!"   set "NEEDS_CONFIGURE=1"
+if not "!CACHED_JAVA_BENCH!"=="!WANT_JAVA_BENCH!" set "NEEDS_CONFIGURE=1"
 if not "!CACHED_SANITIZE!"=="!WANT_SANITIZE!"    set "NEEDS_CONFIGURE=1"
 
 :do_configure_check_done
@@ -457,13 +477,13 @@ if "%NEEDS_CONFIGURE%"=="1" (
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^
-            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_SANITIZE!
+            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_PY_BENCH! !FLAG_JAVA_BENCH! !FLAG_SANITIZE!
     ) else (
         cmake -B "%BUILD_DIR%" !CMAKE_COMPILER_FLAGS! ^
             -DCMAKE_BUILD_TYPE=!BUILD_TYPE! ^
             -DCONDUIT_BUILD_BGEN=ON -DCONDUIT_BUILD_TESTS=ON ^
             !FLAG_EXAMPLES! !FLAG_BENCHMARKS! ^
-            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_SANITIZE!
+            !FLAG_CABI! !FLAG_JNI! !FLAG_JAVA_JAR! !FLAG_PY_BENCH! !FLAG_JAVA_BENCH! !FLAG_SANITIZE!
     )
     if errorlevel 1 (
         echo Error: CMake configure failed.
