@@ -79,6 +79,8 @@ gradle build
 
 **How to run:**
 
+The native shared libraries in `conduit/lib/` must be on the JVM library path. The Maven and Gradle run targets set `-Djava.library.path` automatically. If running the JAR directly, set `LD_LIBRARY_PATH` (Linux), `DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows) to include `conduit/lib/`, or pass `-Djava.library.path` to the JVM. See [Native library path](building.md#native-library-path-conduitlib) for details.
+
 ```bash
 # Maven
 mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
@@ -129,6 +131,8 @@ gradle build
 
 **How to run:**
 
+The CABI shared library in `conduit/lib/` must be on the JVM library path. The Maven and Gradle run targets set `-Djava.library.path` and `-Dconduit.cabi.path` automatically. If running the JAR directly, see [Native library path](building.md#native-library-path-conduitlib) for details.
+
 ```bash
 # Maven
 MAVEN_OPTS="--enable-preview --enable-native-access=ALL-UNNAMED" \
@@ -169,6 +173,8 @@ pip install conduit/examples/xcvr-python/
 ```
 
 **How to run:**
+
+The Python bindings need `CONDUIT_CABI_LIB` set to the full path of the CABI shared library in `conduit/lib/`. You may also need `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS) if the CABI library has dependencies in the same directory. See [Native library path](building.md#native-library-path-conduitlib) for all platforms.
 
 ```bash
 # Run from the repository root directory

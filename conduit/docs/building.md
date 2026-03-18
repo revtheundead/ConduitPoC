@@ -127,6 +127,48 @@ cmake --build build
 | `CONDUIT_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer + UBSan |
 | `CONDUIT_ENABLE_COVERAGE` | OFF | Enable code coverage instrumentation (GCC/Clang) |
 
+## Native library path (`conduit/lib/`)
+
+The CMake build places shared libraries (`libconduit_cabi.so`, `libconduit_jni.so`, etc.) into `conduit/lib/`. Java and Python examples must be able to find these at runtime.
+
+### Java
+
+The JVM needs `-Djava.library.path` pointing to `conduit/lib/` so it can locate the JNI or CABI shared libraries. The Maven POM files and Gradle build files set this automatically when you use the provided run targets (e.g. `mvn exec:java` or `gradle runDummyPeer`). If you run the JAR directly, pass it yourself:
+
+```bash
+java -Djava.library.path=$(pwd)/conduit/lib -jar myapp.jar
+```
+
+Alternatively, add `conduit/lib/` to `LD_LIBRARY_PATH` (Linux), `DYLD_LIBRARY_PATH` (macOS), or `PATH` (Windows):
+
+```bash
+# Linux
+export LD_LIBRARY_PATH=$(pwd)/conduit/lib:$LD_LIBRARY_PATH
+
+# macOS
+export DYLD_LIBRARY_PATH=$(pwd)/conduit/lib:$DYLD_LIBRARY_PATH
+
+# Windows (PowerShell)
+$env:PATH = "$(Get-Location)\conduit\lib;$env:PATH"
+```
+
+### Python
+
+The Python bindings locate the CABI library via the `CONDUIT_CABI_LIB` environment variable, which must point to the exact `.so` / `.dylib` / `.dll` file:
+
+```bash
+# Linux
+export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.so
+
+# macOS
+export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.dylib
+
+# Windows
+set CONDUIT_CABI_LIB=%cd%\conduit\lib\conduit_cabi.dll
+```
+
+If the CABI library depends on other shared libraries in the same directory, you may also need `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH` / `PATH` as shown above.
+
 ## Java build tools
 
 The Java examples use both Maven and Gradle. Below are the essential commands.
