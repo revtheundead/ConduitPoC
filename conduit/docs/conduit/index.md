@@ -80,7 +80,7 @@ Pages are listed in recommended reading order -- each page builds on concepts fr
 | [BoundedQueue](bounded-queue.md) | Thread-safe bounded MPMC queue with drop policies |
 | [String Encoding](string-encoding.md) | ASCII, IA5, EBCDIC, UTF-8 conversion |
 | [Benchmarks & Performance](performance.md) | Codec latency, throughput, memory footprint, scaling |
-| [Limitations & Known Issues](limitations.md) | Feature parity across C++/Java/Python, known bugs |
+| [Limitations & Design Boundaries](limitations.md) | Scope boundaries, design decisions, and backend architectural differences |
 | [Cross-Language Integration](cross-language-integration.md) | Strategies for accessing Conduit from other languages |
 
 ## Related Documentation

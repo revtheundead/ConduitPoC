@@ -284,14 +284,12 @@ All three backends generate session classes with the same core methods. The wire
 ### Known Gaps
 
 - **Java:** `encodeBatch()` is not yet implemented for array-payload sessions
-- **Java/Python:** `auto_fields` metadata was missing from encode results (fixed in audit Round 3)
-- **Python:** `decode_frame` did not warn on send-only types (fixed in audit Round 3)
 
-See [Limitations & Known Issues](../conduit/limitations.md) for the full parity matrix.
+See [Limitations & Design Boundaries](../conduit/limitations.md) for scope and design decisions.
 
 ## See Also
 
 - [Sessions & Generated Code](../conduit/sessions-and-codegen.md) -- `ISession` interface and how generated sessions connect to the runtime
 - [Transceiver](../conduit/transceiver.md) -- The runtime orchestrator that uses session classes for decode/encode dispatch
 - [Naming Conventions](naming-conventions.md) -- How BMDL names map to session class and factory function names
-- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity across backends
+- [Limitations & Design Boundaries](../conduit/limitations.md) -- Scope boundaries and design decisions

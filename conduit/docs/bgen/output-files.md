@@ -237,4 +237,4 @@ Generated Python code is self-contained -- `bit_io.py` provides the `BitReader`/
 - [Type Code Generation](generated-types.md) -- How BMDL types map to code in each backend
 - [Struct & Message Code Generation](generated-structs.md) -- How structs/messages are generated
 - [Session Code Generation](generated-sessions.md) -- How sessions are generated
-- [Limitations & Known Issues](../conduit/limitations.md) -- Feature parity status across backends
+- [Limitations & Design Boundaries](../conduit/limitations.md) -- Scope boundaries and design decisions

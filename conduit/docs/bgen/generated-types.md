@@ -210,7 +210,7 @@ The Java and Python backends generate equivalent type wrappers using language-ap
 | Decode | `decode_MsgType(BitReader&)` -> `Result<MsgType>` | `MsgType.decode(BitReader)` | `MsgType.decode(BitReader)` |
 | Encode | `encode_MsgType(v, BitWriter&)` | `encode(BitWriter)` | `encode(BitWriter)` |
 
-> **Known bug (Java):** Java enum value types are always `int` regardless of the BMDL bit width. Enums wider than 32 bits will be silently truncated. See [Limitations & Known Issues](../conduit/limitations.md).
+> **Note (Java):** Java enum value types are always `int` regardless of the BMDL bit width. Enums wider than 32 bits will be silently truncated.
 
 ### Flags Types
 
@@ -232,7 +232,7 @@ The Java and Python backends generate equivalent type wrappers using language-ap
 
 All three backends support the same wire encodings (BCD, BCD_S, BNR_S, CB2). The C++ backend dispatches at compile time; Java and Python dispatch at runtime in the generated `decode()`/`encode()` methods.
 
-> **Known limitation:** The Python backend had a bug where type-level wrappers ignored wire encoding, always using `read_bits`/`write_bits`. This was fixed in audit Round 3. See [Limitations & Known Issues](../conduit/limitations.md).
+> **Note:** All three backends correctly dispatch wire encoding in type-level wrappers (BCD, BCD_S, BNR_S, CB2). The C++ backend dispatches at compile time; Java and Python dispatch at runtime.
 
 ## All Generated Files
 

@@ -12,7 +12,7 @@ The guiding principle: **bring Conduit to the user's stack, not the user to C++.
 > - **Strategy 2 (C ABI / FFI bindings):** JNI bindings (Java 8--17) and Panama FFI bindings (Java 21+) exist at `conduit/bindings/java/`. Python ctypes bindings exist at `conduit/bindings/python/`.
 > - **Strategies 3--8:** Not yet implemented. These remain as architectural recommendations for future development.
 >
-> For known feature gaps between backends, see [Limitations & Known Issues](limitations.md).
+> For backend architectural differences, see [Limitations & Design Boundaries](limitations.md).
 
 The strategies below are ordered by impact and build on each other. The recommended approach is to combine Strategies 1-4 for maximum coverage across language ecosystems and infrastructure patterns.
 

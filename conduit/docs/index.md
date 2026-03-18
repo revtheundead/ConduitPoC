@@ -92,4 +92,4 @@ scripts\build.bat --release --clang --test           # Same, using Clang + Ninja
 | [conduit Runtime Library](conduit/index.md) | Error handling, bit I/O, transports, transceiver |
 | [Examples](examples.md) | Complete ASTERIX transceiver apps in C++, Java 11, Java 21, and Python |
 | [Benchmarks & Performance](conduit/performance.md) | Codec latency, throughput, memory footprint, and scaling characteristics |
-| [Limitations & Known Issues](conduit/limitations.md) | Feature parity across backends, known bugs, audit history, and general constraints |
+| [Limitations & Design Boundaries](conduit/limitations.md) | Scope boundaries, design decisions, and backend architectural differences |

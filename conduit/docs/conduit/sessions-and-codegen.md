@@ -4,7 +4,7 @@
 
 Sessions bridge generated protocol code and the conduit runtime. bgen produces session classes that implement `ISession`, enabling the `Transceiver` to decode incoming frames and encode outgoing messages without knowing the protocol details.
 
-> **Multi-language support:** bgen generates session classes in all three backends (C++, Java, Python). The C++ `ISession` interface documented below is the reference implementation. Java and Python sessions provide equivalent functionality through language-idiomatic APIs — see [Session Code Generation](../bgen/generated-sessions.md) for the per-backend details and [Limitations & Known Issues](limitations.md) for current feature gaps.
+> **Multi-language support:** bgen generates session classes in all three backends (C++, Java, Python). The C++ `ISession` interface documented below is the reference implementation. Java and Python sessions provide equivalent functionality through language-idiomatic APIs — see [Session Code Generation](../bgen/generated-sessions.md) for the per-backend details and [Limitations & Design Boundaries](limitations.md) for scope and architectural differences.
 
 ## ISession Interface
 

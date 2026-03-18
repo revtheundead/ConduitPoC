@@ -324,4 +324,4 @@ For full transport access (TCP, UDP, Serial), use the ctypes bindings at `condui
 - [Stream Framing](stream-framing.md) -- How TCP/serial streams are reassembled into frames
 - [Sessions & Generated Code](sessions-and-codegen.md) -- Direct session usage without the Transceiver
 - [Benchmarks & Performance](performance.md) -- Performance characteristics and tuning guidance
-- [Limitations & Known Issues](limitations.md) -- Feature parity across backends
+- [Limitations & Design Boundaries](limitations.md) -- Scope boundaries and design decisions
