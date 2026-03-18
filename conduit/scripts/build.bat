@@ -14,6 +14,7 @@ setlocal enabledelayedexpansion
 ::   scripts\build.bat --jni        Build JNI shared libraries (implies --cabi)
 ::   scripts\build.bat --java       Build Java bindings via Maven (implies --jni)
 ::   scripts\build.bat --sanitize   Enable address + undefined-behavior sanitizers
+::   scripts\build.bat --online     Use online PyPI packages (default: offline third_party\)
 ::   scripts\build.bat --third-party Build only third-party dependencies
 ::   scripts\build.bat --test       Run all tests after build
 ::   scripts\build.bat --clang      Use Clang via LLVM MinGW (no VS dependency)
@@ -38,6 +39,7 @@ set "BUILD_CABI=0"
 set "BUILD_JNI=0"
 set "BUILD_JAVA=0"
 set "ENABLE_SANITIZERS=0"
+set "PIP_ONLINE=0"
 set "USE_COMPILER="
 set "BUILD_DIR=build"
 
@@ -60,11 +62,12 @@ if /i "%~1"=="--cabi"         ( set "BUILD_CABI=1"        & shift & goto :parse_
 if /i "%~1"=="--jni"          ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & shift & goto :parse_args )
 if /i "%~1"=="--java"         ( set "BUILD_CABI=1"        & set "BUILD_JNI=1" & set "BUILD_JAVA=1" & shift & goto :parse_args )
 if /i "%~1"=="--sanitize"     ( set "ENABLE_SANITIZERS=1" & shift & goto :parse_args )
+if /i "%~1"=="--online"       ( set "PIP_ONLINE=1"            & shift & goto :parse_args )
 if /i "%~1"=="--clang"        ( set "USE_COMPILER=clang"      & shift & goto :parse_args )
 if /i "%~1"=="--clang-msvc"   ( set "USE_COMPILER=clang-msvc" & shift & goto :parse_args )
 if /i "%~1"=="--msvc"         ( set "USE_COMPILER=msvc"       & shift & goto :parse_args )
 echo Unknown argument: %~1
-echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--clang] [--clang-msvc] [--msvc] [--third-party] [--test]
+echo Usage: %~nx0 [--release] [--debug] [--clean] [--cabi] [--jni] [--java] [--sanitize] [--online] [--clang] [--clang-msvc] [--msvc] [--third-party] [--test]
 exit /b 1
 :done_args
 
@@ -704,8 +707,28 @@ if errorlevel 1 goto :eof
 if exist "examples\xcvr-python\pyproject.toml" (
     echo.
     echo ==^> Installing xcvr-python example ^(pip^)
-    pip install --quiet "examples\xcvr-python"
-    if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
+
+    rem Pre-install setuptools and wheel from vendored wheels
+    set "SETUPTOOLS_WHEEL_DIR=%PROJECT_DIR%\third_party\setuptools"
+    if exist "!SETUPTOOLS_WHEEL_DIR!" (
+        pip install --no-index --find-links "!SETUPTOOLS_WHEEL_DIR!" setuptools wheel >nul 2>&1 || (
+            pip install --no-index --find-links "!SETUPTOOLS_WHEEL_DIR!" --user setuptools wheel >nul 2>&1 || (
+                pip install --no-index --find-links "!SETUPTOOLS_WHEEL_DIR!" --break-system-packages setuptools wheel >nul 2>&1
+            )
+        )
+    )
+
+    set "_pip_installed=0"
+    if not "%PIP_ONLINE%"=="1" (
+        rem Offline-first: try installing without network access
+        pip install --quiet --no-build-isolation "examples\xcvr-python" >nul 2>&1
+        if not errorlevel 1 set "_pip_installed=1"
+    )
+    if "!_pip_installed!"=="0" (
+        rem Fallback: online install ^(or explicit --online^)
+        pip install --quiet "examples\xcvr-python"
+        if errorlevel 1 echo Warning: xcvr-python install failed ^(non-fatal^)
+    )
 )
 goto :eof
 

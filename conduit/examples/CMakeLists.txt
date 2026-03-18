@@ -52,16 +52,36 @@ else()
 endif()
 
 # xcvr-python: optional pip install target (not part of ALL)
+# Defaults to offline install from third_party/setuptools; falls back to online.
 find_program(_pip_exe pip3)
 if(NOT _pip_exe)
     find_program(_pip_exe pip)
 endif()
 if(_pip_exe AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-python/pyproject.toml")
-    add_custom_target(xcvr_python_build
-        COMMAND ${_pip_exe} install --quiet "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-python/"
-        COMMENT "Installing xcvr-python example (pip)"
-        VERBATIM
-    )
+    set(_setuptools_wheel_dir "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/setuptools")
+    set(_pip_pre_cmds "")
+    set(_pip_install_args --quiet)
+
+    if(EXISTS "${_setuptools_wheel_dir}")
+        # Pre-install setuptools/wheel from vendored wheels, then use
+        # --no-build-isolation so pip does not try to download them.
+        add_custom_target(xcvr_python_build
+            COMMAND ${_pip_exe} install --no-index
+                    --find-links "${_setuptools_wheel_dir}"
+                    setuptools wheel
+                    || true
+            COMMAND ${_pip_exe} install --quiet --no-build-isolation
+                    "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-python/"
+            COMMENT "Installing xcvr-python example (pip, offline)"
+            VERBATIM
+        )
+    else()
+        add_custom_target(xcvr_python_build
+            COMMAND ${_pip_exe} install --quiet "${CMAKE_CURRENT_SOURCE_DIR}/xcvr-python/"
+            COMMENT "Installing xcvr-python example (pip, online)"
+            VERBATIM
+        )
+    endif()
 else()
     if(NOT _pip_exe)
         message(STATUS "xcvr-python: pip not found — skipping (optional)")
