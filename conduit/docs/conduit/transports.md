@@ -244,6 +244,102 @@ attempt N: min(initial_delay * backoff_multiplier^(N-1), max_delay)
 
 Set `enabled = false` to disable reconnection entirely. Set `max_attempts = 0` for unlimited retries (the default).
 
+## Java Transport Configuration
+
+Java uses `TransportConfig` factory methods and fluent builder-style config classes.
+
+```java
+// TCP Client
+TransportConfig.tcpClient("10.0.0.1:5000")
+
+// TCP Client with options
+new TransportConfig.TcpClientConfig("10.0.0.1", 5000)
+    .recvBufferSize(131072)
+    .connectTimeoutMs(5000)
+    .reconnect(new TransportConfig.ReconnectPolicy()
+        .enabled(true)
+        .initialDelayMs(1000)
+        .maxDelayMs(30000)
+        .backoffMultiplier(2.0))
+
+// TCP Server
+TransportConfig.tcpServer("0.0.0.0:5000")
+
+// TCP Server with options
+new TransportConfig.TcpServerConfig(5000)
+    .recvBufferSize(131072)
+    .maxClients(100)
+
+// UDP
+TransportConfig.udp("0.0.0.0:5000")
+
+// UDP with options
+new TransportConfig.UdpConfig()
+    .bindPort(5000)
+    .remoteAddress("10.0.0.1")
+    .remotePort(5001)
+    .recvBufferSize(131072)
+
+// Serial
+TransportConfig.serial("COM3", 115200)
+
+// Serial with options
+new TransportConfig.SerialConfig("COM3", 115200)
+    .dataBits(8)
+    .parity(TransportConfig.SerialParity.NONE)
+    .stopBits(TransportConfig.SerialStopBits.ONE)
+    .flowControl(TransportConfig.SerialFlowControl.NONE)
+```
+
+## Python Transport Configuration
+
+Python uses dataclasses for transport configuration.
+
+```python
+from conduit import (TcpClientConfig, TcpServerConfig, UdpConfig,
+                     SerialConfig, ReconnectPolicy)
+
+# TCP Client
+TcpClientConfig("10.0.0.1:5000")
+
+# TCP Client with options
+TcpClientConfig("10.0.0.1:5000",
+                recv_buffer_size=131072,
+                connect_timeout_ms=5000,
+                reconnect=ReconnectPolicy(
+                    enabled=True,
+                    initial_delay_ms=1000,
+                    max_delay_ms=30000,
+                    backoff_multiplier=2.0))
+
+# TCP Server
+TcpServerConfig("0.0.0.0:5000")
+
+# TCP Server with options
+TcpServerConfig("0.0.0.0:5000",
+                recv_buffer_size=131072,
+                max_clients=100)
+
+# UDP
+UdpConfig(bind_port=5000)
+
+# UDP with options
+UdpConfig(bind_port=5000,
+          remote_address="10.0.0.1",
+          remote_port=5001,
+          recv_buffer_size=131072)
+
+# Serial
+SerialConfig("/dev/ttyUSB0", baud_rate=115200)
+
+# Serial with options
+SerialConfig("/dev/ttyUSB0", baud_rate=115200,
+             data_bits=8,
+             parity=SerialParity.NONE,
+             stop_bits=SerialStopBits.ONE,
+             flow_control=SerialFlowControl.NONE)
+```
+
 ## When to Use Which Transport
 
 | Scenario | Transport | Rationale |

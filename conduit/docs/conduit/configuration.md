@@ -237,6 +237,83 @@ config.add_peer("radar-feed",
 Transceiver xcvr(std::move(config));
 ```
 
+## Java Configuration
+
+In Java, configuration is set via method calls on the `Transceiver` before `start()`. There is no separate config struct -- each setting is applied directly.
+
+```java
+try (Transceiver tx = new Transceiver()) {
+    // Queue config
+    tx.setQueueConfig(
+        /* capacity */               4096,
+        /* dropPolicy */             0,    // 0=DropOldest, 1=DropNewest, 2=Block
+        /* backPressureThreshold */  0.8);
+
+    // Worker config
+    tx.setWorkerConfig(
+        /* threadCount */        2,
+        /* handlerTimeoutMs */   500);
+
+    // Shutdown timeout
+    tx.setShutdownTimeout(5000);  // milliseconds
+
+    // Message logging
+    Transceiver.MessageLogConfig logCfg = new Transceiver.MessageLogConfig();
+    logCfg.enabled = true;
+    logCfg.mode = Transceiver.MessageLogMode.SEPARATE_DIRECTION;
+    logCfg.output = Transceiver.MessageLogOutput.FILE;
+    logCfg.directory = "./logs";
+    logCfg.prefix = "myapp";
+    tx.setMessageLogConfig(logCfg);
+
+    // Register session and add peers
+    tx.registerSession("asterix", new AsterixDataBlockSession());
+    tx.addPeer("radar-feed", "asterix",
+               TransportConfig.udp("0.0.0.0:5000"));
+    tx.addPeer("control-link", "asterix",
+               TransportConfig.tcpClient("10.0.0.1:9100"));
+
+    tx.start();
+    // ...
+}
+```
+
+## Python Configuration
+
+Python follows the same pattern, using keyword arguments for configuration methods.
+
+```python
+with Transceiver() as tx:
+    # Queue config
+    tx.set_queue_config(capacity=4096, drop_policy=0,
+                        back_pressure_threshold=0.8)
+
+    # Worker config
+    tx.set_worker_config(thread_count=2, handler_timeout_ms=500)
+
+    # Shutdown timeout
+    tx.set_shutdown_timeout(timeout_ms=5000)
+
+    # Message logging
+    tx.set_message_log_config(
+        enabled=True,
+        mode=MessageLogMode.SEPARATE_DIRECTION,
+        output=MessageLogOutput.FILE,
+        directory="./logs",
+        prefix="myapp",
+    )
+
+    # Register session and add peers
+    tx.register_session("asterix", AsterixDataBlockSession())
+    tx.add_peer("radar-feed", "asterix",
+                UdpConfig(bind_port=5000))
+    tx.add_peer("control-link", "asterix",
+                TcpClientConfig("10.0.0.1:9100"))
+
+    tx.start()
+    # ...
+```
+
 ## See Also
 
 - [Transceiver](transceiver.md) -- The orchestrator configured by `TransceiverConfig`; also provides imperative `Transceiver::add_peer()` for custom transports
