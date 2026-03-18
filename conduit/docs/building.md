@@ -8,7 +8,10 @@
   - **MSVC** 19.30+ / Visual Studio 2022 (Windows)
 - CMake 3.20+ (build system)
 - **Ninja** -- required when building with Clang on Windows; recommended on all platforms
-- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional, for Java backend
+- **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional, for Java bindings and examples
+  - **Maven** 3.6+ -- required for building the `conduit-java` JAR and the Java 11 example (`mvn`)
+  - **Gradle** 7+ -- required for the Java 11 and Java 21 Gradle-based examples (`gradle` or the included wrapper)
+  - `javac` and `java` must be on `PATH` (provided by the JDK)
 - **Python** 3.7+ -- optional, for Python backend
 - No external runtime dependencies (header-only generated code, conduit is a static library). Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
 
@@ -123,6 +126,55 @@ cmake --build build
 | `CONDUIT_BUILD_JAVA_JAR` | OFF | Build conduit-java JAR and compile Java tests |
 | `CONDUIT_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer + UBSan |
 | `CONDUIT_ENABLE_COVERAGE` | OFF | Enable code coverage instrumentation (GCC/Clang) |
+
+## Java build tools
+
+The Java examples use both Maven and Gradle. Below are the essential commands.
+
+### Maven (conduit-java JAR + xcvr-java11 example)
+
+```bash
+# Install conduit-java to local Maven repo (required before building Java examples)
+mvn install -q -f conduit/bindings/java/pom.xml
+
+# Build the Java 11 example
+mvn package -q -f conduit/examples/xcvr-java11/pom.xml -Dskip.bgen=true \
+    -Dconduit.build.dir=$(pwd)/build
+
+# Run the Java 11 example (server mode)
+mvn exec:java -f conduit/examples/xcvr-java11/pom.xml -PrunDummyPeer \
+    -Dconduit.build.dir=$(pwd)/build \
+    -Dexec.appArgs="server --port 5000 --interval-ms 500"
+```
+
+### Gradle (xcvr-java11 and xcvr-java21 examples)
+
+Both Java examples include Gradle build files as an alternative to Maven.
+
+```bash
+# Build the Java 11 example
+cd conduit/examples/xcvr-java11
+gradle build
+
+# Build the Java 21 example
+cd conduit/examples/xcvr-java21
+gradle build
+
+# Run code generation (requires bgen to be built first)
+gradle generateCode
+
+# Run the dummy peer
+gradle runDummyPeer -DappArgs="server --port 5000 --interval-ms 500"
+```
+
+### Verifying your Java toolchain
+
+```bash
+javac --version   # JDK compiler — should report 11+ (or 21+ for Panama FFI)
+java  --version   # JVM runtime
+mvn   --version   # Maven (3.6+)
+gradle --version  # Gradle (7+)
+```
 
 ## Running Tests
 
