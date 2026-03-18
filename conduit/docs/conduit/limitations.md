@@ -49,4 +49,3 @@ Java and Python `BitReader`/`BitWriter` use byte-aligned fast paths for whole-by
 ## See Also
 
 - [Benchmarks & Performance](performance.md) -- Detailed performance data
-- [Cross-Language Integration Strategies](cross-language-integration.md) -- Integration approaches

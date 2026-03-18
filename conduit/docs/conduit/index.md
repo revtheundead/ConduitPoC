@@ -81,7 +81,6 @@ Pages are listed in recommended reading order -- each page builds on concepts fr
 | [String Encoding](string-encoding.md) | ASCII, IA5, EBCDIC, UTF-8 conversion |
 | [Benchmarks & Performance](performance.md) | Codec latency, throughput, memory footprint, scaling |
 | [Limitations & Design Boundaries](limitations.md) | Scope boundaries, design decisions, and backend architectural differences |
-| [Cross-Language Integration](cross-language-integration.md) | Strategies for accessing Conduit from other languages |
 
 ## Related Documentation
 
