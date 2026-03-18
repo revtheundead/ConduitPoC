@@ -1,0 +1,5 @@
+# Native libraries are staged here by the release workflow or
+# package_fat_jar.sh script.  They should not be committed.
+*.so
+*.dylib
+*.dll
