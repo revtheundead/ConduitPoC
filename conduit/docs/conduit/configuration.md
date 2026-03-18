@@ -269,7 +269,7 @@ try (Transceiver tx = new Transceiver()) {
     // Register session and add peers
     tx.registerSession("asterix", new AsterixDataBlockSession());
     tx.addPeer("radar-feed", "asterix",
-               TransportConfig.udp("0.0.0.0:5000"));
+               new TransportConfig.UdpConfig().bindPort(5000));
     tx.addPeer("control-link", "asterix",
                TransportConfig.tcpClient("10.0.0.1:9100"));
 

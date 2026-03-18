@@ -270,10 +270,13 @@ new TransportConfig.TcpServerConfig(5000)
     .recvBufferSize(131072)
     .maxClients(100)
 
-// UDP
-TransportConfig.udp("0.0.0.0:5000")
+// UDP — factory takes a remote address (single-peer "connected" mode)
+TransportConfig.udp("10.0.0.1:5001")
 
-// UDP with options
+// UDP — receive-only (bind to local port, no fixed remote)
+new TransportConfig.UdpConfig().bindPort(5000)
+
+// UDP with full options
 new TransportConfig.UdpConfig()
     .bindPort(5000)
     .remoteAddress("10.0.0.1")
@@ -297,7 +300,8 @@ Python uses dataclasses for transport configuration.
 
 ```python
 from conduit import (TcpClientConfig, TcpServerConfig, UdpConfig,
-                     SerialConfig, ReconnectPolicy)
+                     SerialConfig, ReconnectPolicy,
+                     SerialParity, SerialStopBits, SerialFlowControl)
 
 # TCP Client
 TcpClientConfig("10.0.0.1:5000")
