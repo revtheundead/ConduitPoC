@@ -10,7 +10,7 @@ BMDL's type system builds custom types from a small set of primitive bases. Type
 |-----------|-------------|--------------|
 | `uint` | Unsigned integer | `bits` (1-64) |
 | `int` | Signed integer (two's complement) | `bits` (1-64) |
-| `float` | IEEE 754 floating point | `bits` (32 or 64 only) |
+| `float` | IEEE 754 floating point | `bits` (any positive value; 16, 32, and 64 are natively supported) |
 | `bool` | Boolean (always 1 bit) | -- |
 | `bytes` | Raw byte sequence | `length` (on types); fields also support `length-from`, `length-prefix`, `length="*"` |
 | `string` | Character sequence | `length`, `terminated` (on types); fields also support `length-from`, `length-prefix`, `length="*"` |
@@ -23,6 +23,7 @@ BMDL's type system builds custom types from a small set of primitive bases. Type
   <type name="uint8" base="uint" bits="8"/>
   <type name="uint16" base="uint" bits="16"/>
   <type name="int32" base="int" bits="32"/>
+  <type name="float16" base="float" bits="16"/>
   <type name="float32" base="float" bits="32"/>
   <type name="float64" base="float" bits="64"/>
 </types>
@@ -163,7 +164,7 @@ These are mutually exclusive. The same rule applies to inline type definitions o
 
 ## Common Pitfalls
 
-- `float` must be exactly 32 or 64 bits -- no other widths are valid.
+- `float` requires `bits > 0`. Widths of 16, 32, and 64 are natively supported (IEEE 754 half/single/double). Other widths encode the raw bit pattern and use the closest IEEE format (≤32 → `float`, ≤64 → `double`).
 - Enum, flags, and scale are mutually exclusive on a single type -- you can't have a scaled enum.
 - A field referencing a type that already has `<scale>` or `<offset>` cannot redefine them. The generator reports a parse error if both the type and the field specify `<scale>` or `<offset>`.
 - Explicitly specifying `wire-encoding="cb2"` on `int` or `wire-encoding="bnr"` on `uint` is a no-op (these are the defaults) but is accepted without error.

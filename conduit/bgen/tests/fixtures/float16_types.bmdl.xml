@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>float16_types</namespace>
+    <endian>big</endian>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="float16" base="float" bits="16"/>
+    <type name="float32" base="float" bits="32"/>
+    <type name="float64" base="float" bits="64"/>
+  </types>
+  <messages>
+    <message name="SensorData" id="0x01">
+      <field name="tag" type="uint8"/>
+      <field name="half-value" type="float16"/>
+      <field name="single-value" type="float32"/>
+      <field name="double-value" type="float64"/>
+    </message>
+    <message name="InlineFloats" id="0x02">
+      <field name="tag" type="uint8"/>
+      <field name="inline-half" bits="16" base="float"/>
+      <field name="inline-single" bits="32" base="float"/>
+      <field name="inline-double" bits="64" base="float"/>
+    </message>
+  </messages>
+</bmdl>

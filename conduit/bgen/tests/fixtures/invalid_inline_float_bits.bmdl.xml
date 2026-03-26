@@ -4,7 +4,7 @@
   <types><type name="uint8" base="uint" bits="8"/></types>
   <messages>
     <message name="BadMsg">
-      <field name="bad-float" bits="13" base="float"/>
+      <field name="bad-float" base="float"/>
       <field name="tag" type="uint8"/>
     </message>
   </messages>

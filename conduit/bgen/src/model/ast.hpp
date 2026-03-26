@@ -278,6 +278,8 @@ struct StructDef {
 
     std::optional<std::string> type_name;  // typeName override for generated class name
 
+    bool has_explicit_empty = false;  // <empty/> tag suppresses empty-struct warnings
+
     std::vector<Annotation> annotations;
     std::string doc;
     SourceLoc loc;
@@ -407,6 +409,8 @@ struct MessageDef {
 
     std::string id;  // required when frame exists
     Direction direction = Direction::Both;
+
+    bool has_explicit_empty = false;  // <empty/> tag suppresses empty-message warnings
 
     std::vector<Annotation> annotations;
     std::string doc;

@@ -55,6 +55,13 @@ std::string type_read_expr(const model::TypeDef& t) {
     if (t.wire_encoding == model::WireEncoding::BNR_S) {
         return "r.read_sign_magnitude(" + std::to_string(t.bits) + ")";
     }
+    // Float types: use appropriate read method
+    if (t.base == model::PrimitiveBase::Float) {
+        if (t.bits == 16) return "r.read_f16(conduit::io::Endian::Big)";
+        if (t.bits <= 32) return "r.read_f32(conduit::io::Endian::Big)";
+        if (t.bits <= 64) return "r.read_f64(conduit::io::Endian::Big)";
+        return "r.read_bits(" + std::to_string(t.bits) + ")";
+    }
     // Default/CB2/BNR: always use bit-level reads for alignment safety
     if (is_signed) return "r.read_signed_bits(" + std::to_string(t.bits) + ")";
     return "r.read_bits(" + std::to_string(t.bits) + ")";
@@ -76,6 +83,19 @@ void type_write_stmt(EmitContext& ctx, const std::string& value, const model::Ty
     }
     if (t.wire_encoding == model::WireEncoding::BNR_S) {
         ctx.line("w.write_sign_magnitude(" + value + ", " + std::to_string(t.bits) + ");");
+        return;
+    }
+    // Float types: use appropriate write method
+    if (t.base == model::PrimitiveBase::Float) {
+        if (t.bits == 16) {
+            ctx.line("w.write_f16(" + value + ", conduit::io::Endian::Big);");
+        } else if (t.bits <= 32) {
+            ctx.line("w.write_f32(" + value + ", conduit::io::Endian::Big);");
+        } else if (t.bits <= 64) {
+            ctx.line("w.write_f64(" + value + ", conduit::io::Endian::Big);");
+        } else {
+            ctx.line("w.write_bits(static_cast<uint64_t>(" + value + "), " + std::to_string(t.bits) + ");");
+        }
         return;
     }
     // Default/CB2/BNR: always use bit-level writes for alignment safety

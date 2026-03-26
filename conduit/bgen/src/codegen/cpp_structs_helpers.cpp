@@ -296,10 +296,17 @@ std::string emit_read_expr(const FieldTypeInfo& fti, model::Endian endian,
     // CB2/BNR/Default all use the same standard read path below
     // A4: Float read (floats are always byte-aligned by convention)
     if (fti.is_float) {
+        if (fti.bits == 16) {
+            return reader + ".read_f16(" + endian_str(endian) + ")";
+        }
         if (fti.bits <= 32) {
             return reader + ".read_f32(" + endian_str(endian) + ")";
         }
-        return reader + ".read_f64(" + endian_str(endian) + ")";
+        if (fti.bits <= 64) {
+            return reader + ".read_f64(" + endian_str(endian) + ")";
+        }
+        // Arbitrary-width float: read raw bits, memcpy into float/double
+        return reader + ".read_bits(" + std::to_string(fti.bits) + ")";
     }
     if (fti.bits > 0 && fti.bits <= 64) {
         // Byte-optimized reads (read_u8, read_u16, etc.) auto-align to byte
@@ -359,10 +366,15 @@ void emit_write_stmt(EmitContext& ctx, const std::string& value, const FieldType
     // CB2/BNR/Default all use the same standard write path below
     // A4: Float write (floats are always byte-aligned by convention)
     if (fti.is_float) {
-        if (fti.bits <= 32) {
+        if (fti.bits == 16) {
+            ctx.line("w.write_f16(" + value + ", " + endian_str(endian) + ");");
+        } else if (fti.bits <= 32) {
             ctx.line("w.write_f32(" + value + ", " + endian_str(endian) + ");");
-        } else {
+        } else if (fti.bits <= 64) {
             ctx.line("w.write_f64(" + value + ", " + endian_str(endian) + ");");
+        } else {
+            // Arbitrary-width float: write raw bits
+            ctx.line("w.write_bits(static_cast<uint64_t>(" + value + "), " + std::to_string(fti.bits) + ");");
         }
         return;
     }

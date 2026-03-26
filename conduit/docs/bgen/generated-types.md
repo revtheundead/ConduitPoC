@@ -40,7 +40,7 @@ The C++ type is the smallest standard integer type that fits the bit width:
 | 17-32 | `uint32_t` | `int32_t` |
 | 33-64 | `uint64_t` | `int64_t` |
 
-Float types with bit width ≤ 32 map to `float`; widths 33-64 map to `double`. Bool types map to `bool`.
+Float types with bit width ≤ 32 map to `float`; widths 33-64 map to `double`. The 16-bit (half-precision) float uses `read_f16`/`write_f16` for native IEEE 754 encoding; other widths use the closest IEEE format. Bool types map to `bool`.
 
 ## Enum Types
 

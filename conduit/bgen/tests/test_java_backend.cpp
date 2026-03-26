@@ -1116,3 +1116,49 @@ TEST_CASE("Java: generates output for major fixtures", "[codegen][java]") {
         CHECK(java.has_value());
     }
 }
+
+// ============================================================================
+// Float16 / variable-size float codegen tests
+// ============================================================================
+
+TEST_CASE("Java: float16 types generate readF16/writeF16", "[java][float]") {
+    auto java = gen_java("float16_types.bmdl.xml");
+    REQUIRE(java.has_value());
+
+    // BitReader.java should have readF16
+    REQUIRE(java->files.count("BitReader.java"));
+    CHECK(java->files.at("BitReader.java").find("readF16") != std::string::npos);
+
+    // BitWriter.java should have writeF16
+    REQUIRE(java->files.count("BitWriter.java"));
+    CHECK(java->files.at("BitWriter.java").find("writeF16") != std::string::npos);
+
+    // The generated message class should use readF16/writeF16
+    bool found_f16_read = false;
+    bool found_f16_write = false;
+    for (const auto& [name, content] : java->files) {
+        if (content.find("readF16") != std::string::npos) found_f16_read = true;
+        if (content.find("writeF16") != std::string::npos) found_f16_write = true;
+    }
+    CHECK(found_f16_read);
+    CHECK(found_f16_write);
+}
+
+// ============================================================================
+// Empty struct / message codegen tests
+// ============================================================================
+
+TEST_CASE("Java: empty struct with <empty/> generates valid code", "[java][empty]") {
+    auto java = gen_java("empty_struct_explicit.bmdl.xml");
+    REQUIRE(java.has_value());
+
+    // There should be an EmptyExplicit.java and EmptyMsg.java
+    bool found_empty_struct = false;
+    bool found_empty_msg = false;
+    for (const auto& [name, content] : java->files) {
+        if (name == "EmptyExplicit.java") found_empty_struct = true;
+        if (name == "EmptyMsg.java") found_empty_msg = true;
+    }
+    CHECK(found_empty_struct);
+    CHECK(found_empty_msg);
+}

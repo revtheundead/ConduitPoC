@@ -1057,3 +1057,46 @@ TEST_CASE("Python: generates output for major fixtures", "[codegen][python]") {
         CHECK(py.has_value());
     }
 }
+
+// ============================================================================
+// Float16 / variable-size float codegen tests
+// ============================================================================
+
+TEST_CASE("Python: float16 types generate read_f16/write_f16", "[python][float]") {
+    auto py = gen_python("float16_types.bmdl.xml");
+    REQUIRE(py.has_value());
+
+    // bit_io.py should have read_f16 and write_f16
+    REQUIRE(py->files.count("bit_io.py"));
+    CHECK(py->files.at("bit_io.py").find("read_f16") != std::string::npos);
+    CHECK(py->files.at("bit_io.py").find("write_f16") != std::string::npos);
+
+    // The generated messages.py should use read_f16/write_f16
+    bool found_f16_read = false;
+    bool found_f16_write = false;
+    for (const auto& [name, content] : py->files) {
+        if (content.find("read_f16") != std::string::npos) found_f16_read = true;
+        if (content.find("write_f16") != std::string::npos) found_f16_write = true;
+    }
+    CHECK(found_f16_read);
+    CHECK(found_f16_write);
+}
+
+// ============================================================================
+// Empty struct / message codegen tests
+// ============================================================================
+
+TEST_CASE("Python: empty struct with <empty/> generates valid code", "[python][empty]") {
+    auto py = gen_python("empty_struct_explicit.bmdl.xml");
+    REQUIRE(py.has_value());
+
+    // structs.py should contain EmptyExplicit
+    bool found_empty_struct = false;
+    bool found_empty_msg = false;
+    for (const auto& [name, content] : py->files) {
+        if (content.find("EmptyExplicit") != std::string::npos) found_empty_struct = true;
+        if (content.find("EmptyMsg") != std::string::npos) found_empty_msg = true;
+    }
+    CHECK(found_empty_struct);
+    CHECK(found_empty_msg);
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>empty_struct_no_tag</namespace>
+    <endian>big</endian>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <struct name="ImplicitlyEmpty">
+    </struct>
+  </types>
+  <messages>
+    <message name="ImplicitlyEmptyMsg" id="0x01">
+    </message>
+    <message name="NonEmptyMsg" id="0x02">
+      <field name="value" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

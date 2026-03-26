@@ -966,7 +966,7 @@ TEST_CASE("Duplicate case name in choice rejected (P4)", "[validator]") {
     CHECK(found);
 }
 
-TEST_CASE("Float with non-32/64 bits rejected (P5)", "[validator]") {
+TEST_CASE("Float with zero bits rejected (P5)", "[validator]") {
     auto build_result = bgen::model::build_protocol(fixture_path("invalid_float_bits.bmdl.xml"));
     REQUIRE(build_result.has_value());
     auto& protocol = *build_result;
@@ -979,7 +979,7 @@ TEST_CASE("Float with non-32/64 bits rejected (P5)", "[validator]") {
     REQUIRE_FALSE(validate_result.has_value());
     bool found = false;
     for (const auto& e : validate_result.error()) {
-        if (e.message.find("float must be 32 or 64") != std::string::npos) {
+        if (e.message.find("must have bits > 0") != std::string::npos) {
             found = true;
             break;
         }
@@ -1542,7 +1542,7 @@ TEST_CASE("Inline enum id exceeding field bit range rejected", "[validator]") {
 // Inline base attribute validation
 // ============================================================================
 
-TEST_CASE("Inline float with non-32/64 bits rejected", "[validator][inline]") {
+TEST_CASE("Inline float without bits rejected", "[validator][inline]") {
     auto build_result = bgen::model::build_protocol(fixture_path("invalid_inline_float_bits.bmdl.xml"));
     REQUIRE(build_result.has_value());
     auto& protocol = *build_result;
@@ -1556,7 +1556,7 @@ TEST_CASE("Inline float with non-32/64 bits rejected", "[validator][inline]") {
     bool found = false;
     for (const auto& e : validate_result.error()) {
         if (e.message.find("float") != std::string::npos &&
-            e.message.find("32 or 64") != std::string::npos) {
+            e.message.find("requires bits > 0") != std::string::npos) {
             found = true;
             break;
         }
@@ -2409,4 +2409,84 @@ TEST_CASE("Duplicate typeName on choice element rejected", "[validator][type_nam
         }
     }
     CHECK(found);
+}
+
+// ============================================================================
+// Float16 / variable-size float validation tests
+// ============================================================================
+
+TEST_CASE("Float16 type passes validation", "[validator][float]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("float16_types.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+}
+
+// ============================================================================
+// Empty struct / message with <empty/> tag tests
+// ============================================================================
+
+TEST_CASE("Explicit empty struct with <empty/> passes validation", "[validator][empty]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("empty_struct_explicit.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+
+    // Verify the has_explicit_empty flags were set
+    bool found_empty_struct = false;
+    bool found_empty_msg = false;
+    for (const auto& s : protocol.structs) {
+        if (s.name == "EmptyExplicit") {
+            CHECK(s.has_explicit_empty);
+            CHECK(s.children.empty());
+            found_empty_struct = true;
+        }
+    }
+    for (const auto& m : protocol.messages) {
+        if (m.name == "EmptyMsg") {
+            CHECK(m.has_explicit_empty);
+            CHECK(m.children.empty());
+            found_empty_msg = true;
+        }
+    }
+    CHECK(found_empty_struct);
+    CHECK(found_empty_msg);
+}
+
+TEST_CASE("Empty struct without <empty/> still passes but warns", "[validator][empty]") {
+    auto build_result = bgen::model::build_protocol(fixture_path("empty_struct_no_tag.bmdl.xml"));
+    REQUIRE(build_result.has_value());
+    auto& protocol = *build_result;
+
+    auto resolve_result = bgen::analyzer::resolve_types(protocol);
+    REQUIRE(resolve_result.has_value());
+    auto& index = *resolve_result;
+
+    // Validation still passes (empty structs are warnings, not errors)
+    auto validate_result = bgen::analyzer::validate(protocol, index);
+    CHECK(validate_result.has_value());
+
+    // Verify the has_explicit_empty flag is NOT set
+    for (const auto& s : protocol.structs) {
+        if (s.name == "ImplicitlyEmpty") {
+            CHECK_FALSE(s.has_explicit_empty);
+        }
+    }
+    for (const auto& m : protocol.messages) {
+        if (m.name == "ImplicitlyEmptyMsg") {
+            CHECK_FALSE(m.has_explicit_empty);
+        }
+    }
 }

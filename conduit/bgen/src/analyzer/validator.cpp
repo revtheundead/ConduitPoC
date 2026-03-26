@@ -316,12 +316,8 @@ private:
             error(t.loc, "type '" + t.name + "': numeric types (int, uint, float) must have bits > 0");
         }
 
-        // Float types must be exactly 32 or 64 bits
-        if (t.base == model::PrimitiveBase::Float && t.bits != 0 &&
-            t.bits != 32 && t.bits != 64) {
-            error(t.loc, "type '" + t.name + "': float must be 32 or 64 bits, got " +
-                  std::to_string(t.bits));
-        }
+        // Float types must have a valid bit width (any positive value is allowed)
+        // Common widths: 16 (half), 32 (single), 64 (double)
 
         // Enum validation
         if (!t.enum_values.empty()) {
@@ -490,7 +486,7 @@ private:
             error(s.loc, "struct '" + s.name + "': typeName is not valid on top-level struct definitions "
                   "(typeName overrides the generated class name for inline definitions only)");
         }
-        if (s.children.empty()) {
+        if (s.children.empty() && !s.has_explicit_empty) {
             Logger::warn(s.loc.to_string() + ": struct '" + s.name + "' has no fields");
         }
         validate_children(s.children, s.is_bitmap, s.name, false, false);
@@ -586,7 +582,7 @@ private:
             if (!m.name.empty()) {
                 check_cpp_name_valid(m.loc, m.name, "message");
             }
-            if (m.children.empty()) {
+            if (m.children.empty() && !m.has_explicit_empty) {
                 Logger::warn(m.loc.to_string() + ": message '" + m.name + "' has no fields");
             }
             // Messages are top-level bounded containers (wire size known)
@@ -892,8 +888,8 @@ private:
         if (f.base) {
             switch (*f.base) {
                 case model::PrimitiveBase::Float:
-                    if (!f.bits || (*f.bits != 32 && *f.bits != 64)) {
-                        error(f.loc, "field '" + f.name + "': base=\"float\" requires bits of exactly 32 or 64");
+                    if (!f.bits || *f.bits <= 0) {
+                        error(f.loc, "field '" + f.name + "': base=\"float\" requires bits > 0");
                     }
                     if (f.is_signed) {
                         error(f.loc, "field '" + f.name + "': base=\"float\" cannot combine with signed");

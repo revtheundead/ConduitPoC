@@ -110,7 +110,7 @@ The `base` attribute allows defining a field's primitive type inline, without a 
 
 | Base | Description | Required attributes |
 |------|-------------|-------------------|
-| `float` | IEEE 754 float | `bits` (exactly 32 or 64) |
+| `float` | IEEE 754 float | `bits` > 0 (16=half, 32=single, 64=double natively supported) |
 | `int` | Signed integer | `bits` |
 | `uint` | Unsigned integer | `bits` |
 | `string` | Character string | `length`, or `length-from`/`terminated` |
