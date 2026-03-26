@@ -607,8 +607,10 @@ std::string j_read_expr(const JFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.readSignMagnitude(" + std::to_string(fi.bits) + ")";
     bool be = (fi.endian == model::Endian::Big);
     if (fi.is_float) {
+        if (fi.bits == 16) return std::string("r.readF16(") + (be ? "true" : "false") + ")";
         if (fi.bits <= 32) return std::string("r.readF32(") + (be ? "true" : "false") + ")";
-        return std::string("r.readF64(") + (be ? "true" : "false") + ")";
+        if (fi.bits <= 64) return std::string("r.readF64(") + (be ? "true" : "false") + ")";
+        return "r.readBits(" + std::to_string(fi.bits) + ")";
     }
     if (byte_aligned) {
         if (fi.bits == 8 && !fi.is_signed) return "r.readU8()";
@@ -630,8 +632,10 @@ std::string j_write_stmt(const std::string& val, const JFieldInfo& fi, bool byte
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "w.writeSignMagnitude(" + val + ", " + std::to_string(fi.bits) + ")";
     bool be = (fi.endian == model::Endian::Big);
     if (fi.is_float) {
+        if (fi.bits == 16) return std::string("w.writeF16(") + val + ", " + (be ? "true" : "false") + ")";
         if (fi.bits <= 32) return std::string("w.writeF32(") + val + ", " + (be ? "true" : "false") + ")";
-        return std::string("w.writeF64(") + val + ", " + (be ? "true" : "false") + ")";
+        if (fi.bits <= 64) return std::string("w.writeF64(") + val + ", " + (be ? "true" : "false") + ")";
+        return "w.writeBits(" + val + ", " + std::to_string(fi.bits) + ")";
     }
     // bool must be checked before bit-width checks since (int)boolean is illegal in Java
     if (fi.is_bool) return "w.writeBits(" + val + " ? 1 : 0, " + std::to_string(fi.bits) + ")";
@@ -754,6 +758,18 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.indent();
     ctx.line("byte[] b = new byte[8]; for (int i=0;i<8;i++) b[i]=(byte)readBits(8);");
     ctx.line("return ByteBuffer.wrap(b).order(bigEndian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN).getLong();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line("public float readF16(boolean bigEndian) {");
+    ctx.indent();
+    ctx.line("int raw = (int) readBits(16);");
+    ctx.line("if (!bigEndian) raw = ((raw & 0xFF) << 8) | ((raw >> 8) & 0xFF);");
+    ctx.line("int sign = (raw & 0x8000) << 16;");
+    ctx.line("int exp = (raw >> 10) & 0x1F;");
+    ctx.line("int mant = raw & 0x03FF;");
+    ctx.line("if (exp == 0) { if (mant == 0) return Float.intBitsToFloat(sign); exp = 1; while ((mant & 0x0400) == 0) { mant <<= 1; exp--; } mant &= ~0x0400; exp += (127 - 15); return Float.intBitsToFloat(sign | (exp << 23) | (mant << 13)); }");
+    ctx.line("if (exp == 31) return Float.intBitsToFloat(sign | 0x7F800000 | (mant << 13));");
+    ctx.line("return Float.intBitsToFloat(sign | ((exp + 112) << 23) | (mant << 13));");
     ctx.dedent();
     ctx.line("}");
     ctx.line("public float readF32(boolean bigEndian) {");
@@ -936,6 +952,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("public void writeU16(int v, boolean be) { byte[] b = new byte[2]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putShort((short)v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeU32(int v, boolean be) { byte[] b = new byte[4]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putInt(v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeU64(long v, boolean be) { byte[] b = new byte[8]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putLong(v); for (byte x:b) writeBits(x&0xFF,8); }");
+    ctx.line("public void writeF16(float v, boolean be) { int fb = Float.floatToRawIntBits(v); int sign = (fb >> 16) & 0x8000; int exp = ((fb >> 23) & 0xFF) - 127 + 15; int mant = fb & 0x007FFFFF; int h; if (((fb >> 23) & 0xFF) == 255) h = sign | 0x7C00 | (mant != 0 ? 0x0200 : 0); else if (exp >= 31) h = sign | 0x7C00; else if (exp <= 0) { if (exp < -10) h = sign; else { mant |= 0x00800000; int shift = 1 - exp; h = sign | (mant >> (13 + shift)); } } else h = sign | (exp << 10) | (mant >> 13); if (be) { writeBits((h >> 8) & 0xFF, 8); writeBits(h & 0xFF, 8); } else { writeBits(h & 0xFF, 8); writeBits((h >> 8) & 0xFF, 8); } }");
     ctx.line("public void writeF32(float v, boolean be) { byte[] b = new byte[4]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putFloat(v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeF64(double v, boolean be) { byte[] b = new byte[8]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putDouble(v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeString(String s, int len, int pad) {");
@@ -2575,7 +2592,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                 else read = "(int) r.readBits(" + std::to_string(bf.bits) + ")";
             }
             if (bf.is_float) {
-                if (bf.bits == 32) read = "r.readF32(" + be + ")";
+                if (bf.bits == 16) read = "r.readF16(" + be + ")";
+                else if (bf.bits <= 32) read = "r.readF32(" + be + ")";
                 else read = "r.readF64(" + be + ")";
             }
             ctx.line(m + " = " + read + ";");
@@ -2685,7 +2703,8 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         } else {
             std::string be = (bf.endian == model::Endian::Big) ? "true" : "false";
             if (bf.is_float) {
-                if (bf.bits == 32) ctx.line("w.writeF32(" + m + ", " + be + ");");
+                if (bf.bits == 16) ctx.line("w.writeF16(" + m + ", " + be + ");");
+                else if (bf.bits <= 32) ctx.line("w.writeF32(" + m + ", " + be + ");");
                 else ctx.line("w.writeF64(" + m + ", " + be + ");");
             } else if (bf.wire_enc == model::WireEncoding::BCD) {
                 ctx.line("w.writeBcd(" + m + ", " + std::to_string(bf.bits) + ");");

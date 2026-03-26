@@ -707,6 +707,10 @@ class BitReader:
         b = bytes([self.read_bits(8) for _ in range(8)])
         return struct.unpack('>q' if big_endian else '<q', b)[0]
 
+    def read_f16(self, big_endian: bool = True) -> float:
+        b = bytes([self.read_bits(8) for _ in range(2)])
+        return struct.unpack('>e' if big_endian else '<e', b)[0]
+
     def read_f32(self, big_endian: bool = True) -> float:
         b = bytes([self.read_bits(8) for _ in range(4)])
         return struct.unpack('>f' if big_endian else '<f', b)[0]
@@ -854,6 +858,10 @@ class BitWriter:
     def write_u64(self, value: int, big_endian: bool = True) -> None:
         b = struct.pack('>Q' if big_endian else '<Q', value & 0xFFFFFFFFFFFFFFFF)
         for byte in b:
+            self.write_bits(byte, 8)
+
+    def write_f16(self, value: float, big_endian: bool = True) -> None:
+        for byte in struct.pack('>e' if big_endian else '<e', value):
             self.write_bits(byte, 8)
 
     def write_f32(self, value: float, big_endian: bool = True) -> None:
@@ -1258,7 +1266,12 @@ std::string py_read_expr(const PyFieldInfo& fi, bool byte_aligned = true) {
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "r.read_bcd_signed(" + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "r.read_sign_magnitude(" + std::to_string(fi.bits) + ")";
     std::string be = (fi.endian == model::Endian::Big) ? "True" : "False";
-    if (fi.is_float) return (fi.bits <= 32) ? "r.read_f32(" + be + ")" : "r.read_f64(" + be + ")";
+    if (fi.is_float) {
+        if (fi.bits == 16) return "r.read_f16(" + be + ")";
+        if (fi.bits <= 32) return "r.read_f32(" + be + ")";
+        if (fi.bits <= 64) return "r.read_f64(" + be + ")";
+        return "r.read_bits(" + std::to_string(fi.bits) + ")";
+    }
     // Byte-optimized reads (read_u8, read_u16, etc.) auto-align to byte
     // boundaries, which corrupts data when the reader is mid-byte.
     // Only use them when we know the position is byte-aligned.
@@ -1281,7 +1294,12 @@ std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi, bool by
     if (fi.wire_enc == model::WireEncoding::BCD_S) return "w.write_bcd_signed(" + val + ", " + std::to_string(fi.bits) + ")";
     if (fi.wire_enc == model::WireEncoding::BNR_S) return "w.write_sign_magnitude(" + val + ", " + std::to_string(fi.bits) + ")";
     std::string be = (fi.endian == model::Endian::Big) ? "True" : "False";
-    if (fi.is_float) return (fi.bits <= 32) ? "w.write_f32(" + val + ", " + be + ")" : "w.write_f64(" + val + ", " + be + ")";
+    if (fi.is_float) {
+        if (fi.bits == 16) return "w.write_f16(" + val + ", " + be + ")";
+        if (fi.bits <= 32) return "w.write_f32(" + val + ", " + be + ")";
+        if (fi.bits <= 64) return "w.write_f64(" + val + ", " + be + ")";
+        return "w.write_bits(" + val + ", " + std::to_string(fi.bits) + ")";
+    }
     // bool must be checked before bit-width checks for correct encoding
     if (fi.is_bool) return "w.write_bits(1 if " + val + " else 0, " + std::to_string(fi.bits) + ")";
     if (byte_aligned) {
@@ -2665,7 +2683,8 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                 else read = "r.read_bits(" + std::to_string(bf.bits) + ")";
             }
             if (bf.is_float) {
-                if (bf.bits == 32) read = "r.read_f32(" + be + ")";
+                if (bf.bits == 16) read = "r.read_f16(" + be + ")";
+                else if (bf.bits <= 32) read = "r.read_f32(" + be + ")";
                 else read = "r.read_f64(" + be + ")";
             }
             ctx.line(m + " = " + read);
@@ -2762,7 +2781,8 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         } else {
             std::string be = (bf.endian == model::Endian::Big) ? "True" : "False";
             if (bf.is_float) {
-                if (bf.bits == 32) ctx.line("w.write_f32(" + m + ", " + be + ")");
+                if (bf.bits == 16) ctx.line("w.write_f16(" + m + ", " + be + ")");
+                else if (bf.bits <= 32) ctx.line("w.write_f32(" + m + ", " + be + ")");
                 else ctx.line("w.write_f64(" + m + ", " + be + ")");
             } else if (bf.wire_enc == model::WireEncoding::BCD) {
                 ctx.line("w.write_bcd(" + m + ", " + std::to_string(bf.bits) + ")");

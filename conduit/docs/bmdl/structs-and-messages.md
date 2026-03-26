@@ -184,6 +184,22 @@ Variable-size situations include: variable-length strings, variable-count arrays
 - Keep structs small and focused. Extract reusable sub-structures into `<types>` for clarity.
 - Use `inline="true"` on a field referencing a named struct to flatten its fields into the parent scope -- useful for logical grouping without creating a nested type in the API.
 
+## Explicitly Empty Structs and Messages
+
+A `<struct>` or `<message>` with no children normally produces a warning. If the empty content is intentional (e.g., a placeholder type, a message that carries only framing metadata, or a marker type), add the `<empty/>` tag to suppress the warning:
+
+```xml
+<struct name="Marker">
+  <empty/>
+</struct>
+
+<message name="Heartbeat" id="0xFF">
+  <empty/>
+</message>
+```
+
+Without `<empty/>`, the code generator emits a warning for every struct or message that has no fields. With `<empty/>`, the warning is suppressed and the intent is considered explicit.
+
 ## Common Pitfalls
 
 - Only `<message>` elements produce standalone byte-level encode/decode. Structs defined in `<types>` encode/decode within a bit stream only.

@@ -646,6 +646,11 @@ public:
         auto type_name_attr = node.attribute("typeName");
         if (type_name_attr) sd.type_name = type_name_attr.value();
 
+        // Check for <empty/> tag (explicit empty struct)
+        if (node.child("empty")) {
+            sd.has_explicit_empty = true;
+        }
+
         sd.children = parse_struct_children(node);
         sd.doc = get_doc(node);
         sd.annotations = parse_annotations(node);
@@ -964,6 +969,11 @@ public:
 
         md.direction = parse_direction(node);
 
+        // Check for <empty/> tag (explicit empty message)
+        if (node.child("empty")) {
+            md.has_explicit_empty = true;
+        }
+
         md.children = parse_struct_children(node);
         md.doc = get_doc(node);
         md.annotations = parse_annotations(node);
@@ -1103,7 +1113,7 @@ std::vector<model::StructChild> XmlParseContext::parse_struct_children(const pug
         } else if (name == "align") {
             children.push_back(parse_align(child));
         } else if (name != "doc" && name != "annotation" && name != "bitmap" &&
-                   !name.empty()) {
+                   name != "empty" && !name.empty()) {
             error(child, "unrecognized child element <" + std::string(name) + ">");
         }
     }

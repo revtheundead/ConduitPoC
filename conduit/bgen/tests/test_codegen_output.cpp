@@ -1199,3 +1199,44 @@ TEST_CASE("generated structs header includes bitset", "[codegen][format_binary]"
     // The messages header should include <bitset>
     CHECK(gc->messages.find("#include <bitset>") != std::string::npos);
 }
+
+// ============================================================================
+// Float16 / variable-size float codegen tests
+// ============================================================================
+
+TEST_CASE("C++ codegen: float16 types generate read_f16/write_f16", "[codegen][float]") {
+    auto gc = generate_from("float16_types.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Types should contain a float16 alias (maps to float since bits <= 32)
+    CHECK(gc->types.find("float16") != std::string::npos);
+
+    // Messages should contain read_f16 and write_f16 calls
+    CHECK(gc->messages.find("read_f16") != std::string::npos);
+    CHECK(gc->messages.find("write_f16") != std::string::npos);
+
+    // Should also contain read_f32 and read_f64 for the other float types
+    CHECK(gc->messages.find("read_f32") != std::string::npos);
+    CHECK(gc->messages.find("write_f32") != std::string::npos);
+    CHECK(gc->messages.find("read_f64") != std::string::npos);
+    CHECK(gc->messages.find("write_f64") != std::string::npos);
+}
+
+// ============================================================================
+// Empty struct / message codegen tests
+// ============================================================================
+
+TEST_CASE("C++ codegen: empty struct with <empty/> generates valid code", "[codegen][empty]") {
+    auto gc = generate_from("empty_struct_explicit.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    // Should contain the EmptyExplicit class
+    CHECK(gc->structs.find("EmptyExplicit") != std::string::npos);
+
+    // Should contain the EmptyMsg class
+    CHECK(gc->messages.find("EmptyMsg") != std::string::npos);
+
+    // Should also contain non-empty types
+    CHECK(gc->structs.find("NonEmpty") != std::string::npos);
+    CHECK(gc->messages.find("NonEmptyMsg") != std::string::npos);
+}

@@ -250,6 +250,12 @@ void BitWriter::write_u64(uint64_t value, Endian e) {
     bit_pos_ += 64;
 }
 
+void BitWriter::write_f16(float value, Endian e) {
+    if (error_) return;
+    uint16_t raw = io::f32_to_f16(value);
+    write_u16(raw, e);
+}
+
 void BitWriter::write_f32(float value, Endian e) {
     if (error_) return;
     uint32_t raw;

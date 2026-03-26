@@ -190,6 +190,17 @@ Result<uint64_t> BitReader::read_u64(Endian e) {
     return val;
 }
 
+Result<float> BitReader::read_f16(Endian e) {
+    align_to_byte();
+    if (byte_pos_ + 2 > data_.size()) {
+        return std::unexpected(CONDUIT_ERROR(
+            ErrorCode::BufferUnderrun, "read_f16: not enough data"));
+    }
+    float val = io::read_f16(data_, byte_pos_, e);
+    byte_pos_ += 2;
+    return val;
+}
+
 Result<float> BitReader::read_f32(Endian e) {
     align_to_byte();
     if (byte_pos_ + 4 > data_.size()) {

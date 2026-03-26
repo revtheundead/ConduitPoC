@@ -169,6 +169,90 @@ inline void write_u64(std::span<uint8_t> data, size_t offset, uint64_t value, En
 // Float/Double Conversions via memcpy (type-punning safe)
 // ============================================================================
 
+// ============================================================================
+// IEEE 754 half-precision (float16) conversion helpers
+// ============================================================================
+
+[[nodiscard]] inline float f16_to_f32(uint16_t h) noexcept {
+    uint32_t sign = (static_cast<uint32_t>(h) & 0x8000u) << 16;
+    uint32_t exp  = (h >> 10) & 0x1Fu;
+    uint32_t mant = h & 0x03FFu;
+
+    if (exp == 0) {
+        if (mant == 0) {
+            // +-zero
+            float result;
+            std::memcpy(&result, &sign, sizeof(float));
+            return result;
+        }
+        // Subnormal: normalize
+        while (!(mant & 0x0400u)) {
+            mant <<= 1;
+            exp--;
+        }
+        exp++;
+        mant &= ~0x0400u;
+        exp += (127 - 15);
+        uint32_t f = sign | (exp << 23) | (mant << 13);
+        float result;
+        std::memcpy(&result, &f, sizeof(float));
+        return result;
+    }
+    if (exp == 31) {
+        // Inf or NaN
+        uint32_t f = sign | 0x7F800000u | (mant << 13);
+        float result;
+        std::memcpy(&result, &f, sizeof(float));
+        return result;
+    }
+    // Normal
+    exp += (127 - 15);
+    uint32_t f = sign | (exp << 23) | (mant << 13);
+    float result;
+    std::memcpy(&result, &f, sizeof(float));
+    return result;
+}
+
+[[nodiscard]] inline uint16_t f32_to_f16(float value) noexcept {
+    uint32_t f;
+    std::memcpy(&f, &value, sizeof(float));
+
+    uint16_t sign = static_cast<uint16_t>((f >> 16) & 0x8000u);
+    int32_t exp   = static_cast<int32_t>((f >> 23) & 0xFFu) - 127 + 15;
+    uint32_t mant = f & 0x007FFFFFu;
+
+    if (((f >> 23) & 0xFFu) == 255) {
+        // Inf or NaN
+        return static_cast<uint16_t>(sign | 0x7C00u | (mant ? 0x0200u : 0));
+    }
+    if (exp >= 31) {
+        // Overflow -> Inf
+        return static_cast<uint16_t>(sign | 0x7C00u);
+    }
+    if (exp <= 0) {
+        if (exp < -10) {
+            // Too small -> zero
+            return sign;
+        }
+        // Subnormal
+        mant |= 0x00800000u;
+        uint32_t shift = static_cast<uint32_t>(1 - exp);
+        uint16_t h = static_cast<uint16_t>(sign | (mant >> (13 + shift)));
+        return h;
+    }
+    return static_cast<uint16_t>(sign | (static_cast<uint16_t>(exp) << 10) | static_cast<uint16_t>(mant >> 13));
+}
+
+[[nodiscard]] inline float read_f16(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
+    uint16_t raw = read_u16(data, offset, e);
+    return f16_to_f32(raw);
+}
+
+inline void write_f16(std::span<uint8_t> data, size_t offset, float value, Endian e) noexcept {
+    uint16_t raw = f32_to_f16(value);
+    write_u16(data, offset, raw, e);
+}
+
 [[nodiscard]] inline float read_f32(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
     uint32_t raw = read_u32(data, offset, e);
     float result;

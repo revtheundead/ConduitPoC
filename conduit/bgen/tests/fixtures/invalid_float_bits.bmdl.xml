@@ -3,7 +3,7 @@
     <namespace>invalid_float_bits</namespace>
   </defaults>
   <types>
-    <type name="bad-float" base="float" bits="16"/>
+    <type name="bad-float" base="float" bits="0"/>
   </types>
   <messages>
     <message name="Msg">

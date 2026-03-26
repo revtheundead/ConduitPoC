@@ -1547,3 +1547,57 @@ TEST_CASE("BitWriter first error is sticky", "[bit_writer][error]") {
     writer.write_bcd(0, 5);  // Another bad call — should not overwrite
     CHECK(writer.error().code() == conduit::ErrorCode::EncodingFailed);
 }
+
+// ============================================================================
+// Float16 (half-precision) write tests
+// ============================================================================
+
+TEST_CASE("BitWriter write_f16 basic (big endian)", "[bit_writer][float16]") {
+    // 1.0f in half-precision big-endian = 0x3C, 0x00
+    BitWriter writer;
+    writer.write_f16(1.0f, Endian::Big);
+    auto data = writer.finish();
+    REQUIRE(data.has_value());
+    REQUIRE(data->size() == 2);
+    CHECK((*data)[0] == 0x3C);
+    CHECK((*data)[1] == 0x00);
+}
+
+TEST_CASE("BitWriter write_f16 negative value (big endian)", "[bit_writer][float16]") {
+    // -1.0f in half-precision big-endian = 0xBC, 0x00
+    BitWriter writer;
+    writer.write_f16(-1.0f, Endian::Big);
+    auto data = writer.finish();
+    REQUIRE(data.has_value());
+    REQUIRE(data->size() == 2);
+    CHECK((*data)[0] == 0xBC);
+    CHECK((*data)[1] == 0x00);
+}
+
+TEST_CASE("BitWriter write_f16 little endian", "[bit_writer][float16]") {
+    // 1.0f in half-precision little-endian = 0x00, 0x3C
+    BitWriter writer;
+    writer.write_f16(1.0f, Endian::Little);
+    auto data = writer.finish();
+    REQUIRE(data.has_value());
+    REQUIRE(data->size() == 2);
+    CHECK((*data)[0] == 0x00);
+    CHECK((*data)[1] == 0x3C);
+}
+
+TEST_CASE("BitWriter/BitReader f16 roundtrip", "[bit_writer][bit_reader][float16]") {
+    using namespace conduit::io;
+    const float values[] = {0.0f, 1.0f, -1.0f, 0.5f, 100.0f, -3.14f};
+    for (float v : values) {
+        BitWriter writer;
+        writer.write_f16(v, Endian::Big);
+        auto data = writer.finish();
+        REQUIRE(data.has_value());
+
+        BitReader reader(*data);
+        auto result = reader.read_f16(Endian::Big);
+        REQUIRE(result.has_value());
+        // f16 has ~3 decimal digits of precision
+        CHECK_THAT(*result, Catch::Matchers::WithinRel(v, 0.01f));
+    }
+}

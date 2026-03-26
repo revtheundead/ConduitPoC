@@ -1093,3 +1093,51 @@ TEST_CASE("BitReader read_bcd_signed with invalid digit returns error", "[bit_re
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code() == conduit::ErrorCode::InvalidArgument);
 }
+
+// ============================================================================
+// Float16 (half-precision) read/write tests
+// ============================================================================
+
+TEST_CASE("BitReader read_f16 basic values (big endian)", "[bit_reader][float16]") {
+    // IEEE 754 half-precision: 1.0 = 0x3C00
+    std::array<uint8_t, 2> data = {0x3C, 0x00};
+    BitReader reader(data);
+    auto result = reader.read_f16(Endian::Big);
+    REQUIRE(result.has_value());
+    CHECK_THAT(*result, Catch::Matchers::WithinRel(1.0f, 0.001f));
+}
+
+TEST_CASE("BitReader read_f16 negative value (big endian)", "[bit_reader][float16]") {
+    // -1.0 = 0xBC00
+    std::array<uint8_t, 2> data = {0xBC, 0x00};
+    BitReader reader(data);
+    auto result = reader.read_f16(Endian::Big);
+    REQUIRE(result.has_value());
+    CHECK_THAT(*result, Catch::Matchers::WithinRel(-1.0f, 0.001f));
+}
+
+TEST_CASE("BitReader read_f16 little endian", "[bit_reader][float16]") {
+    // 1.0 in little-endian = 0x00, 0x3C
+    std::array<uint8_t, 2> data = {0x00, 0x3C};
+    BitReader reader(data);
+    auto result = reader.read_f16(Endian::Little);
+    REQUIRE(result.has_value());
+    CHECK_THAT(*result, Catch::Matchers::WithinRel(1.0f, 0.001f));
+}
+
+TEST_CASE("BitReader read_f16 zero", "[bit_reader][float16]") {
+    // +0.0 = 0x0000
+    std::array<uint8_t, 2> data = {0x00, 0x00};
+    BitReader reader(data);
+    auto result = reader.read_f16(Endian::Big);
+    REQUIRE(result.has_value());
+    CHECK(*result == 0.0f);
+}
+
+TEST_CASE("BitReader read_f16 buffer underrun", "[bit_reader][float16][error]") {
+    std::array<uint8_t, 1> data = {0x3C};
+    BitReader reader(data);
+    auto result = reader.read_f16(Endian::Big);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code() == conduit::ErrorCode::BufferUnderrun);
+}
