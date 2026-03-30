@@ -220,7 +220,7 @@ Read multi-byte values directly from a byte buffer without constructing a `BitRe
 | `read_u16(span, offset, Endian)` | `uint16_t` | Read 2 bytes |
 | `read_u32(span, offset, Endian)` | `uint32_t` | Read 4 bytes |
 | `read_u64(span, offset, Endian)` | `uint64_t` | Read 8 bytes |
-| `read_f16(span, offset, Endian)` | `float` | Read IEEE 754 half-precision float (via `memcpy`) |
+| `read_f16(span, offset, Endian)` | `float` | Read IEEE 754 half-precision float (via f16→f32 conversion) |
 | `read_f32(span, offset, Endian)` | `float` | Read IEEE 754 single-precision float (via `memcpy`) |
 | `read_f64(span, offset, Endian)` | `double` | Read IEEE 754 double-precision float (via `memcpy`) |
 
@@ -235,7 +235,7 @@ Write multi-byte values directly to a byte buffer without constructing a `BitWri
 | `write_u16(span, offset, uint16_t, Endian)` | Write 2 bytes |
 | `write_u32(span, offset, uint32_t, Endian)` | Write 4 bytes |
 | `write_u64(span, offset, uint64_t, Endian)` | Write 8 bytes |
-| `write_f16(span, offset, float, Endian)` | Write IEEE 754 half-precision float (via `memcpy`) |
+| `write_f16(span, offset, float, Endian)` | Write IEEE 754 half-precision float (via f32→f16 conversion) |
 | `write_f32(span, offset, float, Endian)` | Write IEEE 754 single-precision float (via `memcpy`) |
 | `write_f64(span, offset, double, Endian)` | Write IEEE 754 double-precision float (via `memcpy`) |
 

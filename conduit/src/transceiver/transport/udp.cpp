@@ -217,8 +217,13 @@ void UdpTransport::stop() {
     }
 
     // Also notify single-peer mode disconnect
-    if (impl_->single_peer && impl_->callbacks.on_state_changed && impl_->peer_id.valid()) {
-        impl_->callbacks.on_state_changed(impl_->peer_id, net::ConnectionState::Disconnected);
+    if (impl_->single_peer && impl_->peer_id.valid()) {
+        if (impl_->callbacks.on_state_changed) {
+            impl_->callbacks.on_state_changed(impl_->peer_id, net::ConnectionState::Disconnected);
+        }
+        if (impl_->callbacks.on_peer_disconnected) {
+            impl_->callbacks.on_peer_disconnected(impl_->peer_id);
+        }
     }
 
     close_wake_pipe(impl_->wake);
@@ -457,6 +462,11 @@ PeerId UdpTransport::Impl::resolve_peer(const sockaddr_in& addr) {
                 callbacks.on_peer_disconnected(new_id);
             }
             return PeerId{};
+        }
+
+        // Notify Connected state for the new multi-peer peer
+        if (callbacks.on_state_changed) {
+            callbacks.on_state_changed(new_id, net::ConnectionState::Connected);
         }
     }
 
