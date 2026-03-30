@@ -243,6 +243,79 @@ inline void write_u64(std::span<uint8_t> data, size_t offset, uint64_t value, En
     return static_cast<uint16_t>(sign | (static_cast<uint16_t>(exp) << 10) | static_cast<uint16_t>(mant >> 13));
 }
 
+// ============================================================================
+// IEEE 754 48-bit (truncated double) conversion helpers
+//
+// 48-bit floats use the same format as 64-bit doubles but truncate the
+// mantissa: sign(1) + exponent(11) + mantissa(36) = 48 bits.
+// The bottom 16 bits of the 52-bit mantissa are dropped on write and
+// zero-filled on read.
+// ============================================================================
+
+[[nodiscard]] inline double f48_to_f64(uint64_t h48) noexcept {
+    // Shift the 48-bit value into the top 48 bits of a 64-bit double,
+    // zero-filling the bottom 16 bits.
+    uint64_t d = h48 << 16;
+    double result;
+    std::memcpy(&result, &d, sizeof(double));
+    return result;
+}
+
+[[nodiscard]] inline uint64_t f64_to_f48(double value) noexcept {
+    uint64_t d;
+    std::memcpy(&d, &value, sizeof(double));
+    // Take the top 48 bits (sign + exponent + top 36 mantissa bits)
+    return d >> 16;
+}
+
+inline void write_u48(std::span<uint8_t> data, size_t offset, uint64_t value, Endian e) noexcept {
+    if (offset + 6 > data.size()) return;
+    if (e == Endian::Big) {
+        data[offset]     = static_cast<uint8_t>((value >> 40) & 0xFF);
+        data[offset + 1] = static_cast<uint8_t>((value >> 32) & 0xFF);
+        data[offset + 2] = static_cast<uint8_t>((value >> 24) & 0xFF);
+        data[offset + 3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+        data[offset + 4] = static_cast<uint8_t>((value >> 8) & 0xFF);
+        data[offset + 5] = static_cast<uint8_t>(value & 0xFF);
+    } else {
+        data[offset]     = static_cast<uint8_t>(value & 0xFF);
+        data[offset + 1] = static_cast<uint8_t>((value >> 8) & 0xFF);
+        data[offset + 2] = static_cast<uint8_t>((value >> 16) & 0xFF);
+        data[offset + 3] = static_cast<uint8_t>((value >> 24) & 0xFF);
+        data[offset + 4] = static_cast<uint8_t>((value >> 32) & 0xFF);
+        data[offset + 5] = static_cast<uint8_t>((value >> 40) & 0xFF);
+    }
+}
+
+[[nodiscard]] inline uint64_t read_u48(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
+    if (offset + 6 > data.size()) return 0;
+    if (e == Endian::Big) {
+        return (static_cast<uint64_t>(data[offset])     << 40) |
+               (static_cast<uint64_t>(data[offset + 1]) << 32) |
+               (static_cast<uint64_t>(data[offset + 2]) << 24) |
+               (static_cast<uint64_t>(data[offset + 3]) << 16) |
+               (static_cast<uint64_t>(data[offset + 4]) << 8)  |
+                static_cast<uint64_t>(data[offset + 5]);
+    } else {
+        return (static_cast<uint64_t>(data[offset + 5]) << 40) |
+               (static_cast<uint64_t>(data[offset + 4]) << 32) |
+               (static_cast<uint64_t>(data[offset + 3]) << 24) |
+               (static_cast<uint64_t>(data[offset + 2]) << 16) |
+               (static_cast<uint64_t>(data[offset + 1]) << 8)  |
+                static_cast<uint64_t>(data[offset]);
+    }
+}
+
+[[nodiscard]] inline double read_f48(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
+    uint64_t raw = read_u48(data, offset, e);
+    return f48_to_f64(raw);
+}
+
+inline void write_f48(std::span<uint8_t> data, size_t offset, double value, Endian e) noexcept {
+    uint64_t raw = f64_to_f48(value);
+    write_u48(data, offset, raw, e);
+}
+
 [[nodiscard]] inline float read_f16(std::span<const uint8_t> data, size_t offset, Endian e) noexcept {
     uint16_t raw = read_u16(data, offset, e);
     return f16_to_f32(raw);

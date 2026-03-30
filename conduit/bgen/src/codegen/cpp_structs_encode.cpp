@@ -11,6 +11,13 @@ namespace bgen::codegen {
 // ========================================================================
 
 void StructEmitter::emit_encode(const std::vector<model::StructChild>& children) {
+    // Empty struct/message: trivial encode with no-op
+    if (children.empty()) {
+        ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& /*w*/) const { return {}; }");
+        ctx_.line();
+        return;
+    }
+
     ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
     ctx_.indent();
     reset_alignment();

@@ -609,6 +609,7 @@ std::string j_read_expr(const JFieldInfo& fi, bool byte_aligned = true) {
     if (fi.is_float) {
         if (fi.bits == 16) return std::string("r.readF16(") + (be ? "true" : "false") + ")";
         if (fi.bits <= 32) return std::string("r.readF32(") + (be ? "true" : "false") + ")";
+        if (fi.bits <= 48) return std::string("r.readF48(") + (be ? "true" : "false") + ")";
         if (fi.bits <= 64) return std::string("r.readF64(") + (be ? "true" : "false") + ")";
         return "r.readBits(" + std::to_string(fi.bits) + ")";
     }
@@ -634,6 +635,7 @@ std::string j_write_stmt(const std::string& val, const JFieldInfo& fi, bool byte
     if (fi.is_float) {
         if (fi.bits == 16) return std::string("w.writeF16(") + val + ", " + (be ? "true" : "false") + ")";
         if (fi.bits <= 32) return std::string("w.writeF32(") + val + ", " + (be ? "true" : "false") + ")";
+        if (fi.bits <= 48) return std::string("w.writeF48(") + val + ", " + (be ? "true" : "false") + ")";
         if (fi.bits <= 64) return std::string("w.writeF64(") + val + ", " + (be ? "true" : "false") + ")";
         return "w.writeBits(" + val + ", " + std::to_string(fi.bits) + ")";
     }
@@ -776,6 +778,14 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.indent();
     ctx.line("byte[] b = new byte[4]; for (int i=0;i<4;i++) b[i]=(byte)readBits(8);");
     ctx.line("return ByteBuffer.wrap(b).order(bigEndian ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN).getFloat();");
+    ctx.dedent();
+    ctx.line("}");
+    ctx.line("public double readF48(boolean bigEndian) {");
+    ctx.indent();
+    ctx.line("byte[] b = new byte[6]; for (int i=0;i<6;i++) b[i]=(byte)readBits(8);");
+    ctx.line("if (!bigEndian) { for (int i=0;i<3;i++) { byte t=b[i]; b[i]=b[5-i]; b[5-i]=t; } }");
+    ctx.line("long raw = 0; for (int i=0;i<6;i++) raw = (raw<<8)|(b[i]&0xFF);");
+    ctx.line("return Double.longBitsToDouble(raw << 16);");
     ctx.dedent();
     ctx.line("}");
     ctx.line("public double readF64(boolean bigEndian) {");
@@ -954,6 +964,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("public void writeU64(long v, boolean be) { byte[] b = new byte[8]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putLong(v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeF16(float v, boolean be) { int fb = Float.floatToRawIntBits(v); int sign = (fb >> 16) & 0x8000; int exp = ((fb >> 23) & 0xFF) - 127 + 15; int mant = fb & 0x007FFFFF; int h; if (((fb >> 23) & 0xFF) == 255) h = sign | 0x7C00 | (mant != 0 ? 0x0200 : 0); else if (exp >= 31) h = sign | 0x7C00; else if (exp <= 0) { if (exp < -10) h = sign; else { mant |= 0x00800000; int shift = 1 - exp; h = sign | (mant >> (13 + shift)); } } else h = sign | (exp << 10) | (mant >> 13); if (be) { writeBits((h >> 8) & 0xFF, 8); writeBits(h & 0xFF, 8); } else { writeBits(h & 0xFF, 8); writeBits((h >> 8) & 0xFF, 8); } }");
     ctx.line("public void writeF32(float v, boolean be) { byte[] b = new byte[4]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putFloat(v); for (byte x:b) writeBits(x&0xFF,8); }");
+    ctx.line("public void writeF48(double v, boolean be) { long raw = Double.doubleToRawLongBits(v) >>> 16; byte[] b = new byte[6]; for (int i=5;i>=0;i--) { b[i]=(byte)(raw&0xFF); raw>>>=8; } if (!be) { for (int i=0;i<3;i++) { byte t=b[i]; b[i]=b[5-i]; b[5-i]=t; } } for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeF64(double v, boolean be) { byte[] b = new byte[8]; ByteBuffer.wrap(b).order(be?ByteOrder.BIG_ENDIAN:ByteOrder.LITTLE_ENDIAN).putDouble(v); for (byte x:b) writeBits(x&0xFF,8); }");
     ctx.line("public void writeString(String s, int len, int pad) {");
     ctx.indent();
@@ -2594,6 +2605,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             if (bf.is_float) {
                 if (bf.bits == 16) read = "r.readF16(" + be + ")";
                 else if (bf.bits <= 32) read = "r.readF32(" + be + ")";
+                else if (bf.bits <= 48) read = "r.readF48(" + be + ")";
                 else read = "r.readF64(" + be + ")";
             }
             ctx.line(m + " = " + read + ";");
@@ -2705,6 +2717,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
             if (bf.is_float) {
                 if (bf.bits == 16) ctx.line("w.writeF16(" + m + ", " + be + ");");
                 else if (bf.bits <= 32) ctx.line("w.writeF32(" + m + ", " + be + ");");
+                else if (bf.bits <= 48) ctx.line("w.writeF48(" + m + ", " + be + ");");
                 else ctx.line("w.writeF64(" + m + ", " + be + ");");
             } else if (bf.wire_enc == model::WireEncoding::BCD) {
                 ctx.line("w.writeBcd(" + m + ", " + std::to_string(bf.bits) + ");");
@@ -3127,13 +3140,17 @@ std::string generate_j_class(const std::string& name,
     }
 
     // decode
-    ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") {");
-    ctx.indent();
-    ctx.line(cn + " result = new " + cn + "();");
-    { JBitTracker decode_tracker; emit_j_decode_children(ctx, children, index, "result", decode_tracker, scope_map, outer_ctx, name_map, cn); }
-    ctx.line("return result;");
-    ctx.dedent();
-    ctx.line("}");
+    if (children.empty() && extra_fields.empty()) {
+        ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") { return new " + cn + "(); }");
+    } else {
+        ctx.line("public static " + cn + " decode(BitReader r" + decode_params + ") {");
+        ctx.indent();
+        ctx.line(cn + " result = new " + cn + "();");
+        { JBitTracker decode_tracker; emit_j_decode_children(ctx, children, index, "result", decode_tracker, scope_map, outer_ctx, name_map, cn); }
+        ctx.line("return result;");
+        ctx.dedent();
+        ctx.line("}");
+    }
     ctx.line();
 
     // decode from bytes (only when no outer-scope params — otherwise it's an inline type)
@@ -3143,6 +3160,9 @@ std::string generate_j_class(const std::string& name,
     }
 
     // encode - with auto-length backpatch support
+    if (children.empty() && extra_fields.empty()) {
+        ctx.line("public void encode(BitWriter w) {}");
+    } else {
     {
         // Check for auto-length fields
         const model::Field* auto_len_field = nullptr;
@@ -3212,6 +3232,7 @@ std::string generate_j_class(const std::string& name,
 
     // encodeBytes
     ctx.line("public byte[] encodeBytes() { BitWriter w = new BitWriter(); encode(w); return w.toBytes(); }");
+    } // end empty-struct else
     ctx.line();
 
     // toMap
@@ -3749,6 +3770,14 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                 }
             }
         }
+        // Set constraint-equals footer fields
+        for (const auto& child : frame.footer_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint && f->constraint->equals) {
+                    ctx.line("frame." + j_field(f->name) + " = " + j_qualify_const(*f->constraint->equals) + ";");
+                }
+            }
+        }
         // Set id field from message's ID_VALUE
         if (!si.id_field_name.empty()) {
             ctx.line("frame." + j_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE;");
@@ -3851,9 +3880,14 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
     for (const auto& child : frame.footer_fields) {
         if (auto* f = std::get_if<model::Field>(&child)) {
             auto fi = j_resolve_field(*f, index);
-            std::string val = "this." + j_field(f->name);
-            if (fi.is_enum) val = val + ".value";
-            ctx.line(j_write_stmt(val, fi) + ";");
+            if (f->constraint && f->constraint->equals) {
+                // Constraint-equals: always write the constraint value
+                ctx.line(j_write_stmt(j_qualify_const(*f->constraint->equals), fi) + ";");
+            } else {
+                std::string val = "this." + j_field(f->name);
+                if (fi.is_enum) val = val + ".value";
+                ctx.line(j_write_stmt(val, fi) + ";");
+            }
         } else if (auto* res = std::get_if<model::Reserved>(&child)) {
             ctx.line("w.writeBits(0, " + std::to_string(res->bits) + ");");
         }
@@ -4593,6 +4627,14 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                             }
                         }
                     }
+                    // Set constraint-equals footer fields
+                    for (const auto& fc : si.frame->footer_fields) {
+                        if (auto* f = std::get_if<model::Field>(&fc)) {
+                            if (f->constraint && f->constraint->equals) {
+                                ctx.line("frame." + j_field(f->name) + " = " + j_qualify_const(*f->constraint->equals) + ";");
+                            }
+                        }
+                    }
                 }
 
                 // Set id field
@@ -4951,6 +4993,44 @@ bool JavaBackend::generate(
                     }
                     tctx.dedent();
                     tctx.line("}");
+                } else if (t.base == model::PrimitiveBase::Float) {
+                    // Float TypeDef wrapper: use native float/double storage
+                    bool use_double = (t.bits > 32);
+                    std::string val_type = use_double ? "double" : "float";
+                    std::string be_str = "true"; // TypeDef wrappers default to big-endian
+                    j_emit_doc(tctx, t.doc);
+                    tctx.line("public final class " + name + " {");
+                    tctx.indent();
+                    tctx.line("private " + val_type + " raw;");
+                    tctx.line("public " + name + "() {}");
+                    tctx.line("public " + name + "(" + val_type + " raw) { this.raw = raw; }");
+                    tctx.line("public " + val_type + " raw() { return raw; }");
+                    tctx.line("public void setRaw(" + val_type + " v) { raw = v; }");
+                    tctx.line("public " + val_type + " value() { return raw; }");
+                    tctx.line("public void setValue(" + val_type + " v) { raw = v; }");
+                    // decode/encode using proper float read/write
+                    std::string rd_expr;
+                    std::string wr_stmt;
+                    if (t.bits == 16) {
+                        rd_expr = "r.readF16(" + be_str + ")";
+                        wr_stmt = "w.writeF16(raw, " + be_str + ")";
+                    } else if (t.bits <= 32) {
+                        rd_expr = "r.readF32(" + be_str + ")";
+                        wr_stmt = "w.writeF32(raw, " + be_str + ")";
+                    } else if (t.bits <= 48) {
+                        rd_expr = "r.readF48(" + be_str + ")";
+                        wr_stmt = "w.writeF48(raw, " + be_str + ")";
+                    } else if (t.bits <= 64) {
+                        rd_expr = "r.readF64(" + be_str + ")";
+                        wr_stmt = "w.writeF64(raw, " + be_str + ")";
+                    } else {
+                        rd_expr = "r.readF64(" + be_str + ")";
+                        wr_stmt = "w.writeF64(raw, " + be_str + ")";
+                    }
+                    tctx.line("public static " + name + " decode(BitReader r) { return new " + name + "(" + rd_expr + "); }");
+                    tctx.line("public void encode(BitWriter w) { " + wr_stmt + "; }");
+                    tctx.line("@Override public String toString() { return \"" + name + "(\" + raw + \")\"; }");
+                    tctx.dedent();
                 } else {
                     bool is_signed = (t.base == model::PrimitiveBase::Int);
                     j_emit_doc(tctx, t.doc);

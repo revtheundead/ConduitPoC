@@ -13,6 +13,13 @@ namespace bgen::codegen {
 
 void StructEmitter::emit_decode(const std::vector<model::StructChild>& children,
                                 const std::string& class_name) {
+    // Empty struct/message: trivial decode
+    if (children.empty()) {
+        ctx_.line("static conduit::Result<" + class_name + "> decode(conduit::io::BitReader& /*r*/) { return " + class_name + "{}; }");
+        ctx_.line();
+        return;
+    }
+
     // Populate optional field names for FieldRef expression generation
     optional_field_names_.clear();
     populate_optional_field_names(children);

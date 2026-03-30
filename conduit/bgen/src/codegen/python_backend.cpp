@@ -186,6 +186,14 @@ std::string py_type_read_expr(const model::TypeDef& t, bool is_signed) {
         return "r.read_bcd_signed(" + bits_s + ")";
     if (t.wire_encoding == model::WireEncoding::BNR_S)
         return "r.read_sign_magnitude(" + bits_s + ")";
+    // Float types: use appropriate float read method
+    if (t.base == model::PrimitiveBase::Float) {
+        if (t.bits == 16) return "r.read_f16(True)";
+        if (t.bits <= 32) return "r.read_f32(True)";
+        if (t.bits <= 48) return "r.read_f48(True)";
+        if (t.bits <= 64) return "r.read_f64(True)";
+        return "r.read_f64(True)";
+    }
     return std::string("r.read_") + (is_signed ? "signed_bits" : "bits") +
            "(" + bits_s + ")";
 }
@@ -199,6 +207,14 @@ std::string py_type_write_stmt(const std::string& val, const model::TypeDef& t, 
         return "w.write_bcd_signed(" + val + ", " + bits_s + ")";
     if (t.wire_encoding == model::WireEncoding::BNR_S)
         return "w.write_sign_magnitude(" + val + ", " + bits_s + ")";
+    // Float types: use appropriate float write method
+    if (t.base == model::PrimitiveBase::Float) {
+        if (t.bits == 16) return "w.write_f16(" + val + ", True)";
+        if (t.bits <= 32) return "w.write_f32(" + val + ", True)";
+        if (t.bits <= 48) return "w.write_f48(" + val + ", True)";
+        if (t.bits <= 64) return "w.write_f64(" + val + ", True)";
+        return "w.write_f64(" + val + ", True)";
+    }
     return std::string("w.write_") + (is_signed ? "signed_bits" : "bits") +
            "(" + val + ", " + bits_s + ")";
 }
@@ -715,6 +731,15 @@ class BitReader:
         b = bytes([self.read_bits(8) for _ in range(4)])
         return struct.unpack('>f' if big_endian else '<f', b)[0]
 
+    def read_f48(self, big_endian: bool = True) -> float:
+        b = bytearray(self.read_bits(8) for _ in range(6))
+        if not big_endian:
+            b = bytearray(reversed(b))
+        raw = 0
+        for x in b:
+            raw = (raw << 8) | x
+        return struct.unpack('>d', (raw << 16).to_bytes(8, 'big'))[0]
+
     def read_f64(self, big_endian: bool = True) -> float:
         b = bytes([self.read_bits(8) for _ in range(8)])
         return struct.unpack('>d' if big_endian else '<d', b)[0]
@@ -867,6 +892,14 @@ class BitWriter:
     def write_f32(self, value: float, big_endian: bool = True) -> None:
         for byte in struct.pack('>f' if big_endian else '<f', value):
             self.write_bits(byte, 8)
+
+    def write_f48(self, value: float, big_endian: bool = True) -> None:
+        raw = int.from_bytes(struct.pack('>d', value), 'big') >> 16
+        b = bytearray((raw >> (8 * (5 - i))) & 0xFF for i in range(6))
+        if not big_endian:
+            b = bytearray(reversed(b))
+        for x in b:
+            self.write_bits(x, 8)
 
     def write_f64(self, value: float, big_endian: bool = True) -> None:
         for byte in struct.pack('>d' if big_endian else '<d', value):
@@ -1209,20 +1242,33 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.dedent();
             ctx.line();
         } else if (t.constraint || (!is_enum && !is_flags && !has_scale && !is_string)) {
-            // Constrained type alias OR plain integer wrapper (e.g. uint16 -> Uint16)
+            // Constrained type alias OR plain integer/float wrapper (e.g. uint16 -> Uint16)
             // Both need decode()/encode() so they can be used as array element types.
+            bool is_float_type = (t.base == model::PrimitiveBase::Float);
             std::string name = py_class(t.name);
             ctx.line();
             ctx.line("class " + name + ":");
             ctx.indent();
             ctx.line("__slots__ = ('_raw',)");
             ctx.line();
-            ctx.line("def __init__(self, raw: int = 0) -> None: self._raw = raw");
+            if (is_float_type) {
+                ctx.line("def __init__(self, raw: float = 0.0) -> None: self._raw = raw");
+            } else {
+                ctx.line("def __init__(self, raw: int = 0) -> None: self._raw = raw");
+            }
             ctx.line();
             ctx.line("@property");
-            ctx.line("def value(self) -> int: return self._raw");
+            if (is_float_type) {
+                ctx.line("def value(self) -> float: return self._raw");
+            } else {
+                ctx.line("def value(self) -> int: return self._raw");
+            }
             ctx.line("@property");
-            ctx.line("def raw(self) -> int: return self._raw");
+            if (is_float_type) {
+                ctx.line("def raw(self) -> float: return self._raw");
+            } else {
+                ctx.line("def raw(self) -> int: return self._raw");
+            }
             ctx.line();
             ctx.line("@staticmethod");
             ctx.line("def decode(r: BitReader) -> '" + name + "':");
@@ -1269,6 +1315,7 @@ std::string py_read_expr(const PyFieldInfo& fi, bool byte_aligned = true) {
     if (fi.is_float) {
         if (fi.bits == 16) return "r.read_f16(" + be + ")";
         if (fi.bits <= 32) return "r.read_f32(" + be + ")";
+        if (fi.bits <= 48) return "r.read_f48(" + be + ")";
         if (fi.bits <= 64) return "r.read_f64(" + be + ")";
         return "r.read_bits(" + std::to_string(fi.bits) + ")";
     }
@@ -1297,6 +1344,7 @@ std::string py_write_stmt(const std::string& val, const PyFieldInfo& fi, bool by
     if (fi.is_float) {
         if (fi.bits == 16) return "w.write_f16(" + val + ", " + be + ")";
         if (fi.bits <= 32) return "w.write_f32(" + val + ", " + be + ")";
+        if (fi.bits <= 48) return "w.write_f48(" + val + ", " + be + ")";
         if (fi.bits <= 64) return "w.write_f64(" + val + ", " + be + ")";
         return "w.write_bits(" + val + ", " + std::to_string(fi.bits) + ")";
     }
@@ -2685,6 +2733,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             if (bf.is_float) {
                 if (bf.bits == 16) read = "r.read_f16(" + be + ")";
                 else if (bf.bits <= 32) read = "r.read_f32(" + be + ")";
+                else if (bf.bits <= 48) read = "r.read_f48(" + be + ")";
                 else read = "r.read_f64(" + be + ")";
             }
             ctx.line(m + " = " + read);
@@ -2783,6 +2832,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
             if (bf.is_float) {
                 if (bf.bits == 16) ctx.line("w.write_f16(" + m + ", " + be + ")");
                 else if (bf.bits <= 32) ctx.line("w.write_f32(" + m + ", " + be + ")");
+                else if (bf.bits <= 48) ctx.line("w.write_f48(" + m + ", " + be + ")");
                 else ctx.line("w.write_f64(" + m + ", " + be + ")");
             } else if (bf.wire_enc == model::WireEncoding::BCD) {
                 ctx.line("w.write_bcd(" + m + ", " + std::to_string(bf.bits) + ")");
@@ -3574,6 +3624,16 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
             ctx.line("frame." + hf.py_name + " = " + const_ref);
         }
     }
+    // Set constraint-equals footer fields
+    for (const auto& ff : footer_fields) {
+        if (ff.field->constraint && ff.field->constraint->equals) {
+            std::string const_ref = *ff.field->constraint->equals;
+            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
+                const_ref = "Constants." + const_ref;
+            }
+            ctx.line("frame." + ff.py_name + " = " + const_ref);
+        }
+    }
     // Set id field from msg.ID_VALUE if the message class has it
     if (!si.id_field_name.empty()) {
         ctx.line("if hasattr(msg, 'ID_VALUE'):");
@@ -3665,9 +3725,18 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
 
     // Write footer fields
     for (const auto& ff : footer_fields) {
-        std::string val = "self." + ff.py_name;
-        if (ff.fi.is_enum) val = val + ".value";
-        ctx.line(py_write_stmt(val, ff.fi));
+        if (ff.field->constraint && ff.field->constraint->equals) {
+            // Constraint-equals: always write the constraint value
+            std::string const_ref = *ff.field->constraint->equals;
+            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
+                const_ref = "Constants." + const_ref;
+            }
+            ctx.line(py_write_stmt(const_ref, ff.fi));
+        } else {
+            std::string val = "self." + ff.py_name;
+            if (ff.fi.is_enum) val = val + ".value";
+            ctx.line(py_write_stmt(val, ff.fi));
+        }
     }
 
     // Backpatch length
@@ -4372,6 +4441,14 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     if (si.frame) {
                         for (const auto& hc : si.frame->header_fields) {
                             if (auto* f = std::get_if<model::Field>(&hc)) {
+                                if (f->constraint && f->constraint->equals) {
+                                    ctx.line("frame." + py_field(f->name) + " = " + py_qualify_const(*f->constraint->equals));
+                                }
+                            }
+                        }
+                        // Set constraint-equals footer fields
+                        for (const auto& fc : si.frame->footer_fields) {
+                            if (auto* f = std::get_if<model::Field>(&fc)) {
                                 if (f->constraint && f->constraint->equals) {
                                     ctx.line("frame." + py_field(f->name) + " = " + py_qualify_const(*f->constraint->equals));
                                 }

@@ -239,6 +239,16 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
                 }
             }
         }
+        // Set constraint-equals footer fields
+        for (const auto& child : frame.footer_fields) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                if (f->constraint && f->constraint->equals) {
+                    auto fti = resolve_field_type(*f, index);
+                    ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
+                             fti.cpp_type + ">(" + *f->constraint->equals + ");");
+                }
+            }
+        }
         // Set id field from message's ID_VALUE
         if (!session.id_field_name.empty()) {
             ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
@@ -263,6 +273,16 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             ctx.line(class_name + " frame;");
             // Set constraint-equals header fields (e.g., sync words)
             for (const auto& child : frame.header_fields) {
+                if (auto* f = std::get_if<model::Field>(&child)) {
+                    if (f->constraint && f->constraint->equals) {
+                        auto fti = resolve_field_type(*f, index);
+                        ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
+                                 fti.cpp_type + ">(" + *f->constraint->equals + ");");
+                    }
+                }
+            }
+            // Set constraint-equals footer fields
+            for (const auto& child : frame.footer_fields) {
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (f->constraint && f->constraint->equals) {
                         auto fti = resolve_field_type(*f, index);

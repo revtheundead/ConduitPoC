@@ -58,6 +58,7 @@ public:
     void write_u64(uint64_t value, Endian e = Endian::Big);
     void write_f16(float value, Endian e = Endian::Big);
     void write_f32(float value, Endian e = Endian::Big);
+    void write_f48(double value, Endian e = Endian::Big);
     void write_f64(double value, Endian e = Endian::Big);
 
     // ========================================================================

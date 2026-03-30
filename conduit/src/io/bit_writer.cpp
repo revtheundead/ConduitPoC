@@ -263,6 +263,15 @@ void BitWriter::write_f32(float value, Endian e) {
     write_u32(raw, e);
 }
 
+void BitWriter::write_f48(double value, Endian e) {
+    if (error_) return;
+    align_to_byte();
+    // Ensure space for 6 bytes
+    data_.resize(data_.size() + 6);
+    io::write_f48(std::span<uint8_t>(data_).subspan(data_.size() - 6), 0, value, e);
+    bit_pos_ += 48;
+}
+
 void BitWriter::write_f64(double value, Endian e) {
     if (error_) return;
     uint64_t raw;

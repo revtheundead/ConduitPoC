@@ -59,6 +59,7 @@ std::string type_read_expr(const model::TypeDef& t) {
     if (t.base == model::PrimitiveBase::Float) {
         if (t.bits == 16) return "r.read_f16(conduit::io::Endian::Big)";
         if (t.bits <= 32) return "r.read_f32(conduit::io::Endian::Big)";
+        if (t.bits <= 48) return "r.read_f48(conduit::io::Endian::Big)";
         if (t.bits <= 64) return "r.read_f64(conduit::io::Endian::Big)";
         return "r.read_bits(" + std::to_string(t.bits) + ")";
     }
@@ -91,6 +92,8 @@ void type_write_stmt(EmitContext& ctx, const std::string& value, const model::Ty
             ctx.line("w.write_f16(" + value + ", conduit::io::Endian::Big);");
         } else if (t.bits <= 32) {
             ctx.line("w.write_f32(" + value + ", conduit::io::Endian::Big);");
+        } else if (t.bits <= 48) {
+            ctx.line("w.write_f48(" + value + ", conduit::io::Endian::Big);");
         } else if (t.bits <= 64) {
             ctx.line("w.write_f64(" + value + ", conduit::io::Endian::Big);");
         } else {
