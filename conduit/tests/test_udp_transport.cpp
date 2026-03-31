@@ -187,6 +187,7 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
 
     std::atomic<uint32_t> next_id{100};
     std::set<uint32_t> connected_peers;
+    std::atomic<int> connected_state_count{0};
     std::mutex peer_mutex;
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> received_data;
     std::mutex rx_mutex;
@@ -204,7 +205,11 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
         return PeerId{id};
     };
     cb.on_peer_disconnected = [](PeerId) {};
-    cb.on_state_changed = [](PeerId, net::ConnectionState) {};
+    cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
+        if (s == net::ConnectionState::Connected) {
+            connected_state_count.fetch_add(1);
+        }
+    };
 
     REQUIRE(server->start(std::move(cb)).has_value());
 
@@ -263,6 +268,8 @@ TEST_CASE("UDP: multi-peer auto-detect from 2 clients", "[udp]") {
         std::lock_guard lock(rx_mutex);
         CHECK(received_data.size() == 2);
     }
+
+    CHECK(connected_state_count.load() == 2);
 }
 
 TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
@@ -277,6 +284,7 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
 
     std::atomic<uint32_t> next_id{100};
     std::vector<PeerId> server_peers;
+    std::atomic<int> srv_connected_state_count{0};
     std::mutex peer_mutex;
 
     TransportCallbacks srv_cb;
@@ -288,7 +296,11 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
         return id;
     };
     srv_cb.on_peer_disconnected = [](PeerId) {};
-    srv_cb.on_state_changed = [](PeerId, net::ConnectionState) {};
+    srv_cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
+        if (s == net::ConnectionState::Connected) {
+            srv_connected_state_count.fetch_add(1);
+        }
+    };
 
     REQUIRE(server->start(std::move(srv_cb)).has_value());
 
@@ -366,11 +378,15 @@ TEST_CASE("UDP: multi-peer send-back routing", "[udp]") {
     {
         std::lock_guard lock(c1_mutex);
         CHECK(c1_received.size() == 1);
+        CHECK((c1_received[0] == 0xAA || c1_received[0] == 0xBB));
     }
     {
         std::lock_guard lock(c2_mutex);
         CHECK(c2_received.size() == 1);
+        CHECK((c2_received[0] == 0xAA || c2_received[0] == 0xBB));
     }
+
+    CHECK(srv_connected_state_count.load() == 2);
 }
 
 TEST_CASE("UDP: large datagram 1400 bytes", "[udp]") {
@@ -551,6 +567,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     auto tb = std::make_shared<UdpTransport>(cfg_b);
 
     std::atomic<int> recv_count{0};
+    std::atomic<int> disconnect_count{0};
     PeerId pa(1), pb(2);
 
     auto make_cb_a = [&]() {
@@ -559,7 +576,9 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
             recv_count.fetch_add(1);
         };
         cb.on_peer_connected = [&](std::string) -> PeerId { return pa; };
-        cb.on_peer_disconnected = [](PeerId) {};
+        cb.on_peer_disconnected = [&](PeerId) {
+            disconnect_count.fetch_add(1);
+        };
         cb.on_state_changed = [](PeerId, net::ConnectionState) {};
         return cb;
     };
@@ -585,9 +604,11 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     ta->stop();
     tb->stop();
     CHECK(recv_count.load() >= 1);
+    CHECK(disconnect_count.load() >= 1);
 
     // Restart
     recv_count = 0;
+    disconnect_count = 0;
     REQUIRE(ta->start(make_cb_a()).has_value());
     REQUIRE(tb->start(make_cb_b()).has_value());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -598,6 +619,7 @@ TEST_CASE("UDP: stop then restart works", "[udp]") {
     ta->stop();
     tb->stop();
     CHECK(recv_count.load() >= 1);
+    CHECK(disconnect_count.load() >= 1);
 }
 
 TEST_CASE("UDP: on_state_changed fires Connected in single-peer mode", "[udp]") {
@@ -610,12 +632,15 @@ TEST_CASE("UDP: on_state_changed fires Connected in single-peer mode", "[udp]") 
     UdpTransport transport(cfg);
 
     std::vector<net::ConnectionState> states;
+    std::atomic<int> disconnect_count{0};
     std::mutex mtx;
 
     TransportCallbacks cb;
     cb.on_data_received = [](PeerId, std::span<const uint8_t>) {};
     cb.on_peer_connected = [](std::string) -> PeerId { return PeerId{1}; };
-    cb.on_peer_disconnected = [](PeerId) {};
+    cb.on_peer_disconnected = [&](PeerId) {
+        disconnect_count.fetch_add(1);
+    };
     cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
         std::lock_guard lock(mtx);
         states.push_back(s);
@@ -629,9 +654,10 @@ TEST_CASE("UDP: on_state_changed fires Connected in single-peer mode", "[udp]") 
     std::lock_guard lock(mtx);
     REQUIRE(!states.empty());
     CHECK(states[0] == net::ConnectionState::Connected);
+    CHECK(disconnect_count.load() == 1);
 }
 
-TEST_CASE("UDP: send to invalid PeerId in single-peer returns PeerNotFound", "[udp]") {
+TEST_CASE("UDP: send to unknown peer in multi-peer returns PeerNotFound", "[udp]") {
     UdpConfig cfg;
     cfg.bind_address = "127.0.0.1";
     cfg.bind_port = 0;
@@ -674,6 +700,7 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
 
     std::atomic<uint32_t> next_id{200};
     std::set<uint32_t> connected_peers;
+    std::atomic<int> connected_state_count{0};
     std::mutex peer_mutex;
 
     TransportCallbacks cb;
@@ -685,7 +712,11 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
         return PeerId{id};
     };
     cb.on_peer_disconnected = [](PeerId) {};
-    cb.on_state_changed = [](PeerId, net::ConnectionState) {};
+    cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
+        if (s == net::ConnectionState::Connected) {
+            connected_state_count.fetch_add(1);
+        }
+    };
 
     REQUIRE(server->start(std::move(cb)).has_value());
 
@@ -725,6 +756,7 @@ TEST_CASE("UDP: max_peers enforcement rejects excess peers", "[udp]") {
     // Only 2 peers should have been created (3rd rejected by max_peers)
     std::lock_guard lock(peer_mutex);
     CHECK(connected_peers.size() == 2);
+    CHECK(connected_state_count.load() == 2);
 }
 
 TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
@@ -741,6 +773,7 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
     std::atomic<uint32_t> next_id{300};
     std::set<uint32_t> connected_peers;
     std::set<uint32_t> disconnected_peers;
+    std::atomic<int> connected_state_count{0};
     std::mutex peer_mutex;
 
     TransportCallbacks cb;
@@ -755,7 +788,11 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
         std::lock_guard lock(peer_mutex);
         disconnected_peers.insert(pid.value());
     };
-    cb.on_state_changed = [](PeerId, net::ConnectionState) {};
+    cb.on_state_changed = [&](PeerId, net::ConnectionState s) {
+        if (s == net::ConnectionState::Connected) {
+            connected_state_count.fetch_add(1);
+        }
+    };
 
     REQUIRE(server->start(std::move(cb)).has_value());
 
@@ -787,6 +824,8 @@ TEST_CASE("UDP: peer timeout evicts stale peers", "[udp]") {
         REQUIRE(connected_peers.size() == 1);
         CHECK(disconnected_peers.empty());
     }
+
+    CHECK(connected_state_count.load() == 1);
 
     // Stop the client and wait for the timeout to expire
     c->stop();

@@ -56,6 +56,7 @@ public:
     [[nodiscard]] Result<uint64_t> read_u64(Endian e = Endian::Big);
     [[nodiscard]] Result<float> read_f16(Endian e = Endian::Big);
     [[nodiscard]] Result<float> read_f32(Endian e = Endian::Big);
+    [[nodiscard]] Result<double> read_f48(Endian e = Endian::Big);
     [[nodiscard]] Result<double> read_f64(Endian e = Endian::Big);
 
     // ========================================================================

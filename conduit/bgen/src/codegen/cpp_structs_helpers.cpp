@@ -302,6 +302,9 @@ std::string emit_read_expr(const FieldTypeInfo& fti, model::Endian endian,
         if (fti.bits <= 32) {
             return reader + ".read_f32(" + endian_str(endian) + ")";
         }
+        if (fti.bits <= 48) {
+            return reader + ".read_f48(" + endian_str(endian) + ")";
+        }
         if (fti.bits <= 64) {
             return reader + ".read_f64(" + endian_str(endian) + ")";
         }
@@ -370,6 +373,8 @@ void emit_write_stmt(EmitContext& ctx, const std::string& value, const FieldType
             ctx.line("w.write_f16(" + value + ", " + endian_str(endian) + ");");
         } else if (fti.bits <= 32) {
             ctx.line("w.write_f32(" + value + ", " + endian_str(endian) + ");");
+        } else if (fti.bits <= 48) {
+            ctx.line("w.write_f48(" + value + ", " + endian_str(endian) + ");");
         } else if (fti.bits <= 64) {
             ctx.line("w.write_f64(" + value + ", " + endian_str(endian) + ");");
         } else {

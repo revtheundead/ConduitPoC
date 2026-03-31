@@ -212,6 +212,17 @@ Result<float> BitReader::read_f32(Endian e) {
     return val;
 }
 
+Result<double> BitReader::read_f48(Endian e) {
+    align_to_byte();
+    if (byte_pos_ + 6 > data_.size()) {
+        return std::unexpected(CONDUIT_ERROR(
+            ErrorCode::BufferUnderrun, "read_f48: not enough data"));
+    }
+    double val = io::read_f48(data_, byte_pos_, e);
+    byte_pos_ += 6;
+    return val;
+}
+
 Result<double> BitReader::read_f64(Endian e) {
     align_to_byte();
     if (byte_pos_ + 8 > data_.size()) {
