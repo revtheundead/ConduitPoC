@@ -223,32 +223,36 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
     }
     ctx.line();
 
+    // Helper: emit frame field setup in wrap()
+    // - constraint-equals: set to constant value
+    // - auto-managed: skip (computed during encode)
+    // - other: copy from message to frame
+    auto emit_wrap_frame_fields = [&](const std::vector<model::StructChild>& children,
+                                       bool copy_from_msg) {
+        for (const auto& child : children) {
+            if (auto* f = std::get_if<model::Field>(&child)) {
+                std::string member = to_member_name(f->name);
+                if (f->constraint && f->constraint->equals) {
+                    auto fti = resolve_field_type(*f, index);
+                    ctx.line("frame." + member + " = static_cast<" +
+                             fti.cpp_type + ">(" + *f->constraint->equals + ");");
+                } else if (f->auto_expr) {
+                    // Auto-managed: skip (computed during encode)
+                } else if (copy_from_msg) {
+                    ctx.line("frame." + member + " = msg." + member + ";");
+                }
+            }
+        }
+    };
+
     // wrap() overloads — one per message type
     for (const auto& lt : session.leaf_types) {
         std::string msg_type = to_cpp_type_name(lt.name);
         ctx.line("static " + class_name + " wrap(const " + msg_type + "& msg) {");
         ctx.indent();
         ctx.line(class_name + " frame;");
-        // Set constraint-equals header fields (e.g., sync words)
-        for (const auto& child : frame.header_fields) {
-            if (auto* f = std::get_if<model::Field>(&child)) {
-                if (f->constraint && f->constraint->equals) {
-                    auto fti = resolve_field_type(*f, index);
-                    ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
-                             fti.cpp_type + ">(" + *f->constraint->equals + ");");
-                }
-            }
-        }
-        // Set constraint-equals footer fields
-        for (const auto& child : frame.footer_fields) {
-            if (auto* f = std::get_if<model::Field>(&child)) {
-                if (f->constraint && f->constraint->equals) {
-                    auto fti = resolve_field_type(*f, index);
-                    ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
-                             fti.cpp_type + ">(" + *f->constraint->equals + ");");
-                }
-            }
-        }
+        emit_wrap_frame_fields(frame.header_fields, true);
+        emit_wrap_frame_fields(frame.footer_fields, true);
         // Set id field from message's ID_VALUE
         if (!session.id_field_name.empty()) {
             ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
@@ -271,26 +275,9 @@ void emit_frame_class(EmitContext& ctx, const model::FrameDef& frame,
             ctx.line("static " + class_name + " wrap(std::span<const " + msg_type + "> msgs) {");
             ctx.indent();
             ctx.line(class_name + " frame;");
-            // Set constraint-equals header fields (e.g., sync words)
-            for (const auto& child : frame.header_fields) {
-                if (auto* f = std::get_if<model::Field>(&child)) {
-                    if (f->constraint && f->constraint->equals) {
-                        auto fti = resolve_field_type(*f, index);
-                        ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
-                                 fti.cpp_type + ">(" + *f->constraint->equals + ");");
-                    }
-                }
-            }
-            // Set constraint-equals footer fields
-            for (const auto& child : frame.footer_fields) {
-                if (auto* f = std::get_if<model::Field>(&child)) {
-                    if (f->constraint && f->constraint->equals) {
-                        auto fti = resolve_field_type(*f, index);
-                        ctx.line("frame." + to_member_name(f->name) + " = static_cast<" +
-                                 fti.cpp_type + ">(" + *f->constraint->equals + ");");
-                    }
-                }
-            }
+            // Batch wrap: set constraint-equals and skip auto-managed (no msg to copy from)
+            emit_wrap_frame_fields(frame.header_fields, false);
+            emit_wrap_frame_fields(frame.footer_fields, false);
             if (!session.id_field_name.empty()) {
                 ctx.line("frame." + to_member_name(session.id_field_name) + " = " + msg_type + "::ID_VALUE;");
             }
@@ -1089,22 +1076,14 @@ void StructEmitter::emit_message(const model::MessageDef& md,
         collect_frame_fields(*current_session_->frame, header_frame_fields, footer_frame_fields);
     }
 
-    // Emit frame header field accessors before struct body
-    if (!header_frame_fields.empty()) {
+    // Emit frame field accessors (header + footer together)
+    if (!header_frame_fields.empty() || !footer_frame_fields.empty()) {
         emit_frame_field_accessors(header_frame_fields);
+        emit_frame_field_accessors(footer_frame_fields);
         ctx_.line();
     }
 
     emit_plain_struct(md.children, name, header_frame_fields, footer_frame_fields);
-
-    // Emit frame footer field accessors after struct body
-    if (!footer_frame_fields.empty()) {
-        ctx_.dedent();
-        ctx_.line("public:");
-        ctx_.indent();
-        emit_frame_field_accessors(footer_frame_fields);
-        ctx_.line();
-    }
 
     // Re-enter public section for convenience methods
     ctx_.dedent();
@@ -1160,6 +1139,10 @@ void StructEmitter::collect_frame_fields(const model::FrameDef& frame,
                 ffi.fi.name = f->name;
                 ffi.fi.cpp_type = ffi.fti.cpp_type;
                 ffi.fi.is_auto_managed = f->auto_expr.has_value();
+                ffi.fi.constraint = f->constraint ? &*f->constraint : nullptr;
+                ffi.fi.is_signed = ffi.fti.is_signed;
+                ffi.fi.is_enum = ffi.fti.is_enum;
+                ffi.fi.is_bytes = ffi.fti.is_bytes;
                 out.push_back(std::move(ffi));
             }
         }
@@ -1172,11 +1155,43 @@ void StructEmitter::emit_frame_field_accessors(const std::vector<FrameFieldInfo>
     for (const auto& ffi : frame_fields) {
         std::string accessor = to_accessor_name(ffi.fi.name);
         std::string member = to_member_name(ffi.fi.name);
-        ctx_.line(ffi.fi.cpp_type + " " + accessor + "() const { return " + member + "; }");
+        std::string qual_type = ffi.fi.cpp_type;
+        bool by_value = (qual_type == "bool") || ffi.fi.is_enum;
+        // Getter
+        if (by_value) {
+            ctx_.line(qual_type + " " + accessor + "() const { return " + member + "; }");
+        } else {
+            ctx_.line("const " + qual_type + "& " + accessor + "() const { return " + member + "; }");
+        }
+        // Deprecation for auto-managed fields
         if (ffi.fi.is_auto_managed) {
             ctx_.line("[[deprecated(\"auto-managed: value is set automatically during frame encoding\")]]");
         }
-        ctx_.line("void set_" + accessor + "(" + ffi.fi.cpp_type + " v) { " + member + " = v; }");
+        // Setter with constraint validation (matching emit_plain_accessors pattern)
+        const auto* constraint = ffi.fi.constraint;
+        bool has_constraint = constraint
+            && constraint->validate != model::ValidateTiming::Deferred
+            && (constraint->equals || constraint->min || constraint->max);
+        if (has_constraint) {
+            if (by_value) {
+                ctx_.line("[[nodiscard]] conduit::VoidResult set_" + accessor + "(" + qual_type + " v) {");
+            } else {
+                ctx_.line("[[nodiscard]] conduit::VoidResult set_" + accessor + "(const " + qual_type + "& v) {");
+            }
+            ctx_.indent();
+            emit_setter_constraint_checks(ffi.fi.name, qual_type, constraint,
+                ffi.fi.is_signed, std::nullopt, ffi.fi.is_bytes);
+            ctx_.line(member + " = v;");
+            ctx_.line("return {};");
+            ctx_.dedent();
+            ctx_.line("}");
+        } else {
+            if (by_value) {
+                ctx_.line("void set_" + accessor + "(" + qual_type + " v) { " + member + " = v; }");
+            } else {
+                ctx_.line("void set_" + accessor + "(const " + qual_type + "& v) { " + member + " = v; }");
+            }
+        }
     }
 }
 
@@ -1229,8 +1244,11 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
         }
     }
 
-    // Frame header field members (before regular members)
+    // Frame field members (header + footer together)
     for (const auto& ffi : header_frame_fields) {
+        ctx_.line(ffi.fi.cpp_type + " " + to_member_name(ffi.fi.name) + "{};");
+    }
+    for (const auto& ffi : footer_frame_fields) {
         ctx_.line(ffi.fi.cpp_type + " " + to_member_name(ffi.fi.name) + "{};");
     }
 
@@ -1244,11 +1262,6 @@ void StructEmitter::emit_plain_struct(const std::vector<model::StructChild>& chi
         } else {
             ctx_.line(decl_type + " " + to_member_name(fi.name) + "{};");
         }
-    }
-
-    // Frame footer field members (after regular members)
-    for (const auto& ffi : footer_frame_fields) {
-        ctx_.line(ffi.fi.cpp_type + " " + to_member_name(ffi.fi.name) + "{};");
     }
 }
 
