@@ -46,6 +46,16 @@ VoidResult set_tcp_nodelay(socket_t sock);
 VoidResult set_socket_buffer_sizes(socket_t sock, size_t recv_size, size_t send_size);
 
 // ============================================================================
+// Multicast
+// ============================================================================
+
+VoidResult join_multicast_group(socket_t sock, const std::string& group, const std::string& iface);
+VoidResult leave_multicast_group(socket_t sock, const std::string& group, const std::string& iface);
+VoidResult set_multicast_ttl(socket_t sock, uint8_t ttl);
+VoidResult set_multicast_loop(socket_t sock, bool enable);
+VoidResult set_multicast_interface(socket_t sock, const std::string& iface);
+
+// ============================================================================
 // Socket lifecycle
 // ============================================================================
 

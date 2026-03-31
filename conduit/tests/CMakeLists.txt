@@ -29,6 +29,7 @@ set(CONDUIT_TEST_SOURCES
     test_transceiver_multi_peer.cpp
     test_transceiver_errors.cpp
     test_udp_transport.cpp
+    test_udp_multicast.cpp
     test_tcp_transport_extended.cpp
     test_logger.cpp
     test_string_encoding.cpp

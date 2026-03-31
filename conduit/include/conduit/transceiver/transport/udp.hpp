@@ -26,6 +26,12 @@ struct UdpConfig {
     size_t max_datagram_size = 65507; // Max UDP payload for IPv4
     size_t max_peers = 1024;          // 0 = unlimited (multi-peer mode only)
     std::chrono::seconds peer_timeout{0};  // 0 = no timeout (multi-peer mode only)
+
+    // Multicast (leave multicast_group empty for unicast mode)
+    std::string multicast_group;       // e.g. "239.1.1.1" — must be 224.0.0.0/4
+    std::string multicast_interface;   // NIC to join/send on ("" or "0.0.0.0" = OS default)
+    uint8_t     multicast_ttl = 1;     // 1 = LAN only, higher = cross-subnet
+    bool        multicast_loop = true; // Receive own multicast packets
 };
 
 // ============================================================================
