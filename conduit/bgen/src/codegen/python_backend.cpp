@@ -3607,33 +3607,32 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
     ctx.dedent();
     ctx.line();
 
+    // Helper: emit frame field setup in wrap()
+    auto emit_py_wrap_frame_fields = [&](const std::vector<FrameFieldInfo>& fields,
+                                          bool copy_from_msg) {
+        for (const auto& ff : fields) {
+            if (ff.field->constraint && ff.field->constraint->equals) {
+                std::string const_ref = *ff.field->constraint->equals;
+                if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
+                    const_ref = "Constants." + const_ref;
+                }
+                ctx.line("frame." + ff.py_name + " = " + const_ref);
+            } else if (ff.field->auto_expr) {
+                // Auto-managed: skip (computed during encode)
+            } else if (copy_from_msg) {
+                ctx.line("frame." + ff.py_name + " = msg." + ff.py_name);
+            }
+        }
+    };
+
     // wrap() static method — single method that works for any leaf type
     // (Python doesn't support overloading, so one method handles all types)
     ctx.line("@staticmethod");
     ctx.line("def wrap(msg) -> '" + cn + "':");
     ctx.indent();
     ctx.line("frame = " + cn + "()");
-    // Set constraint-equals header fields (e.g., sync = Constants.SYNC)
-    for (const auto& hf : header_fields) {
-        if (hf.field->constraint && hf.field->constraint->equals) {
-            std::string const_ref = *hf.field->constraint->equals;
-            // Qualify bare constant names with Constants. prefix
-            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
-                const_ref = "Constants." + const_ref;
-            }
-            ctx.line("frame." + hf.py_name + " = " + const_ref);
-        }
-    }
-    // Set constraint-equals footer fields
-    for (const auto& ff : footer_fields) {
-        if (ff.field->constraint && ff.field->constraint->equals) {
-            std::string const_ref = *ff.field->constraint->equals;
-            if (!const_ref.empty() && std::isupper(static_cast<unsigned char>(const_ref[0]))) {
-                const_ref = "Constants." + const_ref;
-            }
-            ctx.line("frame." + ff.py_name + " = " + const_ref);
-        }
-    }
+    emit_py_wrap_frame_fields(header_fields, true);
+    emit_py_wrap_frame_fields(footer_fields, true);
     // Set id field from msg.ID_VALUE if the message class has it
     if (!si.id_field_name.empty()) {
         ctx.line("if hasattr(msg, 'ID_VALUE'):");
@@ -4018,33 +4017,32 @@ std::string generate_py_messages(const model::Protocol& protocol,
     for (const auto& si : sessions) {
         if (!si.is_frame_based || !si.frame) continue;
         std::vector<PyFieldDef> frame_fields;
+        auto add_frame_field = [&](const model::Field* f) {
+            auto fi = py_resolve_field(*f, index);
+            PyFieldDef fd;
+            fd.name = py_field(f->name);
+            fd.bmdl_name = f->name;
+            fd.py_type = fi.py_type;
+            fd.constraint = f->constraint ? &*f->constraint : nullptr;
+            fd.is_signed = fi.is_signed;
+            fd.is_enum = fi.is_enum;
+            fd.is_string = fi.is_string;
+            fd.is_bytes = fi.is_bytes;
+            fd.is_bool = fi.is_bool;
+            if (fi.is_string) fd.default_val = "''";
+            else if (fi.is_bytes) fd.default_val = "b''";
+            else if (fi.is_bool) fd.default_val = "False";
+            else if (fi.is_float) fd.default_val = "0.0";
+            else fd.default_val = "0";
+            frame_fields.push_back(fd);
+        };
         for (const auto& child : si.frame->header_fields) {
-            if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = py_resolve_field(*f, index);
-                PyFieldDef fd;
-                fd.name = py_field(f->name);
-                fd.py_type = fi.py_type;
-                if (fi.is_string) fd.default_val = "''";
-                else if (fi.is_bytes) fd.default_val = "b''";
-                else if (fi.is_bool) fd.default_val = "False";
-                else if (fi.is_float) fd.default_val = "0.0";
-                else fd.default_val = "0";
-                frame_fields.push_back(fd);
-            }
+            if (auto* f = std::get_if<model::Field>(&child))
+                add_frame_field(f);
         }
         for (const auto& child : si.frame->footer_fields) {
-            if (auto* f = std::get_if<model::Field>(&child)) {
-                auto fi = py_resolve_field(*f, index);
-                PyFieldDef fd;
-                fd.name = py_field(f->name);
-                fd.py_type = fi.py_type;
-                if (fi.is_string) fd.default_val = "''";
-                else if (fi.is_bytes) fd.default_val = "b''";
-                else if (fi.is_bool) fd.default_val = "False";
-                else if (fi.is_float) fd.default_val = "0.0";
-                else fd.default_val = "0";
-                frame_fields.push_back(fd);
-            }
+            if (auto* f = std::get_if<model::Field>(&child))
+                add_frame_field(f);
         }
         if (!frame_fields.empty()) {
             for (const auto& lt : si.leaf_types) {
