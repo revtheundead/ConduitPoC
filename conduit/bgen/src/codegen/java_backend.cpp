@@ -5031,6 +5031,7 @@ bool JavaBackend::generate(
                     tctx.line("public void encode(BitWriter w) { " + wr_stmt + "; }");
                     tctx.line("@Override public String toString() { return \"" + name + "(\" + raw + \")\"; }");
                     tctx.dedent();
+                    tctx.line("}");
                 } else {
                     bool is_signed = (t.base == model::PrimitiveBase::Int);
                     j_emit_doc(tctx, t.doc);
