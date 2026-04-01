@@ -126,6 +126,11 @@ public class TransportConfig {
     protected long    maxDatagramSize = 0;
     protected long    maxPeers        = 0;
     protected long    peerTimeoutS    = 0;
+    // UDP multicast
+    protected String  multicastGroup     = null;
+    protected String  multicastInterface = null;
+    protected int     multicastTtl       = 0;
+    protected int     multicastLoop      = 0;  // 0=default, 1=true, 2=false
     // TCP server
     protected long    maxClients = 0;
     // Serial
@@ -154,7 +159,11 @@ public class TransportConfig {
     public long    maxDatagramSize()        { return maxDatagramSize; }
     public long    maxPeers()               { return maxPeers; }
     public long    peerTimeoutS()           { return peerTimeoutS; }
-    public long    maxClients()             { return maxClients; }
+    public String  multicastGroup()        { return multicastGroup; }
+    public String  multicastInterface()    { return multicastInterface; }
+    public int     multicastTtl()          { return multicastTtl; }
+    public int     multicastLoop()         { return multicastLoop; }
+    public long    maxClients()            { return maxClients; }
     public int     dataBits()               { return dataBits; }
     public int     parity()                 { return parity; }
     public int     stopBits()               { return stopBits; }
@@ -188,6 +197,10 @@ public class TransportConfig {
         public UdpConfig maxDatagramSize(long sz)    { this.maxDatagramSize = sz; return this; }
         public UdpConfig maxPeers(long n)            { this.maxPeers = n; return this; }
         public UdpConfig peerTimeoutSeconds(long s)  { this.peerTimeoutS = s; return this; }
+        public UdpConfig multicastGroup(String group)  { this.multicastGroup = group; return this; }
+        public UdpConfig multicastInterface(String ip) { this.multicastInterface = ip; return this; }
+        public UdpConfig multicastTtl(int ttl)         { this.multicastTtl = ttl; return this; }
+        public UdpConfig multicastLoop(boolean loop)   { this.multicastLoop = loop ? 1 : 2; return this; }
     }
 
     /**

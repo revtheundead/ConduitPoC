@@ -253,7 +253,8 @@ VoidResult leave_multicast_group(socket_t sock, const std::string& group, const 
 }
 
 VoidResult set_multicast_ttl(socket_t sock, uint8_t ttl) {
-    int val = ttl;
+    // macOS/BSD requires unsigned char for IP_MULTICAST_TTL (Linux accepts both)
+    unsigned char val = ttl;
     if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &val, sizeof(val)) != 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,
@@ -263,7 +264,8 @@ VoidResult set_multicast_ttl(socket_t sock, uint8_t ttl) {
 }
 
 VoidResult set_multicast_loop(socket_t sock, bool enable) {
-    int val = enable ? 1 : 0;
+    // macOS/BSD requires unsigned char for IP_MULTICAST_LOOP (Linux accepts both)
+    unsigned char val = enable ? 1 : 0;
     if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &val, sizeof(val)) != 0) {
         return std::unexpected(
             CONDUIT_ERROR(ErrorCode::SocketError,

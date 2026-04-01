@@ -97,9 +97,15 @@ typedef struct {
     const char* bind_address;   /* NULL = "0.0.0.0" or infer from address */
     uint16_t    bind_port;      /* 0 = ephemeral or port from address */
     uint16_t    remote_port;    /* 0 = port from address */
+    size_t      send_buffer_size;  /* 0 = use default (65536) */
     size_t      max_datagram_size; /* 0 = use default (65507) */
     size_t      max_peers;         /* 0 = use default (1024) */
     uint32_t    peer_timeout_s;    /* 0 = no timeout (C++ default) */
+    /* Multicast (all zero/NULL = unicast, C++ defaults) */
+    const char* multicast_group;     /* NULL = no multicast */
+    const char* multicast_interface; /* NULL = "0.0.0.0" (OS default route) */
+    uint8_t     multicast_ttl;       /* 0 = use default (1) */
+    uint8_t     multicast_loop;      /* 0 = use default (true), 1 = on, 2 = off */
 
     /* ------------------------------------------------------------------
      * TCP server

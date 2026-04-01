@@ -116,6 +116,10 @@ class UdpConfig:
     max_datagram_size: int          = 0
     max_peers:        int           = 0
     peer_timeout_s:   int           = 0
+    multicast_group:     str           = ""    # Multicast group IP (empty = unicast)
+    multicast_interface: str           = ""    # NIC to join/send on (empty = OS default)
+    multicast_ttl:       int           = 0     # 0 = use default (1)
+    multicast_loop:      Optional[bool] = None # None = use default (True)
 
     @property
     def type(self) -> TransportType:
