@@ -245,10 +245,10 @@ VoidResult join_multicast_group(socket_t sock, const std::string& group, const s
 
 VoidResult leave_multicast_group(socket_t sock, const std::string& group, const std::string& iface) {
     struct ip_mreq mreq{};
-    inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr);
-    inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
+    (void)inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr);
+    (void)inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
     // Best-effort: don't fail stop() if leave errors
-    setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+    (void)setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
     return {};
 }
 

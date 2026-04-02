@@ -264,10 +264,10 @@ VoidResult join_multicast_group(socket_t sock, const std::string& group, const s
 
 VoidResult leave_multicast_group(socket_t sock, const std::string& group, const std::string& iface) {
     struct ip_mreq mreq{};
-    inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr);
-    inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
+    (void)inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr);
+    (void)inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
     // Best-effort: don't fail stop() if leave errors
-    setsockopt(static_cast<SOCKET>(sock), IPPROTO_IP, IP_DROP_MEMBERSHIP,
+    (void)setsockopt(static_cast<SOCKET>(sock), IPPROTO_IP, IP_DROP_MEMBERSHIP,
                reinterpret_cast<const char*>(&mreq), sizeof(mreq));
     return {};
 }
