@@ -254,7 +254,7 @@ void UdpTransport::stop() {
             if (impl_->multicast) {
                 std::string iface = impl_->config.multicast_interface.empty()
                                     ? "0.0.0.0" : impl_->config.multicast_interface;
-                (void)leave_multicast_group(impl_->sock, impl_->config.multicast_group, iface);
+                [[maybe_unused]] auto leave_err = leave_multicast_group(impl_->sock, impl_->config.multicast_group, iface);
             }
             close_socket(impl_->sock);
             impl_->sock = invalid_socket;
