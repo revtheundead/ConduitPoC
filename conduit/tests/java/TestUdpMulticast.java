@@ -2,6 +2,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.conduit.ConduitNative;
 import io.conduit.Transceiver;
@@ -40,6 +41,19 @@ public class TestUdpMulticast {
         }
     }
 
+    /** Probe whether the OS supports multicast (IP_ADD_MEMBERSHIP). */
+    @SuppressWarnings("deprecation")
+    private static boolean multicastAvailable() {
+        try (java.net.MulticastSocket ms = new java.net.MulticastSocket(0)) {
+            java.net.InetAddress group = java.net.InetAddress.getByName(MCAST_GROUP);
+            ms.joinGroup(group);
+            ms.leaveGroup(group);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // ========================================================================
     // Happy-path tests
     // ========================================================================
@@ -47,6 +61,7 @@ public class TestUdpMulticast {
     @Test
     @DisplayName("Multicast: start and stop cleanly")
     void multicastStartStop() throws Exception {
+        assumeTrue(multicastAvailable(), "Multicast not available on this host");
         int port = findFreePort();
         try (Transceiver t = new Transceiver()) {
             t.addPeer("mcast", "session_protocol",
@@ -64,6 +79,7 @@ public class TestUdpMulticast {
     @Test
     @DisplayName("Multicast: custom TTL accepted")
     void multicastCustomTtl() throws Exception {
+        assumeTrue(multicastAvailable(), "Multicast not available on this host");
         int port = findFreePort();
         try (Transceiver t = new Transceiver()) {
             t.addPeer("mcast", "session_protocol",
@@ -81,6 +97,7 @@ public class TestUdpMulticast {
     @Test
     @DisplayName("Multicast: PingBody loopback roundtrip")
     void multicastLoopbackRoundtrip() throws Exception {
+        assumeTrue(multicastAvailable(), "Multicast not available on this host");
         int port = findFreePort();
 
         try (Transceiver sender = new Transceiver();

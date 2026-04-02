@@ -6,6 +6,7 @@ using the Transceiver Python bindings over the CABI layer.
 
 import os
 import socket
+import struct
 import sys
 import time
 
@@ -56,6 +57,26 @@ def _find_free_udp_port() -> int:
         return s.getsockname()[1]
 
 
+def _multicast_available() -> bool:
+    """Check if the OS supports multicast (IP_ADD_MEMBERSHIP)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.bind(("0.0.0.0", 0))
+        mreq = struct.pack("4s4s",
+                           socket.inet_aton(MCAST_GROUP),
+                           socket.inet_aton("0.0.0.0"))
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
+_mcast_ok = _multicast_available()
+requires_multicast = pytest.mark.skipif(
+    not _mcast_ok, reason="Multicast not available on this host")
+
+
 # ---------------------------------------------------------------------------
 # Happy-path tests
 # ---------------------------------------------------------------------------
@@ -64,6 +85,7 @@ def _find_free_udp_port() -> int:
 class TestMulticastConfig:
     """Tests for multicast UdpConfig start/stop lifecycle."""
 
+    @requires_multicast
     def test_multicast_start_stop(self):
         """Transceiver with multicast UdpConfig starts and stops cleanly."""
         port = _find_free_udp_port()
@@ -77,6 +99,7 @@ class TestMulticastConfig:
             time.sleep(0.05)
             t.stop()
 
+    @requires_multicast
     def test_multicast_with_custom_ttl(self):
         """Transceiver with custom multicast TTL starts cleanly."""
         port = _find_free_udp_port()
@@ -93,6 +116,7 @@ class TestMulticastConfig:
 class TestMulticastLoopback:
     """Test multicast send/receive using loopback."""
 
+    @requires_multicast
     def test_multicast_loopback_roundtrip(self):
         """Two transceivers on the same multicast group exchange a PingBody."""
         port = _find_free_udp_port()
@@ -136,7 +160,7 @@ class TestMulticastLoopback:
 
 
 # ---------------------------------------------------------------------------
-# Error-path tests
+# Error-path tests (no multicast I/O needed — test validation logic only)
 # ---------------------------------------------------------------------------
 
 

@@ -14,8 +14,14 @@
 #include <vector>
 
 #ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <process.h>
+#pragma comment(lib, "ws2_32.lib")
 #else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #endif
 
@@ -41,6 +47,50 @@ static constexpr const char* TEST_MCAST_GROUP = "239.255.0.1";
 // Helpers
 // ============================================================================
 
+// Probe whether the OS allows joining a multicast group.
+// CI runners (containers, restricted VMs) may not support IP_ADD_MEMBERSHIP.
+static bool multicast_available() {
+    static int cached = -1;
+    if (cached >= 0) return cached != 0;
+
+#ifdef _WIN32
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+    auto sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock == INVALID_SOCKET) { cached = 0; return false; }
+#else
+    auto sock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock < 0) { cached = 0; return false; }
+#endif
+
+    // Bind to an ephemeral port (required before IP_ADD_MEMBERSHIP on some OSes)
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = 0;
+#ifdef _WIN32
+    ::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+#else
+    ::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+#endif
+
+    struct ip_mreq mreq{};
+    inet_pton(AF_INET, TEST_MCAST_GROUP, &mreq.imr_multiaddr);
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+
+#ifdef _WIN32
+    int ok = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                        reinterpret_cast<const char*>(&mreq), sizeof(mreq));
+    ::closesocket(sock);
+#else
+    int ok = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+    ::close(sock);
+#endif
+
+    cached = (ok == 0) ? 1 : 0;
+    return cached != 0;
+}
+
 static TransportCallbacks make_collecting_callbacks(
     std::vector<uint8_t>& received,
     std::mutex& mtx,
@@ -60,10 +110,12 @@ static TransportCallbacks make_collecting_callbacks(
 }
 
 // ============================================================================
-// Happy-path tests
+// Happy-path tests (skipped when multicast is not available)
 // ============================================================================
 
 TEST_CASE("UDP multicast: send/receive loopback", "[udp][multicast]") {
+    if (!multicast_available()) SKIP("Multicast not available on this host");
+
     uint16_t port = mcast_base_port();
 
     UdpConfig cfg;
@@ -99,6 +151,8 @@ TEST_CASE("UDP multicast: send/receive loopback", "[udp][multicast]") {
 }
 
 TEST_CASE("UDP multicast: two receivers get same datagram", "[udp][multicast]") {
+    if (!multicast_available()) SKIP("Multicast not available on this host");
+
     uint16_t port = static_cast<uint16_t>(mcast_base_port() + 1);
 
     UdpConfig cfg;
@@ -146,6 +200,8 @@ TEST_CASE("UDP multicast: two receivers get same datagram", "[udp][multicast]") 
 }
 
 TEST_CASE("UDP multicast: peer tracking via on_peer_connected", "[udp][multicast]") {
+    if (!multicast_available()) SKIP("Multicast not available on this host");
+
     uint16_t port = static_cast<uint16_t>(mcast_base_port() + 2);
 
     UdpConfig cfg;
@@ -194,6 +250,8 @@ TEST_CASE("UDP multicast: peer tracking via on_peer_connected", "[udp][multicast
 }
 
 TEST_CASE("UDP multicast: custom TTL and interface", "[udp][multicast]") {
+    if (!multicast_available()) SKIP("Multicast not available on this host");
+
     uint16_t port = static_cast<uint16_t>(mcast_base_port() + 3);
 
     UdpConfig cfg;
@@ -219,6 +277,8 @@ TEST_CASE("UDP multicast: custom TTL and interface", "[udp][multicast]") {
 }
 
 TEST_CASE("UDP multicast: stop leaves group cleanly", "[udp][multicast]") {
+    if (!multicast_available()) SKIP("Multicast not available on this host");
+
     uint16_t port = static_cast<uint16_t>(mcast_base_port() + 4);
 
     UdpConfig cfg;
@@ -274,7 +334,7 @@ TEST_CASE("UDP multicast: is_multi_peer true even with remote_address set", "[ud
 }
 
 // ============================================================================
-// Error-path tests
+// Error-path tests (no multicast I/O needed — test validation logic only)
 // ============================================================================
 
 TEST_CASE("UDP multicast: non-multicast address rejected", "[udp][multicast]") {
