@@ -134,7 +134,7 @@ if defined JUNIT_JAR (
                 if exist "!PROJECT_DIR!\lib\conduit_jni_test.dll" set "_have_jni=1"
                 if exist "!BUILD_DIR!\tests\conduit_jni_test.dll" set "_have_jni=1"
                 if "!_have_jni!"=="0" (
-                    set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced"
+                    set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced --exclude-classname TestUdpMulticast"
                 )
                 rem Panama FFI tests require --enable-preview on JDK 21+
                 set "JAVA_JVM_FLAGS="
@@ -213,7 +213,7 @@ if exist "!PYTHON_TESTS!" (
             if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
             if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
             if "!_have_cabi!"=="0" (
-                set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py""
+                set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py" --ignore="!PYTHON_TESTS!\test_udp_multicast.py""
             )
             rem Generate Python test packages from BMDL fixtures
             if exist "!BUILD_DIR!" (
