@@ -61,19 +61,21 @@ def _multicast_available() -> bool:
     """Check if multicast loopback actually delivers data on this host."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("0.0.0.0", 0))
-        port = s.getsockname()[1]
-        mreq = struct.pack("4s4s",
-                           socket.inet_aton(MCAST_GROUP),
-                           socket.inet_aton("0.0.0.0"))
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
-        s.settimeout(0.5)
-        s.sendto(b"probe", (MCAST_GROUP, port))
-        data = s.recv(16)
-        s.close()
-        return len(data) > 0
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("0.0.0.0", 0))
+            port = s.getsockname()[1]
+            mreq = struct.pack("4s4s",
+                               socket.inet_aton(MCAST_GROUP),
+                               socket.inet_aton("0.0.0.0"))
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+            s.settimeout(0.5)
+            s.sendto(b"probe", (MCAST_GROUP, port))
+            data = s.recv(16)
+            return len(data) > 0
+        finally:
+            s.close()
     except OSError:
         return False
 
@@ -161,8 +163,8 @@ class TestMulticastLoopback:
             sender.stop()
             receiver.stop()
 
-        # Both receiver and sender should have gotten the multicast packet
-        # (loopback). At minimum the receiver should see it.
+        # At minimum the receiver should have gotten the multicast packet.
+        assert len(received) >= 1, "No multicast messages received"
         for m in received:
             assert isinstance(m, PingBody)
             assert m.timestamp == 42424242
