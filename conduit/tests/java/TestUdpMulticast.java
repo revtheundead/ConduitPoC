@@ -10,6 +10,8 @@ import io.conduit.TransportConfig;
 
 import session_test.PingBody;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,12 +115,6 @@ public class TestUdpMulticast {
         try (Transceiver sender = new Transceiver();
              Transceiver receiver = new Transceiver()) {
 
-            // Register passthrough sessions so Java handles frame
-            // encode/decode (the CABI raw path passes full frame bytes
-            // which decodeBytes cannot parse directly).
-            receiver.registerSession("session_protocol", new session_test.PacketSession());
-            sender.registerSession("session_protocol", new session_test.PacketSession());
-
             receiver.addPeer("mcast_rx", "session_protocol",
                 new TransportConfig.UdpConfig()
                     .bindAddress("0.0.0.0")
@@ -129,9 +125,15 @@ public class TestUdpMulticast {
             CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<PingBody> received = new AtomicReference<>();
 
-            receiver.onMessage(PingBody.class, (peerId, msg) -> {
-                received.set(msg);
-                latch.countDown();
+            // Use a raw handler because CABI raw_catch_all passes full
+            // frame bytes; decode the frame locally with PacketSession.
+            session_test.PacketSession decoder = new session_test.PacketSession();
+            receiver.onMessage(PingBody.TYPE_ID, (peerId, typeId, typeName, data) -> {
+                List<Map<String, Object>> msgs = decoder.decodeFrame(data);
+                if (!msgs.isEmpty()) {
+                    received.set((PingBody) msgs.get(0).get("payload"));
+                    latch.countDown();
+                }
             });
             receiver.start();
 
