@@ -139,7 +139,7 @@ public class TestUdpMulticast {
 
             PingBody outgoing = new PingBody();
             outgoing.timestamp = 99887766;
-            sender.send(sender.solePeer(), outgoing);
+            sender.send(sender.peerByName("mcast_tx"), outgoing);
 
             boolean got = latch.await(2, TimeUnit.SECONDS);
             if (got) {

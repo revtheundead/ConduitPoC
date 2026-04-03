@@ -151,7 +151,7 @@ class TestMulticastLoopback:
 
             msg = PingBody()
             msg.timestamp = 42424242
-            sender.send(sender.sole_peer(), msg)
+            sender.send(sender.peer_by_name("mcast_tx"), msg)
 
             time.sleep(0.3)
 
