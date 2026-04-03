@@ -46,6 +46,7 @@ if _GENERATED_DIR not in sys.path:
     sys.path.insert(0, _GENERATED_DIR)
 
 from session_protocol.messages import PingBody
+from session_protocol.sessions import PacketSession
 
 MCAST_GROUP = "239.255.0.1"
 
@@ -129,6 +130,12 @@ class TestMulticastLoopback:
         received = []
 
         with Transceiver() as receiver, Transceiver() as sender:
+            # Register passthrough sessions so Python handles frame
+            # encode/decode (the CABI raw path passes full frame bytes
+            # which decode_bytes cannot parse directly).
+            receiver.register_session("session_protocol", PacketSession())
+            sender.register_session("session_protocol", PacketSession())
+
             receiver.add_peer(
                 "mcast_rx", "session_protocol",
                 UdpConfig(bind_port=port, multicast_group=MCAST_GROUP,

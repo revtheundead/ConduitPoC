@@ -113,6 +113,12 @@ public class TestUdpMulticast {
         try (Transceiver sender = new Transceiver();
              Transceiver receiver = new Transceiver()) {
 
+            // Register passthrough sessions so Java handles frame
+            // encode/decode (the CABI raw path passes full frame bytes
+            // which decodeBytes cannot parse directly).
+            receiver.registerSession("session_protocol", new session_test.PacketSession());
+            sender.registerSession("session_protocol", new session_test.PacketSession());
+
             receiver.addPeer("mcast_rx", "session_protocol",
                 new TransportConfig.UdpConfig()
                     .bindAddress("0.0.0.0")
