@@ -150,9 +150,8 @@ public class TestUdpMulticast {
             sender.send(sender.peerByName("mcast_tx"), outgoing);
 
             boolean got = latch.await(2, TimeUnit.SECONDS);
-            if (got) {
-                assertEquals(99887766, received.get().timestamp);
-            }
+            assertTrue(got, "No multicast message received within timeout");
+            assertEquals(99887766, received.get().timestamp);
 
             sender.stop();
             receiver.stop();
