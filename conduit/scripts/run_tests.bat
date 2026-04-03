@@ -213,7 +213,7 @@ if exist "!PYTHON_TESTS!" (
             if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
             if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
             if "!_have_cabi!"=="0" (
-                set "PYTEST_IGNORES=--ignore="!PYTHON_TESTS!\test_codec_cabi.py" --ignore="!PYTHON_TESTS!\test_transceiver_cabi.py" --ignore="!PYTHON_TESTS!\test_xcvr_scenarios.py" --ignore="!PYTHON_TESTS!\test_async_roundtrip.py" --ignore="!PYTHON_TESTS!\test_udp_multicast.py""
+                set "PYTEST_IGNORES=--ignore=!PYTHON_TESTS!\test_codec_cabi.py --ignore=!PYTHON_TESTS!\test_transceiver_cabi.py --ignore=!PYTHON_TESTS!\test_xcvr_scenarios.py --ignore=!PYTHON_TESTS!\test_async_roundtrip.py --ignore=!PYTHON_TESTS!\test_udp_multicast.py"
             )
             rem Generate Python test packages from BMDL fixtures
             if exist "!BUILD_DIR!" (

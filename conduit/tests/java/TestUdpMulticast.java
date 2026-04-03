@@ -41,14 +41,24 @@ public class TestUdpMulticast {
         }
     }
 
-    /** Probe whether the OS supports multicast (IP_ADD_MEMBERSHIP). */
+    /** Probe whether multicast loopback actually delivers data on this host. */
     @SuppressWarnings("deprecation")
     private static boolean multicastAvailable() {
         try (java.net.MulticastSocket ms = new java.net.MulticastSocket(0)) {
+            int port = ms.getLocalPort();
             java.net.InetAddress group = java.net.InetAddress.getByName(MCAST_GROUP);
             ms.joinGroup(group);
+            ms.setLoopbackMode(false); // false = loopback enabled
+            ms.setSoTimeout(500);
+            // Send a probe packet
+            byte[] probe = "probe".getBytes();
+            ms.send(new java.net.DatagramPacket(probe, probe.length, group, port));
+            // Try to receive it back via loopback
+            byte[] buf = new byte[16];
+            java.net.DatagramPacket pkt = new java.net.DatagramPacket(buf, buf.length);
+            ms.receive(pkt);
             ms.leaveGroup(group);
-            return true;
+            return pkt.getLength() > 0;
         } catch (Exception e) {
             return false;
         }

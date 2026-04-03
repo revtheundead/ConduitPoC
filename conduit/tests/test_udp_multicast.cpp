@@ -47,8 +47,8 @@ static constexpr const char* TEST_MCAST_GROUP = "239.255.0.1";
 // Helpers
 // ============================================================================
 
-// Probe whether the OS allows joining a multicast group.
-// CI runners (containers, restricted VMs) may not support IP_ADD_MEMBERSHIP.
+// Probe whether multicast loopback actually delivers data.
+// Some CI runners allow IP_ADD_MEMBERSHIP but never deliver loopback packets.
 static bool multicast_available() {
     static int cached = -1;
     if (cached >= 0) return cached != 0;
@@ -63,31 +63,84 @@ static bool multicast_available() {
     if (sock < 0) { cached = 0; return false; }
 #endif
 
-    // Bind to an ephemeral port (required before IP_ADD_MEMBERSHIP on some OSes)
+    // Enable SO_REUSEADDR and bind to an ephemeral port
+    int one = 1;
+#ifdef _WIN32
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+               reinterpret_cast<const char*>(&one), sizeof(one));
+#else
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+#endif
+
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = 0;
+    if (::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
 #ifdef _WIN32
-    ::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+        ::closesocket(sock);
 #else
-    ::bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+        ::close(sock);
 #endif
+        cached = 0; return false;
+    }
 
+    // Retrieve the bound port
+    socklen_t alen = sizeof(addr);
+    getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &alen);
+
+    // Join multicast group
     struct ip_mreq mreq{};
     inet_pton(AF_INET, TEST_MCAST_GROUP, &mreq.imr_multiaddr);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+#ifdef _WIN32
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                   reinterpret_cast<const char*>(&mreq), sizeof(mreq)) != 0) {
+        ::closesocket(sock); cached = 0; return false;
+    }
+    // Enable multicast loopback
+    int loop = 1;
+    setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP,
+               reinterpret_cast<const char*>(&loop), sizeof(loop));
+#else
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) != 0) {
+        ::close(sock); cached = 0; return false;
+    }
+    // Enable multicast loopback
+    unsigned char loop = 1;
+    setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
+#endif
+
+    // Send a test packet to the multicast group on the bound port
+    sockaddr_in dest{};
+    dest.sin_family = AF_INET;
+    inet_pton(AF_INET, TEST_MCAST_GROUP, &dest.sin_addr);
+    dest.sin_port = addr.sin_port;
+
+    const char probe[] = "mcast_probe";
+    sendto(sock, probe, sizeof(probe), 0,
+           reinterpret_cast<sockaddr*>(&dest), sizeof(dest));
+
+    // Wait briefly for loopback delivery
+#ifdef _WIN32
+    DWORD tv = 500;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+               reinterpret_cast<const char*>(&tv), sizeof(tv));
+#else
+    struct timeval tv{0, 500000}; // 500ms
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+
+    char buf[64]{};
+    auto n = recv(sock, buf, sizeof(buf), 0);
 
 #ifdef _WIN32
-    int ok = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                        reinterpret_cast<const char*>(&mreq), sizeof(mreq));
     ::closesocket(sock);
 #else
-    int ok = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
     ::close(sock);
 #endif
 
-    cached = (ok == 0) ? 1 : 0;
+    cached = (n > 0) ? 1 : 0;
     return cached != 0;
 }
 

@@ -58,16 +58,22 @@ def _find_free_udp_port() -> int:
 
 
 def _multicast_available() -> bool:
-    """Check if the OS supports multicast (IP_ADD_MEMBERSHIP)."""
+    """Check if multicast loopback actually delivers data on this host."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("0.0.0.0", 0))
+        port = s.getsockname()[1]
         mreq = struct.pack("4s4s",
                            socket.inet_aton(MCAST_GROUP),
                            socket.inet_aton("0.0.0.0"))
         s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, 1)
+        s.settimeout(0.5)
+        s.sendto(b"probe", (MCAST_GROUP, port))
+        data = s.recv(16)
         s.close()
-        return True
+        return len(data) > 0
     except OSError:
         return False
 

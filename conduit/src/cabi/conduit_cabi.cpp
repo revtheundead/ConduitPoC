@@ -253,6 +253,8 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     switch (transport->type) {
         case CONDUIT_TRANSPORT_UDP: {
             trans_ns::UdpConfig cfg;
+            bool is_multicast = transport->multicast_group &&
+                                transport->multicast_group[0] != '\0';
             // bind_address / bind_port override for explicit bind+remote split
             if (transport->bind_address && transport->bind_address[0] != '\0') {
                 cfg.bind_address = transport->bind_address;
@@ -261,6 +263,14 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
                 auto [rhost, rport] = parse_host_port(addr);
                 cfg.remote_address = rhost;
                 cfg.remote_port    = transport->remote_port ? transport->remote_port : rport;
+            } else if (is_multicast) {
+                // Multicast: address/remote not required — group is the destination
+                cfg.bind_port = transport->bind_port;
+                if (!addr.empty()) {
+                    auto [rhost, rport] = parse_host_port(addr);
+                    cfg.remote_address = rhost;
+                    cfg.remote_port    = transport->remote_port ? transport->remote_port : rport;
+                }
             } else {
                 // address encodes remote host:port; bind to 0.0.0.0:0 by default
                 auto [rhost, rport] = parse_host_port(addr);
