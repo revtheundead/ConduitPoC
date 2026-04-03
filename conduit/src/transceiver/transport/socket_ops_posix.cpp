@@ -219,6 +219,76 @@ void drain_wake_pipe(const WakePipe& pipe) {
     }
 }
 
+// ============================================================================
+// Multicast
+// ============================================================================
+
+VoidResult join_multicast_group(socket_t sock, const std::string& group, const std::string& iface) {
+    struct ip_mreq mreq{};
+    if (inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr) != 1) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                          "Invalid multicast group address: " + group));
+    }
+    if (inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface) != 1) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                          "Invalid multicast interface address: " + iface));
+    }
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) != 0) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::SocketError,
+                          "IP_ADD_MEMBERSHIP failed: " + error_to_string(errno)));
+    }
+    return {};
+}
+
+VoidResult leave_multicast_group(socket_t sock, const std::string& group, const std::string& iface) {
+    struct ip_mreq mreq{};
+    (void)inet_pton(AF_INET, group.c_str(), &mreq.imr_multiaddr);
+    (void)inet_pton(AF_INET, iface.c_str(), &mreq.imr_interface);
+    // Best-effort: don't fail stop() if leave errors
+    (void)setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+    return {};
+}
+
+VoidResult set_multicast_ttl(socket_t sock, uint8_t ttl) {
+    // macOS/BSD requires unsigned char for IP_MULTICAST_TTL (Linux accepts both)
+    unsigned char val = ttl;
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &val, sizeof(val)) != 0) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::SocketError,
+                          "Failed to set IP_MULTICAST_TTL: " + error_to_string(errno)));
+    }
+    return {};
+}
+
+VoidResult set_multicast_loop(socket_t sock, bool enable) {
+    // macOS/BSD requires unsigned char for IP_MULTICAST_LOOP (Linux accepts both)
+    unsigned char val = enable ? 1 : 0;
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &val, sizeof(val)) != 0) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::SocketError,
+                          "Failed to set IP_MULTICAST_LOOP: " + error_to_string(errno)));
+    }
+    return {};
+}
+
+VoidResult set_multicast_interface(socket_t sock, const std::string& iface) {
+    struct in_addr addr{};
+    if (inet_pton(AF_INET, iface.c_str(), &addr) != 1) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                          "Invalid multicast interface address: " + iface));
+    }
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF, &addr, sizeof(addr)) != 0) {
+        return std::unexpected(
+            CONDUIT_ERROR(ErrorCode::SocketError,
+                          "Failed to set IP_MULTICAST_IF: " + error_to_string(errno)));
+    }
+    return {};
+}
+
 } // namespace conduit::transceiver::transport::detail
 
 #endif // !_WIN32

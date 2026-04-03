@@ -169,6 +169,44 @@ Unlike TCP, UDP does expose local port configuration via `bind_port`. Set it to 
 
 Properties: `is_stream_oriented() = false`.
 
+### Multicast
+
+UDP multicast allows a single sender to deliver datagrams to all receivers that have joined a multicast group. Configure multicast by setting `multicast_group` to a valid IPv4 multicast address (224.0.0.0 -- 239.255.255.255).
+
+```cpp
+struct UdpConfig {
+    // ... standard fields ...
+    std::string multicast_group;       // e.g. "239.1.1.1" — empty = unicast
+    std::string multicast_interface;   // NIC to join/send on ("" = OS default)
+    uint8_t     multicast_ttl = 1;     // 1 = LAN only, higher = cross-subnet
+    bool        multicast_loop = true; // Receive own multicast packets
+};
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `multicast_group` | `""` | Multicast group IP (empty = unicast mode) |
+| `multicast_interface` | `""` | NIC to join/send on (empty or `"0.0.0.0"` = OS default route) |
+| `multicast_ttl` | `1` | Packet TTL (1 = LAN only, higher values allow cross-subnet routing) |
+| `multicast_loop` | `true` | Whether the sender receives its own multicast packets |
+
+**Example (C++):**
+
+```cpp
+UdpConfig cfg;
+cfg.bind_address = "0.0.0.0";
+cfg.bind_port = 5000;               // Required — all receivers use the same port
+cfg.multicast_group = "239.1.1.1";
+cfg.multicast_ttl = 1;
+cfg.multicast_loop = false;         // Don't receive our own sends
+```
+
+**Important notes:**
+- `bind_port` must be non-zero for multicast — all receivers bind to the same port.
+- Multicast mode is always multi-peer. Setting `remote_address` is ignored when `multicast_group` is set.
+- Each sender is tracked as a separate peer via `on_peer_connected`, identified by their unicast source address.
+- `send()` delivers the datagram to the multicast group address, regardless of which `PeerId` is passed.
+
 ## Serial
 
 Single-peer, stream-oriented serial port transport. Cross-platform (Win32 COM / POSIX termios).
@@ -284,6 +322,13 @@ new TransportConfig.UdpConfig()
     .remotePort(5001)
     .recvBufferSize(131072)
 
+// UDP multicast
+new TransportConfig.UdpConfig()
+    .bindPort(5000)
+    .multicastGroup("239.1.1.1")
+    .multicastTtl(1)
+    .multicastLoop(true)
+
 // Serial
 TransportConfig.serial("COM3", 115200)
 
@@ -334,6 +379,12 @@ UdpConfig(bind_port=5000,
           remote_port=5001,
           recv_buffer_size=131072)
 
+# UDP multicast
+UdpConfig(bind_port=5000,
+          multicast_group="239.1.1.1",
+          multicast_ttl=1,
+          multicast_loop=True)
+
 # Serial
 SerialConfig("/dev/ttyUSB0", baud_rate=115200)
 
@@ -351,7 +402,7 @@ SerialConfig("/dev/ttyUSB0", baud_rate=115200,
 |----------|-----------|-----------|
 | Connect to a known server | TCP Client | Reliable, ordered, auto-reconnect |
 | Accept connections from devices | TCP Server | Multi-peer, ordered streams |
-| Broadcast / multicast protocols | UDP | Datagram-based, no connection setup |
+| Broadcast / multicast protocols | UDP (multicast) | Set `multicast_group` for group delivery |
 | Sensor data over RS-232/RS-485 | Serial | Direct hardware connection |
 | High-throughput LAN protocol | UDP | Lower latency, no head-of-line blocking |
 | Protocols with sync words/length headers | TCP or Serial | Stream framing handles reassembly |

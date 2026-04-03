@@ -52,6 +52,11 @@ class _CONDUIT_TRANSPORT_CONFIG(ctypes.Structure):
         ("max_datagram_size",           ctypes.c_size_t),
         ("max_peers",                   ctypes.c_size_t),
         ("peer_timeout_s",              ctypes.c_uint32),
+        # UDP multicast
+        ("multicast_group",             ctypes.c_char_p),
+        ("multicast_interface",         ctypes.c_char_p),
+        ("multicast_ttl",               ctypes.c_uint8),
+        ("multicast_loop",              ctypes.c_uint8),
         # TCP server
         ("max_clients",                 ctypes.c_size_t),
         # Serial
@@ -735,6 +740,15 @@ class Transceiver:
             cfg.max_datagram_size = transport.max_datagram_size
             cfg.max_peers         = transport.max_peers
             cfg.peer_timeout_s    = transport.peer_timeout_s
+            if transport.multicast_group:
+                cfg.multicast_group = transport.multicast_group.encode("utf-8")
+            if transport.multicast_interface:
+                cfg.multicast_interface = transport.multicast_interface.encode("utf-8")
+            cfg.multicast_ttl = transport.multicast_ttl
+            if transport.multicast_loop is True:
+                cfg.multicast_loop = 1
+            elif transport.multicast_loop is False:
+                cfg.multicast_loop = 2
 
         elif isinstance(transport, TcpServerConfig):
             cfg.max_clients = transport.max_clients

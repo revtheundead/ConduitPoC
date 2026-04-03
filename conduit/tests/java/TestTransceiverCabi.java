@@ -45,13 +45,13 @@ public class TestTransceiverCabi {
     private static final long PING_TYPE_ID = 0x0ad7bb3ecc473399L;
 
     /**
-     * Size of conduit_transport_config_t (128 bytes on 64-bit).
+     * Size of conduit_transport_config_t (160 bytes on 64-bit).
      * The struct contains pointers and size_t fields that require the full
      * allocation to be zero-filled; under-allocating causes out-of-bounds reads
      * in the C implementation (e.g. bind_address at offset 64 is a char* — if
      * it contains garbage, the C code dereferences it and crashes).
      */
-    private static final long TRANSPORT_CONFIG_SIZE = 128;
+    private static final long TRANSPORT_CONFIG_SIZE = 160;
     private static final long TC_OFF_TYPE    = 0;
     private static final long TC_OFF_ADDRESS = 8;
     private static final long TC_OFF_BAUD    = 16;

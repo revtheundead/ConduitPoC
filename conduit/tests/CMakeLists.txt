@@ -29,6 +29,7 @@ set(CONDUIT_TEST_SOURCES
     test_transceiver_multi_peer.cpp
     test_transceiver_errors.cpp
     test_udp_transport.cpp
+    test_udp_multicast.cpp
     test_tcp_transport_extended.cpp
     test_logger.cpp
     test_string_encoding.cpp
@@ -190,7 +191,7 @@ endif()
 
 add_executable(conduit_tests ${CONDUIT_TEST_SOURCES})
 target_link_libraries(conduit_tests PRIVATE ${CONDUIT_TEST_LIBS})
-catch_discover_tests(conduit_tests)
+catch_discover_tests(conduit_tests PROPERTIES SKIP_RETURN_CODE 4)
 
 # Place test binary under build/tests/ so build scripts can find it.
 # Per-config overrides prevent MSVC multi-config generators from using

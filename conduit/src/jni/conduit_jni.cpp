@@ -220,6 +220,8 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
     jdouble reconnectBackoffMul, jlong reconnectMaxAttempts,
     jstring jbindAddress, jint bindPort, jint remotePort,
     jlong maxDatagramSize, jlong maxPeers, jlong peerTimeoutS,
+    jstring jmulticastGroup, jstring jmulticastInterface,
+    jint multicastTtl, jint multicastLoop,
     jlong maxClients,
     jint dataBits, jint parity, jint stopBits, jint flowControl) {
 
@@ -252,6 +254,15 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
         }
     }
 
+    const char* multicastGroup = nullptr;
+    if (jmulticastGroup) {
+        multicastGroup = env->GetStringUTFChars(jmulticastGroup, nullptr);
+    }
+    const char* multicastInterface = nullptr;
+    if (jmulticastInterface) {
+        multicastInterface = env->GetStringUTFChars(jmulticastInterface, nullptr);
+    }
+
     conduit_transport_config_t cfg = {};
     cfg.type                       = static_cast<conduit_transport_type_t>(transportType);
     cfg.address                    = address;
@@ -269,6 +280,10 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
     cfg.max_datagram_size          = static_cast<size_t>(maxDatagramSize);
     cfg.max_peers                  = static_cast<size_t>(maxPeers);
     cfg.peer_timeout_s             = static_cast<uint32_t>(peerTimeoutS);
+    cfg.multicast_group            = multicastGroup;
+    cfg.multicast_interface        = multicastInterface;
+    cfg.multicast_ttl              = static_cast<uint8_t>(multicastTtl);
+    cfg.multicast_loop             = static_cast<uint8_t>(multicastLoop);
     cfg.max_clients                = static_cast<size_t>(maxClients);
     cfg.data_bits                  = static_cast<uint8_t>(dataBits);
     cfg.parity                     = static_cast<int>(parity);
@@ -280,6 +295,8 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nAddPeer(
         reinterpret_cast<conduit_transceiver_t*>(handle),
         name, sessionName, &cfg, &peer_id);
 
+    if (multicastInterface) env->ReleaseStringUTFChars(jmulticastInterface, multicastInterface);
+    if (multicastGroup) env->ReleaseStringUTFChars(jmulticastGroup, multicastGroup);
     if (bindAddress) env->ReleaseStringUTFChars(jbindAddress, bindAddress);
     env->ReleaseStringUTFChars(jaddress, address);
     env->ReleaseStringUTFChars(jsessionName, sessionName);

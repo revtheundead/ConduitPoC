@@ -73,6 +73,8 @@ public final class JniNativeBinding implements NativeBinding {
                                        double reconnectBackoffMul, long reconnectMaxAttempts,
                                        String bindAddress, int bindPort, int remotePort,
                                        long maxDatagramSize, long maxPeers, long peerTimeoutS,
+                                       String multicastGroup, String multicastInterface,
+                                       int multicastTtl, int multicastLoop,
                                        long maxClients,
                                        int dataBits, int parity, int stopBits, int flowControl);
     private static native int nSolePeer(long handle);
@@ -198,6 +200,8 @@ public final class JniNativeBinding implements NativeBinding {
             transport.reconnectBackoffMul(), transport.reconnectMaxAttempts(),
             transport.bindAddress(), transport.bindPort(), transport.remotePort(),
             transport.maxDatagramSize(), transport.maxPeers(), transport.peerTimeoutS(),
+            transport.multicastGroup(), transport.multicastInterface(),
+            transport.multicastTtl(), transport.multicastLoop(),
             transport.maxClients(),
             transport.dataBits(), transport.parity(), transport.stopBits(), transport.flowControl());
     }

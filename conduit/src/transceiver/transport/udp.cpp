@@ -62,6 +62,8 @@ struct UdpTransport::Impl {
 
     sockaddr_in remote_addr{};
     bool single_peer = false;
+    bool multicast = false;
+    sockaddr_in multicast_addr{};
 
     // Multi-peer mode: map address → PeerId
     std::mutex peers_mutex;
@@ -77,7 +79,10 @@ struct UdpTransport::Impl {
 UdpTransport::UdpTransport(UdpConfig config)
     : impl_(std::make_unique<Impl>()) {
     impl_->config = std::move(config);
-    impl_->single_peer = !impl_->config.remote_address.empty();
+    impl_->multicast = !impl_->config.multicast_group.empty();
+    // Multicast acts as single-peer at the Transceiver level (the "peer" is the
+    // multicast group).  Unicast is single-peer only when remote_address is set.
+    impl_->single_peer = impl_->multicast || !impl_->config.remote_address.empty();
 }
 
 UdpTransport::~UdpTransport() {
@@ -106,6 +111,15 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
         return reuse;
     }
 
+    // Allow multiple sockets to receive the same multicast datagrams.
+    // SO_REUSEADDR alone is not sufficient on Linux; SO_REUSEPORT is needed.
+#if defined(SO_REUSEPORT) && !defined(_WIN32)
+    if (impl_->multicast) {
+        int opt = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+    }
+#endif
+
     // Set OS socket buffer sizes to reduce drop rates under burst conditions
     auto buf_result = set_socket_buffer_sizes(sock,
         impl_->config.recv_buffer_size,
@@ -113,6 +127,53 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
     if (!buf_result) {
         LOG_WARNF("Failed to set socket buffer sizes: {}",
                   buf_result.error().format_short());
+    }
+
+    // Multicast validation and socket options (before bind)
+    if (impl_->multicast) {
+        if (impl_->config.bind_port == 0) {
+            close_socket(sock);
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                              "Multicast requires a non-zero bind_port"));
+        }
+
+        // Validate multicast group is in 224.0.0.0/4 range
+        struct in_addr mcast_test{};
+        if (inet_pton(AF_INET, impl_->config.multicast_group.c_str(),
+                      &mcast_test) != 1) {
+            close_socket(sock);
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                              std::format("Invalid multicast group address: {}",
+                                          impl_->config.multicast_group)));
+        }
+        uint32_t addr_host = ntohl(mcast_test.s_addr);
+        if ((addr_host & 0xF0000000) != 0xE0000000) {
+            close_socket(sock);
+            return std::unexpected(
+                CONDUIT_ERROR(ErrorCode::InvalidConfig,
+                              std::format("Not a multicast address (must be 224.0.0.0/4): {}",
+                                          impl_->config.multicast_group)));
+        }
+
+        // Set multicast socket options
+        auto ttl_r = set_multicast_ttl(sock, impl_->config.multicast_ttl);
+        if (!ttl_r) { close_socket(sock); return ttl_r; }
+
+        auto loop_r = set_multicast_loop(sock, impl_->config.multicast_loop);
+        if (!loop_r) { close_socket(sock); return loop_r; }
+
+        std::string iface = impl_->config.multicast_interface.empty()
+                            ? "0.0.0.0" : impl_->config.multicast_interface;
+
+        auto if_r = set_multicast_interface(sock, iface);
+        if (!if_r) { close_socket(sock); return if_r; }
+
+        // Store resolved multicast destination for send()
+        impl_->multicast_addr.sin_family = AF_INET;
+        impl_->multicast_addr.sin_addr = mcast_test;
+        impl_->multicast_addr.sin_port = htons(impl_->config.bind_port);
     }
 
     // Bind
@@ -146,8 +207,9 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
                                       error_to_string(get_last_error()))));
     }
 
-    // Set up remote address for single-peer mode
-    if (impl_->single_peer) {
+    // Set up remote address for single-peer unicast mode
+    // (multicast uses multicast_addr instead — set above)
+    if (impl_->single_peer && !impl_->multicast) {
         impl_->remote_addr.sin_family = AF_INET;
         impl_->remote_addr.sin_port = htons(impl_->config.remote_port);
         if (inet_pton(AF_INET, impl_->config.remote_address.c_str(),
@@ -157,6 +219,17 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
                 CONDUIT_ERROR(ErrorCode::InvalidConfig,
                               std::format("Invalid remote address: {}",
                                           impl_->config.remote_address)));
+        }
+    }
+
+    // Join multicast group (must be after bind)
+    if (impl_->multicast) {
+        std::string iface = impl_->config.multicast_interface.empty()
+                            ? "0.0.0.0" : impl_->config.multicast_interface;
+        auto join_r = join_multicast_group(sock, impl_->config.multicast_group, iface);
+        if (!join_r) {
+            close_socket(sock);
+            return join_r;
         }
     }
 
@@ -188,6 +261,12 @@ void UdpTransport::stop() {
     {
         std::lock_guard send_lock(impl_->send_mutex);
         if (impl_->sock != invalid_socket) {
+            // Leave multicast group before closing socket
+            if (impl_->multicast) {
+                std::string iface = impl_->config.multicast_interface.empty()
+                                    ? "0.0.0.0" : impl_->config.multicast_interface;
+                [[maybe_unused]] auto leave_err = leave_multicast_group(impl_->sock, impl_->config.multicast_group, iface);
+            }
             close_socket(impl_->sock);
             impl_->sock = invalid_socket;
         }
@@ -248,7 +327,9 @@ VoidResult UdpTransport::send(PeerId peer, std::span<const uint8_t> data) {
 
     sockaddr_in dest{};
 
-    if (impl_->single_peer) {
+    if (impl_->multicast) {
+        dest = impl_->multicast_addr;
+    } else if (impl_->single_peer) {
         dest = impl_->remote_addr;
     } else {
         std::lock_guard lock(impl_->peers_mutex);
@@ -303,7 +384,9 @@ void UdpTransport::Impl::io_loop() {
     // Obtain PeerId for single-peer mode
     if (single_peer && !peer_id.valid() && callbacks.on_peer_connected) {
         std::string endpoint;
-        if (!config.remote_address.empty()) {
+        if (multicast) {
+            endpoint = std::format("multicast:{}", config.multicast_group);
+        } else if (!config.remote_address.empty()) {
             endpoint = std::format("{}:{}", config.remote_address, config.remote_port);
         }
         peer_id = callbacks.on_peer_connected(std::move(endpoint));
@@ -390,9 +473,10 @@ void UdpTransport::Impl::io_loop() {
 
             PeerId sender;
             if (single_peer) {
-                // Validate sender matches configured remote address
-                if (sender_addr.sin_addr.s_addr != remote_addr.sin_addr.s_addr ||
-                    sender_addr.sin_port != remote_addr.sin_port) {
+                // Validate sender matches configured remote address (unicast only)
+                if (!multicast &&
+                    (sender_addr.sin_addr.s_addr != remote_addr.sin_addr.s_addr ||
+                     sender_addr.sin_port != remote_addr.sin_port)) {
                     LOG_WARN("UDP single-peer: dropping packet from unexpected sender");
                     continue;
                 }

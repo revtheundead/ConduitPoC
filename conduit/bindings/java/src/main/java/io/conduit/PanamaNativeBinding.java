@@ -51,19 +51,25 @@ public final class PanamaNativeBinding implements NativeBinding {
      *  72  u16    bind_port
      *  74  u16    remote_port
      *  76  (pad4)
-     *  80  size_t max_datagram_size
-     *  88  size_t max_peers
-     *  96  u32    peer_timeout_s
-     * 100  (pad4)
-     * 104  size_t max_clients
-     * 112  u8     data_bits
-     * 113  (pad3)
-     * 116  int    parity
-     * 120  int    stop_bits
-     * 124  int    flow_control
-     * Total: 128 bytes
+     *  80  size_t send_buffer_size
+     *  88  size_t max_datagram_size
+     *  96  size_t max_peers
+     * 104  u32    peer_timeout_s
+     * 108  (pad4)
+     * 112  char*  multicast_group
+     * 120  char*  multicast_interface
+     * 128  u8     multicast_ttl
+     * 129  u8     multicast_loop
+     * 130  (pad6)
+     * 136  size_t max_clients
+     * 144  u8     data_bits
+     * 145  (pad3)
+     * 148  int    parity
+     * 152  int    stop_bits
+     * 156  int    flow_control
+     * Total: 160 bytes
      */
-    private static final int TRANSPORT_CONFIG_SIZE = 128;
+    private static final int TRANSPORT_CONFIG_SIZE = 160;
     // field byte offsets
     private static final long TC_OFF_TYPE                    =   0;
     private static final long TC_OFF_ADDRESS                 =   8;
@@ -78,14 +84,19 @@ public final class PanamaNativeBinding implements NativeBinding {
     private static final long TC_OFF_BIND_ADDRESS            =  64;
     private static final long TC_OFF_BIND_PORT               =  72;
     private static final long TC_OFF_REMOTE_PORT             =  74;
-    private static final long TC_OFF_MAX_DATAGRAM_SIZE       =  80;
-    private static final long TC_OFF_MAX_PEERS               =  88;
-    private static final long TC_OFF_PEER_TIMEOUT_S          =  96;
-    private static final long TC_OFF_MAX_CLIENTS             = 104;
-    private static final long TC_OFF_DATA_BITS               = 112;
-    private static final long TC_OFF_PARITY                  = 116;
-    private static final long TC_OFF_STOP_BITS               = 120;
-    private static final long TC_OFF_FLOW_CONTROL            = 124;
+    private static final long TC_OFF_SEND_BUFFER_SIZE        =  80;
+    private static final long TC_OFF_MAX_DATAGRAM_SIZE       =  88;
+    private static final long TC_OFF_MAX_PEERS               =  96;
+    private static final long TC_OFF_PEER_TIMEOUT_S          = 104;
+    private static final long TC_OFF_MULTICAST_GROUP         = 112;
+    private static final long TC_OFF_MULTICAST_INTERFACE     = 120;
+    private static final long TC_OFF_MULTICAST_TTL           = 128;
+    private static final long TC_OFF_MULTICAST_LOOP          = 129;
+    private static final long TC_OFF_MAX_CLIENTS             = 136;
+    private static final long TC_OFF_DATA_BITS               = 144;
+    private static final long TC_OFF_PARITY                  = 148;
+    private static final long TC_OFF_STOP_BITS               = 152;
+    private static final long TC_OFF_FLOW_CONTROL            = 156;
 
     /** Layout for conduit_stats_snapshot_t: 8 uint64_t fields */
     private static final StructLayout STATS_LAYOUT = MemoryLayout.structLayout(
@@ -185,9 +196,20 @@ public final class PanamaNativeBinding implements NativeBinding {
             }
             cfg.set(ValueLayout.JAVA_SHORT,  TC_OFF_BIND_PORT,          (short) transport.bindPort());
             cfg.set(ValueLayout.JAVA_SHORT,  TC_OFF_REMOTE_PORT,        (short) transport.remotePort());
+            cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_SEND_BUFFER_SIZE,   0L); // TODO: expose send_buffer_size
             cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_DATAGRAM_SIZE,  transport.maxDatagramSize());
             cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_PEERS,          transport.maxPeers());
             cfg.set(ValueLayout.JAVA_INT,    TC_OFF_PEER_TIMEOUT_S,     (int) transport.peerTimeoutS());
+            if (transport.multicastGroup() != null) {
+                var mcastGroupStr = arena.allocateUtf8String(transport.multicastGroup());
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_MULTICAST_GROUP, mcastGroupStr);
+            }
+            if (transport.multicastInterface() != null) {
+                var mcastIfaceStr = arena.allocateUtf8String(transport.multicastInterface());
+                cfg.set(ValueLayout.ADDRESS, TC_OFF_MULTICAST_INTERFACE, mcastIfaceStr);
+            }
+            cfg.set(ValueLayout.JAVA_BYTE,   TC_OFF_MULTICAST_TTL,     (byte) transport.multicastTtl());
+            cfg.set(ValueLayout.JAVA_BYTE,   TC_OFF_MULTICAST_LOOP,    (byte) transport.multicastLoop());
             cfg.set(ValueLayout.JAVA_LONG,   TC_OFF_MAX_CLIENTS,        transport.maxClients());
             cfg.set(ValueLayout.JAVA_BYTE,   TC_OFF_DATA_BITS,          (byte) transport.dataBits());
             cfg.set(ValueLayout.JAVA_INT,    TC_OFF_PARITY,             transport.parity());
