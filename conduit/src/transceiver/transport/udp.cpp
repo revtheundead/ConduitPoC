@@ -80,8 +80,9 @@ UdpTransport::UdpTransport(UdpConfig config)
     : impl_(std::make_unique<Impl>()) {
     impl_->config = std::move(config);
     impl_->multicast = !impl_->config.multicast_group.empty();
-    // Multicast is always multi-peer; single-peer only when unicast with remote_address
-    impl_->single_peer = !impl_->multicast && !impl_->config.remote_address.empty();
+    // Multicast acts as single-peer at the Transceiver level (the "peer" is the
+    // multicast group).  Unicast is single-peer only when remote_address is set.
+    impl_->single_peer = impl_->multicast || !impl_->config.remote_address.empty();
 }
 
 UdpTransport::~UdpTransport() {
@@ -197,8 +198,9 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
                                       error_to_string(get_last_error()))));
     }
 
-    // Set up remote address for single-peer mode
-    if (impl_->single_peer) {
+    // Set up remote address for single-peer unicast mode
+    // (multicast uses multicast_addr instead — set above)
+    if (impl_->single_peer && !impl_->multicast) {
         impl_->remote_addr.sin_family = AF_INET;
         impl_->remote_addr.sin_port = htons(impl_->config.remote_port);
         if (inet_pton(AF_INET, impl_->config.remote_address.c_str(),
@@ -373,7 +375,9 @@ void UdpTransport::Impl::io_loop() {
     // Obtain PeerId for single-peer mode
     if (single_peer && !peer_id.valid() && callbacks.on_peer_connected) {
         std::string endpoint;
-        if (!config.remote_address.empty()) {
+        if (multicast) {
+            endpoint = std::format("multicast:{}", config.multicast_group);
+        } else if (!config.remote_address.empty()) {
             endpoint = std::format("{}:{}", config.remote_address, config.remote_port);
         }
         peer_id = callbacks.on_peer_connected(std::move(endpoint));
@@ -460,9 +464,10 @@ void UdpTransport::Impl::io_loop() {
 
             PeerId sender;
             if (single_peer) {
-                // Validate sender matches configured remote address
-                if (sender_addr.sin_addr.s_addr != remote_addr.sin_addr.s_addr ||
-                    sender_addr.sin_port != remote_addr.sin_port) {
+                // Validate sender matches configured remote address (unicast only)
+                if (!multicast &&
+                    (sender_addr.sin_addr.s_addr != remote_addr.sin_addr.s_addr ||
+                     sender_addr.sin_port != remote_addr.sin_port)) {
                     LOG_WARN("UDP single-peer: dropping packet from unexpected sender");
                     continue;
                 }

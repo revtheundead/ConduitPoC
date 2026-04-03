@@ -366,16 +366,16 @@ TEST_CASE("UDP multicast: stop leaves group cleanly", "[udp][multicast]") {
     transport.stop();
 }
 
-TEST_CASE("UDP multicast: is_multi_peer returns true", "[udp][multicast]") {
+TEST_CASE("UDP multicast: is_multi_peer returns false (group is the peer)", "[udp][multicast]") {
     UdpConfig cfg;
     cfg.multicast_group = TEST_MCAST_GROUP;
     cfg.bind_port = 5000;
 
     UdpTransport transport(cfg);
-    CHECK(transport.is_multi_peer() == true);
+    CHECK(transport.is_multi_peer() == false);
 }
 
-TEST_CASE("UDP multicast: is_multi_peer true even with remote_address set", "[udp][multicast]") {
+TEST_CASE("UDP multicast: is_multi_peer false even with remote_address set", "[udp][multicast]") {
     UdpConfig cfg;
     cfg.multicast_group = TEST_MCAST_GROUP;
     cfg.remote_address = "127.0.0.1";
@@ -383,7 +383,7 @@ TEST_CASE("UDP multicast: is_multi_peer true even with remote_address set", "[ud
     cfg.bind_port = 5000;
 
     UdpTransport transport(cfg);
-    CHECK(transport.is_multi_peer() == true);
+    CHECK(transport.is_multi_peer() == false);
 }
 
 // ============================================================================
