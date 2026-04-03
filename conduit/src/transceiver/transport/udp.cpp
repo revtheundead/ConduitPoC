@@ -111,6 +111,15 @@ VoidResult UdpTransport::start(TransportCallbacks cb) {
         return reuse;
     }
 
+    // Allow multiple sockets to receive the same multicast datagrams.
+    // SO_REUSEADDR alone is not sufficient on Linux; SO_REUSEPORT is needed.
+#if defined(SO_REUSEPORT) && !defined(_WIN32)
+    if (impl_->multicast) {
+        int opt = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+    }
+#endif
+
     // Set OS socket buffer sizes to reduce drop rates under burst conditions
     auto buf_result = set_socket_buffer_sizes(sock,
         impl_->config.recv_buffer_size,
