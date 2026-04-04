@@ -672,7 +672,6 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
     }
 
     if (in_sub_reader_scope) {
-        std::string len_member = result_var + "." + to_member_name(auto_length_field_name);
         ctx_.line("if (_auto_len_fallback) {");
         ctx_.indent();
         ctx_.line("LOG_WARNF(\"decode: auto-length field '" + auto_length_field_name
