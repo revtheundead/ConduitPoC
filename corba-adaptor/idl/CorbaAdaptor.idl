@@ -1,0 +1,137 @@
+// SPDX-License-Identifier: MIT
+// Conduit CORBA Adaptor - Interface Definitions
+//
+// Defines the CORBA interfaces for the adaptor bridge:
+//   - CommandReceiver:  accepts commands from external systems
+//   - DataSupplier:     push-model data distribution (1 supplier → N consumers)
+//   - DataConsumer:     callback interface implemented by consumers
+//   - RawDataChannel:   bidirectional raw byte transport for the CORBA peer
+//   - RawDataCallback:  inbound raw data delivery from the CORBA peer
+
+module CorbaAdaptor
+{
+    // ========================================================================
+    // Common types
+    // ========================================================================
+
+    typedef sequence<octet> OctetSeq;
+
+    /// Identifies the originating peer.
+    enum PeerSource {
+        PEER_TCP,       // Data originated from the TCP peer
+        PEER_CORBA      // Data originated from the CORBA raw-data peer
+    };
+
+    /// Metadata attached to every data packet pushed to consumers.
+    struct DataHeader {
+        unsigned long long  timestamp_us;   // Microseconds since epoch
+        PeerSource          source;
+        string              label;          // Free-form tag (e.g. message type)
+    };
+
+    /// A single data packet delivered to consumers.
+    struct DataPacket {
+        DataHeader  header;
+        OctetSeq    payload;
+    };
+
+    typedef sequence<DataPacket> DataPacketSeq;
+
+    // ========================================================================
+    // Command interface
+    // ========================================================================
+
+    enum CommandStatus {
+        CMD_OK,
+        CMD_REJECTED,
+        CMD_ERROR
+    };
+
+    struct CommandResult {
+        CommandStatus   status;
+        string          message;
+    };
+
+    /// Receives commands from external systems.
+    interface CommandReceiver {
+        /// Execute an arbitrary command with optional binary parameters.
+        CommandResult execute_command(in string command, in OctetSeq params);
+
+        /// Query a named value / status.
+        CommandResult query(in string name);
+
+        /// Request graceful shutdown of the adaptor.
+        oneway void request_shutdown();
+    };
+
+    // ========================================================================
+    // Supplier / Consumer data distribution
+    // ========================================================================
+
+    /// Consumers implement this interface so the supplier can push data.
+    interface DataConsumer {
+        /// Called by the supplier when new data is available.
+        oneway void on_data(in DataPacket packet);
+
+        /// Called by the supplier when a batch of data is available.
+        oneway void on_data_batch(in DataPacketSeq packets);
+
+        /// Called by the supplier when it is shutting down.
+        oneway void on_supplier_disconnect(in string reason);
+
+        /// Heartbeat probe — returns true if the consumer is healthy.
+        boolean is_alive();
+    };
+
+    /// Subscription handle returned to consumers.
+    typedef unsigned long SubscriptionId;
+
+    /// Filter specification for subscriptions.
+    struct SubscriptionFilter {
+        boolean     accept_tcp_peer;    // Receive data from the TCP peer
+        boolean     accept_corba_peer;  // Receive data from the CORBA peer
+        string      label_pattern;      // Glob-style label filter ("" = accept all)
+    };
+
+    /// Supplier interface — distributes data to registered consumers.
+    interface DataSupplier {
+        /// Subscribe a consumer with an optional filter.
+        /// Returns a unique subscription ID for later unsubscribe.
+        SubscriptionId subscribe(in DataConsumer consumer,
+                                 in SubscriptionFilter filter);
+
+        /// Remove a subscription.
+        void unsubscribe(in SubscriptionId id);
+
+        /// Return the number of active subscriptions.
+        unsigned long subscriber_count();
+    };
+
+    // ========================================================================
+    // CORBA raw-data peer (transport-only, codec handled by Conduit)
+    // ========================================================================
+
+    /// Callback for receiving inbound raw data from the CORBA peer.
+    interface RawDataCallback {
+        /// Deliver raw bytes received from the remote side.
+        oneway void on_raw_data(in OctetSeq data);
+
+        /// Notify that the channel has disconnected.
+        oneway void on_channel_disconnect(in string reason);
+    };
+
+    /// Bidirectional raw byte channel exposed by the CORBA peer.
+    interface RawDataChannel {
+        /// Send raw bytes to the remote side.
+        void send_raw(in OctetSeq data);
+
+        /// Register a callback for inbound data.
+        void register_callback(in RawDataCallback cb);
+
+        /// Remove the callback.
+        void unregister_callback();
+
+        /// Check whether the remote side is connected.
+        boolean is_connected();
+    };
+};
