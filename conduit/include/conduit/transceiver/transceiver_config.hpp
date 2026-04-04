@@ -64,6 +64,7 @@ struct MessageLogConfig {
     std::string received_filename;
 
     bool include_message_content = true; // Include to_string() output (has perf cost)
+    bool include_raw_bytes = false;      // Include hex dump of wire bytes (opt-in)
 };
 
 // ============================================================================

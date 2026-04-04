@@ -130,6 +130,7 @@ class _CONDUIT_MESSAGE_LOG_CONFIG(ctypes.Structure):
         ("sent_filename", ctypes.c_char_p),
         ("received_filename", ctypes.c_char_p),
         ("include_message_content", ctypes.c_int),
+        ("include_raw_bytes", ctypes.c_int),
     ]
 
 
@@ -539,7 +540,8 @@ class Transceiver:
                                filename: str = "",
                                sent_filename: str = "",
                                received_filename: str = "",
-                               include_message_content: bool = True) -> None:
+                               include_message_content: bool = True,
+                               include_raw_bytes: bool = False) -> None:
         """Configure message logging. Must be called before start().
 
         Args:
@@ -552,6 +554,7 @@ class Transceiver:
             sent_filename: Override for sent direction.
             received_filename: Override for received direction.
             include_message_content: Include ``to_string()`` output (has perf cost).
+            include_raw_bytes: Include hex dump of raw wire bytes (opt-in).
         """
         cfg = _CONDUIT_MESSAGE_LOG_CONFIG()
         cfg.enabled = 1 if enabled else 0
@@ -563,6 +566,7 @@ class Transceiver:
         cfg.sent_filename = sent_filename.encode("utf-8") if sent_filename else None
         cfg.received_filename = received_filename.encode("utf-8") if received_filename else None
         cfg.include_message_content = 1 if include_message_content else 0
+        cfg.include_raw_bytes = 1 if include_raw_bytes else 0
 
         err = self._lib.conduit_set_message_log_config(
             self._handle, ctypes.byref(cfg))

@@ -33,6 +33,7 @@ JNIEXPORT jlong JNICALL Java_io_conduit_JniCodecBinding_nSessionCreate(
     JNIEnv* env, jclass, jstring jsessionType) {
 
     const char* sessionType = env->GetStringUTFChars(jsessionType, nullptr);
+    if (!sessionType) return 0;  // OOM
     conduit_session_t* session = conduit_session_create(sessionType);
     env->ReleaseStringUTFChars(jsessionType, sessionType);
     return reinterpret_cast<jlong>(session);
@@ -64,6 +65,7 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nDecodeFrame(
     if (!g_decoded_msg_class) return nullptr;
 
     jbyte* data = env->GetByteArrayElements(jdata, nullptr);
+    if (!data) return nullptr;  // OOM
 
     conduit_decoded_msg_t* msgs = nullptr;
     size_t count = 0;
@@ -112,6 +114,7 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeMessage(
     if (session == 0) return nullptr;
 
     jbyte* payload = env->GetByteArrayElements(jpayload, nullptr);
+    if (!payload) return nullptr;  // OOM
 
     conduit_encode_result_t result;
     memset(&result, 0, sizeof(result));
@@ -146,39 +149,48 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
     auto** jbuffers = new jbyte*[ucount]{};
     auto* jarrs = new jbyteArray[ucount]{}; // save refs for proper release
 
+    int validCount = 0;
     for (int i = 0; i < count; i++) {
         jarrs[i] = static_cast<jbyteArray>(env->GetObjectArrayElement(jpayloads, i));
+        if (!jarrs[i]) break;
         jbuffers[i] = env->GetByteArrayElements(jarrs[i], nullptr);
+        if (!jbuffers[i]) break;
         payloads[i] = reinterpret_cast<const uint8_t*>(jbuffers[i]);
         lens[i] = static_cast<size_t>(env->GetArrayLength(jarrs[i]));
+        validCount = i + 1;
     }
 
-    conduit_encode_result_t result;
-    memset(&result, 0, sizeof(result));
-    int err = conduit_encode_batch(
-        reinterpret_cast<conduit_session_t*>(session),
-        static_cast<uint64_t>(typeId),
-        payloads, lens, static_cast<size_t>(count),
-        &result);
+    jbyteArray jresultArr = nullptr;
+    if (validCount == count) {
+        conduit_encode_result_t result;
+        memset(&result, 0, sizeof(result));
+        int err = conduit_encode_batch(
+            reinterpret_cast<conduit_session_t*>(session),
+            static_cast<uint64_t>(typeId),
+            payloads, lens, static_cast<size_t>(count),
+            &result);
 
-    // Release using saved references
-    for (int i = 0; i < count; i++) {
+        if (err == 0) {
+            jresultArr = env->NewByteArray(static_cast<jsize>(result.data_len));
+            env->SetByteArrayRegion(jresultArr, 0, static_cast<jsize>(result.data_len),
+                                    reinterpret_cast<const jbyte*>(result.data));
+            conduit_free_encode_result(&result);
+        }
+    }
+
+    // Release only valid entries
+    for (int i = 0; i < validCount; i++) {
         env->ReleaseByteArrayElements(jarrs[i], jbuffers[i], JNI_ABORT);
-        env->DeleteLocalRef(jarrs[i]);
+    }
+    for (int i = 0; i < count; i++) {
+        if (jarrs[i]) env->DeleteLocalRef(jarrs[i]);
     }
     delete[] payloads;
     delete[] lens;
     delete[] jbuffers;
     delete[] jarrs;
 
-    if (err != 0) return nullptr;
-
-    jbyteArray jresult = env->NewByteArray(static_cast<jsize>(result.data_len));
-    env->SetByteArrayRegion(jresult, 0, static_cast<jsize>(result.data_len),
-                            reinterpret_cast<const jbyte*>(result.data));
-
-    conduit_free_encode_result(&result);
-    return jresult;
+    return jresultArr;
 }
 
 // ============================================================================
@@ -254,6 +266,7 @@ JNIEXPORT jstring JNICALL Java_io_conduit_JniCodecBinding_nFormatMessage(
     if (session == 0) return nullptr;
 
     jbyte* payload = env->GetByteArrayElements(jpayload, nullptr);
+    if (!payload) return nullptr;  // OOM
     char buf[4096];
     size_t written = 0;
 
@@ -297,6 +310,7 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nFramerFeed(
     if (framer == 0) return nullptr;
 
     jbyte* data = env->GetByteArrayElements(jdata, nullptr);
+    if (!data) return nullptr;  // OOM
 
     conduit_frame_t* frames = nullptr;
     size_t count = 0;

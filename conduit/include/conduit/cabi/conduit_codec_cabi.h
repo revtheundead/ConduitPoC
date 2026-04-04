@@ -38,6 +38,7 @@ typedef int32_t conduit_error_t;
 #define CONDUIT_ERR_UNKNOWN_SESSION    (-4)
 #define CONDUIT_ERR_BUFFER_TOO_SMALL   (-5)
 #define CONDUIT_ERR_BATCH_NOT_SUPPORTED (-6)
+#define CONDUIT_ERR_INVALID_ARGUMENT   (-7)
 #define CONDUIT_ERR_UNKNOWN            (-99)
 
 /* ================================================================

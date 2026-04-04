@@ -503,7 +503,8 @@ TEST_CASE("String length-includes-prefix generates underflow guard", "[codegen]"
 
     // The generated message decode should contain a bounds check before
     // subtracting prefix bytes from the received length value
-    CHECK(gc->messages.find("length-prefix value smaller than prefix size") != std::string::npos);
+    CHECK(gc->messages.find("length-prefix value") != std::string::npos);
+    CHECK(gc->messages.find("smaller than prefix size") != std::string::npos);
     CHECK(gc->messages.find("BufferOverrun") != std::string::npos);
 }
 

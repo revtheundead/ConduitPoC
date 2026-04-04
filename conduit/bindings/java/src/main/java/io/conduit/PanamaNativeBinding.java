@@ -550,7 +550,7 @@ public final class PanamaNativeBinding implements NativeBinding {
     public int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
                                    String directory, String prefix, String filename,
                                    String sentFilename, String receivedFilename,
-                                   boolean includeMessageContent) {
+                                   boolean includeMessageContent, boolean includeRawBytes) {
         try {
             var cfg = arena.allocate(MSG_LOG_CONFIG_SIZE, 8);
             cfg.set(ValueLayout.JAVA_INT,  0, enabled ? 1 : 0);
@@ -562,6 +562,7 @@ public final class PanamaNativeBinding implements NativeBinding {
             cfg.set(ValueLayout.ADDRESS,  40, sentFilename     != null ? arena.allocateUtf8String(sentFilename)     : MemorySegment.NULL);
             cfg.set(ValueLayout.ADDRESS,  48, receivedFilename != null ? arena.allocateUtf8String(receivedFilename) : MemorySegment.NULL);
             cfg.set(ValueLayout.JAVA_INT, 56, includeMessageContent ? 1 : 0);
+            cfg.set(ValueLayout.JAVA_INT, 60, includeRawBytes ? 1 : 0);
             return (int) CabiBindings.conduit_set_message_log_config.invokeExact(
                 MemorySegment.ofAddress(handle), cfg);
         } catch (Throwable e) {

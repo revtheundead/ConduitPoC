@@ -40,24 +40,27 @@ MessageLog::~MessageLog() = default;
 void MessageLog::log_send(const std::string& peer_name, std::string_view remote_endpoint,
                           std::string_view type_name, size_t byte_count,
                           const std::string& message_content,
-                          std::string_view protocol, std::string_view transport) {
+                          std::string_view protocol, std::string_view transport,
+                          std::span<const uint8_t> raw_bytes) {
     write_entry("SEND", peer_name, remote_endpoint, type_name, byte_count,
-                message_content, protocol, transport);
+                message_content, protocol, transport, raw_bytes);
 }
 
 void MessageLog::log_recv(const std::string& peer_name, std::string_view remote_endpoint,
                           std::string_view type_name, size_t byte_count,
                           const std::string& message_content,
-                          std::string_view protocol, std::string_view transport) {
+                          std::string_view protocol, std::string_view transport,
+                          std::span<const uint8_t> raw_bytes) {
     write_entry("RECV", peer_name, remote_endpoint, type_name, byte_count,
-                message_content, protocol, transport);
+                message_content, protocol, transport, raw_bytes);
 }
 
 void MessageLog::write_entry(const std::string& direction,
                              const std::string& peer_name, std::string_view remote_endpoint,
                              std::string_view type_name, size_t byte_count,
                              const std::string& message_content,
-                             std::string_view protocol, std::string_view transport) {
+                             std::string_view protocol, std::string_view transport,
+                             std::span<const uint8_t> raw_bytes) {
     std::string ts = timestamp_now();
     std::string key = resolve_file_key(direction, peer_name);
 
@@ -72,10 +75,30 @@ void MessageLog::write_entry(const std::string& direction,
          << " type=" << type_name
          << " bytes=" << byte_count;
 
+    // Pre-format hex dump outside lock if needed
+    std::string hex_dump;
+    if (config_.include_raw_bytes && !raw_bytes.empty()) {
+        static constexpr char hex_chars[] = "0123456789ABCDEF";
+        std::ostringstream hex;
+        hex << "  hex:";
+        for (size_t i = 0; i < raw_bytes.size(); ++i) {
+            if (i % 32 == 0) {
+                hex << (i == 0 ? " " : "\n       ");
+            } else {
+                hex << ' ';
+            }
+            hex << hex_chars[raw_bytes[i] >> 4] << hex_chars[raw_bytes[i] & 0xF];
+        }
+        hex_dump = hex.str();
+    }
+
     std::lock_guard lock(mutex_);
 
     auto write_to = [&](std::ostream& out) {
         out << line.str() << '\n';
+        if (!hex_dump.empty()) {
+            out << hex_dump << '\n';
+        }
         if (config_.include_message_content && !message_content.empty()) {
             out << '\n' << message_content << "\n\n";
         } else {

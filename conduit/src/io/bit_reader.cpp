@@ -15,11 +15,11 @@ Result<uint64_t> BitReader::read_bits(size_t count) {
     if (count == 0) return uint64_t{0};
     if (count > 64) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::InvalidArgument, "read_bits: count exceeds 64"));
+            ErrorCode::InvalidArgument, "read_bits: requested " + std::to_string(count) + " bits, max is 64"));
     }
     if (remaining_bits() < count) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_bits: not enough bits remaining"));
+            ErrorCode::BufferUnderrun, "read_bits: need " + std::to_string(count) + " bits, only " + std::to_string(remaining_bits()) + " remain"));
     }
 
     uint64_t result = 0;
@@ -85,7 +85,7 @@ Result<uint64_t> BitReader::read_bcd(size_t bits) {
         uint8_t digit = static_cast<uint8_t>((raw >> (i * 4)) & 0xF);
         if (digit > 9) {
             return std::unexpected(CONDUIT_ERROR(
-                ErrorCode::InvalidArgument, "read_bcd: invalid BCD digit"));
+                ErrorCode::InvalidArgument, "read_bcd: invalid BCD digit " + std::to_string(digit) + " at nibble " + std::to_string(i)));
         }
         result += digit * multiplier;
         multiplier *= 10;
@@ -120,7 +120,7 @@ Result<int64_t> BitReader::read_bcd_signed(size_t bits) {
         uint8_t digit = static_cast<uint8_t>((bcd_part >> (i * 4)) & 0xF);
         if (digit > 9) {
             return std::unexpected(CONDUIT_ERROR(
-                ErrorCode::InvalidArgument, "read_bcd_signed: invalid BCD digit"));
+                ErrorCode::InvalidArgument, "read_bcd_signed: invalid BCD digit " + std::to_string(digit) + " at nibble " + std::to_string(i)));
         }
         result += digit * multiplier;
         multiplier *= 10;
@@ -151,7 +151,7 @@ Result<uint8_t> BitReader::read_u8() {
     align_to_byte();
     if (byte_pos_ >= data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_u8: not enough data"));
+            ErrorCode::BufferUnderrun, "read_u8: need 1 byte, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     uint8_t val = data_[byte_pos_++];
     return val;
@@ -161,7 +161,7 @@ Result<uint16_t> BitReader::read_u16(Endian e) {
     align_to_byte();
     if (byte_pos_ + 2 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_u16: not enough data"));
+            ErrorCode::BufferUnderrun, "read_u16: need 2 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     uint16_t val = io::read_u16(data_, byte_pos_, e);
     byte_pos_ += 2;
@@ -172,7 +172,7 @@ Result<uint32_t> BitReader::read_u32(Endian e) {
     align_to_byte();
     if (byte_pos_ + 4 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_u32: not enough data"));
+            ErrorCode::BufferUnderrun, "read_u32: need 4 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     uint32_t val = io::read_u32(data_, byte_pos_, e);
     byte_pos_ += 4;
@@ -183,7 +183,7 @@ Result<uint64_t> BitReader::read_u64(Endian e) {
     align_to_byte();
     if (byte_pos_ + 8 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_u64: not enough data"));
+            ErrorCode::BufferUnderrun, "read_u64: need 8 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     uint64_t val = io::read_u64(data_, byte_pos_, e);
     byte_pos_ += 8;
@@ -194,7 +194,7 @@ Result<float> BitReader::read_f16(Endian e) {
     align_to_byte();
     if (byte_pos_ + 2 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_f16: not enough data"));
+            ErrorCode::BufferUnderrun, "read_f16: need 2 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     float val = io::read_f16(data_, byte_pos_, e);
     byte_pos_ += 2;
@@ -205,7 +205,7 @@ Result<float> BitReader::read_f32(Endian e) {
     align_to_byte();
     if (byte_pos_ + 4 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_f32: not enough data"));
+            ErrorCode::BufferUnderrun, "read_f32: need 4 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     float val = io::read_f32(data_, byte_pos_, e);
     byte_pos_ += 4;
@@ -216,7 +216,7 @@ Result<double> BitReader::read_f48(Endian e) {
     align_to_byte();
     if (byte_pos_ + 6 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_f48: not enough data"));
+            ErrorCode::BufferUnderrun, "read_f48: need 6 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     double val = io::read_f48(data_, byte_pos_, e);
     byte_pos_ += 6;
@@ -227,7 +227,7 @@ Result<double> BitReader::read_f64(Endian e) {
     align_to_byte();
     if (byte_pos_ + 8 > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_f64: not enough data"));
+            ErrorCode::BufferUnderrun, "read_f64: need 8 bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     double val = io::read_f64(data_, byte_pos_, e);
     byte_pos_ += 8;
@@ -242,7 +242,7 @@ Result<std::span<const uint8_t>> BitReader::read_bytes(size_t count) {
     align_to_byte();
     if (byte_pos_ + count > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "read_bytes: not enough data"));
+            ErrorCode::BufferUnderrun, "read_bytes: need " + std::to_string(count) + " bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     auto result = data_.subspan(byte_pos_, count);
     byte_pos_ += count;
@@ -262,7 +262,7 @@ Result<BitReader> BitReader::sub_reader(size_t byte_count) {
     align_to_byte();
     if (byte_pos_ + byte_count > data_.size()) {
         return std::unexpected(CONDUIT_ERROR(
-            ErrorCode::BufferUnderrun, "sub_reader: not enough data"));
+            ErrorCode::BufferUnderrun, "sub_reader: need " + std::to_string(byte_count) + " bytes, have " + std::to_string(remaining_bytes()) + " remaining"));
     }
     auto sub_span = data_.subspan(byte_pos_, byte_count);
     byte_pos_ += byte_count;

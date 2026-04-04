@@ -213,6 +213,8 @@ public class Transceiver implements AutoCloseable {
         public String         sentFilename           = null;
         public String         receivedFilename       = null;
         public boolean        includeMessageContent  = true;
+        /** Include hex dump of raw wire bytes (opt-in). */
+        public boolean        includeRawBytes        = false;
     }
 
     // ================================================================
@@ -314,7 +316,7 @@ public class Transceiver implements AutoCloseable {
                 cfg.mode.value, cfg.output.value,
                 cfg.directory, cfg.prefix,
                 cfg.filename, cfg.sentFilename, cfg.receivedFilename,
-                cfg.includeMessageContent);
+                cfg.includeMessageContent, cfg.includeRawBytes);
         if (err != 0) throw new ConduitError(err, "Failed to set message log config");
         this.logIncludeContent = cfg.includeMessageContent;
     }
