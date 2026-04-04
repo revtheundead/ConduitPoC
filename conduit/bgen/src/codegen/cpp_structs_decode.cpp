@@ -647,15 +647,15 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
             ctx_.line("#pragma warning(disable: 4457)");
             ctx_.line("#endif");
             ctx_.line("auto _auto_len_avail = r.remaining_bytes();");
-            ctx_.line("auto _auto_len_consumed = auto_len_start_ - r.remaining_bytes();");
+            ctx_.line("auto _auto_len_consumed = static_cast<int64_t>(auto_len_start_ - r.remaining_bytes());");
             ctx_.line("auto _auto_len_total = static_cast<int64_t>(" + raw_len + ");");
             ctx_.line("bool _auto_len_fallback = (_auto_len_total < 0) || "
-                      "(static_cast<size_t>(_auto_len_total) < _auto_len_consumed);");
+                      "(_auto_len_total < _auto_len_consumed);");
             ctx_.line("conduit::Result<conduit::io::BitReader> auto_len_sub_ = "
                       "std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"skipped\"));");
             ctx_.line("if (!_auto_len_fallback) {");
             ctx_.indent();
-            ctx_.line("auto_len_sub_ = r.sub_reader(static_cast<size_t>(_auto_len_total) - _auto_len_consumed);");
+            ctx_.line("auto_len_sub_ = r.sub_reader(static_cast<size_t>(_auto_len_total - _auto_len_consumed));");
             ctx_.line("_auto_len_fallback = !auto_len_sub_.has_value();");
             ctx_.dedent();
             ctx_.line("}");
