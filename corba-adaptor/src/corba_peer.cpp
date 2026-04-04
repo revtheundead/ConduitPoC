@@ -4,6 +4,7 @@
 // Connects to a remote RawDataChannel, registers our RawDataCallback
 // servant to receive inbound data, and exposes send() for outbound.
 // Reconnects automatically when the channel becomes unreachable.
+// Reconnection runs on a dedicated thread with proper lifecycle management.
 
 #include <adaptor/corba_peer.hpp>
 
@@ -78,6 +79,17 @@ struct CorbaPeer::Impl {
     {
     }
 
+    void activate_callback_servant() {
+        if (!CORBA::is_nil(callback_ref.in())) return;  // Already activated
+
+        auto* servant = new RawDataCallbackServant(data_cb, state_cb);
+        callback_servant = servant;
+
+        PortableServer::ObjectId_var oid = poa->activate_object(servant);
+        CORBA::Object_var cb_obj = poa->id_to_reference(oid.in());
+        callback_ref = CorbaAdaptor::RawDataCallback::_narrow(cb_obj.in());
+    }
+
     bool try_connect() {
         try {
             CORBA::Object_var obj =
@@ -93,13 +105,8 @@ struct CorbaPeer::Impl {
                 return false;
             }
 
-            // Activate callback servant
-            auto* servant = new RawDataCallbackServant(data_cb, state_cb);
-            callback_servant = servant;
-
-            PortableServer::ObjectId_var oid = poa->activate_object(servant);
-            CORBA::Object_var cb_obj = poa->id_to_reference(oid.in());
-            callback_ref = CorbaAdaptor::RawDataCallback::_narrow(cb_obj.in());
+            // Ensure callback servant is activated (only once)
+            activate_callback_servant();
 
             // Register with remote channel
             channel->register_callback(callback_ref.in());
@@ -115,6 +122,18 @@ struct CorbaPeer::Impl {
                        ex._info().c_str()));
             return false;
         }
+    }
+
+    void start_reconnect() {
+        // Join any prior reconnect thread safely
+        {
+            std::lock_guard lock(mu);
+            cv.notify_all();
+        }
+        if (reconnect_thread.joinable()) {
+            reconnect_thread.join();
+        }
+        reconnect_thread = std::thread([this] { reconnect_loop(); });
     }
 
     void reconnect_loop() {
@@ -156,7 +175,9 @@ struct CorbaPeer::Impl {
     }
 
     void stop() {
-        running = false;
+        if (!running.exchange(false)) return;
+
+        // Wake and join reconnect thread
         {
             std::lock_guard lock(mu);
             cv.notify_all();
@@ -201,9 +222,9 @@ struct CorbaPeer::Impl {
             connected = false;
             if (state_cb) state_cb(PeerId::corba_peer, false);
 
-            // Trigger reconnection
+            // Trigger reconnection safely (no thread leak)
             if (running && config.auto_reconnect) {
-                reconnect_thread = std::thread([this] { reconnect_loop(); });
+                start_reconnect();
             }
             return false;
         }

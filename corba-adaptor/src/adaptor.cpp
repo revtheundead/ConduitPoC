@@ -98,11 +98,19 @@ void Adaptor::start() {
         ACE_DEBUG((LM_WARNING, "Adaptor: consumer %u reaped\n", id));
     });
 
+    // Launch ORB thread pool
+    auto n_threads = std::max(config_.orb_threads, 1u);
+    orb_threads_.reserve(n_threads);
+    for (uint32_t i = 0; i < n_threads; ++i) {
+        orb_threads_.emplace_back([this] { orb_thread_func(); });
+    }
+
     // Start peers
     tcp_->start();
     corba_->start();
 
-    ACE_DEBUG((LM_INFO, "Adaptor: started successfully\n"));
+    ACE_DEBUG((LM_INFO, "Adaptor: started successfully (%u ORB thread(s))\n",
+               n_threads));
 }
 
 void Adaptor::stop() {
@@ -110,11 +118,12 @@ void Adaptor::stop() {
 
     ACE_DEBUG((LM_INFO, "Adaptor: stopping...\n"));
 
+    // Stop peers first (stops producing data)
     tcp_->stop();
     corba_->stop();
-    supplier_->shutdown("adaptor shutting down");
 
-    // Deactivate CORBA servants
+    // Deactivate CORBA servants before shutting down the supplier's consumer
+    // notifications — prevents new CORBA calls from arriving mid-teardown
     try {
         PortableServer::ObjectId_var oid;
         oid = poa_->servant_to_id(supplier_.get());
@@ -127,18 +136,37 @@ void Adaptor::stop() {
         poa_->deactivate_object(oid.in());
     } catch (const CORBA::Exception&) {}
 
+    // Now notify consumers and clean up
+    supplier_->shutdown("adaptor shutting down");
+
+    // Shut down the ORB and join threads
+    orb_->shutdown(false);
+    for (auto& t : orb_threads_) {
+        if (t.joinable()) t.join();
+    }
+    orb_threads_.clear();
+
     // Signal shutdown waiters
     {
         std::lock_guard lock(shutdown_mu_);
+        shutdown_requested_ = true;
         shutdown_cv_.notify_all();
     }
 
     ACE_DEBUG((LM_INFO, "Adaptor: stopped\n"));
 }
 
+void Adaptor::request_shutdown() {
+    // Signal-safe: only sets an atomic flag and notifies the condvar.
+    // The actual teardown happens in stop(), called from the main thread.
+    shutdown_requested_.store(true, std::memory_order_release);
+    std::lock_guard lock(shutdown_mu_);
+    shutdown_cv_.notify_all();
+}
+
 void Adaptor::wait_for_shutdown() {
     std::unique_lock lock(shutdown_mu_);
-    shutdown_cv_.wait(lock, [this] { return !running_.load(); });
+    shutdown_cv_.wait(lock, [this] { return shutdown_requested_.load(); });
 }
 
 bool Adaptor::send_to_peer(PeerId peer, std::span<const uint8_t> data) {
@@ -157,6 +185,15 @@ CorbaPeer&             Adaptor::corba_peer()       noexcept { return *corba_; }
 // ============================================================================
 // Private
 // ============================================================================
+
+void Adaptor::orb_thread_func() {
+    try {
+        orb_->run();
+    } catch (const CORBA::Exception& ex) {
+        ACE_DEBUG((LM_ERROR, "Adaptor: ORB thread exception: %s\n",
+                   ex._info().c_str()));
+    }
+}
 
 void Adaptor::on_data_received(InternalPacket pkt) {
     auto corba_pkt = pkt.to_corba();
@@ -205,10 +242,10 @@ void Adaptor::register_builtin_commands() {
             return res;
         });
 
-    // Shutdown handler
+    // Shutdown handler — use request_shutdown() for signal-safe path
     command_->set_shutdown_callback([this] {
         ACE_DEBUG((LM_INFO, "Adaptor: shutdown requested via command\n"));
-        stop();
+        request_shutdown();
     });
 }
 

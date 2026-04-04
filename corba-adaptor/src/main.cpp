@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Conduit CORBA Adaptor - Entry Point
 //
-// Initializes the ORB, parses configuration from command-line arguments
-// and environment variables, constructs the Adaptor, and runs until
-// shutdown is signalled.
+// Initializes the ORB, parses configuration from command-line arguments,
+// constructs the Adaptor, and runs until shutdown is signalled.
+//
+// Signal handling:  SIGINT/SIGTERM set an atomic flag via
+// Adaptor::request_shutdown() — no mutex locks or CORBA calls in the
+// signal handler.  The main thread detects the flag and performs orderly
+// teardown.
 //
 // Usage:
 //   corba-adaptor [ORB options]
@@ -13,6 +17,7 @@
 //       --supplier-ior-file <path>  Write supplier IOR to file
 //       --command-ior-file <path>   Write command receiver IOR to file
 //       --health-interval <secs>    Consumer health-check interval (default: 30)
+//       --orb-threads <n>           ORB thread pool size (default: 1)
 
 #include <adaptor/adaptor.hpp>
 
@@ -20,7 +25,6 @@
 #include <tao/PortableServer/PortableServer.h>
 #include <ace/Get_Opt.h>
 #include <ace/Log_Msg.h>
-#include <ace/Signal.h>
 
 #include <atomic>
 #include <csignal>
@@ -30,14 +34,13 @@
 
 namespace {
 
-// Global adaptor pointer for signal handling
-std::atomic<adaptor::Adaptor*> g_adaptor{nullptr};
+// Signal-safe: only stores to a sig_atomic_t flag.
+// The adaptor's request_shutdown() is called from the main thread after
+// detecting this flag, not from the signal handler itself.
+volatile std::sig_atomic_t g_shutdown_flag = 0;
 
-void signal_handler(int signum) {
-    ACE_DEBUG((LM_INFO, "\nReceived signal %d, shutting down...\n", signum));
-    if (auto* a = g_adaptor.load()) {
-        a->stop();
-    }
+void signal_handler(int) {
+    g_shutdown_flag = 1;
 }
 
 void print_usage(const char* prog) {
@@ -51,6 +54,7 @@ void print_usage(const char* prog) {
         << "  --supplier-ior-file <path>  Write DataSupplier IOR to file\n"
         << "  --command-ior-file <path>   Write CommandReceiver IOR to file\n"
         << "  --health-interval <secs>    Health-check interval (default: 30)\n"
+        << "  --orb-threads <n>           ORB thread pool size (default: 1)\n"
         << "  --help                      Show this help\n";
 }
 
@@ -70,17 +74,17 @@ int main(int argc, char* argv[]) {
         adaptor::AdaptorConfig config;
         config.tcp.host = "127.0.0.1";
 
-        // Use ACE_Get_Opt for long options
         static const ACE_TCHAR options[] = ACE_TEXT("");
         ACE_Get_Opt get_opt(argc, argv, options, 0);
 
-        get_opt.long_option(ACE_TEXT("tcp-host"),        'H', ACE_Get_Opt::ARG_REQUIRED);
-        get_opt.long_option(ACE_TEXT("tcp-port"),        'P', ACE_Get_Opt::ARG_REQUIRED);
-        get_opt.long_option(ACE_TEXT("corba-peer-ior"),  'C', ACE_Get_Opt::ARG_REQUIRED);
+        get_opt.long_option(ACE_TEXT("tcp-host"),          'H', ACE_Get_Opt::ARG_REQUIRED);
+        get_opt.long_option(ACE_TEXT("tcp-port"),          'P', ACE_Get_Opt::ARG_REQUIRED);
+        get_opt.long_option(ACE_TEXT("corba-peer-ior"),    'C', ACE_Get_Opt::ARG_REQUIRED);
         get_opt.long_option(ACE_TEXT("supplier-ior-file"), 'S', ACE_Get_Opt::ARG_REQUIRED);
         get_opt.long_option(ACE_TEXT("command-ior-file"),  'R', ACE_Get_Opt::ARG_REQUIRED);
         get_opt.long_option(ACE_TEXT("health-interval"),   'I', ACE_Get_Opt::ARG_REQUIRED);
-        get_opt.long_option(ACE_TEXT("help"),               'h', ACE_Get_Opt::NO_ARG);
+        get_opt.long_option(ACE_TEXT("orb-threads"),       'T', ACE_Get_Opt::ARG_REQUIRED);
+        get_opt.long_option(ACE_TEXT("help"),              'h', ACE_Get_Opt::NO_ARG);
 
         int c;
         while ((c = get_opt()) != -1) {
@@ -104,6 +108,9 @@ int main(int argc, char* argv[]) {
                     config.health_check_interval =
                         std::chrono::seconds(std::atoi(get_opt.opt_arg()));
                     break;
+                case 'T':
+                    config.orb_threads = static_cast<uint32_t>(std::atoi(get_opt.opt_arg()));
+                    break;
                 case 'h':
                     print_usage(argv[0]);
                     return 0;
@@ -119,7 +126,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        // Install signal handlers
+        // Install signal handlers (signal-safe: only set a flag)
         std::signal(SIGINT,  signal_handler);
         std::signal(SIGTERM, signal_handler);
 
@@ -127,29 +134,22 @@ int main(int argc, char* argv[]) {
         poa_mgr->activate();
 
         // Create and start the adaptor
+        // Note: ORB threads are now managed by the Adaptor itself
         adaptor::Adaptor the_adaptor(orb.in(), root_poa.in(), std::move(config));
-        g_adaptor = &the_adaptor;
-
         the_adaptor.start();
 
         ACE_DEBUG((LM_INFO, "Adaptor: running (Ctrl+C to stop)\n"));
 
-        // Run the ORB event loop (blocks until orb->shutdown())
-        // We run this in a separate thread so we can also wait for
-        // the adaptor's own shutdown signal.
-        std::thread orb_thread([&orb] {
-            orb->run();
-        });
-
-        the_adaptor.wait_for_shutdown();
-
-        // Shut down the ORB
-        orb->shutdown(false);
-        if (orb_thread.joinable()) {
-            orb_thread.join();
+        // Monitor for shutdown: poll the signal flag then delegate to adaptor
+        // The adaptor's wait_for_shutdown() handles command-initiated shutdown.
+        // We also check the signal flag periodically.
+        while (!g_shutdown_flag) {
+            // Use a short timed wait so we check the signal flag periodically
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
 
-        g_adaptor = nullptr;
+        ACE_DEBUG((LM_INFO, "\nAdaptor: signal received, initiating shutdown...\n"));
+        the_adaptor.stop();
 
         orb->destroy();
         ACE_DEBUG((LM_INFO, "Adaptor: clean shutdown complete\n"));

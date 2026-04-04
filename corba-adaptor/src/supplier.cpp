@@ -11,35 +11,34 @@
 namespace adaptor {
 
 // ============================================================================
-// Glob-style label matching (supports '*' and '?' wildcards)
+// Iterative glob-style label matching (supports '*' and '?' wildcards)
 // ============================================================================
 
 namespace {
 
 bool glob_match(const char* pattern, const char* text) {
-    while (*pattern) {
+    const char* star_pattern = nullptr;
+    const char* star_text    = nullptr;
+
+    while (*text) {
         if (*pattern == '*') {
-            ++pattern;
-            // '*' at end matches everything
-            if (!*pattern) return true;
-            // Try matching rest of pattern at every position
-            while (*text) {
-                if (glob_match(pattern, text)) return true;
-                ++text;
-            }
-            return glob_match(pattern, text);
-        }
-        if (*pattern == '?') {
-            if (!*text) return false;
+            // Record the '*' position and advance pattern
+            star_pattern = ++pattern;
+            star_text    = text;
+        } else if (*pattern == '?' || *pattern == *text) {
             ++pattern;
             ++text;
+        } else if (star_pattern) {
+            // Backtrack: try matching '*' against one more character
+            pattern = star_pattern;
+            text    = ++star_text;
         } else {
-            if (*pattern != *text) return false;
-            ++pattern;
-            ++text;
+            return false;
         }
     }
-    return *text == '\0';
+    // Consume trailing '*'s
+    while (*pattern == '*') ++pattern;
+    return *pattern == '\0';
 }
 
 } // anonymous namespace
@@ -60,15 +59,15 @@ CorbaAdaptor::SubscriptionId DataSupplierServant::subscribe(
     CorbaAdaptor::DataConsumer_ptr consumer,
     const CorbaAdaptor::SubscriptionFilter& filter)
 {
-    std::lock_guard lock(mu_);
+    std::unique_lock lock(mu_);
 
-    Subscription sub;
-    sub.id          = next_id_++;
-    sub.consumer    = CorbaAdaptor::DataConsumer::_duplicate(consumer);
-    sub.filter      = filter;
-    sub.subscribed_at = std::chrono::steady_clock::now();
+    auto sub = std::make_shared<Subscription>();
+    sub->id          = next_id_++;
+    sub->consumer    = CorbaAdaptor::DataConsumer::_duplicate(consumer);
+    sub->filter      = filter;
+    sub->subscribed_at = std::chrono::steady_clock::now();
 
-    auto id = sub.id;
+    auto id = sub->id;
     subs_.emplace(id, std::move(sub));
 
     ACE_DEBUG((LM_INFO, "DataSupplier: consumer subscribed (id=%u, total=%u)\n",
@@ -77,7 +76,7 @@ CorbaAdaptor::SubscriptionId DataSupplierServant::subscribe(
 }
 
 void DataSupplierServant::unsubscribe(CorbaAdaptor::SubscriptionId id) {
-    std::lock_guard lock(mu_);
+    std::unique_lock lock(mu_);
     if (auto it = subs_.find(id); it != subs_.end()) {
         subs_.erase(it);
         ACE_DEBUG((LM_INFO, "DataSupplier: consumer unsubscribed (id=%u, total=%u)\n",
@@ -86,26 +85,30 @@ void DataSupplierServant::unsubscribe(CorbaAdaptor::SubscriptionId id) {
 }
 
 CORBA::ULong DataSupplierServant::subscriber_count() {
-    std::lock_guard lock(mu_);
+    std::shared_lock lock(mu_);
     return static_cast<CORBA::ULong>(subs_.size());
 }
 
 // --- Local publishing API ---------------------------------------------------
 
 void DataSupplierServant::publish(const CorbaAdaptor::DataPacket& packet) {
-    std::lock_guard lock(mu_);
-    bool need_reap = false;
+    // Snapshot matching consumers under the read lock
+    auto targets = snapshot_matching(packet);
 
-    for (auto& [id, sub] : subs_) {
-        if (!matches_filter(packet, sub.filter)) continue;
-        deliver_to(sub, packet);
-        if (sub.delivery_errors > 3) {
-            need_reap = true;
+    // Deliver WITHOUT holding the lock — CORBA calls may be slow
+    for (auto& target : targets) {
+        try {
+            target.consumer->on_data(packet);
+            // Update stats on the shared_ptr (still valid even if sub was removed)
+            if (auto sub_lock = std::shared_lock(mu_); true) {
+                if (auto it = subs_.find(target.id); it != subs_.end()) {
+                    it->second->packets_delivered.fetch_add(1, std::memory_order_relaxed);
+                    it->second->delivery_errors.store(0, std::memory_order_relaxed);
+                }
+            }
+        } catch (const CORBA::Exception&) {
+            record_delivery_error(target.id);
         }
-    }
-
-    if (need_reap) {
-        reap_dead_consumers();
     }
 }
 
@@ -114,16 +117,26 @@ void DataSupplierServant::publish_batch(
 {
     if (packets.empty()) return;
 
-    std::lock_guard lock(mu_);
-    bool need_reap = false;
+    // Snapshot all subscriptions once
+    std::vector<std::pair<DeliveryTarget, CorbaAdaptor::SubscriptionFilter>> targets;
+    {
+        std::shared_lock lock(mu_);
+        targets.reserve(subs_.size());
+        for (const auto& [id, sub] : subs_) {
+            DeliveryTarget dt;
+            dt.id       = sub->id;
+            dt.consumer = CorbaAdaptor::DataConsumer::_duplicate(sub->consumer.in());
+            targets.emplace_back(std::move(dt), sub->filter);
+        }
+    }
 
-    for (auto& [id, sub] : subs_) {
-        // Build filtered batch
+    // Deliver without lock
+    for (auto& [target, filter] : targets) {
         CorbaAdaptor::DataPacketSeq batch;
         batch.length(0);
 
         for (const auto& pkt : packets) {
-            if (!matches_filter(pkt, sub.filter)) continue;
+            if (!matches_filter(pkt, filter)) continue;
             auto idx = batch.length();
             batch.length(idx + 1);
             batch[idx] = pkt;
@@ -131,19 +144,18 @@ void DataSupplierServant::publish_batch(
 
         if (batch.length() == 0) continue;
 
-        // Try batch delivery first, fall back to individual
         try {
-            sub.consumer->on_data_batch(batch);
-            sub.packets_delivered += batch.length();
-            sub.delivery_errors = 0;
+            target.consumer->on_data_batch(batch);
+            if (auto sub_lock = std::shared_lock(mu_); true) {
+                if (auto it = subs_.find(target.id); it != subs_.end()) {
+                    it->second->packets_delivered.fetch_add(
+                        batch.length(), std::memory_order_relaxed);
+                    it->second->delivery_errors.store(0, std::memory_order_relaxed);
+                }
+            }
         } catch (const CORBA::Exception&) {
-            ++sub.delivery_errors;
-            if (sub.delivery_errors > 3) need_reap = true;
+            record_delivery_error(target.id);
         }
-    }
-
-    if (need_reap) {
-        reap_dead_consumers();
     }
 }
 
@@ -167,20 +179,29 @@ void DataSupplierServant::shutdown(const std::string& reason) {
         }
     }
 
-    // Notify all consumers
-    std::lock_guard lock(mu_);
-    for (auto& [id, sub] : subs_) {
+    // Snapshot consumers, then notify without holding lock
+    std::vector<CorbaAdaptor::DataConsumer_var> consumers;
+    {
+        std::unique_lock lock(mu_);
+        consumers.reserve(subs_.size());
+        for (auto& [id, sub] : subs_) {
+            consumers.push_back(
+                CorbaAdaptor::DataConsumer::_duplicate(sub->consumer.in()));
+        }
+        subs_.clear();
+    }
+
+    for (auto& consumer : consumers) {
         try {
-            sub.consumer->on_supplier_disconnect(reason.c_str());
+            consumer->on_supplier_disconnect(reason.c_str());
         } catch (const CORBA::Exception&) {
             // Consumer already gone — ignore
         }
     }
-    subs_.clear();
 }
 
 void DataSupplierServant::set_reap_callback(ReapCallback cb) {
-    std::lock_guard lock(mu_);
+    std::unique_lock lock(mu_);
     reap_cb_ = std::move(cb);
 }
 
@@ -190,13 +211,11 @@ bool DataSupplierServant::matches_filter(
     const CorbaAdaptor::DataPacket& packet,
     const CorbaAdaptor::SubscriptionFilter& filter) const
 {
-    // Source filter
     if (packet.header.source == CorbaAdaptor::PEER_TCP && !filter.accept_tcp_peer)
         return false;
     if (packet.header.source == CorbaAdaptor::PEER_CORBA && !filter.accept_corba_peer)
         return false;
 
-    // Label pattern filter
     const char* pattern = filter.label_pattern.in();
     if (pattern && pattern[0] != '\0') {
         if (!glob_match(pattern, packet.header.label.in())) {
@@ -207,25 +226,50 @@ bool DataSupplierServant::matches_filter(
     return true;
 }
 
-void DataSupplierServant::deliver_to(
-    Subscription& sub,
-    const CorbaAdaptor::DataPacket& packet)
+std::vector<DataSupplierServant::DeliveryTarget>
+DataSupplierServant::snapshot_matching(
+    const CorbaAdaptor::DataPacket& packet) const
 {
-    try {
-        sub.consumer->on_data(packet);
-        ++sub.packets_delivered;
-        sub.delivery_errors = 0;
-    } catch (const CORBA::Exception&) {
-        ++sub.delivery_errors;
+    std::shared_lock lock(mu_);
+    std::vector<DeliveryTarget> targets;
+    targets.reserve(subs_.size());
+
+    for (const auto& [id, sub] : subs_) {
+        if (!matches_filter(packet, sub->filter)) continue;
+        DeliveryTarget dt;
+        dt.id       = sub->id;
+        dt.consumer = CorbaAdaptor::DataConsumer::_duplicate(sub->consumer.in());
+        targets.push_back(std::move(dt));
+    }
+
+    return targets;
+}
+
+void DataSupplierServant::record_delivery_error(
+    CorbaAdaptor::SubscriptionId id)
+{
+    std::unique_lock lock(mu_);
+    if (auto it = subs_.find(id); it != subs_.end()) {
+        auto errs = it->second->delivery_errors.fetch_add(
+            1, std::memory_order_relaxed) + 1;
+        if (errs > kMaxDeliveryErrors) {
+            auto reap_id = it->first;
+            subs_.erase(it);
+            ACE_DEBUG((LM_WARNING,
+                       "DataSupplier: reaped dead consumer (id=%u)\n", reap_id));
+            if (reap_cb_) {
+                reap_cb_(reap_id);
+            }
+        }
     }
 }
 
 void DataSupplierServant::reap_dead_consumers() {
-    // Caller must hold mu_
+    // Caller must hold exclusive mu_
     std::vector<CorbaAdaptor::SubscriptionId> dead;
 
     for (const auto& [id, sub] : subs_) {
-        if (sub.delivery_errors > 3) {
+        if (sub->delivery_errors.load(std::memory_order_relaxed) > kMaxDeliveryErrors) {
             dead.push_back(id);
         }
     }
@@ -250,25 +294,42 @@ void DataSupplierServant::health_check_loop() {
 
         if (!health_running_) break;
 
-        std::lock_guard lock(mu_);
-        std::vector<CorbaAdaptor::SubscriptionId> dead;
-
-        for (auto& [id, sub] : subs_) {
-            try {
-                if (!sub.consumer->is_alive()) {
-                    dead.push_back(id);
-                }
-            } catch (const CORBA::Exception&) {
-                dead.push_back(id);
+        // Snapshot consumers for health probing (don't hold mu_ during CORBA calls)
+        std::vector<DeliveryTarget> targets;
+        {
+            std::shared_lock lock(mu_);
+            targets.reserve(subs_.size());
+            for (const auto& [id, sub] : subs_) {
+                DeliveryTarget dt;
+                dt.id       = sub->id;
+                dt.consumer = CorbaAdaptor::DataConsumer::_duplicate(sub->consumer.in());
+                targets.push_back(std::move(dt));
             }
         }
 
-        for (auto id : dead) {
-            subs_.erase(id);
-            ACE_DEBUG((LM_WARNING,
-                       "DataSupplier: health-check reaped consumer (id=%u)\n", id));
-            if (reap_cb_) {
-                reap_cb_(id);
+        // Probe without lock
+        std::vector<CorbaAdaptor::SubscriptionId> dead;
+        for (auto& target : targets) {
+            try {
+                if (!target.consumer->is_alive()) {
+                    dead.push_back(target.id);
+                }
+            } catch (const CORBA::Exception&) {
+                dead.push_back(target.id);
+            }
+        }
+
+        // Reap under exclusive lock
+        if (!dead.empty()) {
+            std::unique_lock lock(mu_);
+            for (auto id : dead) {
+                if (subs_.erase(id)) {
+                    ACE_DEBUG((LM_WARNING,
+                               "DataSupplier: health-check reaped consumer (id=%u)\n", id));
+                    if (reap_cb_) {
+                        reap_cb_(id);
+                    }
+                }
             }
         }
     }
@@ -282,7 +343,7 @@ class ConsumerProxy::ConsumerServant
     : public POA_CorbaAdaptor::DataConsumer
 {
 public:
-    ConsumerServant(ConsumerProxy& proxy) : proxy_(proxy) {}
+    explicit ConsumerServant(ConsumerProxy& proxy) : proxy_(proxy) {}
 
     void on_data(const CorbaAdaptor::DataPacket& packet) override {
         if (proxy_.on_data_cb_) {
@@ -302,10 +363,7 @@ public:
 
     void on_supplier_disconnect(const char* reason) override {
         ACE_DEBUG((LM_INFO, "ConsumerProxy: supplier disconnected: %s\n", reason));
-        proxy_.connected_ = false;
-        if (proxy_.on_conn_cb_) {
-            proxy_.on_conn_cb_(false);
-        }
+        proxy_.on_supplier_lost();
     }
 
     CORBA::Boolean is_alive() override {
@@ -382,6 +440,27 @@ void ConsumerProxy::disconnect() {
 
 bool ConsumerProxy::is_connected() const noexcept {
     return connected_;
+}
+
+void ConsumerProxy::on_supplier_lost() {
+    bool was_connected = connected_.exchange(false);
+    if (was_connected && on_conn_cb_) {
+        on_conn_cb_(false);
+    }
+
+    // Re-enter reconnect loop if enabled and still running
+    if (running_ && config_.auto_reconnect) {
+        // Join any prior reconnect thread before starting a new one
+        {
+            std::lock_guard lock(mu_);
+            // Wake the old thread so it exits its wait
+            cv_.notify_all();
+        }
+        if (reconnect_thread_.joinable()) {
+            reconnect_thread_.join();
+        }
+        reconnect_thread_ = std::thread([this] { reconnect_loop(); });
+    }
 }
 
 bool ConsumerProxy::try_connect() {

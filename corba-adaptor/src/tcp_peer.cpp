@@ -3,7 +3,8 @@
 //
 // Uses ACE_SOCK_Connector / ACE_SOCK_Stream for the TCP connection,
 // with ACE_Reactor for non-blocking event-driven I/O.  A dedicated
-// thread runs the reactor loop.  Reconnection uses exponential backoff.
+// thread runs the reactor loop.  Reconnection runs on a separate thread
+// to avoid blocking the reactor during backoff waits.
 
 #include <adaptor/tcp_peer.hpp>
 
@@ -38,6 +39,9 @@ struct TcpPeer::Impl : public ACE_Event_Handler {
     std::atomic<bool>       connected{false};
     std::atomic<bool>       running{false};
     std::thread             io_thread;
+    std::thread             reconnect_thread;
+    std::mutex              reconnect_mu;
+    std::condition_variable reconnect_cv;
     std::mutex              send_mu;
 
     explicit Impl(TcpPeerConfig cfg)
@@ -112,20 +116,34 @@ struct TcpPeer::Impl : public ACE_Event_Handler {
         stream.close();
         if (state_cb) state_cb(PeerId::tcp_peer, false);
 
+        // Trigger reconnection on a separate thread (don't block the reactor)
         if (running && config.auto_reconnect) {
-            // Schedule reconnection in the I/O thread
-            reconnect();
+            start_reconnect();
         }
     }
 
-    void reconnect() {
+    void start_reconnect() {
+        // Join any prior reconnect thread
+        if (reconnect_thread.joinable()) {
+            {
+                std::lock_guard lock(reconnect_mu);
+                reconnect_cv.notify_all();
+            }
+            reconnect_thread.join();
+        }
+        reconnect_thread = std::thread([this] { reconnect_loop(); });
+    }
+
+    void reconnect_loop() {
         auto delay = config.initial_delay;
         uint32_t attempts = 0;
 
         while (running && !connected) {
-            ACE_OS::sleep(ACE_Time_Value(
-                delay.count() / 1000,
-                (delay.count() % 1000) * 1000));
+            {
+                std::unique_lock lock(reconnect_mu);
+                reconnect_cv.wait_for(lock, delay,
+                    [this] { return !running.load(); });
+            }
 
             if (!running) break;
 
@@ -152,18 +170,13 @@ struct TcpPeer::Impl : public ACE_Event_Handler {
     void io_loop() {
         // Initial connection (with reconnect if needed)
         if (!try_connect() && config.auto_reconnect) {
-            reconnect();
+            start_reconnect();
         }
 
         // Run reactor event loop
         while (running) {
             ACE_Time_Value timeout(1, 0);  // 1-second poll interval
             reactor.handle_events(&timeout);
-
-            // If disconnected mid-loop, attempt reconnection
-            if (running && !connected && config.auto_reconnect) {
-                reconnect();
-            }
         }
     }
 
@@ -173,7 +186,16 @@ struct TcpPeer::Impl : public ACE_Event_Handler {
     }
 
     void stop() {
-        running = false;
+        if (!running.exchange(false)) return;
+
+        // Wake reconnect thread
+        {
+            std::lock_guard lock(reconnect_mu);
+            reconnect_cv.notify_all();
+        }
+        if (reconnect_thread.joinable()) {
+            reconnect_thread.join();
+        }
 
         // Wake the reactor
         reactor.end_reactor_event_loop();

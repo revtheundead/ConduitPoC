@@ -28,6 +28,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace adaptor {
 
@@ -47,6 +49,10 @@ struct AdaptorConfig {
 
     /// Write the command receiver IOR to this file (empty = don't write).
     std::string command_ior_file;
+
+    /// Number of ORB thread-pool threads (1 = single-threaded, default).
+    /// Higher values allow concurrent CORBA request processing.
+    uint32_t orb_threads{1};
 };
 
 // ============================================================================
@@ -69,7 +75,10 @@ public:
     /// Graceful shutdown of all sub-components.
     void stop();
 
-    /// Block until shutdown is signalled (e.g. via CommandReceiver::request_shutdown).
+    /// Request shutdown (signal-safe — only sets an atomic flag).
+    void request_shutdown();
+
+    /// Block until shutdown is signalled (e.g. via signal or CommandReceiver).
     void wait_for_shutdown();
 
     /// Send data to a specific peer.
@@ -85,6 +94,7 @@ public:
 private:
     void on_data_received(InternalPacket pkt);
     void register_builtin_commands();
+    void orb_thread_func();
 
     CORBA::ORB_var              orb_;
     PortableServer::POA_var     poa_;
@@ -96,8 +106,11 @@ private:
     std::unique_ptr<CommandReceiverServant> command_;
 
     std::atomic<bool>           running_{false};
+    std::atomic<bool>           shutdown_requested_{false};
     std::mutex                  shutdown_mu_;
     std::condition_variable     shutdown_cv_;
+
+    std::vector<std::thread>    orb_threads_;
 };
 
 } // namespace adaptor

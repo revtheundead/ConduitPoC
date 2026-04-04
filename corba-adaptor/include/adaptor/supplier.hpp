@@ -4,13 +4,16 @@
 // Design:
 //   - DataSupplierServant:  CORBA servant that consumers subscribe to.
 //     Maintains a thread-safe subscription registry.  When publish() is
-//     called it fans out DataPackets to every matching consumer.  Dead
-//     consumers (CORBA exceptions on push) are automatically reaped, and
-//     a periodic health-check sweep catches silently-dead ones.
+//     called it takes a snapshot of matching consumers under the lock,
+//     then releases the lock before making remote CORBA calls.  This
+//     avoids holding the mutex during potentially slow network I/O.
+//     Dead consumers (CORBA exceptions on push) are automatically reaped,
+//     and a periodic health-check sweep catches silently-dead ones.
 //
 //   - ConsumerProxy:  Client-side helper that wraps a DataConsumer servant,
 //     connects to a remote DataSupplier, and automatically reconnects with
-//     exponential backoff if the supplier becomes unreachable.  Provides a
+//     exponential backoff if the supplier becomes unreachable.  Re-enters
+//     the reconnect loop on supplier disconnect notification.  Provides a
 //     simple callback-based API so downstream code never touches CORBA.
 
 #pragma once
@@ -27,6 +30,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -43,8 +47,8 @@ struct Subscription {
     CorbaAdaptor::DataConsumer_var  consumer;
     CorbaAdaptor::SubscriptionFilter filter;
     std::chrono::steady_clock::time_point subscribed_at{};
-    uint64_t                        packets_delivered{};
-    uint64_t                        delivery_errors{};
+    std::atomic<uint64_t>           packets_delivered{0};
+    std::atomic<uint64_t>           delivery_errors{0};
 };
 
 // ============================================================================
@@ -72,6 +76,7 @@ public:
     // --- Local API (called by the adaptor) ----------------------------------
 
     /// Publish a single packet to all matching consumers.
+    /// Takes a snapshot under the lock, then delivers without holding it.
     void publish(const CorbaAdaptor::DataPacket& packet);
 
     /// Publish a batch of packets.
@@ -89,15 +94,29 @@ public:
     void set_reap_callback(ReapCallback cb);
 
 private:
-    bool matches_filter(const CorbaAdaptor::DataPacket& packet,
-                        const CorbaAdaptor::SubscriptionFilter& filter) const;
+    /// Lightweight snapshot for lock-free delivery.
+    struct DeliveryTarget {
+        CorbaAdaptor::SubscriptionId    id;
+        CorbaAdaptor::DataConsumer_var  consumer;
+    };
 
-    void deliver_to(Subscription& sub, const CorbaAdaptor::DataPacket& packet);
+    [[nodiscard]] bool matches_filter(
+        const CorbaAdaptor::DataPacket& packet,
+        const CorbaAdaptor::SubscriptionFilter& filter) const;
+
+    /// Take a snapshot of consumers matching the given packet.
+    [[nodiscard]] std::vector<DeliveryTarget> snapshot_matching(
+        const CorbaAdaptor::DataPacket& packet) const;
+
+    /// Mark a subscription as having a delivery error.  Reaps if threshold exceeded.
+    void record_delivery_error(CorbaAdaptor::SubscriptionId id);
+
     void reap_dead_consumers();
     void health_check_loop();
 
-    mutable std::mutex                                          mu_;
-    std::unordered_map<CorbaAdaptor::SubscriptionId, Subscription> subs_;
+    mutable std::shared_mutex                                   mu_;
+    std::unordered_map<CorbaAdaptor::SubscriptionId,
+                       std::shared_ptr<Subscription>>           subs_;
     CorbaAdaptor::SubscriptionId                                next_id_{1};
 
     std::atomic<bool>       health_running_{false};
@@ -107,6 +126,7 @@ private:
     std::chrono::seconds    health_interval_{30};
 
     ReapCallback            reap_cb_;
+    static constexpr uint64_t kMaxDeliveryErrors = 3;
 };
 
 // ============================================================================
@@ -169,6 +189,10 @@ private:
 
     void reconnect_loop();
     bool try_connect();
+
+    /// Called by ConsumerServant when supplier disconnect is received.
+    /// Re-enters the reconnect loop if auto_reconnect is enabled.
+    void on_supplier_lost();
 
     CORBA::ORB_var                      orb_;
     PortableServer::POA_var             poa_;
