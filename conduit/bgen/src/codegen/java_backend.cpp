@@ -2074,7 +2074,7 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
             ctx.dedent();
             ctx.line("} else {");
             ctx.indent();
-            ctx.line("java.util.logging.Logger.getLogger(\"conduit\").warning("
+            ctx.line("java.util.logging.Logger.getLogger(" + parent_class_name + ".class.getName()).warning("
                      "\"decode: auto-length field '" + auto_length_field_name
                      + "' total=\" + _autoLenTotal + \" consumed=\" + _autoLenConsumed + "
                      "\" available=\" + _autoLenAvail + \"; decoded without length boundary\");");
