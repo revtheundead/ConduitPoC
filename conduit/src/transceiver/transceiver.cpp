@@ -579,7 +579,7 @@ VoidResult Transceiver::send_impl(PeerId peer, uint64_t type_id,
     if (message_log_ && !log_peer_name.empty()) {
         message_log_->log_send(log_peer_name, log_remote, log_type_name,
                                encoded.size(), log_content, log_protocol,
-                               log_transport);
+                               log_transport, encoded);
     }
 
     // Send via transport
@@ -643,7 +643,7 @@ VoidResult Transceiver::send_batch_impl(PeerId peer, uint64_t type_id,
     if (message_log_ && !log_peer_name.empty()) {
         message_log_->log_send(log_peer_name, log_remote, log_type_name,
                                encoded.size(), log_content, log_protocol,
-                               log_transport);
+                               log_transport, encoded);
     }
 
     stats_.bytes_sent.fetch_add(encoded.size(), std::memory_order_relaxed);
@@ -672,6 +672,7 @@ void Transceiver::handle_data_received(PeerId peer,
         std::string content;
         std::string protocol;
         std::string transport;
+        std::vector<uint8_t> raw_bytes;
     };
     std::vector<RecvLogEntry> log_entries;
 
@@ -708,6 +709,9 @@ void Transceiver::handle_data_received(PeerId peer,
                 entry.byte_count = frame_bytes;
                 if (config_.message_log.include_message_content) {
                     entry.content = ctx->session->format_message(msg.type_id, msg.payload);
+                }
+                if (config_.message_log.include_raw_bytes && !msg.raw.empty()) {
+                    entry.raw_bytes = msg.raw;
                 }
                 entry.protocol = log_protocol;
                 entry.transport = log_transport_str;
@@ -783,7 +787,8 @@ void Transceiver::handle_data_received(PeerId peer,
     for (const auto& entry : log_entries) {
         message_log_->log_recv(entry.peer_name, entry.remote_endpoint,
                                entry.type_name, entry.byte_count,
-                               entry.content, entry.protocol, entry.transport);
+                               entry.content, entry.protocol, entry.transport,
+                               entry.raw_bytes);
     }
 
     // Push to queue outside all locks — safe to block here

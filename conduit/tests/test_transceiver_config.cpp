@@ -25,15 +25,25 @@ using namespace conduit::transceiver::transport;
 TEST_CASE("TransceiverConfig: add_peer fluent chaining",
           "[transceiver][config]") {
     TransceiverConfig config;
+    UdpConfig udp1;
+    udp1.bind_address = "127.0.0.1";
+    udp1.bind_port = 0;
+    udp1.remote_address = "127.0.0.1";
+    udp1.remote_port = 5000;
+
+    UdpConfig udp2;
+    udp2.bind_address = "127.0.0.1";
+    udp2.bind_port = 0;
+    udp2.remote_address = "127.0.0.1";
+    udp2.remote_port = 5001;
+
     auto& ref = config
         .add_peer("peer1",
             []() { return session_test::create_packet_session(); },
-            UdpConfig{.bind_address = "127.0.0.1", .bind_port = 0,
-                      .remote_address = "127.0.0.1", .remote_port = 5000})
+            udp1)
         .add_peer("peer2",
             []() { return session_test::create_packet_session(); },
-            UdpConfig{.bind_address = "127.0.0.1", .bind_port = 0,
-                      .remote_address = "127.0.0.1", .remote_port = 5001});
+            udp2);
 
     CHECK(&ref == &config);
     CHECK(config.peers.size() == 2);

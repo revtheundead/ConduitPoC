@@ -2157,6 +2157,7 @@ std::string generate_structs(const model::Protocol& protocol,
     ctx.line("#include <conduit/core/error.hpp>");
     ctx.line("#include <conduit/io/bit_reader.hpp>");
     ctx.line("#include <conduit/io/bit_writer.hpp>");
+    ctx.line("#include <conduit/logging/logger.hpp>");
     if (protocol_needs_encoding(protocol)) {
         ctx.line("#include <conduit/string/encoding.hpp>");
     }
@@ -2238,6 +2239,7 @@ std::string generate_messages(const model::Protocol& protocol,
     ctx.line("#include <conduit/core/error.hpp>");
     ctx.line("#include <conduit/io/bit_reader.hpp>");
     ctx.line("#include <conduit/io/bit_writer.hpp>");
+    ctx.line("#include <conduit/logging/logger.hpp>");
     if (protocol_needs_encoding(protocol)) {
         ctx.line("#include <conduit/string/encoding.hpp>");
     }

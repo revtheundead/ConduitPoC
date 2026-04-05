@@ -190,7 +190,7 @@ public interface NativeBinding extends AutoCloseable {
     int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
                             String directory, String prefix, String filename,
                             String sentFilename, String receivedFilename,
-                            boolean includeMessageContent);
+                            boolean includeMessageContent, boolean includeRawBytes);
 
     /**
      * Register a passthrough session (framing-only, no protocol .so needed).

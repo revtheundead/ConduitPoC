@@ -34,7 +34,7 @@ void BitWriter::write_bit(bool bit) {
 void BitWriter::write_bits(uint64_t value, size_t count) {
     if (error_) return;
     if (count > 64) {
-        set_error(conduit::ErrorCode::EncodingFailed, "write_bits: count exceeds 64");
+        set_error(conduit::ErrorCode::EncodingFailed, "write_bits: requested " + std::to_string(count) + " bits, max is 64");
         return;
     }
     if (count == 0) return;
@@ -125,7 +125,8 @@ void BitWriter::write_bcd(uint64_t value, size_t bits) {
         v /= 10;
     }
     if (v != 0) {
-        set_error(conduit::ErrorCode::EncodeConstraintViolation, "write_bcd: value too large for given bits");
+        set_error(conduit::ErrorCode::EncodeConstraintViolation,
+            "write_bcd: value " + std::to_string(value) + " too large for " + std::to_string(bits) + " bits (" + std::to_string(nibbles) + " digits)");
         return;
     }
     write_bits(raw, bits);
@@ -155,7 +156,8 @@ void BitWriter::write_bcd_signed(int64_t value, size_t bits) {
         abs_val /= 10;
     }
     if (abs_val != 0) {
-        set_error(conduit::ErrorCode::EncodeConstraintViolation, "write_bcd_signed: value too large for given bits");
+        set_error(conduit::ErrorCode::EncodeConstraintViolation,
+            "write_bcd_signed: value " + std::to_string(value) + " too large for " + std::to_string(bits) + " bits (" + std::to_string(nibbles) + " digits)");
         return;
     }
     if (negative) {
@@ -174,7 +176,8 @@ void BitWriter::write_sign_magnitude(int64_t value, size_t bits) {
     uint64_t magnitude = negative ? (static_cast<uint64_t>(~value) + 1u) : static_cast<uint64_t>(value);
     uint64_t mag_mask = (1ULL << (bits - 1)) - 1;
     if (magnitude > mag_mask) {
-        set_error(conduit::ErrorCode::EncodeConstraintViolation, "write_sign_magnitude: magnitude too large for given bits");
+        set_error(conduit::ErrorCode::EncodeConstraintViolation,
+            "write_sign_magnitude: magnitude " + std::to_string(magnitude) + " too large for " + std::to_string(bits) + " bits (max " + std::to_string(mag_mask) + ")");
         return;
     }
     uint64_t raw = magnitude & mag_mask;
@@ -333,7 +336,7 @@ void BitWriter::align_to(size_t byte_boundary) {
 bool BitWriter::patch_u8(size_t byte_offset, uint8_t value) {
     if (error_) return false;
     if (byte_offset >= data_.size()) {
-        set_error(conduit::ErrorCode::BufferOverrun, "patch_u8: byte_offset out of range");
+        set_error(conduit::ErrorCode::BufferOverrun, "patch_u8: byte_offset " + std::to_string(byte_offset) + " out of range [0, " + std::to_string(data_.size()) + ")");
         return false;
     }
     data_[byte_offset] = value;
@@ -343,7 +346,7 @@ bool BitWriter::patch_u8(size_t byte_offset, uint8_t value) {
 bool BitWriter::patch_u16(size_t byte_offset, uint16_t value, Endian e) {
     if (error_) return false;
     if (byte_offset + 2 > data_.size()) {
-        set_error(conduit::ErrorCode::BufferOverrun, "patch_u16: byte_offset out of range");
+        set_error(conduit::ErrorCode::BufferOverrun, "patch_u16: byte_offset " + std::to_string(byte_offset) + " out of range (need 2 bytes, buffer size " + std::to_string(data_.size()) + ")");
         return false;
     }
     if (e == Endian::Big) {
@@ -359,7 +362,7 @@ bool BitWriter::patch_u16(size_t byte_offset, uint16_t value, Endian e) {
 bool BitWriter::patch_u32(size_t byte_offset, uint32_t value, Endian e) {
     if (error_) return false;
     if (byte_offset + 4 > data_.size()) {
-        set_error(conduit::ErrorCode::BufferOverrun, "patch_u32: byte_offset out of range");
+        set_error(conduit::ErrorCode::BufferOverrun, "patch_u32: byte_offset " + std::to_string(byte_offset) + " out of range (need 4 bytes, buffer size " + std::to_string(data_.size()) + ")");
         return false;
     }
     if (e == Endian::Big) {

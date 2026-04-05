@@ -336,6 +336,7 @@ typedef struct {
     const char*    sent_filename;     /* nullable */
     const char*    received_filename; /* nullable */
     int            include_message_content;
+    int            include_raw_bytes;
 } conduit_message_log_config_t;
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(

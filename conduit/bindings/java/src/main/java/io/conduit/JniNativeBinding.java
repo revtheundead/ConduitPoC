@@ -112,7 +112,7 @@ public final class JniNativeBinding implements NativeBinding {
     private static native int nSetMessageLogConfig(long handle, int enabled, int mode, int output,
                                                     String directory, String prefix, String filename,
                                                     String sentFilename, String receivedFilename,
-                                                    int includeMessageContent);
+                                                    int includeMessageContent, int includeRawBytes);
 
     private static native int nRegisterPassthroughSession(
         String name, byte[] syncPattern,
@@ -339,11 +339,11 @@ public final class JniNativeBinding implements NativeBinding {
     public int setMessageLogConfig(long handle, boolean enabled, int mode, int output,
                                    String directory, String prefix, String filename,
                                    String sentFilename, String receivedFilename,
-                                   boolean includeMessageContent) {
+                                   boolean includeMessageContent, boolean includeRawBytes) {
         return nSetMessageLogConfig(handle, enabled ? 1 : 0, mode, output,
             directory, prefix, filename,
             sentFilename, receivedFilename,
-            includeMessageContent ? 1 : 0);
+            includeMessageContent ? 1 : 0, includeRawBytes ? 1 : 0);
     }
 
     @Override

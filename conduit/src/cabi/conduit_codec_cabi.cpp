@@ -142,7 +142,7 @@ CONDUIT_CODEC_API conduit_error_t conduit_decode_frame(
     conduit_decoded_msg_t** out_msgs, size_t* out_count) {
 
     if (!session || !session->session || !data || !out_msgs || !out_count)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
 
     *out_msgs = nullptr;
     *out_count = 0;
@@ -217,9 +217,9 @@ CONDUIT_CODEC_API conduit_error_t conduit_encode_message(
     conduit_encode_result_t* out_result) {
 
     if (!session || !session->session || !out_result)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
     if (!payload && payload_len > 0)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
 
     out_result->data = nullptr;
     out_result->data_len = 0;
@@ -284,9 +284,9 @@ CONDUIT_CODEC_API conduit_error_t conduit_encode_batch(
     conduit_encode_result_t* out_result) {
 
     if (!session || !session->session || !out_result)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
     if (count > 0 && (!payloads || !payload_lens))
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
 
     out_result->data = nullptr;
     out_result->data_len = 0;
@@ -359,9 +359,9 @@ CONDUIT_CODEC_API conduit_error_t conduit_format_message(
     char* buf, size_t buf_len, size_t* out_written) {
 
     if (!session || !session->session || !buf || !out_written || buf_len == 0)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
     if (!payload && payload_len > 0)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
 
     *out_written = 0;
 
@@ -405,9 +405,9 @@ CONDUIT_CODEC_API conduit_error_t conduit_framer_feed(
     conduit_frame_t** out_frames, size_t* out_count) {
 
     if (!framer || !out_frames || !out_count)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
     if (!data && len > 0)
-        return CONDUIT_ERR_UNKNOWN;
+        return CONDUIT_ERR_INVALID_ARGUMENT;
 
     *out_frames = nullptr;
     *out_count = 0;

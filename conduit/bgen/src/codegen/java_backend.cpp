@@ -2062,8 +2062,26 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                               + std::to_string(auto_length_mod.literal) + ")";
                 }
             }
-            std::string remaining = raw_len + " - (_autoLenStart - r.remainingBytes())";
-            ctx.line("r = r.subReader(" + remaining + ");");
+            ctx.line("{");
+            ctx.indent();
+            ctx.line("int _autoLenConsumed = _autoLenStart - r.remainingBytes();");
+            ctx.line("int _autoLenTotal = (int)(" + raw_len + ");");
+            ctx.line("int _autoLenAvail = r.remainingBytes();");
+            ctx.line("int _autoLenRemaining = _autoLenTotal - _autoLenConsumed;");
+            ctx.line("if (_autoLenRemaining >= 0 && _autoLenRemaining <= _autoLenAvail) {");
+            ctx.indent();
+            ctx.line("r = r.subReader(_autoLenRemaining);");
+            ctx.dedent();
+            ctx.line("} else {");
+            ctx.indent();
+            ctx.line("java.util.logging.Logger.getLogger(" + parent_class_name + ".class.getName()).warning("
+                     "\"decode: auto-length field '" + auto_length_field_name
+                     + "' total=\" + _autoLenTotal + \" consumed=\" + _autoLenConsumed + "
+                     "\" available=\" + _autoLenAvail + \"; decoded without length boundary\");");
+            ctx.dedent();
+            ctx.line("}");
+            ctx.dedent();
+            ctx.line("}");
         }
     }
 }

@@ -799,6 +799,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_set_message_log_config(
     if (config->sent_filename)      cfg.sent_filename = config->sent_filename;
     if (config->received_filename)  cfg.received_filename = config->received_filename;
     cfg.include_message_content = (config->include_message_content != 0);
+    cfg.include_raw_bytes = (config->include_raw_bytes != 0);
 
     wrapper->xcvr.set_message_log_config(std::move(cfg));
     return CONDUIT_XCVR_OK;

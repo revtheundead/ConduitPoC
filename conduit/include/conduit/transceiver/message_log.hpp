@@ -8,6 +8,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -22,19 +23,22 @@ public:
     void log_send(const std::string& peer_name, std::string_view remote_endpoint,
                   std::string_view type_name, size_t byte_count,
                   const std::string& message_content,
-                  std::string_view protocol, std::string_view transport);
+                  std::string_view protocol, std::string_view transport,
+                  std::span<const uint8_t> raw_bytes = {});
 
     void log_recv(const std::string& peer_name, std::string_view remote_endpoint,
                   std::string_view type_name, size_t byte_count,
                   const std::string& message_content,
-                  std::string_view protocol, std::string_view transport);
+                  std::string_view protocol, std::string_view transport,
+                  std::span<const uint8_t> raw_bytes = {});
 
 private:
     void write_entry(const std::string& direction,
                      const std::string& peer_name, std::string_view remote_endpoint,
                      std::string_view type_name, size_t byte_count,
                      const std::string& message_content,
-                     std::string_view protocol, std::string_view transport);
+                     std::string_view protocol, std::string_view transport,
+                     std::span<const uint8_t> raw_bytes);
 
     std::ostream& get_stream(const std::string& key);
 

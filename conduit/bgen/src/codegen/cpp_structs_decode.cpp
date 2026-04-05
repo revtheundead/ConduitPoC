@@ -635,8 +635,7 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
             std::string raw_len = reverse_arith(len_member, auto_length_mod);
             // Compute remaining bytes: total struct length minus bytes already consumed
             // (auto="length" measures from struct start, so we track consumed bytes at runtime)
-            std::string remaining = "static_cast<size_t>(" + raw_len
-                + " - (auto_len_start_ - r.remaining_bytes()))";
+            // Guard against underflow: if total < consumed, skip sub_reader and fall back
             ctx_.line("{");
             ctx_.indent();
             ctx_.line("#ifdef __GNUC__");
@@ -647,9 +646,21 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
             ctx_.line("#pragma warning(push)");
             ctx_.line("#pragma warning(disable: 4457)");
             ctx_.line("#endif");
-            ctx_.line("auto auto_len_sub_ = r.sub_reader(" + remaining + ");");
-            ctx_.line("if (!auto_len_sub_) return std::unexpected(auto_len_sub_.error());");
-            ctx_.line("auto& r = *auto_len_sub_;");
+            ctx_.line("auto _auto_len_avail = r.remaining_bytes();");
+            ctx_.line("auto _auto_len_consumed = static_cast<int64_t>(auto_len_start_ - r.remaining_bytes());");
+            ctx_.line("auto _auto_len_total = static_cast<int64_t>(" + raw_len + ");");
+            ctx_.line("bool _auto_len_fallback = (_auto_len_total < 0) || "
+                      "(_auto_len_total < _auto_len_consumed);");
+            ctx_.line("conduit::Result<conduit::io::BitReader> auto_len_sub_ = "
+                      "std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"skipped\"));");
+            ctx_.line("if (!_auto_len_fallback) {");
+            ctx_.indent();
+            ctx_.line("auto_len_sub_ = r.sub_reader(static_cast<size_t>(_auto_len_total - _auto_len_consumed));");
+            ctx_.line("_auto_len_fallback = !auto_len_sub_.has_value();");
+            ctx_.dedent();
+            ctx_.line("}");
+            ctx_.line("conduit::io::BitReader* _auto_len_rp = _auto_len_fallback ? &r : &(*auto_len_sub_);");
+            ctx_.line("auto& r = *_auto_len_rp;");
             ctx_.line("#ifdef __GNUC__");
             ctx_.line("#pragma GCC diagnostic pop");
             ctx_.line("#endif");
@@ -661,6 +672,13 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
     }
 
     if (in_sub_reader_scope) {
+        ctx_.line("if (_auto_len_fallback) {");
+        ctx_.indent();
+        ctx_.line("LOG_WARNF(\"decode: auto-length field '" + auto_length_field_name
+                  + "' total={} consumed={} available={}; decoded without length boundary\", "
+                  "_auto_len_total, _auto_len_consumed, _auto_len_avail);");
+        ctx_.dedent();
+        ctx_.line("}");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -929,7 +947,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                     // A3: Subtract prefix bytes from length
                     int prefix_bytes = get_prefix_bytes(pti);
                     ctx_.line("if (static_cast<size_t>(*len) < " + std::to_string(prefix_bytes) + ")");
-                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferOverrun, \"string length-prefix value smaller than prefix size\"));");
+                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferOverrun, \"string '" + f.name + "': length-prefix value \" + std::to_string(*len) + \" smaller than prefix size " + std::to_string(prefix_bytes) + "\"));");
                     ctx_.line("auto str_len = static_cast<size_t>(*len) - " + std::to_string(prefix_bytes) + ";");
                     ctx_.line("auto val = r.read_string(str_len);");
                 } else {
@@ -1173,7 +1191,7 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
         ctx_.line("{");
         ctx_.indent();
         ctx_.line("auto count = static_cast<size_t>(" + expr + ");");
-        ctx_.line("if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"invalid array count\")" + array_ctx + ");");
+        ctx_.line("if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"array '" + a.name + "': decoded count \" + std::to_string(count) + \" exceeds INT32_MAX\")" + array_ctx + ");");
         ctx_.line(member + ".reserve(count);");
         ctx_.line("for (size_t i = 0; i < count; i++) {");
     } else if (a.count_star) {
@@ -1529,7 +1547,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.line("} else {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownDiscriminator,");
-        ctx_.line("    \"choice '" + c.name + "': no case matched switch value\"));");
+        ctx_.line("    \"choice '" + c.name + "': no case matched switch value \" + std::to_string(static_cast<int64_t>(switch_val))));");
         ctx_.dedent();
     }
 
@@ -1541,7 +1559,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.line("if (!cr.at_end()) {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ExactConsumptionFailed,");
-        ctx_.line("    \"bounded choice has unconsumed bytes\"));");
+        ctx_.line("    \"choice '" + c.name + "': bounded region has \" + std::to_string(cr.remaining_bytes()) + \" unconsumed bytes\"));");
         ctx_.dedent();
         ctx_.line("}");
         ctx_.dedent();

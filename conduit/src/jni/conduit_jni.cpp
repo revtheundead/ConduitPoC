@@ -622,7 +622,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
     jint enabled, jint mode, jint output,
     jstring jdirectory, jstring jprefix, jstring jfilename,
     jstring jsentFilename, jstring jreceivedFilename,
-    jint includeMessageContent) {
+    jint includeMessageContent, jint includeRawBytes) {
 
     if (handle == 0) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
@@ -682,6 +682,7 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSetMessageLogConfig(
     cfg.sent_filename           = sentFilename;
     cfg.received_filename       = receivedFilename;
     cfg.include_message_content = static_cast<int>(includeMessageContent);
+    cfg.include_raw_bytes       = static_cast<int>(includeRawBytes);
 
     int err = conduit_set_message_log_config(
         reinterpret_cast<conduit_transceiver_t*>(handle), &cfg);
