@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <adaptor/codec/codec_bridge.hpp>
 #include <adaptor/command_servant.hpp>
 #include <adaptor/corba_peer.hpp>
 #include <adaptor/supplier.hpp>
@@ -81,8 +82,11 @@ public:
     /// Block until shutdown is signalled (e.g. via signal or CommandReceiver).
     void wait_for_shutdown();
 
-    /// Send data to a specific peer.
+    /// Send raw data to a specific peer (bypasses codec).
     [[nodiscard]] bool send_to_peer(PeerId peer, std::span<const uint8_t> data);
+
+    /// Encode a typed message via the codec and send to a specific peer.
+    [[nodiscard]] bool send_message(PeerId peer, uint64_t type_id, const std::any& payload);
 
     // --- Access to sub-components for advanced configuration ----------------
 
@@ -90,6 +94,7 @@ public:
     [[nodiscard]] DataSupplierServant&    supplier() noexcept;
     [[nodiscard]] TcpPeer&               tcp_peer() noexcept;
     [[nodiscard]] CorbaPeer&             corba_peer() noexcept;
+    [[nodiscard]] codec::CodecBridge&    codec_bridge() noexcept;
 
 private:
     void on_data_received(InternalPacket pkt);
@@ -104,6 +109,7 @@ private:
     std::unique_ptr<CorbaPeer>              corba_;
     std::unique_ptr<DataSupplierServant>    supplier_;
     std::unique_ptr<CommandReceiverServant> command_;
+    std::unique_ptr<codec::CodecBridge>     codec_;
 
     std::atomic<bool>           running_{false};
     std::atomic<bool>           shutdown_requested_{false};

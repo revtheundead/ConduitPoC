@@ -2,6 +2,7 @@
 // Conduit CORBA Adaptor - Main Orchestrator Implementation
 
 #include <adaptor/adaptor.hpp>
+#include <adaptor/codec/session_factory.hpp>
 
 #include <ace/Log_Msg.h>
 
@@ -46,6 +47,15 @@ Adaptor::Adaptor(CORBA::ORB_ptr orb,
     corba_    = std::make_unique<CorbaPeer>(orb, poa, config_.corba_peer);
     supplier_ = std::make_unique<DataSupplierServant>();
     command_  = std::make_unique<CommandReceiverServant>();
+
+    // Initialize codec bridge with session factories
+    codec_ = std::make_unique<codec::CodecBridge>();
+    codec_->set_pipeline(PeerId::tcp_peer,
+        std::make_unique<codec::CodecPipeline>(
+            PeerId::tcp_peer, codec::create_tcp_peer_session()));
+    codec_->set_pipeline(PeerId::corba_peer,
+        std::make_unique<codec::CodecPipeline>(
+            PeerId::corba_peer, codec::create_corba_peer_session()));
 }
 
 Adaptor::~Adaptor() {
@@ -57,11 +67,38 @@ void Adaptor::start() {
 
     ACE_DEBUG((LM_INFO, "Adaptor: starting...\n"));
 
-    // Wire data callbacks — both peers feed into the same publish path
-    auto data_handler = [this](InternalPacket pkt) { on_data_received(std::move(pkt)); };
+    // Wire data callbacks — raw bytes feed into codec, decoded messages
+    // get published to consumers.
+    //
+    // Data flow:
+    //   Peer → raw bytes → CodecBridge → decoded messages → DataSupplier
+    //
 
-    tcp_->set_data_callback(data_handler);
-    corba_->set_data_callback(data_handler);
+    // Codec produces decoded messages → publish to consumers
+    codec_->set_message_callback([this](codec::AdaptorMessage msg) {
+        InternalPacket pkt;
+        pkt.source      = msg.source;
+        pkt.received_at = std::chrono::steady_clock::now();
+        pkt.label       = std::move(msg.type_name);
+        pkt.payload     = std::move(msg.raw_bytes);
+        on_data_received(std::move(pkt));
+    });
+
+    codec_->set_error_callback([](PeerId peer, const std::string& err) {
+        ACE_DEBUG((LM_WARNING, "Adaptor: codec error on '%s': %s\n",
+                   to_string(peer), err.c_str()));
+    });
+
+    // Peers produce raw bytes → feed into codec bridge
+    tcp_->set_data_callback([this](InternalPacket pkt) {
+        codec_->on_bytes_received(PeerId::tcp_peer,
+            std::span<const uint8_t>(pkt.payload));
+    });
+
+    corba_->set_data_callback([this](InternalPacket pkt) {
+        codec_->on_bytes_received(PeerId::corba_peer,
+            std::span<const uint8_t>(pkt.payload));
+    });
 
     // Peer state logging
     auto state_handler = [](PeerId peer, bool connected) {
@@ -177,10 +214,17 @@ bool Adaptor::send_to_peer(PeerId peer, std::span<const uint8_t> data) {
     return false;
 }
 
+bool Adaptor::send_message(PeerId peer, uint64_t type_id, const std::any& payload) {
+    auto encoded = codec_->encode(peer, type_id, payload);
+    if (encoded.empty()) return false;
+    return send_to_peer(peer, std::span<const uint8_t>(encoded));
+}
+
 CommandReceiverServant& Adaptor::command_servant() noexcept { return *command_; }
 DataSupplierServant&    Adaptor::supplier()        noexcept { return *supplier_; }
 TcpPeer&               Adaptor::tcp_peer()         noexcept { return *tcp_; }
 CorbaPeer&             Adaptor::corba_peer()       noexcept { return *corba_; }
+codec::CodecBridge&    Adaptor::codec_bridge()     noexcept { return *codec_; }
 
 // ============================================================================
 // Private
@@ -241,6 +285,18 @@ void Adaptor::register_builtin_commands() {
             }
             return res;
         });
+
+    // "codec_info" query — returns registered codec pipeline info
+    command_->register_query("codec_info", [this](const std::string&) {
+        CorbaAdaptor::CommandResult res;
+        res.status = CorbaAdaptor::CMD_OK;
+
+        std::ostringstream ss;
+        ss << "tcp_peer_codec=" << (codec_->pipeline(PeerId::tcp_peer) ? "active" : "none")
+           << " corba_peer_codec=" << (codec_->pipeline(PeerId::corba_peer) ? "active" : "none");
+        res.message = CORBA::string_dup(ss.str().c_str());
+        return res;
+    });
 
     // Shutdown handler — use request_shutdown() for signal-safe path
     command_->set_shutdown_callback([this] {

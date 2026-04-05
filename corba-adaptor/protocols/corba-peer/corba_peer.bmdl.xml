@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BMDL Protocol Definition: CORBA Peer
+
+  Defines the codec for the CORBA raw-data peer.  Transport is handled by
+  CORBA (RawDataChannel); Conduit handles only the codec layer — framing,
+  encode, and decode of the byte stream.
+
+  Messages flow bidirectionally through the CORBA channel:
+
+    - "receive" messages: raw bytes delivered to us via RawDataCallback
+    - "send" messages: raw bytes we send via RawDataChannel::send_raw()
+    - no direction: bidirectional
+
+  TODO: Replace placeholder messages with the actual peer protocol.
+-->
+<bmdl version="2.0">
+  <defaults>
+    <namespace>corba_peer</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <!-- =================================================================== -->
+  <!-- Primitive types                                                      -->
+  <!-- =================================================================== -->
+  <types>
+    <type name="uint8"   base="uint" bits="8"/>
+    <type name="uint16"  base="uint" bits="16"/>
+    <type name="uint32"  base="uint" bits="32"/>
+    <type name="uint64"  base="uint" bits="64"/>
+    <type name="int16"   base="int"  bits="16"/>
+    <type name="int32"   base="int"  bits="32"/>
+    <type name="float32" base="float" bits="32"/>
+    <type name="bool8"   base="bool"  bits="8"/>
+
+    <!-- Protocol-specific types (placeholders) -->
+    <type name="record-type" base="uint" bits="8">
+      <enum>
+        <value id="1"  name="telemetry"/>
+        <value id="2"  name="event"/>
+        <value id="3"  name="alarm"/>
+        <value id="10" name="control"/>
+        <value id="11" name="ack"/>
+      </enum>
+    </type>
+
+    <type name="severity" base="uint" bits="8">
+      <enum>
+        <value id="0" name="info"/>
+        <value id="1" name="warning"/>
+        <value id="2" name="critical"/>
+        <value id="3" name="fatal"/>
+      </enum>
+    </type>
+
+    <type name="alarm-flags" base="uint" bits="8">
+      <flags>
+        <flag bit="0" name="acknowledged"/>
+        <flag bit="1" name="persistent"/>
+        <flag bit="2" name="escalated"/>
+      </flags>
+    </type>
+  </types>
+
+  <!-- =================================================================== -->
+  <!-- Frame definition                                                     -->
+  <!--                                                                      -->
+  <!-- Wire format:                                                         -->
+  <!--   [record-type:1][length:2][payload...]                              -->
+  <!--                                                                      -->
+  <!-- Simpler than the TCP peer frame — no sync pattern needed since       -->
+  <!-- CORBA delivers complete messages (no stream framing required).       -->
+  <!-- TODO: Adjust to match actual peer protocol framing.                  -->
+  <!-- =================================================================== -->
+  <frame name="CorbaPeerFrame">
+    <field name="record-id" type="uint8"  auto="id"/>
+    <field name="length"    type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <!-- =================================================================== -->
+  <!-- Messages                                                             -->
+  <!-- =================================================================== -->
+
+  <!-- Telemetry record: received from the CORBA peer -->
+  <message id="1" name="TelemetryRecord" direction="receive">
+    <field name="source-id"  type="uint16"/>
+    <field name="sequence"   type="uint32"/>
+    <field name="timestamp"  type="uint64"/>
+    <field name="channel"    type="uint8"/>
+    <field name="value"      type="float32"/>
+  </message>
+
+  <!-- Event record: received from the CORBA peer -->
+  <message id="2" name="EventRecord" direction="receive">
+    <field name="source-id"  type="uint16"/>
+    <field name="timestamp"  type="uint64"/>
+    <field name="event-code" type="uint16"/>
+    <field name="severity"   type="severity"/>
+    <field name="data-len"   type="uint8"/>
+    <field name="data"       bytes="64"/>  <!-- TODO: adjust -->
+  </message>
+
+  <!-- Alarm record: received from the CORBA peer -->
+  <message id="3" name="AlarmRecord" direction="receive">
+    <field name="source-id"  type="uint16"/>
+    <field name="timestamp"  type="uint64"/>
+    <field name="alarm-id"   type="uint16"/>
+    <field name="severity"   type="severity"/>
+    <field name="flags"      type="alarm-flags"/>
+  </message>
+
+  <!-- Control command: sent to the CORBA peer -->
+  <message id="10" name="ControlCommand" direction="send">
+    <field name="target-id"   type="uint16"/>
+    <field name="command-code" type="uint16"/>
+    <field name="param-len"   type="uint8"/>
+    <field name="params"      bytes="32"/>  <!-- TODO: adjust -->
+  </message>
+
+  <!-- Acknowledgement: sent to the CORBA peer -->
+  <message id="11" name="Acknowledgement" direction="send">
+    <field name="ref-record-type" type="uint8"/>
+    <field name="ref-sequence"    type="uint32"/>
+    <field name="ack-code"        type="uint8"/>
+  </message>
+</bmdl>
