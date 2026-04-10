@@ -1150,11 +1150,11 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.indent();
             ctx.line("raw = " + py_type_read_expr(t, is_signed));
             if (t.constraint && t.constraint->equals)
-                ctx.line("if raw != " + *t.constraint->equals + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
+                ctx.line("if raw != " + *t.constraint->equals + ": raise ConstraintError(f'decode " + name + ": constraint violation: expected " + *t.constraint->equals + ", got {raw}')");
             if (t.constraint && t.constraint->max)
-                ctx.line("if raw > " + *t.constraint->max + ": raise ConstraintError('" + name + " exceeds max " + *t.constraint->max + "')");
+                ctx.line("if raw > " + *t.constraint->max + ": raise ConstraintError(f'decode " + name + ": value {raw} exceeds max " + *t.constraint->max + "')");
             if (t.constraint && t.constraint->min && (*t.constraint->min != "0" || is_signed))
-                ctx.line("if raw < " + *t.constraint->min + ": raise ConstraintError('" + name + " below min " + *t.constraint->min + "')");
+                ctx.line("if raw < " + *t.constraint->min + ": raise ConstraintError(f'decode " + name + ": value {raw} below min " + *t.constraint->min + "')");
             ctx.line("return " + name + "(raw)");
             ctx.dedent();
             ctx.line();
@@ -1275,11 +1275,11 @@ std::string generate_py_types(const model::Protocol& protocol,
             ctx.indent();
             ctx.line("raw = " + py_type_read_expr(t, is_signed));
             if (t.constraint && t.constraint->equals)
-                ctx.line("if raw != " + py_qualify_const(*t.constraint->equals) + ": raise ConstraintError('" + name + " constraint: expected " + *t.constraint->equals + "')");
+                ctx.line("if raw != " + py_qualify_const(*t.constraint->equals) + ": raise ConstraintError(f'decode " + name + ": constraint violation: expected " + *t.constraint->equals + ", got {raw}')");
             if (t.constraint && t.constraint->max)
-                ctx.line("if raw > " + py_qualify_const(*t.constraint->max) + ": raise ConstraintError('" + name + " exceeds max')");
+                ctx.line("if raw > " + py_qualify_const(*t.constraint->max) + ": raise ConstraintError(f'decode " + name + ": value {raw} exceeds max " + *t.constraint->max + "')");
             if (t.constraint && t.constraint->min && (*t.constraint->min != "0" || is_signed))
-                ctx.line("if raw < " + py_qualify_const(*t.constraint->min) + ": raise ConstraintError('" + name + " below min')");
+                ctx.line("if raw < " + py_qualify_const(*t.constraint->min) + ": raise ConstraintError(f'decode " + name + ": value {raw} below min " + *t.constraint->min + "')");
             ctx.line("return " + name + "(raw)");
             ctx.dedent();
             ctx.line();
@@ -1503,7 +1503,8 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
-            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
+            std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
+            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError(f'decode " + fq + ": length {len(" + m + ")} exceeds max length " + std::to_string(*f.max_length) + "')");
         }
         tracker.advance_field(fi);
         return;
@@ -1514,7 +1515,8 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
         else if (f.length_from) ctx.line(m + " = r.read_bytes(int(" + py_expr_ctx(*f.length_from, pfx, outer_ctx) + "))");
         else ctx.line(m + " = r.read_bytes(r.remaining_bytes())");
         if (f.max_length) {
-            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError('" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "')");
+            std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
+            ctx.line("if len(" + m + ") > " + std::to_string(*f.max_length) + ": raise ConstraintError(f'decode " + fq + ": length {len(" + m + ")} exceeds max length " + std::to_string(*f.max_length) + "')");
         }
         tracker.advance_field(fi);
         return;
@@ -1536,15 +1538,16 @@ void emit_py_field_decode(EmitContext& ctx, const model::Field& f,
     // Field-level constraint checks (matching C++ emit_constraint_check)
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
+        std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
         if (f.constraint->equals) {
-            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError('" + f.name + " constraint violation: expected " + *f.constraint->equals + "')");
+            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError(f'decode " + fq + ": constraint violation: expected " + *f.constraint->equals + ", got {" + m + "}')");
         }
         if (f.constraint->max) {
-            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError(f'decode " + fq + ": value {" + m + "} exceeds max " + *f.constraint->max + "')");
         }
         bool is_signed = fi.is_signed;
         if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
-            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
+            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError(f'decode " + fq + ": value {" + m + "} below min " + *f.constraint->min + "')");
         }
     }
 }
@@ -1607,14 +1610,15 @@ void emit_py_field_encode(EmitContext& ctx, const model::Field& f,
     // Skip deferred constraints (validated externally, not at encode time)
     if (f.constraint && !fi.is_struct && !fi.is_enum && !fi.is_bytes
         && f.constraint->validate != model::ValidateTiming::Deferred) {
+        std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
         if (f.constraint->equals) {
-            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError('" + f.name + " constraint: expected " + *f.constraint->equals + "')");
+            ctx.line("if " + m + " != " + py_qualify_const(*f.constraint->equals) + ": raise ConstraintError(f'encode " + fq + ": constraint violation: expected " + *f.constraint->equals + ", got {" + m + "}')");
         }
         if (f.constraint->max) {
-            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError('" + f.name + " exceeds max " + *f.constraint->max + "')");
+            ctx.line("if " + m + " > " + py_qualify_const(*f.constraint->max) + ": raise ConstraintError(f'encode " + fq + ": value {" + m + "} exceeds max " + *f.constraint->max + "')");
         }
         if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
-            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError('" + f.name + " below min " + *f.constraint->min + "')");
+            ctx.line("if " + m + " < " + py_qualify_const(*f.constraint->min) + ": raise ConstraintError(f'encode " + fq + ": value {" + m + "} below min " + *f.constraint->min + "')");
         }
     }
     if (fi.is_enum) {
@@ -1733,7 +1737,8 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 ctx.indent();
                 emit_py_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
                 ctx.dedent();
-                ctx.line("except Exception as _e: raise type(_e)(\"field '" + f->name + "': \" + str(_e)) from _e");
+                std::string fq = parent_class_name.empty() ? f->name : (parent_class_name + "." + f->name);
+                ctx.line("except Exception as _e: raise type(_e)(\"decode " + fq + ": \" + str(_e)) from _e");
             };
             if (f->present_when) {
                 ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
@@ -1866,7 +1871,8 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
                 } else if (!first) {
                     ctx.line("else:");
                     ctx.indent();
-                    ctx.line("raise DecodeError(f\"choice '" + cd->name + "': no case matched switch value {" + sv + "}\")");
+                    std::string choice_fq = parent_class_name.empty() ? cd->name : (parent_class_name + "." + cd->name);
+                    ctx.line("raise DecodeError(f\"decode " + choice_fq + ": no case matched switch value {" + sv + "}\")");
                     ctx.dedent();
                 }
             };
@@ -2160,7 +2166,8 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
                 ctx.indent();
                 emit_py_field_encode(ctx, *f, index, pfx, tracker, parent_class_name);
                 ctx.dedent();
-                ctx.line("except Exception as _e: raise type(_e)(\"field '" + f->name + "': \" + str(_e)) from _e");
+                std::string fq = parent_class_name.empty() ? f->name : (parent_class_name + "." + f->name);
+                ctx.line("except Exception as _e: raise type(_e)(\"encode " + fq + ": \" + str(_e)) from _e");
             };
             if (f->present_when) {
                 ctx.line("if " + py_expr_ctx(*f->present_when, pfx, outer_ctx) + ":");
@@ -2535,28 +2542,29 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         bool has_ml = bf.source_field && bf.source_field->max_length.has_value();
 
         if (has_constraint || has_ml) {
+            std::string fq = cn + "." + bf.name;
             ctx.line("def set_" + m + "(self, v):");
             ctx.indent();
             if (has_constraint) {
                 const auto& con = *bf.source_field->constraint;
                 if (con.equals)
                     ctx.line("if v != " + py_qualify_const(*con.equals) +
-                             ": raise ConstraintError('" + bf.name +
-                             " constraint: expected " + *con.equals + "')");
+                             ": raise ConstraintError(f'set " + fq +
+                             ": constraint violation: expected " + *con.equals + ", got {v}')");
                 if (con.max)
                     ctx.line("if v > " + py_qualify_const(*con.max) +
-                             ": raise ConstraintError('" + bf.name +
-                             " exceeds max " + *con.max + "')");
+                             ": raise ConstraintError(f'set " + fq +
+                             ": value {v} exceeds max " + *con.max + "')");
                 if (con.min && (*con.min != "0" || bf.is_signed))
                     ctx.line("if v < " + py_qualify_const(*con.min) +
-                             ": raise ConstraintError('" + bf.name +
-                             " below min " + *con.min + "')");
+                             ": raise ConstraintError(f'set " + fq +
+                             ": value {v} below min " + *con.min + "')");
             }
             if (has_ml) {
                 int ml = *bf.source_field->max_length;
                 ctx.line("if len(v) > " + std::to_string(ml) +
-                         ": raise ConstraintError('" + bf.name +
-                         " exceeds max length " + std::to_string(ml) + "')");
+                         ": raise ConstraintError(f'set " + fq +
+                         ": length {len(v)} exceeds max length " + std::to_string(ml) + "')");
             }
             ctx.line("self." + m + " = v");
             ctx.dedent();
@@ -2971,19 +2979,19 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
                     if (con.equals) {
                         ctx.line("if " + m + " != " + py_qualify_const(*con.equals) + ":");
                         ctx.indent();
-                        ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
+                        ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": constraint violation: expected " + *con.equals + ", got {" + m + "}')");
                         ctx.dedent();
                     }
                     if (con.max) {
                         ctx.line("if " + m + " > " + py_qualify_const(*con.max) + ":");
                         ctx.indent();
-                        ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
+                        ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": value {" + m + "} exceeds max " + *con.max + "')");
                         ctx.dedent();
                     }
                     if (con.min && (*con.min != "0" || fi.is_signed)) {
                         ctx.line("if " + m + " < " + py_qualify_const(*con.min) + ":");
                         ctx.indent();
-                        ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
+                        ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": value {" + m + "} below min " + *con.min + "')");
                         ctx.dedent();
                     }
                     ctx.dedent();
@@ -3080,35 +3088,35 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                     ctx.line("_raw = int.from_bytes(v, 'big')");
                     if (f.constraint->equals)
                         ctx.line("if _raw != " + py_qualify_const(*f.constraint->equals) +
-                                 ": raise ConstraintError('" + f.bmdl_name +
-                                 " constraint: expected " + *f.constraint->equals + "')");
+                                 ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                                 ": constraint violation: expected " + *f.constraint->equals + ", got {_raw}')");
                     if (f.constraint->max)
                         ctx.line("if _raw > " + py_qualify_const(*f.constraint->max) +
-                                 ": raise ConstraintError('" + f.bmdl_name +
-                                 " exceeds max " + *f.constraint->max + "')");
+                                 ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                                 ": value {_raw} exceeds max " + *f.constraint->max + "')");
                     if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
                         ctx.line("if _raw < " + py_qualify_const(*f.constraint->min) +
-                                 ": raise ConstraintError('" + f.bmdl_name +
-                                 " below min " + *f.constraint->min + "')");
+                                 ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                                 ": value {_raw} below min " + *f.constraint->min + "')");
                 }
             } else if (has_immediate_constraint) {
                 if (f.constraint->equals)
                     ctx.line("if v != " + py_qualify_const(*f.constraint->equals) +
-                             ": raise ConstraintError('" + f.bmdl_name +
-                             " constraint: expected " + *f.constraint->equals + "')");
+                             ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                             ": constraint violation: expected " + *f.constraint->equals + ", got {v}')");
                 if (f.constraint->max)
                     ctx.line("if v > " + py_qualify_const(*f.constraint->max) +
-                             ": raise ConstraintError('" + f.bmdl_name +
-                             " exceeds max " + *f.constraint->max + "')");
+                             ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                             ": value {v} exceeds max " + *f.constraint->max + "')");
                 if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
                     ctx.line("if v < " + py_qualify_const(*f.constraint->min) +
-                             ": raise ConstraintError('" + f.bmdl_name +
-                             " below min " + *f.constraint->min + "')");
+                             ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                             ": value {v} below min " + *f.constraint->min + "')");
             }
             if (f.max_length) {
                 ctx.line("if len(v) > " + std::to_string(*f.max_length) +
-                         ": raise ConstraintError('" + f.bmdl_name +
-                         " exceeds max length " + std::to_string(*f.max_length) + "')");
+                         ": raise ConstraintError(f'set " + cn + "." + f.bmdl_name +
+                         ": length {len(v)} exceeds max " + std::to_string(*f.max_length) + "')");
             }
             ctx.line("self." + f.name + " = v");
             ctx.dedent();
@@ -3403,19 +3411,19 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                         if (con.equals) {
                             ctx.line("if " + m + " != " + py_qualify_const(*con.equals) + ":");
                             ctx.indent();
-                            ctx.line("raise ConstraintError('" + f->name + ": expected " + *con.equals + "')");
+                            ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": constraint violation: expected " + *con.equals + ", got {" + m + "}')");
                             ctx.dedent();
                         }
                         if (con.max) {
                             ctx.line("if " + m + " > " + py_qualify_const(*con.max) + ":");
                             ctx.indent();
-                            ctx.line("raise ConstraintError('" + f->name + " exceeds max " + *con.max + "')");
+                            ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": value {" + m + "} exceeds max " + *con.max + "')");
                             ctx.dedent();
                         }
                         if (con.min && (*con.min != "0" || fi.is_signed)) {
                             ctx.line("if " + m + " < " + py_qualify_const(*con.min) + ":");
                             ctx.indent();
-                            ctx.line("raise ConstraintError('" + f->name + " below min " + *con.min + "')");
+                            ctx.line("raise ConstraintError(f'validate " + cn + "." + f->name + ": value {" + m + "} below min " + *con.min + "')");
                             ctx.dedent();
                         }
                         if (nullable) {

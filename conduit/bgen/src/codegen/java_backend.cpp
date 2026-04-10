@@ -704,7 +704,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("public int remainingBits() { return Math.max(0, bitLen - bitPos); }");
     ctx.line("public int remainingBytes() { return remainingBits() / 8; }");
     ctx.line();
-    ctx.line("private void check(int n) { if (bitPos + n > bitLen) throw new ConduitCodecException(\"underflow\"); }");
+    ctx.line("private void check(int n) { if (bitPos + n > bitLen) throw new ConduitCodecException(\"underflow: need \" + n + \" bits, have \" + remainingBits() + \" bits\"); }");
     ctx.line();
     ctx.line("public long readBits(int n) {");
     ctx.indent();
@@ -1620,7 +1620,8 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         }
         // max_length validation (matching C++ MaxLengthExceeded check)
         if (f.max_length) {
-            ctx.line("if (" + m + ".length() > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
+            std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
+            ctx.line("if (" + m + ".length() > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"decode " + fq + ": length \" + " + m + ".length() + \" exceeds max length " + std::to_string(*f.max_length) + "\");");
         }
         tracker.advance_field(fi);
         return;
@@ -1631,7 +1632,8 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
         else if (f.length_from) ctx.line(m + " = r.readBytes(" + j_expr_ctx(*f.length_from, pfx, outer_ctx) + ");");
         else ctx.line(m + " = r.readBytes(r.remainingBytes());");
         if (f.max_length) {
-            ctx.line("if (" + m + ".length > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\");");
+            std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
+            ctx.line("if (" + m + ".length > " + std::to_string(*f.max_length) + ") throw new ConduitCodecException(\"decode " + fq + ": length \" + " + m + ".length + \" exceeds max length " + std::to_string(*f.max_length) + "\");");
         }
         tracker.advance_field(fi);
         return;
@@ -1652,15 +1654,16 @@ void emit_j_field_decode(EmitContext& ctx, const model::Field& f,
     // Field-level constraint checks (matching C++ emit_constraint_check)
     // Skip deferred constraints (validated externally, not at decode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred) {
+        std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
         if (f.constraint->equals) {
-            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint violation: expected " + *f.constraint->equals + "\");");
+            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"decode " + fq + ": constraint violation: expected " + *f.constraint->equals + ", got \" + " + m + ");");
         }
         if (f.constraint->max) {
-            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
+            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"decode " + fq + ": value \" + " + m + " + \" exceeds max " + *f.constraint->max + "\");");
         }
         bool is_signed = fi.is_signed;
         if (f.constraint->min && (*f.constraint->min != "0" || is_signed)) {
-            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
+            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"decode " + fq + ": value \" + " + m + " + \" below min " + *f.constraint->min + "\");");
         }
     }
     tracker.advance_field(fi);
@@ -1728,14 +1731,15 @@ void emit_j_field_encode(EmitContext& ctx, const model::Field& f,
     // Skip deferred constraints (validated externally, not at encode time)
     if (f.constraint && f.constraint->validate != model::ValidateTiming::Deferred
         && !fi.is_struct && !fi.is_enum && !fi.is_bytes) {
+        std::string fq = parent_class_name.empty() ? f.name : (parent_class_name + "." + f.name);
         if (f.constraint->equals) {
-            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"" + f.name + " constraint: expected " + *f.constraint->equals + "\");");
+            ctx.line("if (" + m + " != " + j_qualify_const(*f.constraint->equals) + ") throw new ConduitCodecException(\"encode " + fq + ": constraint violation: expected " + *f.constraint->equals + ", got \" + " + m + ");");
         }
         if (f.constraint->max) {
-            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"" + f.name + " exceeds max " + *f.constraint->max + "\");");
+            ctx.line("if (" + m + " > " + j_qualify_const(*f.constraint->max) + ") throw new ConduitCodecException(\"encode " + fq + ": value \" + " + m + " + \" exceeds max " + *f.constraint->max + "\");");
         }
         if (f.constraint->min && (*f.constraint->min != "0" || fi.is_signed)) {
-            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"" + f.name + " below min " + *f.constraint->min + "\");");
+            ctx.line("if (" + m + " < " + j_qualify_const(*f.constraint->min) + ") throw new ConduitCodecException(\"encode " + fq + ": value \" + " + m + " + \" below min " + *f.constraint->min + "\");");
         }
     }
     if (fi.is_struct || fi.is_enum) { ctx.line(m + ".encode(w);"); tracker.advance_field(fi); return; }
@@ -1855,7 +1859,8 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.indent();
                 emit_j_field_decode(ctx, *f, index, pfx, tracker, outer_ctx, parent_class_name);
                 ctx.dedent();
-                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
+                std::string fq = parent_class_name.empty() ? f->name : (parent_class_name + "." + f->name);
+                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"decode " + fq + ": \" + _e.getMessage()); }");
             };
             if (f->present_when) {
                 ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx, ef_ptr) + ") {");
@@ -2001,7 +2006,8 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 } else if (!first) {
                     ctx.line("} else {");
                     ctx.indent();
-                    ctx.line("throw new ConduitCodecException(\"choice '" + cd->name + "': no case matched switch value\");");
+                    std::string choice_fq = parent_class_name.empty() ? cd->name : (parent_class_name + "." + cd->name);
+                    ctx.line("throw new ConduitCodecException(\"decode " + choice_fq + ": no case matched switch value \" + " + sv_cmp + ");");
                     ctx.dedent();
                 }
                 if (!first) ctx.line("}");
@@ -2311,7 +2317,8 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.indent();
                 emit_j_field_encode(ctx, *f, index, pfx, tracker, parent_class_name, outer_ctx);
                 ctx.dedent();
-                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"field '" + f->name + "': \" + _e.getMessage()); }");
+                std::string fq = parent_class_name.empty() ? f->name : (parent_class_name + "." + f->name);
+                ctx.line("} catch (ConduitCodecException _e) { throw new ConduitCodecException(\"encode " + fq + ": \" + _e.getMessage()); }");
             };
             if (f->present_when) {
                 ctx.line("if (" + j_expr_ctx(*f->present_when, pfx, outer_ctx, ef_ptr) + ") {");
@@ -2589,33 +2596,34 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         bool has_ml = bf.source_field && bf.source_field->max_length.has_value();
 
         if (has_constraint || has_ml) {
+            std::string fq = cn + "." + bf.name;
             ctx.line("public void set" + acc + "(" + bf.j_type + " v) {");
             ctx.indent();
             if (has_constraint) {
                 const auto& con = *bf.source_field->constraint;
                 if (con.equals)
                     ctx.line("if (v != " + j_qualify_const(*con.equals) +
-                             ") throw new ConduitCodecException(\"" + bf.name +
-                             " constraint: expected " + *con.equals + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": constraint violation: expected " + *con.equals + "\");");
                 if (con.max)
                     ctx.line("if (v > " + j_qualify_const(*con.max) +
-                             ") throw new ConduitCodecException(\"" + bf.name +
-                             " exceeds max " + *con.max + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": value \" + v + \" exceeds max " + *con.max + "\");");
                 if (con.min && (*con.min != "0" || bf.is_signed))
                     ctx.line("if (v < " + j_qualify_const(*con.min) +
-                             ") throw new ConduitCodecException(\"" + bf.name +
-                             " below min " + *con.min + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": value \" + v + \" below min " + *con.min + "\");");
             }
             if (has_ml) {
                 int ml = *bf.source_field->max_length;
                 if (bf.is_string)
                     ctx.line("if (v.length() > " + std::to_string(ml) +
-                             ") throw new ConduitCodecException(\"" + bf.name +
-                             " exceeds max length " + std::to_string(ml) + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": length \" + v.length() + \" exceeds max length " + std::to_string(ml) + "\");");
                 else if (bf.is_bytes)
                     ctx.line("if (v.length > " + std::to_string(ml) +
-                             ") throw new ConduitCodecException(\"" + bf.name +
-                             " exceeds max length " + std::to_string(ml) + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": length \" + v.length + \" exceeds max length " + std::to_string(ml) + "\");");
             }
             ctx.line(m + " = v;");
             ctx.dedent();
@@ -3127,18 +3135,19 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                     // All bitmap fields are nullable
                     ctx.line("if (" + m + " != null) {");
                     ctx.indent();
+                    std::string fq = cn + "." + f->name;
                     if (con.equals)
                         ctx.line("if (" + m + " != " + j_qualify_const(*con.equals) +
-                                 ") throw new ConduitCodecException(\"" + f->name +
-                                 ": expected " + *con.equals + "\");");
+                                 ") throw new ConduitCodecException(\"validate " + fq +
+                                 ": constraint violation: expected " + *con.equals + "\");");
                     if (con.max)
                         ctx.line("if (" + m + " > " + j_qualify_const(*con.max) +
-                                 ") throw new ConduitCodecException(\"" + f->name +
-                                 " exceeds max " + *con.max + "\");");
+                                 ") throw new ConduitCodecException(\"validate " + fq +
+                                 ": value \" + " + m + " + \" exceeds max " + *con.max + "\");");
                     if (con.min && (*con.min != "0" || fi.is_signed))
                         ctx.line("if (" + m + " < " + j_qualify_const(*con.min) +
-                                 ") throw new ConduitCodecException(\"" + f->name +
-                                 " below min " + *con.min + "\");");
+                                 ") throw new ConduitCodecException(\"validate " + fq +
+                                 ": value \" + " + m + " + \" below min " + *con.min + "\");");
                     ctx.dedent();
                     ctx.line("}");
                 }
@@ -3272,6 +3281,7 @@ std::string generate_j_class(const std::string& name,
         if (needs_validation) {
             ctx.line("public void set" + acc + "(" + f.j_type + " v) {");
             ctx.indent();
+            std::string fq = cn + "." + f.bmdl_name;
             if (has_immediate_constraint && f.is_bytes) {
                 // Byte-array fields: convert to numeric value before checking constraints
                 bool need_numeric = f.constraint->equals || f.constraint->max ||
@@ -3281,40 +3291,40 @@ std::string generate_j_class(const std::string& name,
                     ctx.line("for (int i = 0; i < v.length; i++) _raw = (_raw << 8) | (v[i] & 0xFF);");
                     if (f.constraint->equals)
                         ctx.line("if (_raw != " + j_qualify_const(*f.constraint->equals) +
-                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                                 " constraint: expected " + *f.constraint->equals + "\");");
+                                 ") throw new ConduitCodecException(\"set " + fq +
+                                 ": constraint violation: expected " + *f.constraint->equals + "\");");
                     if (f.constraint->max)
                         ctx.line("if (_raw > " + j_qualify_const(*f.constraint->max) +
-                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                                 " exceeds max " + *f.constraint->max + "\");");
+                                 ") throw new ConduitCodecException(\"set " + fq +
+                                 ": value \" + _raw + \" exceeds max " + *f.constraint->max + "\");");
                     if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
                         ctx.line("if (_raw < " + j_qualify_const(*f.constraint->min) +
-                                 ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                                 " below min " + *f.constraint->min + "\");");
+                                 ") throw new ConduitCodecException(\"set " + fq +
+                                 ": value \" + _raw + \" below min " + *f.constraint->min + "\");");
                 }
             } else if (has_immediate_constraint) {
                 if (f.constraint->equals)
                     ctx.line("if (v != " + j_qualify_const(*f.constraint->equals) +
-                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                             " constraint: expected " + *f.constraint->equals + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": constraint violation: expected " + *f.constraint->equals + "\");");
                 if (f.constraint->max)
                     ctx.line("if (v > " + j_qualify_const(*f.constraint->max) +
-                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                             " exceeds max " + *f.constraint->max + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": value \" + v + \" exceeds max " + *f.constraint->max + "\");");
                 if (f.constraint->min && (*f.constraint->min != "0" || f.is_signed))
                     ctx.line("if (v < " + j_qualify_const(*f.constraint->min) +
-                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                             " below min " + *f.constraint->min + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": value \" + v + \" below min " + *f.constraint->min + "\");");
             }
             if (f.max_length) {
                 if (f.is_string)
                     ctx.line("if (v.length() > " + std::to_string(*f.max_length) +
-                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                             " exceeds max length " + std::to_string(*f.max_length) + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": length \" + v.length() + \" exceeds max length " + std::to_string(*f.max_length) + "\");");
                 else if (f.is_bytes)
                     ctx.line("if (v.length > " + std::to_string(*f.max_length) +
-                             ") throw new ConduitCodecException(\"" + f.bmdl_name +
-                             " exceeds max length " + std::to_string(*f.max_length) + "\");");
+                             ") throw new ConduitCodecException(\"set " + fq +
+                             ": length \" + v.length + \" exceeds max length " + std::to_string(*f.max_length) + "\");");
             }
             ctx.line(f.name + " = v;");
             ctx.dedent();
@@ -3708,20 +3718,21 @@ std::string generate_j_class(const std::string& name,
                             ctx.line("if (" + m + " != null) {");
                             ctx.indent();
                         }
+                        std::string fq = cn + "." + f->name;
                         if (con.equals) {
                             ctx.line("if (" + m + " != " + j_qualify_const(*con.equals) +
-                                     ") throw new ConduitCodecException(\"" + f->name +
-                                     ": expected " + *con.equals + "\");");
+                                     ") throw new ConduitCodecException(\"validate " + fq +
+                                     ": constraint violation: expected " + *con.equals + ", got \" + " + m + ");");
                         }
                         if (con.max) {
                             ctx.line("if (" + m + " > " + j_qualify_const(*con.max) +
-                                     ") throw new ConduitCodecException(\"" + f->name +
-                                     " exceeds max " + *con.max + "\");");
+                                     ") throw new ConduitCodecException(\"validate " + fq +
+                                     ": value \" + " + m + " + \" exceeds max " + *con.max + "\");");
                         }
                         if (con.min && (*con.min != "0" || fi.is_signed)) {
                             ctx.line("if (" + m + " < " + j_qualify_const(*con.min) +
-                                     ") throw new ConduitCodecException(\"" + f->name +
-                                     " below min " + *con.min + "\");");
+                                     ") throw new ConduitCodecException(\"validate " + fq +
+                                     ": value \" + " + m + " + \" below min " + *con.min + "\");");
                         }
                         if (nullable) {
                             ctx.dedent();
@@ -5303,14 +5314,14 @@ bool JavaBackend::generate(
                         tctx.indent();
                         tctx.line("long raw = r." + rd + "(" + std::to_string(t.bits) + ");");
                         if (t.constraint->equals) {
-                            tctx.line("if (raw != " + j_qualify_const(*t.constraint->equals) + ") throw new ConduitCodecException(\"" + name + " constraint violation: expected " + *t.constraint->equals + "\");");
+                            tctx.line("if (raw != " + j_qualify_const(*t.constraint->equals) + ") throw new ConduitCodecException(\"decode " + name + ": constraint violation: expected " + *t.constraint->equals + ", got \" + raw);");
                         }
                         if (t.constraint->max) {
-                            tctx.line("if (raw > " + j_qualify_const(*t.constraint->max) + ") throw new ConduitCodecException(\"" + name + " exceeds max " + *t.constraint->max + "\");");
+                            tctx.line("if (raw > " + j_qualify_const(*t.constraint->max) + ") throw new ConduitCodecException(\"decode " + name + ": value \" + raw + \" exceeds max " + *t.constraint->max + "\");");
                         }
                         // Skip min=0 for unsigned types (always true)
                         if (t.constraint->min && (*t.constraint->min != "0" || is_signed)) {
-                            tctx.line("if (raw < " + j_qualify_const(*t.constraint->min) + ") throw new ConduitCodecException(\"" + name + " below min " + *t.constraint->min + "\");");
+                            tctx.line("if (raw < " + j_qualify_const(*t.constraint->min) + ") throw new ConduitCodecException(\"decode " + name + ": value \" + raw + \" below min " + *t.constraint->min + "\");");
                         }
                         tctx.line("return new " + name + "(raw);");
                         tctx.dedent();

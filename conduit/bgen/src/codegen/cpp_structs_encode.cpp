@@ -56,7 +56,7 @@ void StructEmitter::emit_encode(const std::vector<model::StructChild>& children)
                          + endian_str(pending_auto_length_->endian) + ")";
         }
         ctx_.line("if (!" + patch_call + ")");
-        ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"failed to patch auto-length\"));");
+        ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"encode " + current_bmdl_name_ + ": failed to patch auto-length field\"));");
         pending_auto_length_.reset();
     }
 
@@ -112,9 +112,10 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                     }
                     // I2: max_length check for optional strings/bytes
                     if (c.max_length && (fti.is_string || fti.is_bytes)) {
+                        std::string enc_qual = current_bmdl_name_.empty() ? c.name : (current_bmdl_name_ + "." + c.name);
                         ctx_.line("if (" + member + "->size() > " + std::to_string(*c.max_length) + ")");
                         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::StringTooLong,");
-                        ctx_.line("        \"" + c.name + " exceeds max length " + std::to_string(*c.max_length) + "\"));");
+                        ctx_.line("        \"encode " + enc_qual + ": length \" + std::to_string(" + member + "->size()) + \" exceeds max length " + std::to_string(*c.max_length) + "\"));");
                     }
                     if (fti.is_enum) {
                         ctx_.line("CONDUIT_TRY(encode_" + fti.cpp_type + "(*" + member + ", w));");
@@ -246,7 +247,7 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                              + endian_str(ref.endian) + ")";
             }
             ctx_.line("if (!" + patch_call + ")");
-            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"failed to patch auto-length(field)\"));");
+            ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"encode " + current_bmdl_name_ + "." + child_name + ": failed to patch auto-length(field)\"));");
             pending_auto_length_ref_.reset();
         }
     }
@@ -255,21 +256,23 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
 // A8: Emit constraint check before encoding — returns error on violation
 void StructEmitter::emit_encode_constraint_check(const model::Constraint& c, const std::string& member,
                                                    const std::string& field_name, bool is_signed) {
+    std::string qualified = current_bmdl_name_.empty() ? field_name : (current_bmdl_name_ + "." + field_name);
+
     if (c.equals) {
         ctx_.line("if (" + member + " != static_cast<decltype(" + member + ")>(" + *c.equals + "))");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-        ctx_.line("        \"" + field_name + " constraint: expected " + *c.equals + "\"));");
+        ctx_.line("        \"encode " + qualified + ": constraint violation: expected " + *c.equals + ", got \" + std::to_string(static_cast<int64_t>(" + member + "))));");
     }
     if (c.max) {
         ctx_.line("if (" + member + " > " + *c.max + ")");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-        ctx_.line("        \"" + field_name + " exceeds max " + *c.max + "\"));");
+        ctx_.line("        \"encode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" exceeds max " + *c.max + "\"));");
     }
     // Skip min=0 for unsigned types (always true, triggers -Wtype-limits)
     if (c.min && (*c.min != "0" || is_signed)) {
         ctx_.line("if (" + member + " < " + *c.min + ")");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-        ctx_.line("        \"" + field_name + " below min " + *c.min + "\"));");
+        ctx_.line("        \"encode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" below min " + *c.min + "\"));");
     }
 }
 
@@ -327,9 +330,10 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
 
     // G2: max_length check before encoding strings/bytes
     if (f.max_length && (fti.is_string || fti.is_bytes)) {
+        std::string enc_qual = current_bmdl_name_.empty() ? f.name : (current_bmdl_name_ + "." + f.name);
         ctx_.line("if (" + member + ".size() > " + std::to_string(*f.max_length) + ")");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::StringTooLong,");
-        ctx_.line("        \"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\"));");
+        ctx_.line("        \"encode " + enc_qual + ": length \" + std::to_string(" + member + ".size()) + \" exceeds max length " + std::to_string(*f.max_length) + "\"));");
     }
 
     if (f.is_inline) {
@@ -668,7 +672,7 @@ void StructEmitter::emit_encode_choice(const model::ChoiceDef& c, bool is_option
                 if (!cond.empty()) {
                     ctx_.line("if (" + cond + ")");
                     ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-                    ctx_.line("        \"choice '" + c.name + "': variant does not match discriminator\"));");
+                    ctx_.line("        \"encode " + current_bmdl_name_ + "." + c.name + ": variant does not match discriminator\"));");
                 }
                 ctx_.dedent();
             }

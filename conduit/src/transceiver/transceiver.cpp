@@ -143,14 +143,20 @@ void Transceiver::set_shutdown_timeout(std::chrono::milliseconds timeout) {
 void Transceiver::log_recv_message(PeerId peer, std::string_view type_name,
                                    size_t byte_count, const std::string& content) {
     if (!message_log_) return;
-    std::shared_lock lock(peers_mutex_);
-    auto* ctx = find_peer(peer);
-    if (!ctx) return;
-    std::string peer_name = ctx->name;
-    std::string remote = ctx->remote_endpoint;
-    std::string protocol = std::string(ctx->session->protocol_name());
-    std::string transport = std::string(ctx->transport->transport_type());
-    lock.unlock();
+    std::string peer_name = "<no-peer>";
+    std::string remote;
+    std::string protocol;
+    std::string transport;
+    {
+        std::shared_lock lock(peers_mutex_);
+        auto* ctx = find_peer(peer);
+        if (ctx) {
+            peer_name = ctx->name;
+            remote = ctx->remote_endpoint;
+            protocol = std::string(ctx->session->protocol_name());
+            transport = std::string(ctx->transport->transport_type());
+        }
+    }
     message_log_->log_recv(peer_name, remote, type_name, byte_count,
                            content, protocol, transport);
 }
@@ -158,14 +164,20 @@ void Transceiver::log_recv_message(PeerId peer, std::string_view type_name,
 void Transceiver::log_send_message(PeerId peer, std::string_view type_name,
                                    size_t byte_count, const std::string& content) {
     if (!message_log_) return;
-    std::shared_lock lock(peers_mutex_);
-    auto* ctx = find_peer(peer);
-    if (!ctx) return;
-    std::string peer_name = ctx->name;
-    std::string remote = ctx->remote_endpoint;
-    std::string protocol = std::string(ctx->session->protocol_name());
-    std::string transport = std::string(ctx->transport->transport_type());
-    lock.unlock();
+    std::string peer_name = "<no-peer>";
+    std::string remote;
+    std::string protocol;
+    std::string transport;
+    {
+        std::shared_lock lock(peers_mutex_);
+        auto* ctx = find_peer(peer);
+        if (ctx) {
+            peer_name = ctx->name;
+            remote = ctx->remote_endpoint;
+            protocol = std::string(ctx->session->protocol_name());
+            transport = std::string(ctx->transport->transport_type());
+        }
+    }
     message_log_->log_send(peer_name, remote, type_name, byte_count,
                            content, protocol, transport);
 }

@@ -940,7 +940,9 @@ TEST_CASE("JCG: deferred constraint generates validate() not decode-time check",
     // deferred-val has validate="deferred" — checks go in validate(), not decode()
     // The validate() method should exist with deferred constraint checks
     CHECK(all.find("public void validate()") != std::string::npos);
-    CHECK(all.find("deferred-val exceeds max") != std::string::npos);
+    CHECK(all.find("validate") != std::string::npos);
+    CHECK(all.find("deferred-val") != std::string::npos);
+    CHECK(all.find("exceeds max 500") != std::string::npos);
 }
 
 // ============================================================================
@@ -1531,9 +1533,9 @@ TEST_CASE("Java: decode wraps field reads in try-catch with field name context",
     auto all = all_output(*java);
 
     // The decode method should wrap field decoding in try-catch
-    // with field name context for error messages
+    // with message.field context for error messages
     CHECK(all.find("catch (ConduitCodecException _e)") != std::string::npos);
-    CHECK(all.find("field 'header'") != std::string::npos);
+    CHECK(all.find("decode NestedBitmapMsg.header") != std::string::npos);
 }
 
 TEST_CASE("Java: encode wraps field writes in try-catch with field name context",
