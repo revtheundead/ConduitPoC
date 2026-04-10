@@ -18,18 +18,16 @@ public final class CodecBindings {
         String libPath = System.getProperty("conduit.codec.path");
         if (libPath != null) {
             System.load(libPath);
-            LIB = SymbolLookup.loaderLookup();
         } else {
             try {
                 System.loadLibrary("conduit_codec_cabi");
-                LIB = SymbolLookup.loaderLookup();
             } catch (UnsatisfiedLinkError e) {
                 // NativeLoader tries java.library.path first, then extracts from
                 // the fat JAR resource at /native/<os>-<arch>/libconduit_codec_cabi.*
                 NativeLoader.load("conduit_codec_cabi");
-                LIB = SymbolLookup.loaderLookup();
             }
         }
+        LIB = SymbolLookup.loaderLookup();
     }
 
     // Session lifecycle
