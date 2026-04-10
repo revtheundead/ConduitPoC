@@ -455,6 +455,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
     ctx_.indent();
     for (const auto& df : deferred) {
         std::string member = to_member_name(df.name);
+        std::string df_qualified = current_bmdl_name_.empty() ? df.name : (current_bmdl_name_ + "." + df.name);
         // For optional fields, skip validation if absent
         if (df.is_optional) {
             ctx_.line("if (" + member + ".has_value()) {");
@@ -466,7 +467,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
                      *df.constraint.equals + ")) {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
-            ctx_.line("    \"" + df.name + " constraint violation: expected " + *df.constraint.equals + "\"));");
+            ctx_.line("    \"validate " + df_qualified + ": constraint violation: expected " + *df.constraint.equals + ", got \" + std::to_string(static_cast<int64_t>(" + val + "))));");
             ctx_.dedent();
             ctx_.line("}");
         }
@@ -474,7 +475,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
             ctx_.line("if (" + val + " > " + *df.constraint.max + ") {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
-            ctx_.line("    \"" + df.name + " exceeds max " + *df.constraint.max + "\"));");
+            ctx_.line("    \"validate " + df_qualified + ": value \" + std::to_string(static_cast<int64_t>(" + val + ")) + \" exceeds max " + *df.constraint.max + "\"));");
             ctx_.dedent();
             ctx_.line("}");
         }
@@ -483,7 +484,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
             ctx_.line("if (" + val + " < " + *df.constraint.min + ") {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
-            ctx_.line("    \"" + df.name + " below min " + *df.constraint.min + "\"));");
+            ctx_.line("    \"validate " + df_qualified + ": value \" + std::to_string(static_cast<int64_t>(" + val + ")) + \" below min " + *df.constraint.min + "\"));");
             ctx_.dedent();
             ctx_.line("}");
         }
@@ -652,7 +653,7 @@ void StructEmitter::emit_decode_children(const std::vector<model::StructChild>& 
             ctx_.line("bool _auto_len_fallback = (_auto_len_total < 0) || "
                       "(_auto_len_total < _auto_len_consumed);");
             ctx_.line("conduit::Result<conduit::io::BitReader> auto_len_sub_ = "
-                      "std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"skipped\"));");
+                      "std::unexpected(conduit::Error(conduit::ErrorCode::BufferUnderrun, \"decode " + current_bmdl_name_ + ": auto-length sub-reader creation skipped\"));");
             ctx_.line("if (!_auto_len_fallback) {");
             ctx_.indent();
             ctx_.line("auto_len_sub_ = r.sub_reader(static_cast<size_t>(_auto_len_total - _auto_len_consumed));");
@@ -827,7 +828,8 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
         return;
     }
 
-    std::string field_ctx = ".with_context(\"field '" + f.name + "'\")";
+    std::string qualified_name = current_bmdl_name_.empty() ? f.name : (current_bmdl_name_ + "." + f.name);
+    std::string field_ctx = ".with_context(\"decode " + qualified_name + "\")";
 
     if (fti.has_field_scale) {
         // Inline scale: read raw integer and apply scale+offset
@@ -860,7 +862,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 ctx_.line("if (" + cast_member + " != " + *f.constraint->equals + ") {");
                 ctx_.indent();
                 ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-                ctx_.line("    \"" + f.name + " constraint violation: expected " + *f.constraint->equals + "\"));");
+                ctx_.line("    \"decode " + qualified_name + ": constraint violation: expected " + *f.constraint->equals + ", got \" + std::to_string(static_cast<int64_t>(" + cast_member + "))));");
                 ctx_.dedent();
                 ctx_.line("}");
             }
@@ -868,7 +870,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 ctx_.line("if (" + cast_member + " > " + *f.constraint->max + ") {");
                 ctx_.indent();
                 ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-                ctx_.line("    \"" + f.name + " exceeds max " + *f.constraint->max + "\"));");
+                ctx_.line("    \"decode " + qualified_name + ": value \" + std::to_string(static_cast<int64_t>(" + cast_member + ")) + \" exceeds max " + *f.constraint->max + "\"));");
                 ctx_.dedent();
                 ctx_.line("}");
             }
@@ -889,7 +891,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                     ctx_.line("if (" + cast_member + " < " + *f.constraint->min + ") {");
                     ctx_.indent();
                     ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-                    ctx_.line("    \"" + f.name + " below min " + *f.constraint->min + "\"));");
+                    ctx_.line("    \"decode " + qualified_name + ": value \" + std::to_string(static_cast<int64_t>(" + cast_member + ")) + \" below min " + *f.constraint->min + "\"));");
                     ctx_.dedent();
                     ctx_.line("}");
                 }
@@ -947,7 +949,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                     // A3: Subtract prefix bytes from length
                     int prefix_bytes = get_prefix_bytes(pti);
                     ctx_.line("if (static_cast<size_t>(*len) < " + std::to_string(prefix_bytes) + ")");
-                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferOverrun, \"string '" + f.name + "': length-prefix value \" + std::to_string(*len) + \" smaller than prefix size " + std::to_string(prefix_bytes) + "\"));");
+                    ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::BufferOverrun, \"decode " + qualified_name + ": length-prefix value \" + std::to_string(*len) + \" smaller than prefix size " + std::to_string(prefix_bytes) + "\"));");
                     ctx_.line("auto str_len = static_cast<size_t>(*len) - " + std::to_string(prefix_bytes) + ";");
                     ctx_.line("auto val = r.read_string(str_len);");
                 } else {
@@ -1130,7 +1132,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
         ctx_.line("if (" + member + ".size() > " + std::to_string(*f.max_length) + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::MaxLengthExceeded,");
-        ctx_.line("    \"" + f.name + " exceeds max length " + std::to_string(*f.max_length) + "\"));");
+        ctx_.line("    \"decode " + qualified_name + ": length \" + std::to_string(" + member + ".size()) + \" exceeds max length " + std::to_string(*f.max_length) + "\"));");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -1140,7 +1142,8 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
     std::string member = result_var + "." + to_member_name(a.name);
     std::string elem_type = !a.type_ref.empty() ? to_cpp_type_name(a.type_ref)
                                                   : get_child_class_name(a.name + "Element");
-    std::string array_ctx = ".with_context(\"array '" + a.name + "'\")";
+    std::string array_qualified = current_bmdl_name_.empty() ? a.name : (current_bmdl_name_ + "." + a.name);
+    std::string array_ctx = ".with_context(\"decode " + array_qualified + "\")";
 
     // Optional arrays (present_when / bit): emplace the optional and dereference for vector ops
     if (a.present_when || a.bit) {
@@ -1191,7 +1194,7 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
         ctx_.line("{");
         ctx_.indent();
         ctx_.line("auto count = static_cast<size_t>(" + expr + ");");
-        ctx_.line("if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"array '" + a.name + "': decoded count \" + std::to_string(count) + \" exceeds INT32_MAX\")" + array_ctx + ");");
+        ctx_.line("if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, \"decode " + array_qualified + ": decoded count \" + std::to_string(count) + \" exceeds INT32_MAX\")" + array_ctx + ");");
         ctx_.line(member + ".reserve(count);");
         ctx_.line("for (size_t i = 0; i < count; i++) {");
     } else if (a.count_star) {
@@ -1397,7 +1400,8 @@ std::string StructEmitter::emit_case_decode_call(const std::string& case_type,
 
 void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::string& result_var) {
     std::string member = result_var + "." + to_member_name(c.name);
-    std::string choice_ctx = ".with_context(\"choice '" + c.name + "'\")";
+    std::string choice_qualified = current_bmdl_name_.empty() ? c.name : (current_bmdl_name_ + "." + c.name);
+    std::string choice_ctx = ".with_context(\"decode " + choice_qualified + "\")";
 
     // Evaluate switch expression
     std::string switch_expr;
@@ -1547,7 +1551,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.line("} else {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::UnknownDiscriminator,");
-        ctx_.line("    \"choice '" + c.name + "': no case matched switch value \" + std::to_string(static_cast<int64_t>(switch_val))));");
+        ctx_.line("    \"decode " + choice_qualified + ": no case matched switch value \" + std::to_string(static_cast<int64_t>(switch_val))));");
         ctx_.dedent();
     }
 
@@ -1559,7 +1563,7 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
         ctx_.line("if (!cr.at_end()) {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ExactConsumptionFailed,");
-        ctx_.line("    \"choice '" + c.name + "': bounded region has \" + std::to_string(cr.remaining_bytes()) + \" unconsumed bytes\"));");
+        ctx_.line("    \"decode " + choice_qualified + ": bounded region has \" + std::to_string(cr.remaining_bytes()) + \" unconsumed bytes\"));");
         ctx_.dedent();
         ctx_.line("}");
         ctx_.dedent();

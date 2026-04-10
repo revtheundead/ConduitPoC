@@ -16,12 +16,14 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
                                            const std::string& field_name, bool is_signed) {
     if (c.validate == model::ValidateTiming::Deferred) return;
 
+    std::string qualified = current_bmdl_name_.empty() ? field_name : (current_bmdl_name_ + "." + field_name);
+
     if (c.equals) {
         std::string val = *c.equals;
         ctx_.line("if (" + member + " != static_cast<decltype(" + member + ")>(" + val + ")) {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"" + field_name + " constraint violation: expected " + *c.equals + "\"));");
+        ctx_.line("    \"decode " + qualified + ": constraint violation: expected " + *c.equals + ", got \" + std::to_string(static_cast<int64_t>(" + member + "))));");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -29,7 +31,7 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
         ctx_.line("if (" + member + " > " + *c.max + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"" + field_name + " exceeds max " + *c.max + "\"));");
+        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" exceeds max " + *c.max + "\"));");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -38,7 +40,7 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
         ctx_.line("if (" + member + " < " + *c.min + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"" + field_name + " below min " + *c.min + "\"));");
+        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" below min " + *c.min + "\"));");
         ctx_.dedent();
         ctx_.line("}");
     }

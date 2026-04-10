@@ -1105,7 +1105,7 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     ctx_.line("if (max_bytes > 0 && data.size() > max_bytes) {");
     ctx_.indent();
     ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::MaxLengthExceeded,");
-    ctx_.line("    \"message size \" + std::to_string(data.size()) + \" exceeds limit \" + std::to_string(max_bytes)));");
+    ctx_.line("    \"decode " + current_bmdl_name_ + ": message size \" + std::to_string(data.size()) + \" exceeds limit \" + std::to_string(max_bytes)));");
     ctx_.dedent();
     ctx_.line("}");
     ctx_.line("conduit::io::BitReader r(data);");
@@ -1433,6 +1433,8 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
                                                     const model::Constraint* constraint, bool is_signed,
                                                     std::optional<int> max_length,
                                                     bool is_bytes) {
+    std::string qualified = current_bmdl_name_.empty() ? name : (current_bmdl_name_ + "." + name);
+
     if (constraint && is_bytes) {
         // Byte-array fields: convert to numeric value before checking constraints
         bool need_check = constraint->equals || constraint->max ||
@@ -1445,17 +1447,17 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
             if (constraint->equals) {
                 ctx_.line("if (_raw != static_cast<uint64_t>(" + *constraint->equals + "))");
                 ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-                ctx_.line("        \"" + name + " constraint: expected " + *constraint->equals + "\"));");
+                ctx_.line("        \"set " + qualified + ": constraint violation: expected " + *constraint->equals + "\"));");
             }
             if (constraint->max) {
                 ctx_.line("if (_raw > " + *constraint->max + ")");
                 ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-                ctx_.line("        \"" + name + " exceeds max " + *constraint->max + "\"));");
+                ctx_.line("        \"set " + qualified + ": value \" + std::to_string(_raw) + \" exceeds max " + *constraint->max + "\"));");
             }
             if (constraint->min && (*constraint->min != "0" || is_signed)) {
                 ctx_.line("if (_raw < " + *constraint->min + ")");
                 ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-                ctx_.line("        \"" + name + " below min " + *constraint->min + "\"));");
+                ctx_.line("        \"set " + qualified + ": value \" + std::to_string(_raw) + \" below min " + *constraint->min + "\"));");
             }
             ctx_.dedent();
             ctx_.line("}");
@@ -1464,23 +1466,23 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
         if (constraint->equals) {
             ctx_.line("if (v != static_cast<" + qual_type + ">(" + *constraint->equals + "))");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-            ctx_.line("        \"" + name + " constraint: expected " + *constraint->equals + "\"));");
+            ctx_.line("        \"set " + qualified + ": constraint violation: expected " + *constraint->equals + "\"));");
         }
         if (constraint->max) {
             ctx_.line("if (v > " + *constraint->max + ")");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-            ctx_.line("        \"" + name + " exceeds max " + *constraint->max + "\"));");
+            ctx_.line("        \"set " + qualified + ": value \" + std::to_string(static_cast<int64_t>(v)) + \" exceeds max " + *constraint->max + "\"));");
         }
         if (constraint->min && (*constraint->min != "0" || is_signed)) {
             ctx_.line("if (v < " + *constraint->min + ")");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
-            ctx_.line("        \"" + name + " below min " + *constraint->min + "\"));");
+            ctx_.line("        \"set " + qualified + ": value \" + std::to_string(static_cast<int64_t>(v)) + \" below min " + *constraint->min + "\"));");
         }
     }
     if (max_length) {
         ctx_.line("if (v.size() > " + std::to_string(*max_length) + ")");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::StringTooLong,");
-        ctx_.line("        \"" + name + " exceeds max length " + std::to_string(*max_length) + "\"));");
+        ctx_.line("        \"set " + qualified + ": length \" + std::to_string(v.size()) + \" exceeds max length " + std::to_string(*max_length) + "\"));");
     }
 }
 
