@@ -2177,13 +2177,13 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
             ctx.line("else { new " + stype + "().encode(w); }");
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
-            std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
             if (ad->fixed_count) {
                 // Fixed-count array: write elements if present, else write zero-filled defaults
-                ctx.line("if (" + m + " != null) { for (" + elem + " _item : " + m + ") _item.encode(w); }");
+                std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
+                ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
                 ctx.line("else { for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) new " + elem + "().encode(w); }");
             } else {
-                ctx.line("if (" + m + " != null) { for (" + elem + " _item : " + m + ") _item.encode(w); }");
+                ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             }
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
             std::string m = pfx + "." + j_field(cd->name);
@@ -2334,11 +2334,10 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
-            std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
             if (ad->present_when) {
-                ctx.line("if (" + m + " != null) { for (" + elem + " _item : " + m + ") _item.encode(w); }");
+                ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             } else {
-                ctx.line("for (" + elem + " _item : " + m + ") _item.encode(w);");
+                ctx.line("for (var _item : " + m + ") _item.encode(w);");
             }
             tracker.advance_bits_variable();
         } else if (auto* cd = std::get_if<model::ChoiceDef>(&child)) {
