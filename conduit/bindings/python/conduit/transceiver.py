@@ -160,21 +160,23 @@ def _runtime_hint(error: OSError, lib_name: str) -> OSError:
     msg = str(error)
     if sys.platform == "win32" and ("The specified module could not be found" in msg
             or "WinError 126" in msg or "dependent" in msg.lower()):
-        return OSError(
+        wrapped = OSError(
             f"Failed to load {lib_name}: a required DLL dependency is missing. "
             "On Windows this usually means the Microsoft Visual C++ Redistributable "
             "is not installed. Download it from "
             "https://aka.ms/vs/17/release/vc_redist.x64.exe "
-            f"(original error: {msg})"
-        ) from error
+            f"(original error: {msg})")
+        wrapped.__cause__ = error
+        return wrapped
     if sys.platform.startswith("linux") and ("libstdc++" in msg or "libc++" in msg
             or "GLIBCXX" in msg or "CXXABI" in msg):
-        return OSError(
+        wrapped = OSError(
             f"Failed to load {lib_name}: a required shared library is missing. "
             "Install the C++ standard library for your distribution "
             "(e.g. apt install libstdc++6 or yum install libstdc++) "
-            f"(original error: {msg})"
-        ) from error
+            f"(original error: {msg})")
+        wrapped.__cause__ = error
+        return wrapped
     return error
 
 
