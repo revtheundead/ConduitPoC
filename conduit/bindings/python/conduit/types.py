@@ -94,17 +94,31 @@ class ReconnectPolicy:
 class UdpConfig:
     """UDP transport configuration (mirrors C++ ``UdpConfig``).
 
+    Unicast example::
+
+        cfg = UdpConfig("127.0.0.1:5000")
+
+    Multicast example::
+
+        cfg = UdpConfig(bind_port=5000, multicast_group="239.255.0.1")
+
     Args:
         address:          Remote ``"host:port"`` string (may also be set via
                           ``remote_address`` + ``remote_port``).
         bind_address:     Local bind address; ``None`` = ``"0.0.0.0"``.
-        bind_port:        Local bind port; 0 = ephemeral.
+        bind_port:        Local bind port; 0 = ephemeral (must be non-zero
+                          for multicast).
         remote_address:   Explicit remote host (overrides *address* host part).
         remote_port:      Explicit remote port; 0 = use port from *address*.
         recv_buffer_size: Socket receive buffer; 0 = use default (65536).
         max_datagram_size: Maximum datagram size; 0 = use default (65507).
         max_peers:        Maximum tracked peers; 0 = use default (1024).
         peer_timeout_s:   Inactivity timeout in seconds; 0 = no timeout.
+        multicast_group:  Multicast group IP (``224.0.0.0/4``); empty = unicast.
+        multicast_interface: NIC to join/send on; empty = OS default.
+        multicast_ttl:    Time-to-live; 0 = use default (1, LAN only).
+        multicast_loop:   Receive own multicast packets; ``None`` = use
+                          default (``True``).
     """
     address:          str           = ""
     bind_address:     Optional[str] = None

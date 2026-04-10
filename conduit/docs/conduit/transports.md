@@ -203,9 +203,9 @@ cfg.multicast_loop = false;         // Don't receive our own sends
 
 **Important notes:**
 - `bind_port` must be non-zero for multicast — all receivers bind to the same port.
-- Multicast mode is always multi-peer. Setting `remote_address` is ignored when `multicast_group` is set.
-- Each sender is tracked as a separate peer via `on_peer_connected`, identified by their unicast source address.
+- Multicast is single-peer at the Transceiver level: the group itself is the peer. `is_multi_peer()` returns `false`.
 - `send()` delivers the datagram to the multicast group address, regardless of which `PeerId` is passed.
+- `bind_address` defaults to `"0.0.0.0"` and does not need to be set explicitly for multicast.
 
 ## Serial
 
@@ -322,12 +322,15 @@ new TransportConfig.UdpConfig()
     .remotePort(5001)
     .recvBufferSize(131072)
 
-// UDP multicast
+// UDP multicast (convenience factory)
+TransportConfig.udpMulticast("239.1.1.1", 5000)
+    .multicastLoop(true)
+
+// UDP multicast (full control)
 new TransportConfig.UdpConfig()
     .bindPort(5000)
     .multicastGroup("239.1.1.1")
-    .multicastTtl(1)
-    .multicastLoop(true)
+    .multicastTtl(4)
 
 // Serial
 TransportConfig.serial("COM3", 115200)
