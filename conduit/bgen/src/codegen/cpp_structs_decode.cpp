@@ -857,7 +857,9 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
         ctx_.line(member + " = std::move(*val);");
         // G3: Constraint check on enum decode (applied to underlying value)
         if (f.constraint) {
-            std::string cast_member = "static_cast<std::underlying_type_t<" + fti.cpp_type + ">>(" + member + ")";
+            bool field_optional = optional_field_names_.count(to_member_name(f.name)) > 0;
+            std::string deref_member = field_optional ? ("*(" + member + ")") : member;
+            std::string cast_member = "static_cast<std::underlying_type_t<" + fti.cpp_type + ">>(" + deref_member + ")";
             if (f.constraint->equals) {
                 ctx_.line("if (" + cast_member + " != " + *f.constraint->equals + ") {");
                 ctx_.indent();
@@ -1119,7 +1121,8 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
 
         // Constraint check
         if (f.constraint) {
-            emit_constraint_check(*f.constraint, member, f.name, fti.is_signed);
+            bool field_optional = optional_field_names_.count(to_member_name(f.name)) > 0;
+            emit_constraint_check(*f.constraint, member, f.name, fti.is_signed, field_optional);
         }
 
         ctx_.dedent();

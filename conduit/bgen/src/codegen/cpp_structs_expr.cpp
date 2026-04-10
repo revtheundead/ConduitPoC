@@ -13,17 +13,20 @@ namespace bgen::codegen {
 // ========================================================================
 
 void StructEmitter::emit_constraint_check(const model::Constraint& c, const std::string& member,
-                                           const std::string& field_name, bool is_signed) {
+                                           const std::string& field_name, bool is_signed,
+                                           bool is_optional) {
     if (c.validate == model::ValidateTiming::Deferred) return;
 
     std::string qualified = current_bmdl_name_.empty() ? field_name : (current_bmdl_name_ + "." + field_name);
+    // For optional members, dereference when casting to int64_t for error messages
+    std::string val_expr = is_optional ? ("*(" + member + ")") : member;
 
     if (c.equals) {
         std::string val = *c.equals;
         ctx_.line("if (" + member + " != static_cast<decltype(" + member + ")>(" + val + ")) {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"decode " + qualified + ": constraint violation: expected " + *c.equals + ", got \" + std::to_string(static_cast<int64_t>(" + member + "))));");
+        ctx_.line("    \"decode " + qualified + ": constraint violation: expected " + *c.equals + ", got \" + std::to_string(static_cast<int64_t>(" + val_expr + "))));");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -31,7 +34,7 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
         ctx_.line("if (" + member + " > " + *c.max + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" exceeds max " + *c.max + "\"));");
+        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + val_expr + ")) + \" exceeds max " + *c.max + "\"));");
         ctx_.dedent();
         ctx_.line("}");
     }
@@ -40,7 +43,7 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
         ctx_.line("if (" + member + " < " + *c.min + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
-        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" below min " + *c.min + "\"));");
+        ctx_.line("    \"decode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + val_expr + ")) + \" below min " + *c.min + "\"));");
         ctx_.dedent();
         ctx_.line("}");
     }
