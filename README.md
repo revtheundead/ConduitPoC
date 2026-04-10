@@ -36,7 +36,15 @@ conduit\scripts\build.bat --release
 - **Ninja** -- required when building with Clang on Windows; recommended elsewhere
 - **Java** (JDK 8+ for JNI, JDK 21+ for Panama FFI) -- optional
 - **Python** 3.7+ -- optional
-- No external runtime dependencies
+
+### Runtime dependencies
+
+Conduit's native libraries are compiled C++ and require the platform's C++ runtime:
+
+- **Windows (MSVC builds):** [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) -- required on end-user machines that don't have Visual Studio installed
+- **Windows (Clang/MinGW builds):** Ships its own libc++; no extra runtime needed
+- **Linux:** `libstdc++6` (GCC) or `libc++` (Clang) -- typically pre-installed; if not, install via `apt install libstdc++6` or `yum install libstdc++`
+- **macOS:** System libc++ is always present; no extra runtime needed
 
 The build scripts support explicit compiler selection (`--clang`, `--gcc`, `--msvc`). See [Building & Testing](conduit/docs/building.md) for full details.
 

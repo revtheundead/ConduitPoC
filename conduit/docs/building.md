@@ -13,7 +13,22 @@
   - **Gradle** 7+ -- required for the Java 11 and Java 21 Gradle-based examples (`gradle` or the included wrapper)
   - `javac` and `java` must be on `PATH` (provided by the JDK)
 - **Python** 3.7+ -- optional, for Python backend
-- No external runtime dependencies (header-only generated code, conduit is a static library). Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/`.
+
+Vendored build-time dependencies (Catch2, pugixml, nlohmann/json) are included in `third_party/` -- no network access is required to build.
+
+### Runtime dependencies
+
+Conduit's shared libraries (`conduit_cabi`, `conduit_jni`, etc.) are compiled C++ and require the platform's C++ runtime to be present on the target machine:
+
+| Platform | Toolchain | Runtime dependency |
+|----------|-----------|-------------------|
+| **Windows** | MSVC | [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (x64). Required on machines without Visual Studio. |
+| **Windows** | Clang / LLVM MinGW | None -- ships its own libc++ |
+| **Linux** | GCC | `libstdc++6` -- usually pre-installed. Install via `apt install libstdc++6` or `yum install libstdc++` if missing. |
+| **Linux** | Clang | `libc++` -- install via `apt install libc++1` if missing |
+| **macOS** | Any | None -- system libc++ is always present |
+
+The Java and Python bindings detect common missing-dependency errors at load time and report actionable messages (e.g. pointing to the MSVC redistributable download URL).
 
 ## Using the build script (recommended)
 
