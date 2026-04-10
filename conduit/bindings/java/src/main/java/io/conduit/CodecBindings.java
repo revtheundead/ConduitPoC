@@ -24,8 +24,10 @@ public final class CodecBindings {
                 System.loadLibrary("conduit_codec_cabi");
                 LIB = SymbolLookup.loaderLookup();
             } catch (UnsatisfiedLinkError e) {
-                throw new RuntimeException(
-                    "Cannot load libconduit_codec_cabi. Set -Dconduit.codec.path or add to java.library.path", e);
+                // NativeLoader tries java.library.path first, then extracts from
+                // the fat JAR resource at /native/<os>-<arch>/libconduit_codec_cabi.*
+                NativeLoader.load("conduit_codec_cabi");
+                LIB = SymbolLookup.loaderLookup();
             }
         }
     }

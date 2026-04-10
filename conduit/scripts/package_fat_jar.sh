@@ -87,9 +87,13 @@ else
     if [ "$OS_NAME" = "linux" ]; then
         cp "$LIB_DIR"/libconduit_jni.so "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
         cp "$LIB_DIR"/libconduit_codec_jni.so "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
+        cp "$LIB_DIR"/libconduit_cabi.so "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
+        cp "$LIB_DIR"/libconduit_codec_cabi.so "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
     elif [ "$OS_NAME" = "macos" ]; then
         cp "$LIB_DIR"/libconduit_jni.dylib "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
         cp "$LIB_DIR"/libconduit_codec_jni.dylib "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
+        cp "$LIB_DIR"/libconduit_cabi.dylib "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
+        cp "$LIB_DIR"/libconduit_codec_cabi.dylib "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null || true
     fi
 
     echo "  $PLATFORM: $(ls "$RESOURCES_DIR/$PLATFORM/" 2>/dev/null | tr '\n' ' ')"

@@ -84,6 +84,12 @@ if not "!NATIVE_DIR!"=="" (
     if exist "!LIB_DIR!\conduit_codec_jni.dll" (
         copy /y "!LIB_DIR!\conduit_codec_jni.dll" "!RESOURCES_DIR!\!PLATFORM!\" >nul
     )
+    if exist "!LIB_DIR!\conduit_cabi.dll" (
+        copy /y "!LIB_DIR!\conduit_cabi.dll" "!RESOURCES_DIR!\!PLATFORM!\" >nul
+    )
+    if exist "!LIB_DIR!\conduit_codec_cabi.dll" (
+        copy /y "!LIB_DIR!\conduit_codec_cabi.dll" "!RESOURCES_DIR!\!PLATFORM!\" >nul
+    )
     echo   !PLATFORM!
 )
 
