@@ -77,11 +77,52 @@ final class NativeLoader {
                 in.close();
             }
 
-            System.load(libFile.toAbsolutePath().toString());
+            try {
+                System.load(libFile.toAbsolutePath().toString());
+            } catch (UnsatisfiedLinkError e) {
+                throw runtimeHint(e, libName);
+            }
         } catch (IOException e) {
             throw new UnsatisfiedLinkError(
                 "Failed to extract native library " + resourcePath + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Wrap an UnsatisfiedLinkError with a platform-specific hint when the root
+     * cause is likely a missing runtime dependency (e.g. MSVC redistributable
+     * on Windows, libc++/libstdc++ on Linux).
+     */
+    private static UnsatisfiedLinkError runtimeHint(UnsatisfiedLinkError original, String libName) {
+        String msg = original.getMessage();
+        if (msg == null) msg = "";
+        String os = System.getProperty("os.name", "").toLowerCase();
+
+        if (os.contains("win") && (msg.contains("Can't find dependent libraries")
+                || msg.contains("The specified module could not be found")
+                || msg.contains("dependent"))) {
+            UnsatisfiedLinkError wrapped = new UnsatisfiedLinkError(
+                "Failed to load " + libName + ": a required DLL dependency is missing. " +
+                "On Windows this usually means the Microsoft Visual C++ Redistributable " +
+                "is not installed. Download it from " +
+                "https://aka.ms/vs/17/release/vc_redist.x64.exe " +
+                "(original error: " + msg + ")");
+            wrapped.initCause(original);
+            return wrapped;
+        }
+
+        if (os.contains("linux") && (msg.contains("libstdc++") || msg.contains("libc++")
+                || msg.contains("GLIBCXX") || msg.contains("CXXABI"))) {
+            UnsatisfiedLinkError wrapped = new UnsatisfiedLinkError(
+                "Failed to load " + libName + ": a required shared library is missing. " +
+                "Install the C++ standard library for your distribution " +
+                "(e.g. apt install libstdc++6 or yum install libstdc++) " +
+                "(original error: " + msg + ")");
+            wrapped.initCause(original);
+            return wrapped;
+        }
+
+        return original;
     }
 
     /**

@@ -168,7 +168,8 @@ public:
     // ========================================================================
 
     void emit_constraint_check(const model::Constraint& c, const std::string& member,
-                              const std::string& field_name, bool is_signed = true);
+                              const std::string& field_name, bool is_signed = true,
+                              bool is_optional = false);
     std::string emit_expr_code(const model::Expr& expr, const std::string& result_var);
     std::string emit_field_cast(const std::string& parent_bmdl_name,
                                  const std::string& field_bmdl_name,

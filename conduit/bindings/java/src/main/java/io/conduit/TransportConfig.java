@@ -25,6 +25,16 @@ package io.conduit;
  *               .bindAddress("0.0.0.0").bindPort(5000)
  *               .remoteAddress("192.168.1.10").remotePort(5001);
  *
+ * // UDP multicast (minimal):
+ * var cfg = TransportConfig.udpMulticast("239.255.0.1", 5000);
+ *
+ * // UDP multicast (full control):
+ * var cfg = new TransportConfig.UdpConfig()
+ *               .bindPort(5000)
+ *               .multicastGroup("239.255.0.1")
+ *               .multicastTtl(4)
+ *               .multicastLoop(true);
+ *
  * // Serial port:
  * var cfg = new TransportConfig.SerialConfig("/dev/ttyUSB0", 115200)
  *               .dataBits(8)
@@ -179,6 +189,11 @@ public class TransportConfig {
      * When only {@code address} is set the address is treated as the remote
      * endpoint and the socket binds to {@code 0.0.0.0:0}.  Use
      * {@link #bindAddress}/{@link #bindPort} to control the local socket.
+     * <p>
+     * For multicast, set {@link #multicastGroup} and a non-zero
+     * {@link #bindPort}.  {@code bindAddress} defaults to {@code "0.0.0.0"}
+     * and does not need to be set explicitly.  See also the convenience
+     * factory {@link TransportConfig#udpMulticast(String, int)}.
      */
     public static final class UdpConfig extends TransportConfig {
         /** Create with explicit remote address string {@code "host:port"}. */
@@ -283,6 +298,18 @@ public class TransportConfig {
     /** Create a UDP transport config with a single {@code "host:port"} remote address. */
     public static TransportConfig udp(String remoteAddress) {
         return new UdpConfig(remoteAddress);
+    }
+
+    /**
+     * Create a UDP multicast transport config.
+     *
+     * @param group  Multicast group address (must be in {@code 224.0.0.0/4})
+     * @param port   Bind port (must be non-zero; all group members use the same port)
+     */
+    public static UdpConfig udpMulticast(String group, int port) {
+        return new UdpConfig()
+            .bindPort(port)
+            .multicastGroup(group);
     }
 
     /** Create a TCP client transport config connecting to {@code "host:port"}. */

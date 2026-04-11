@@ -77,10 +77,7 @@ public class TestUdpMulticast {
         int port = findFreePort();
         try (Transceiver t = new Transceiver()) {
             t.addPeer("mcast", "session_protocol",
-                new TransportConfig.UdpConfig()
-                    .bindAddress("0.0.0.0")
-                    .bindPort(port)
-                    .multicastGroup(MCAST_GROUP)
+                TransportConfig.udpMulticast(MCAST_GROUP, port)
                     .multicastLoop(true));
             t.start();
             Thread.sleep(50);
@@ -95,10 +92,7 @@ public class TestUdpMulticast {
         int port = findFreePort();
         try (Transceiver t = new Transceiver()) {
             t.addPeer("mcast", "session_protocol",
-                new TransportConfig.UdpConfig()
-                    .bindAddress("0.0.0.0")
-                    .bindPort(port)
-                    .multicastGroup(MCAST_GROUP)
+                TransportConfig.udpMulticast(MCAST_GROUP, port)
                     .multicastTtl(4)
                     .multicastLoop(true));
             t.start();
@@ -116,10 +110,7 @@ public class TestUdpMulticast {
              Transceiver receiver = new Transceiver()) {
 
             receiver.addPeer("mcast_rx", "session_protocol",
-                new TransportConfig.UdpConfig()
-                    .bindAddress("0.0.0.0")
-                    .bindPort(port)
-                    .multicastGroup(MCAST_GROUP)
+                TransportConfig.udpMulticast(MCAST_GROUP, port)
                     .multicastLoop(true));
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -138,10 +129,7 @@ public class TestUdpMulticast {
             receiver.start();
 
             sender.addPeer("mcast_tx", "session_protocol",
-                new TransportConfig.UdpConfig()
-                    .bindAddress("0.0.0.0")
-                    .bindPort(port)
-                    .multicastGroup(MCAST_GROUP)
+                TransportConfig.udpMulticast(MCAST_GROUP, port)
                     .multicastLoop(true));
             sender.start();
 

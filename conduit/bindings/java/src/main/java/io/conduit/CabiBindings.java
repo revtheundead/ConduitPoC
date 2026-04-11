@@ -19,16 +19,16 @@ public final class CabiBindings {
         String libPath = System.getProperty("conduit.cabi.path");
         if (libPath != null) {
             System.load(libPath);
-            LIB = SymbolLookup.loaderLookup();
         } else {
             try {
                 System.loadLibrary("conduit_cabi");
-                LIB = SymbolLookup.loaderLookup();
             } catch (UnsatisfiedLinkError e) {
-                throw new RuntimeException(
-                    "Cannot load libconduit_cabi. Set -Dconduit.cabi.path or add to java.library.path", e);
+                // NativeLoader tries java.library.path first, then extracts from
+                // the fat JAR resource at /native/<os>-<arch>/libconduit_cabi.*
+                NativeLoader.load("conduit_cabi");
             }
         }
+        LIB = SymbolLookup.loaderLookup();
     }
 
     // Lifecycle
