@@ -1,217 +1,92 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - Supplier / Consumer Framework
+// Conduit CORBA Adaptor - Typed Supplier Servants
 //
-// Design:
-//   - DataSupplierServant:  CORBA servant that consumers subscribe to.
-//     Maintains a thread-safe subscription registry.  When publish() is
-//     called it takes a snapshot of matching consumers under the lock,
-//     then releases the lock before making remote CORBA calls.  This
-//     avoids holding the mutex during potentially slow network I/O.
-//     Dead consumers (CORBA exceptions on push) are automatically reaped,
-//     and a periodic health-check sweep catches silently-dead ones.
+// One concrete servant per typed supplier interface declared in the IDL.
+// All share the same subscription management / reaping / health-check
+// machinery via `NamedSupplierServant<Skeleton, Consumer, Message>`.
 //
-//   - ConsumerProxy:  Client-side helper that wraps a DataConsumer servant,
-//     connects to a remote DataSupplier, and automatically reconnects with
-//     exponential backoff if the supplier becomes unreachable.  Re-enters
-//     the reconnect loop on supplier disconnect notification.  Provides a
-//     simple callback-based API so downstream code never touches CORBA.
+// Each concrete class only has to:
+//   - Implement the typed `subscribe(<X>Consumer_ptr)` method by delegating
+//     to `add_subscription()` on the base.
+//   - Override the protected `deliver_one()` hook so the base's `publish()`
+//     knows which typed `on_<x>(msg)` method to invoke.
 
 #pragma once
 
 #include <CorbaAdaptorS.h>
-#include <adaptor/types.hpp>
-
-#include <tao/ORB.h>
-#include <tao/PortableServer/PortableServer.h>
-
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <cstdint>
-#include <functional>
-#include <mutex>
-#include <shared_mutex>
-#include <string>
-#include <thread>
-#include <unordered_map>
-#include <vector>
+#include <adaptor/named_supplier.hpp>
 
 namespace adaptor {
 
 // ============================================================================
-// Subscription entry (internal)
+// Macro: declare a typed supplier servant
+// ============================================================================
+//
+// The IDL shape is uniform — each `<Name>Supplier` has exactly one typed
+// `subscribe()` returning a `SubscriptionId`, and its matching
+// `<Name>Consumer` has exactly one typed `on_<name>()` callback — so the
+// per-message boilerplate collapses into a macro.
+//
+// Usage:
+//     ADAPTOR_DECLARE_TYPED_SUPPLIER(
+//         Heartbeat,           // interface prefix in IDL
+//         HeartbeatMsg,        // CORBA struct type
+//         on_heartbeat,        // typed consumer method name
+//         "Heartbeat");        // short type name (for logging)
 // ============================================================================
 
-struct Subscription {
-    CorbaAdaptor::SubscriptionId    id{};
-    CorbaAdaptor::DataConsumer_var  consumer;
-    CorbaAdaptor::SubscriptionFilter filter;
-    std::chrono::steady_clock::time_point subscribed_at{};
-    std::atomic<uint64_t>           packets_delivered{0};
-    std::atomic<uint64_t>           delivery_errors{0};
+#define ADAPTOR_DECLARE_TYPED_SUPPLIER(Iface, Struct, DeliverMethod, TypeName) \
+class Iface##SupplierServant                                                   \
+    : public NamedSupplierServant<                                             \
+          POA_CorbaAdaptor::Iface##Supplier,                                   \
+          CorbaAdaptor::Iface##Consumer,                                       \
+          CorbaAdaptor::Struct>                                                \
+{                                                                              \
+public:                                                                        \
+    CorbaAdaptor::SubscriptionId subscribe(                                    \
+        CorbaAdaptor::Iface##Consumer_ptr consumer) override {                 \
+        return add_subscription(consumer);                                     \
+    }                                                                          \
+                                                                               \
+protected:                                                                     \
+    void deliver_one(                                                          \
+        CorbaAdaptor::Iface##Consumer_ptr consumer,                            \
+        const CorbaAdaptor::Struct& msg) override {                            \
+        consumer->DeliverMethod(msg);                                          \
+    }                                                                          \
+                                                                               \
+    const char* type_name() const noexcept override { return TypeName; }       \
 };
 
 // ============================================================================
-// DataSupplierServant — server-side supplier
+// TCP peer-side suppliers (decoded from the Conduit TCP Transceiver)
 // ============================================================================
 
-class DataSupplierServant : public POA_CorbaAdaptor::DataSupplier {
-public:
-    DataSupplierServant();
-    ~DataSupplierServant() override;
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    Heartbeat, HeartbeatMsg, on_heartbeat, "Heartbeat")
 
-    DataSupplierServant(const DataSupplierServant&) = delete;
-    DataSupplierServant& operator=(const DataSupplierServant&) = delete;
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    StatusReport, StatusReportMsg, on_status_report, "StatusReport")
 
-    // --- CORBA interface (called by remote consumers) -----------------------
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    DataPayload, DataPayloadMsg, on_data_payload, "DataPayload")
 
-    CorbaAdaptor::SubscriptionId subscribe(
-        CorbaAdaptor::DataConsumer_ptr consumer,
-        const CorbaAdaptor::SubscriptionFilter& filter) override;
-
-    void unsubscribe(CorbaAdaptor::SubscriptionId id) override;
-
-    CORBA::ULong subscriber_count() override;
-
-    // --- Local API (called by the adaptor) ----------------------------------
-
-    /// Publish a single packet to all matching consumers.
-    /// Takes a snapshot under the lock, then delivers without holding it.
-    void publish(const CorbaAdaptor::DataPacket& packet);
-
-    /// Publish a batch of packets.
-    void publish_batch(const std::vector<CorbaAdaptor::DataPacket>& packets);
-
-    /// Start the periodic health-check sweep thread.
-    /// @param interval  How often to probe consumers via is_alive().
-    void start_health_checks(std::chrono::seconds interval = std::chrono::seconds{30});
-
-    /// Stop health checks and notify all consumers of shutdown.
-    void shutdown(const std::string& reason = "supplier shutting down");
-
-    /// Callback invoked when a consumer is reaped (for logging).
-    using ReapCallback = std::function<void(CorbaAdaptor::SubscriptionId)>;
-    void set_reap_callback(ReapCallback cb);
-
-private:
-    /// Lightweight snapshot for lock-free delivery.
-    struct DeliveryTarget {
-        CorbaAdaptor::SubscriptionId    id;
-        CorbaAdaptor::DataConsumer_var  consumer;
-    };
-
-    [[nodiscard]] bool matches_filter(
-        const CorbaAdaptor::DataPacket& packet,
-        const CorbaAdaptor::SubscriptionFilter& filter) const;
-
-    /// Take a snapshot of consumers matching the given packet.
-    [[nodiscard]] std::vector<DeliveryTarget> snapshot_matching(
-        const CorbaAdaptor::DataPacket& packet) const;
-
-    /// Mark a subscription as having a delivery error.  Reaps if threshold exceeded.
-    void record_delivery_error(CorbaAdaptor::SubscriptionId id);
-
-    void reap_dead_consumers();
-    void health_check_loop();
-
-    mutable std::shared_mutex                                   mu_;
-    std::unordered_map<CorbaAdaptor::SubscriptionId,
-                       std::shared_ptr<Subscription>>           subs_;
-    CorbaAdaptor::SubscriptionId                                next_id_{1};
-
-    std::atomic<bool>       health_running_{false};
-    std::thread             health_thread_;
-    std::mutex              health_mu_;
-    std::condition_variable health_cv_;
-    std::chrono::seconds    health_interval_{30};
-
-    ReapCallback            reap_cb_;
-    static constexpr uint64_t kMaxDeliveryErrors = 3;
-};
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    CommandResponse, CommandResponseMsg, on_command_response, "CommandResponse")
 
 // ============================================================================
-// ConsumerProxy — client-side auto-reconnecting consumer
+// CORBA peer-side suppliers (decoded from the CORBA raw byte stream)
 // ============================================================================
 
-/// Configuration for the consumer proxy.
-struct ConsumerProxyConfig {
-    /// IOR or corbaname URI of the remote DataSupplier.
-    std::string                         supplier_ior;
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    Telemetry, TelemetryMsg, on_telemetry, "Telemetry")
 
-    /// Subscription filter.
-    CorbaAdaptor::SubscriptionFilter    filter{};
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    Event, EventMsg, on_event, "Event")
 
-    /// Reconnection parameters.
-    bool                                auto_reconnect{true};
-    std::chrono::milliseconds           initial_delay{1000};
-    std::chrono::milliseconds           max_delay{30000};
-    double                              backoff_multiplier{2.0};
-    uint32_t                            max_attempts{0};  // 0 = unlimited
+ADAPTOR_DECLARE_TYPED_SUPPLIER(
+    Alarm, AlarmMsg, on_alarm, "Alarm")
 
-    /// Batch threshold: if >= this many packets queue up between polls,
-    /// the on_data_batch callback is invoked instead of per-packet on_data.
-    uint32_t                            batch_threshold{0};  // 0 = no batching
-};
-
-class ConsumerProxy {
-public:
-    /// Callback when a single packet arrives.
-    using OnData       = std::function<void(const CorbaAdaptor::DataPacket&)>;
-    /// Callback when a batch arrives.
-    using OnBatch      = std::function<void(const CorbaAdaptor::DataPacketSeq&)>;
-    /// Callback on connection state changes.
-    using OnConnection = std::function<void(bool /*connected*/)>;
-
-    ConsumerProxy(CORBA::ORB_ptr orb,
-                  PortableServer::POA_ptr poa,
-                  ConsumerProxyConfig config);
-    ~ConsumerProxy();
-
-    ConsumerProxy(const ConsumerProxy&) = delete;
-    ConsumerProxy& operator=(const ConsumerProxy&) = delete;
-
-    /// Set callbacks (call before connect()).
-    void on_data(OnData cb);
-    void on_batch(OnBatch cb);
-    void on_connection(OnConnection cb);
-
-    /// Begin connection (and reconnection loop if enabled).
-    void connect();
-
-    /// Disconnect and stop reconnection.
-    void disconnect();
-
-    /// Whether we are currently subscribed to the supplier.
-    [[nodiscard]] bool is_connected() const noexcept;
-
-private:
-    class ConsumerServant;  // nested CORBA servant impl
-
-    void reconnect_loop();
-    bool try_connect();
-
-    /// Called by ConsumerServant when supplier disconnect is received.
-    /// Re-enters the reconnect loop if auto_reconnect is enabled.
-    void on_supplier_lost();
-
-    CORBA::ORB_var                      orb_;
-    PortableServer::POA_var             poa_;
-    ConsumerProxyConfig                 config_;
-
-    OnData                              on_data_cb_;
-    OnBatch                             on_batch_cb_;
-    OnConnection                        on_conn_cb_;
-
-    std::atomic<bool>                   connected_{false};
-    std::atomic<bool>                   running_{false};
-    std::thread                         reconnect_thread_;
-    std::mutex                          mu_;
-    std::condition_variable             cv_;
-
-    CorbaAdaptor::DataSupplier_var      supplier_;
-    CorbaAdaptor::SubscriptionId        sub_id_{0};
-    PortableServer::ServantBase_var     consumer_servant_;
-    CorbaAdaptor::DataConsumer_var      consumer_ref_;
-};
+#undef ADAPTOR_DECLARE_TYPED_SUPPLIER
 
 } // namespace adaptor

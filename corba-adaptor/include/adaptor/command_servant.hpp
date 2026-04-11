@@ -9,8 +9,10 @@
 
 #include <CorbaAdaptorS.h>
 
+#include <cstdint>
 #include <functional>
 #include <mutex>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>

@@ -11,13 +11,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/lib")
 
 # ============================================================================
-# Options
-# ============================================================================
-
-option(ADAPTOR_USE_BGEN_CODECS
-    "Build with bgen-generated codecs (requires conduit + bgen)" OFF)
-
-# ============================================================================
 # Dependencies
 # ============================================================================
 
@@ -36,14 +29,28 @@ if(TAO_VERSION)
     message(STATUS "TAO version: ${TAO_VERSION}")
 endif()
 
-# Conduit (for codec integration — session traits and codec types)
+# Conduit — required for codec sessions and the TCP transceiver.
 set(CONDUIT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../conduit")
-if(EXISTS "${CONDUIT_DIR}/include")
-    message(STATUS "Conduit include: ${CONDUIT_DIR}/include")
-else()
-    message(WARNING "Conduit include dir not found at ${CONDUIT_DIR}/include — "
-                    "codec integration will fail to compile")
+if(NOT EXISTS "${CONDUIT_DIR}/include")
+    message(FATAL_ERROR
+        "corba-adaptor: Conduit include dir not found at ${CONDUIT_DIR}/include. "
+        "The adaptor requires Conduit for both codec sessions and the TCP "
+        "transceiver — build the conduit project first.")
 endif()
+
+if(NOT TARGET conduit)
+    if(EXISTS "${CONDUIT_DIR}/CMakeLists.txt")
+        add_subdirectory("${CONDUIT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/_conduit_build"
+                         EXCLUDE_FROM_ALL)
+    else()
+        message(FATAL_ERROR
+            "corba-adaptor: Could not locate Conduit build targets. "
+            "Expected a 'conduit' target or a buildable conduit tree at "
+            "${CONDUIT_DIR}.")
+    endif()
+endif()
+
+message(STATUS "Conduit include: ${CONDUIT_DIR}/include")
 
 # ============================================================================
 # Compiler warnings
@@ -86,41 +93,41 @@ target_link_libraries(corba_adaptor_idl PUBLIC
     ACE::ACE
 )
 
+# The Naming Service client bits live in orbsvcs / CosNaming.  Different TAO
+# installations expose this via different target names, so just fall back to
+# linking the bare library name if the imported target isn't present.
+if(TARGET TAO::CosNaming)
+    target_link_libraries(corba_adaptor_idl PUBLIC TAO::CosNaming)
+else()
+    target_link_libraries(corba_adaptor_idl PUBLIC TAO_CosNaming)
+endif()
+
 # Suppress warnings in generated code
 if(NOT MSVC)
     target_compile_options(corba_adaptor_idl PRIVATE -w)
 endif()
 
 # ============================================================================
-# bgen code generation (optional — enable with ADAPTOR_USE_BGEN_CODECS=ON)
-# ============================================================================
-#
-# When enabled, bgen compiles the BMDL protocol definitions into C++
-# session classes that the codec bridge uses for encode/decode.
-#
-# Requires the conduit project to be built first (bgen executable).
+# bgen code generation for the TCP and CORBA peer protocols
 # ============================================================================
 
-if(ADAPTOR_USE_BGEN_CODECS)
-    # Import conduit's bgen_generate() function
-    include("${CONDUIT_DIR}/cmake/BgenGenerate.cmake")
+include("${CONDUIT_DIR}/cmake/BgenGenerate.cmake")
 
-    bgen_generate(
-        TARGET      tcp_peer_codec
-        INPUT       "${CMAKE_CURRENT_SOURCE_DIR}/protocols/tcp-peer/tcp_peer.bmdl.xml"
-        OUTPUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/generated/tcp-peer"
-        NAMESPACE   tcp_peer
-        PROTOCOL_NAME tcp_peer
-    )
+bgen_generate(
+    TARGET      tcp_peer_codec
+    INPUT       "${CMAKE_CURRENT_SOURCE_DIR}/protocols/tcp-peer/tcp_peer.bmdl.xml"
+    OUTPUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/generated/tcp-peer"
+    NAMESPACE   tcp_peer
+    PROTOCOL_NAME tcp_peer
+)
 
-    bgen_generate(
-        TARGET      corba_peer_codec
-        INPUT       "${CMAKE_CURRENT_SOURCE_DIR}/protocols/corba-peer/corba_peer.bmdl.xml"
-        OUTPUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/generated/corba-peer"
-        NAMESPACE   corba_peer
-        PROTOCOL_NAME corba_peer
-    )
-endif()
+bgen_generate(
+    TARGET      corba_peer_codec
+    INPUT       "${CMAKE_CURRENT_SOURCE_DIR}/protocols/corba-peer/corba_peer.bmdl.xml"
+    OUTPUT_DIR  "${CMAKE_CURRENT_BINARY_DIR}/generated/corba-peer"
+    NAMESPACE   corba_peer
+    PROTOCOL_NAME corba_peer
+)
 
 # ============================================================================
 # Main adaptor library
@@ -129,32 +136,23 @@ endif()
 add_library(corba_adaptor_lib STATIC
     src/tcp_peer.cpp
     src/corba_peer.cpp
-    src/supplier.cpp
     src/command_servant.cpp
+    src/naming.cpp
     src/adaptor.cpp
-    src/codec/codec_bridge.cpp
-    src/codec/session_factory.cpp
 )
 
 target_include_directories(corba_adaptor_lib PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${IDL_OUTPUT_DIR}"
     "${CONDUIT_DIR}/include"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
-
-if(ADAPTOR_USE_BGEN_CODECS)
-    target_include_directories(corba_adaptor_lib PUBLIC
-        "${CMAKE_CURRENT_BINARY_DIR}/generated"
-    )
-    target_link_libraries(corba_adaptor_lib PUBLIC
-        tcp_peer_codec
-        corba_peer_codec
-    )
-    target_compile_definitions(corba_adaptor_lib PUBLIC ADAPTOR_HAS_BGEN_CODECS=1)
-endif()
 
 target_link_libraries(corba_adaptor_lib PUBLIC
     corba_adaptor_idl
+    tcp_peer_codec
+    corba_peer_codec
+    conduit
     adaptor_warnings
     Threads::Threads
 )

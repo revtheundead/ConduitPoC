@@ -1,12 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Conduit CORBA Adaptor - Interface Definitions
 //
-// Defines the CORBA interfaces for the adaptor bridge:
-//   - CommandReceiver:  accepts commands from external systems
-//   - DataSupplier:     push-model data distribution (1 supplier → N consumers)
-//   - DataConsumer:     callback interface implemented by consumers
-//   - RawDataChannel:   bidirectional raw byte transport for the CORBA peer
-//   - RawDataCallback:  inbound raw data delivery from the CORBA peer
+// Defines the CORBA interfaces for the adaptor bridge. The adaptor exposes:
+//
+//   - A CommandReceiver for external control / queries
+//   - A set of typed, named Supplier/Consumer interface pairs — one per
+//     decoded message type — registered in the CORBA Naming Service. Each
+//     supplier exposes a constant string NAME so that consumers can look it
+//     up without hard-coded knowledge of the binding path.
+//   - A bidirectional RawDataChannel used to bridge the CORBA-side peer's
+//     byte stream (the adaptor is the client of that channel; framing and
+//     codec are handled internally by Conduit, not by this IDL).
+//
+// There is NO dynamic filtering. Consumers select a supplier by resolving
+// the name they are interested in from the Naming Service, and any data
+// they receive through that supplier is already fully typed.
 
 module CorbaAdaptor
 {
@@ -15,27 +23,7 @@ module CorbaAdaptor
     // ========================================================================
 
     typedef sequence<octet> OctetSeq;
-
-    /// Identifies the originating peer.
-    enum PeerSource {
-        PEER_TCP,       // Data originated from the TCP peer
-        PEER_CORBA      // Data originated from the CORBA raw-data peer
-    };
-
-    /// Metadata attached to every data packet pushed to consumers.
-    struct DataHeader {
-        unsigned long long  timestamp_us;   // Microseconds since epoch
-        PeerSource          source;
-        string              label;          // Free-form tag (e.g. message type)
-    };
-
-    /// A single data packet delivered to consumers.
-    struct DataPacket {
-        DataHeader  header;
-        OctetSeq    payload;
-    };
-
-    typedef sequence<DataPacket> DataPacketSeq;
+    typedef unsigned long   SubscriptionId;
 
     // ========================================================================
     // Command interface
@@ -52,8 +40,11 @@ module CorbaAdaptor
         string          message;
     };
 
-    /// Receives commands from external systems.
+    /// Receives commands from external systems. Registered in the Naming
+    /// Service under the NAME constant below.
     interface CommandReceiver {
+        const string NAME = "CorbaAdaptor/CommandReceiver";
+
         /// Execute an arbitrary command with optional binary parameters.
         CommandResult execute_command(in string command, in OctetSeq params);
 
@@ -65,42 +56,26 @@ module CorbaAdaptor
     };
 
     // ========================================================================
-    // Supplier / Consumer data distribution
+    // Base supplier / consumer interfaces
+    // ========================================================================
+    //
+    // Every typed supplier/consumer pair inherits from these bases so that
+    // subscription management and health checking can be implemented once
+    // in C++ (via a template servant) rather than duplicated per message.
     // ========================================================================
 
-    /// Consumers implement this interface so the supplier can push data.
-    interface DataConsumer {
-        /// Called by the supplier when new data is available.
-        oneway void on_data(in DataPacket packet);
-
-        /// Called by the supplier when a batch of data is available.
-        oneway void on_data_batch(in DataPacketSeq packets);
+    /// Common lifecycle callbacks implemented by every typed consumer.
+    interface BaseConsumer {
+        /// Heartbeat probe — returns true if the consumer is healthy.
+        boolean is_alive();
 
         /// Called by the supplier when it is shutting down.
         oneway void on_supplier_disconnect(in string reason);
-
-        /// Heartbeat probe — returns true if the consumer is healthy.
-        boolean is_alive();
     };
 
-    /// Subscription handle returned to consumers.
-    typedef unsigned long SubscriptionId;
-
-    /// Filter specification for subscriptions.
-    struct SubscriptionFilter {
-        boolean     accept_tcp_peer;    // Receive data from the TCP peer
-        boolean     accept_corba_peer;  // Receive data from the CORBA peer
-        string      label_pattern;      // Glob-style label filter ("" = accept all)
-    };
-
-    /// Supplier interface — distributes data to registered consumers.
-    interface DataSupplier {
-        /// Subscribe a consumer with an optional filter.
-        /// Returns a unique subscription ID for later unsubscribe.
-        SubscriptionId subscribe(in DataConsumer consumer,
-                                 in SubscriptionFilter filter);
-
-        /// Remove a subscription.
+    /// Common subscription management implemented by every typed supplier.
+    interface BaseSupplier {
+        /// Remove an existing subscription.
         void unsubscribe(in SubscriptionId id);
 
         /// Return the number of active subscriptions.
@@ -108,7 +83,143 @@ module CorbaAdaptor
     };
 
     // ========================================================================
-    // CORBA raw-data peer (transport-only, codec handled by Conduit)
+    // Typed messages: TCP peer
+    // ========================================================================
+    //
+    // These structs mirror the BMDL definitions in protocols/tcp-peer/
+    // tcp_peer.bmdl.xml. The adaptor converts between the bgen-generated
+    // C++ structs and these CORBA types before publishing.
+    // ========================================================================
+
+    struct HeartbeatMsg {
+        unsigned long       sequence;
+        unsigned long long  timestamp;
+    };
+
+    struct StatusReportMsg {
+        octet           status;         // status-code
+        unsigned short  flags;          // status-flags
+        unsigned long   uptime_secs;
+        unsigned short  error_count;
+    };
+
+    struct DataPayloadMsg {
+        octet           channel_id;
+        unsigned long   sequence;
+        unsigned short  data_length;
+        OctetSeq        data;
+    };
+
+    struct CommandResponseMsg {
+        unsigned short  command_id;
+        octet           result_code;    // status-code
+        OctetSeq        result_data;
+    };
+
+    // ========================================================================
+    // Typed messages: CORBA peer
+    // ========================================================================
+    //
+    // Mirror the BMDL definitions in protocols/corba-peer/corba_peer.bmdl.xml.
+    // ========================================================================
+
+    struct TelemetryMsg {
+        unsigned short      source_id;
+        unsigned long       sequence;
+        unsigned long long  timestamp;
+        octet               channel;
+        float               value;
+    };
+
+    struct EventMsg {
+        unsigned short      source_id;
+        unsigned long long  timestamp;
+        unsigned short      event_code;
+        octet               severity;
+        OctetSeq            data;
+    };
+
+    struct AlarmMsg {
+        unsigned short      source_id;
+        unsigned long long  timestamp;
+        unsigned short      alarm_id;
+        octet               severity;
+        octet               flags;
+    };
+
+    // ========================================================================
+    // Typed supplier / consumer pairs — TCP peer side
+    // ========================================================================
+
+    interface HeartbeatConsumer : BaseConsumer {
+        oneway void on_heartbeat(in HeartbeatMsg msg);
+    };
+    interface HeartbeatSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/Heartbeat";
+        SubscriptionId subscribe(in HeartbeatConsumer consumer);
+    };
+
+    interface StatusReportConsumer : BaseConsumer {
+        oneway void on_status_report(in StatusReportMsg msg);
+    };
+    interface StatusReportSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/StatusReport";
+        SubscriptionId subscribe(in StatusReportConsumer consumer);
+    };
+
+    interface DataPayloadConsumer : BaseConsumer {
+        oneway void on_data_payload(in DataPayloadMsg msg);
+    };
+    interface DataPayloadSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/DataPayload";
+        SubscriptionId subscribe(in DataPayloadConsumer consumer);
+    };
+
+    interface CommandResponseConsumer : BaseConsumer {
+        oneway void on_command_response(in CommandResponseMsg msg);
+    };
+    interface CommandResponseSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/CommandResponse";
+        SubscriptionId subscribe(in CommandResponseConsumer consumer);
+    };
+
+    // ========================================================================
+    // Typed supplier / consumer pairs — CORBA peer side
+    // ========================================================================
+
+    interface TelemetryConsumer : BaseConsumer {
+        oneway void on_telemetry(in TelemetryMsg msg);
+    };
+    interface TelemetrySupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/Telemetry";
+        SubscriptionId subscribe(in TelemetryConsumer consumer);
+    };
+
+    interface EventConsumer : BaseConsumer {
+        oneway void on_event(in EventMsg msg);
+    };
+    interface EventSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/Event";
+        SubscriptionId subscribe(in EventConsumer consumer);
+    };
+
+    interface AlarmConsumer : BaseConsumer {
+        oneway void on_alarm(in AlarmMsg msg);
+    };
+    interface AlarmSupplier : BaseSupplier {
+        const string NAME = "CorbaAdaptor/Alarm";
+        SubscriptionId subscribe(in AlarmConsumer consumer);
+    };
+
+    // ========================================================================
+    // CORBA raw-data peer transport
+    // ========================================================================
+    //
+    // Unlike the TCP peer (which is driven end-to-end by Conduit — transport
+    // and codec), the CORBA peer exposes its wire protocol as raw bytes over
+    // CORBA, so the adaptor needs these interfaces to move bytes in and out.
+    // Decoding/encoding still happens inside the adaptor via a Conduit
+    // ISession; no raw bytes ever escape to consumers.
     // ========================================================================
 
     /// Callback for receiving inbound raw data from the CORBA peer.

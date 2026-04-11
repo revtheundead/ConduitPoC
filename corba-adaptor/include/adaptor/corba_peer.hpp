@@ -56,7 +56,7 @@ public:
     CorbaPeer& operator=(const CorbaPeer&) = delete;
 
     /// Set callbacks (call before start()).
-    void set_data_callback(DataReceivedCallback cb);
+    void set_data_callback(RawBytesCallback cb);
     void set_state_callback(PeerStateCallback cb);
 
     /// Resolve the remote channel and register our callback.

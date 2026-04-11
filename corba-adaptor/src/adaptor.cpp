@@ -2,34 +2,22 @@
 // Conduit CORBA Adaptor - Main Orchestrator Implementation
 
 #include <adaptor/adaptor.hpp>
-#include <adaptor/codec/session_factory.hpp>
+#include <adaptor/typed/translate.hpp>
+
+#include <corba-peer/corba_peer.hpp>
+#include <tcp-peer/tcp_peer.hpp>
 
 #include <ace/Log_Msg.h>
 
-#include <fstream>
+#include <algorithm>
+#include <any>
+#include <span>
 #include <sstream>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace adaptor {
-
-// ============================================================================
-// Helper — write an IOR string to a file
-// ============================================================================
-
-namespace {
-
-void write_ior_file(const std::string& path, const std::string& ior) {
-    if (path.empty()) return;
-
-    std::ofstream out(path);
-    if (!out) {
-        ACE_DEBUG((LM_ERROR, "Adaptor: failed to write IOR to %s\n", path.c_str()));
-        return;
-    }
-    out << ior;
-    ACE_DEBUG((LM_INFO, "Adaptor: wrote IOR to %s\n", path.c_str()));
-}
-
-} // anonymous namespace
 
 // ============================================================================
 // Adaptor
@@ -42,148 +30,137 @@ Adaptor::Adaptor(CORBA::ORB_ptr orb,
     , poa_(PortableServer::POA::_duplicate(poa))
     , config_(std::move(config))
 {
-    // Create sub-components
-    tcp_      = std::make_unique<TcpPeer>(config_.tcp);
-    corba_    = std::make_unique<CorbaPeer>(orb, poa, config_.corba_peer);
-    supplier_ = std::make_unique<DataSupplierServant>();
-    command_  = std::make_unique<CommandReceiverServant>();
+    tcp_     = std::make_unique<TcpPeer>(config_.tcp);
+    corba_   = std::make_unique<CorbaPeer>(orb, poa, config_.corba_peer);
+    command_ = std::make_unique<CommandReceiverServant>();
 
-    // Initialize codec bridge with session factories
-    codec_ = std::make_unique<codec::CodecBridge>();
-    codec_->set_pipeline(PeerId::tcp_peer,
-        std::make_unique<codec::CodecPipeline>(
-            PeerId::tcp_peer, codec::create_tcp_peer_session()));
-    codec_->set_pipeline(PeerId::corba_peer,
-        std::make_unique<codec::CodecPipeline>(
-            PeerId::corba_peer, codec::create_corba_peer_session()));
+    // CORBA peer is raw-bytes-only; the adaptor owns the codec session.
+    corba_session_ = std::make_unique<corba_peer::CorbaPeerFrameSession>();
 }
 
 Adaptor::~Adaptor() {
     stop();
 }
 
+// ============================================================================
+// start
+// ============================================================================
+
 void Adaptor::start() {
     if (running_.exchange(true)) return;
 
     ACE_DEBUG((LM_INFO, "Adaptor: starting...\n"));
 
-    // Wire data callbacks — raw bytes feed into codec, decoded messages
-    // get published to consumers.
-    //
-    // Data flow:
-    //   Peer → raw bytes → CodecBridge → decoded messages → DataSupplier
-    //
+    // 1. Construct typed suppliers, activate them, and bind into the
+    //    Naming Service (also binds CommandReceiver).
+    naming_ = std::make_unique<NamingHelper>(orb_.in());
+    if (!naming_->is_valid()) {
+        throw std::runtime_error(
+            "Adaptor: NameService unavailable; pass "
+            "-ORBInitRef NameService=corbaloc:...");
+    }
 
-    // Codec produces decoded messages → publish to consumers
-    codec_->set_message_callback([this](codec::AdaptorMessage msg) {
-        InternalPacket pkt;
-        pkt.source      = msg.source;
-        pkt.received_at = std::chrono::steady_clock::now();
-        pkt.label       = std::move(msg.type_name);
-        pkt.payload     = std::move(msg.raw_bytes);
-        on_data_received(std::move(pkt));
-    });
+    activate_and_bind_suppliers();
 
-    codec_->set_error_callback([](PeerId peer, const std::string& err) {
-        ACE_DEBUG((LM_WARNING, "Adaptor: codec error on '%s': %s\n",
-                   to_string(peer), err.c_str()));
-    });
-
-    // Peers produce raw bytes → feed into codec bridge
-    tcp_->set_data_callback([this](InternalPacket pkt) {
-        codec_->on_bytes_received(PeerId::tcp_peer,
-            std::span<const uint8_t>(pkt.payload));
-    });
-
-    corba_->set_data_callback([this](InternalPacket pkt) {
-        codec_->on_bytes_received(PeerId::corba_peer,
-            std::span<const uint8_t>(pkt.payload));
-    });
-
-    // Peer state logging
-    auto state_handler = [](PeerId peer, bool connected) {
-        ACE_DEBUG((LM_INFO, "Adaptor: peer '%s' %s\n",
-                   to_string(peer),
-                   connected ? "connected" : "disconnected"));
-    };
-    tcp_->set_state_callback(state_handler);
-    corba_->set_state_callback(state_handler);
-
-    // Register built-in commands
+    // 2. Register built-in commands
     register_builtin_commands();
 
-    // Activate CORBA servants and publish IORs
-    {
-        PortableServer::ObjectId_var oid = poa_->activate_object(supplier_.get());
-        CORBA::Object_var ref = poa_->id_to_reference(oid.in());
-        CORBA::String_var ior = orb_->object_to_string(ref.in());
-        write_ior_file(config_.supplier_ior_file, ior.in());
-        ACE_DEBUG((LM_INFO, "Adaptor: DataSupplier IOR: %s\n", ior.in()));
-    }
-    {
-        PortableServer::ObjectId_var oid = poa_->activate_object(command_.get());
-        CORBA::Object_var ref = poa_->id_to_reference(oid.in());
-        CORBA::String_var ior = orb_->object_to_string(ref.in());
-        write_ior_file(config_.command_ior_file, ior.in());
-        ACE_DEBUG((LM_INFO, "Adaptor: CommandReceiver IOR: %s\n", ior.in()));
-    }
+    // 3. Wire typed TCP handlers (before tcp_->start()).
+    wire_tcp_handlers();
 
-    // Start health checks
-    supplier_->start_health_checks(config_.health_check_interval);
-
-    supplier_->set_reap_callback([](CorbaAdaptor::SubscriptionId id) {
-        ACE_DEBUG((LM_WARNING, "Adaptor: consumer %u reaped\n", id));
+    // 4. Wire CORBA raw-byte callback — bytes run through the codec
+    //    session and each decoded message is dispatched by type_id.
+    corba_->set_data_callback([this](std::span<const std::uint8_t> bytes) {
+        on_corba_raw_bytes(bytes);
+    });
+    corba_->set_state_callback([](bool connected) {
+        ACE_DEBUG((LM_INFO, "Adaptor: corba-peer %s\n",
+                   connected ? "connected" : "disconnected"));
     });
 
-    // Launch ORB thread pool
+    // 5. Launch ORB thread pool.
     auto n_threads = std::max(config_.orb_threads, 1u);
     orb_threads_.reserve(n_threads);
-    for (uint32_t i = 0; i < n_threads; ++i) {
+    for (std::uint32_t i = 0; i < n_threads; ++i) {
         orb_threads_.emplace_back([this] { orb_thread_func(); });
     }
 
-    // Start peers
+    // 6. Start peers.
     tcp_->start();
     corba_->start();
+
+    // 7. Start per-supplier health checks.
+    const auto interval = config_.health_check_interval;
+    suppliers_.heartbeat        ->start_health_checks(interval);
+    suppliers_.status_report    ->start_health_checks(interval);
+    suppliers_.data_payload     ->start_health_checks(interval);
+    suppliers_.command_response ->start_health_checks(interval);
+    suppliers_.telemetry        ->start_health_checks(interval);
+    suppliers_.event            ->start_health_checks(interval);
+    suppliers_.alarm            ->start_health_checks(interval);
 
     ACE_DEBUG((LM_INFO, "Adaptor: started successfully (%u ORB thread(s))\n",
                n_threads));
 }
+
+// ============================================================================
+// stop
+// ============================================================================
 
 void Adaptor::stop() {
     if (!running_.exchange(false)) return;
 
     ACE_DEBUG((LM_INFO, "Adaptor: stopping...\n"));
 
-    // Stop peers first (stops producing data)
+    // Stop peers first so no more data flows in.
     tcp_->stop();
     corba_->stop();
 
-    // Deactivate CORBA servants before shutting down the supplier's consumer
-    // notifications — prevents new CORBA calls from arriving mid-teardown
+    // Remove all naming-service bindings (best-effort, noexcept).
+    if (naming_) {
+        unbind_all();
+    }
+
+    // Deactivate CORBA servants before tearing down subscriptions.
+    auto deactivate = [this](PortableServer::Servant servant) {
+        if (!servant) return;
+        try {
+            PortableServer::ObjectId_var oid = poa_->servant_to_id(servant);
+            poa_->deactivate_object(oid.in());
+        } catch (const CORBA::Exception&) {
+            // Already gone
+        }
+    };
+
+    deactivate(suppliers_.heartbeat.get());
+    deactivate(suppliers_.status_report.get());
+    deactivate(suppliers_.data_payload.get());
+    deactivate(suppliers_.command_response.get());
+    deactivate(suppliers_.telemetry.get());
+    deactivate(suppliers_.event.get());
+    deactivate(suppliers_.alarm.get());
+    deactivate(command_.get());
+
+    // Notify consumers (shutdown()) for each supplier.
+    const std::string reason = "adaptor shutting down";
+    if (suppliers_.heartbeat)        suppliers_.heartbeat->shutdown(reason);
+    if (suppliers_.status_report)    suppliers_.status_report->shutdown(reason);
+    if (suppliers_.data_payload)     suppliers_.data_payload->shutdown(reason);
+    if (suppliers_.command_response) suppliers_.command_response->shutdown(reason);
+    if (suppliers_.telemetry)        suppliers_.telemetry->shutdown(reason);
+    if (suppliers_.event)            suppliers_.event->shutdown(reason);
+    if (suppliers_.alarm)            suppliers_.alarm->shutdown(reason);
+
+    // Shut down the ORB and join threads.
     try {
-        PortableServer::ObjectId_var oid;
-        oid = poa_->servant_to_id(supplier_.get());
-        poa_->deactivate_object(oid.in());
+        orb_->shutdown(false);
     } catch (const CORBA::Exception&) {}
-
-    try {
-        PortableServer::ObjectId_var oid;
-        oid = poa_->servant_to_id(command_.get());
-        poa_->deactivate_object(oid.in());
-    } catch (const CORBA::Exception&) {}
-
-    // Now notify consumers and clean up
-    supplier_->shutdown("adaptor shutting down");
-
-    // Shut down the ORB and join threads
-    orb_->shutdown(false);
     for (auto& t : orb_threads_) {
         if (t.joinable()) t.join();
     }
     orb_threads_.clear();
 
-    // Signal shutdown waiters
+    // Signal shutdown waiters.
     {
         std::lock_guard lock(shutdown_mu_);
         shutdown_requested_ = true;
@@ -194,8 +171,6 @@ void Adaptor::stop() {
 }
 
 void Adaptor::request_shutdown() {
-    // Signal-safe: only sets an atomic flag and notifies the condvar.
-    // The actual teardown happens in stop(), called from the main thread.
     shutdown_requested_.store(true, std::memory_order_release);
     std::lock_guard lock(shutdown_mu_);
     shutdown_cv_.notify_all();
@@ -206,25 +181,10 @@ void Adaptor::wait_for_shutdown() {
     shutdown_cv_.wait(lock, [this] { return shutdown_requested_.load(); });
 }
 
-bool Adaptor::send_to_peer(PeerId peer, std::span<const uint8_t> data) {
-    switch (peer) {
-        case PeerId::tcp_peer:   return tcp_->send(data);
-        case PeerId::corba_peer: return corba_->send(data);
-    }
-    return false;
-}
-
-bool Adaptor::send_message(PeerId peer, uint64_t type_id, const std::any& payload) {
-    auto encoded = codec_->encode(peer, type_id, payload);
-    if (encoded.empty()) return false;
-    return send_to_peer(peer, std::span<const uint8_t>(encoded));
-}
-
 CommandReceiverServant& Adaptor::command_servant() noexcept { return *command_; }
-DataSupplierServant&    Adaptor::supplier()        noexcept { return *supplier_; }
-TcpPeer&               Adaptor::tcp_peer()         noexcept { return *tcp_; }
-CorbaPeer&             Adaptor::corba_peer()       noexcept { return *corba_; }
-codec::CodecBridge&    Adaptor::codec_bridge()     noexcept { return *codec_; }
+TypedSuppliers&         Adaptor::suppliers()        noexcept { return suppliers_; }
+TcpPeer&                Adaptor::tcp_peer()         noexcept { return *tcp_; }
+CorbaPeer&              Adaptor::corba_peer()       noexcept { return *corba_; }
 
 // ============================================================================
 // Private
@@ -239,66 +199,142 @@ void Adaptor::orb_thread_func() {
     }
 }
 
-void Adaptor::on_data_received(InternalPacket pkt) {
-    auto corba_pkt = pkt.to_corba();
-    supplier_->publish(corba_pkt);
+// --- Typed supplier activation + naming-service binding ---------------------
+
+void Adaptor::activate_and_bind_suppliers() {
+    suppliers_.heartbeat        = std::make_unique<HeartbeatSupplierServant>();
+    suppliers_.status_report    = std::make_unique<StatusReportSupplierServant>();
+    suppliers_.data_payload     = std::make_unique<DataPayloadSupplierServant>();
+    suppliers_.command_response = std::make_unique<CommandResponseSupplierServant>();
+    suppliers_.telemetry        = std::make_unique<TelemetrySupplierServant>();
+    suppliers_.event            = std::make_unique<EventSupplierServant>();
+    suppliers_.alarm            = std::make_unique<AlarmSupplierServant>();
+
+    auto activate_and_bind =
+        [this](PortableServer::Servant servant, const char* name) {
+            PortableServer::ObjectId_var oid =
+                poa_->activate_object(servant);
+            CORBA::Object_var ref = poa_->id_to_reference(oid.in());
+            naming_->bind(name, ref.in());
+        };
+
+    activate_and_bind(suppliers_.heartbeat.get(),
+                      CorbaAdaptor::HeartbeatSupplier::NAME);
+    activate_and_bind(suppliers_.status_report.get(),
+                      CorbaAdaptor::StatusReportSupplier::NAME);
+    activate_and_bind(suppliers_.data_payload.get(),
+                      CorbaAdaptor::DataPayloadSupplier::NAME);
+    activate_and_bind(suppliers_.command_response.get(),
+                      CorbaAdaptor::CommandResponseSupplier::NAME);
+    activate_and_bind(suppliers_.telemetry.get(),
+                      CorbaAdaptor::TelemetrySupplier::NAME);
+    activate_and_bind(suppliers_.event.get(),
+                      CorbaAdaptor::EventSupplier::NAME);
+    activate_and_bind(suppliers_.alarm.get(),
+                      CorbaAdaptor::AlarmSupplier::NAME);
+    activate_and_bind(command_.get(),
+                      CorbaAdaptor::CommandReceiver::NAME);
 }
 
+void Adaptor::unbind_all() {
+    naming_->unbind(CorbaAdaptor::HeartbeatSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::StatusReportSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::DataPayloadSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::CommandResponseSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::TelemetrySupplier::NAME);
+    naming_->unbind(CorbaAdaptor::EventSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::AlarmSupplier::NAME);
+    naming_->unbind(CorbaAdaptor::CommandReceiver::NAME);
+}
+
+// --- TCP handler wiring -----------------------------------------------------
+
+void Adaptor::wire_tcp_handlers() {
+    tcp_->on<tcp_peer::Heartbeat>(
+        [this](const tcp_peer::Heartbeat& m) {
+            suppliers_.heartbeat->publish(translate::to_corba(m));
+        });
+    tcp_->on<tcp_peer::StatusReport>(
+        [this](const tcp_peer::StatusReport& m) {
+            suppliers_.status_report->publish(translate::to_corba(m));
+        });
+    tcp_->on<tcp_peer::DataPayload>(
+        [this](const tcp_peer::DataPayload& m) {
+            suppliers_.data_payload->publish(translate::to_corba(m));
+        });
+    tcp_->on<tcp_peer::CommandResponse>(
+        [this](const tcp_peer::CommandResponse& m) {
+            suppliers_.command_response->publish(translate::to_corba(m));
+        });
+}
+
+// --- CORBA raw-byte callback + typed dispatch -------------------------------
+
+void Adaptor::on_corba_raw_bytes(std::span<const std::uint8_t> bytes) {
+    std::vector<conduit::traits::DecodedMessage> decoded;
+    {
+        std::lock_guard lock(corba_session_mu_);
+        if (!corba_session_) return;
+        auto result = corba_session_->decode_frame(bytes);
+        if (!result) {
+            ACE_DEBUG((LM_WARNING,
+                "Adaptor: corba-peer decode error: %s\n",
+                result.error().format_short().c_str()));
+            return;
+        }
+        decoded = std::move(*result);
+    }
+
+    for (const auto& msg : decoded) {
+        dispatch_corba_decoded(msg);
+    }
+}
+
+void Adaptor::dispatch_corba_decoded(const conduit::traits::DecodedMessage& msg) {
+    try {
+        if (msg.type_id == corba_peer::TelemetryRecord::TYPE_ID) {
+            const auto& m = std::any_cast<const corba_peer::TelemetryRecord&>(msg.payload);
+            suppliers_.telemetry->publish(translate::to_corba(m));
+        } else if (msg.type_id == corba_peer::EventRecord::TYPE_ID) {
+            const auto& m = std::any_cast<const corba_peer::EventRecord&>(msg.payload);
+            suppliers_.event->publish(translate::to_corba(m));
+        } else if (msg.type_id == corba_peer::AlarmRecord::TYPE_ID) {
+            const auto& m = std::any_cast<const corba_peer::AlarmRecord&>(msg.payload);
+            suppliers_.alarm->publish(translate::to_corba(m));
+        } else {
+            ACE_DEBUG((LM_DEBUG,
+                "Adaptor: corba-peer dropped message with unhandled type_id=%llu\n",
+                static_cast<unsigned long long>(msg.type_id)));
+        }
+    } catch (const std::bad_any_cast& ex) {
+        ACE_DEBUG((LM_WARNING,
+            "Adaptor: corba-peer dispatch bad_any_cast (type_id=%llu): %s\n",
+            static_cast<unsigned long long>(msg.type_id), ex.what()));
+    }
+}
+
+// --- Built-in commands ------------------------------------------------------
+
 void Adaptor::register_builtin_commands() {
-    // "status" query — returns connection state of both peers
     command_->register_query("status", [this](const std::string&) {
         CorbaAdaptor::CommandResult res;
         res.status = CorbaAdaptor::CMD_OK;
 
         std::ostringstream ss;
-        ss << "tcp_peer=" << (tcp_->is_connected() ? "connected" : "disconnected")
+        ss << "tcp_peer="   << (tcp_->is_connected()   ? "connected" : "disconnected")
            << " corba_peer=" << (corba_->is_connected() ? "connected" : "disconnected")
-           << " subscribers=" << supplier_->subscriber_count();
+           << " subscribers"
+           << " heartbeat="      << suppliers_.heartbeat->subscriber_count()
+           << " status_report="  << suppliers_.status_report->subscriber_count()
+           << " data_payload="   << suppliers_.data_payload->subscriber_count()
+           << " command_response="<< suppliers_.command_response->subscriber_count()
+           << " telemetry="      << suppliers_.telemetry->subscriber_count()
+           << " event="          << suppliers_.event->subscriber_count()
+           << " alarm="          << suppliers_.alarm->subscriber_count();
         res.message = CORBA::string_dup(ss.str().c_str());
         return res;
     });
 
-    // "send_tcp" command — forward params to TCP peer
-    command_->register_command("send_tcp",
-        [this](const std::string&, std::span<const uint8_t> params) {
-            CorbaAdaptor::CommandResult res;
-            if (tcp_->send(params)) {
-                res.status  = CorbaAdaptor::CMD_OK;
-                res.message = CORBA::string_dup("sent");
-            } else {
-                res.status  = CorbaAdaptor::CMD_ERROR;
-                res.message = CORBA::string_dup("tcp peer not connected");
-            }
-            return res;
-        });
-
-    // "send_corba" command — forward params to CORBA peer
-    command_->register_command("send_corba",
-        [this](const std::string&, std::span<const uint8_t> params) {
-            CorbaAdaptor::CommandResult res;
-            if (corba_->send(params)) {
-                res.status  = CorbaAdaptor::CMD_OK;
-                res.message = CORBA::string_dup("sent");
-            } else {
-                res.status  = CorbaAdaptor::CMD_ERROR;
-                res.message = CORBA::string_dup("corba peer not connected");
-            }
-            return res;
-        });
-
-    // "codec_info" query — returns registered codec pipeline info
-    command_->register_query("codec_info", [this](const std::string&) {
-        CorbaAdaptor::CommandResult res;
-        res.status = CorbaAdaptor::CMD_OK;
-
-        std::ostringstream ss;
-        ss << "tcp_peer_codec=" << (codec_->pipeline(PeerId::tcp_peer) ? "active" : "none")
-           << " corba_peer_codec=" << (codec_->pipeline(PeerId::corba_peer) ? "active" : "none");
-        res.message = CORBA::string_dup(ss.str().c_str());
-        return res;
-    });
-
-    // Shutdown handler — use request_shutdown() for signal-safe path
     command_->set_shutdown_callback([this] {
         ACE_DEBUG((LM_INFO, "Adaptor: shutdown requested via command\n"));
         request_shutdown();

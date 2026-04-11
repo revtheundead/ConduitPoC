@@ -13,6 +13,7 @@
 #include <ace/Time_Value.h>
 
 #include <condition_variable>
+#include <span>
 
 namespace adaptor {
 
@@ -22,18 +23,14 @@ namespace adaptor {
 
 class RawDataCallbackServant : public POA_CorbaAdaptor::RawDataCallback {
 public:
-    explicit RawDataCallbackServant(DataReceivedCallback& cb,
+    explicit RawDataCallbackServant(RawBytesCallback& cb,
                                     PeerStateCallback& state_cb)
         : data_cb_(cb), state_cb_(state_cb) {}
 
     void on_raw_data(const CorbaAdaptor::OctetSeq& data) override {
         if (data_cb_) {
-            InternalPacket pkt;
-            pkt.source      = PeerId::corba_peer;
-            pkt.received_at = std::chrono::steady_clock::now();
-            pkt.payload.assign(data.get_buffer(),
-                               data.get_buffer() + data.length());
-            data_cb_(std::move(pkt));
+            data_cb_(std::span<const std::uint8_t>(
+                data.get_buffer(), data.length()));
         }
     }
 
@@ -41,13 +38,13 @@ public:
         ACE_DEBUG((LM_WARNING,
                    "CorbaPeer: channel disconnect notification: %s\n", reason));
         if (state_cb_) {
-            state_cb_(PeerId::corba_peer, false);
+            state_cb_(false);
         }
     }
 
 private:
-    DataReceivedCallback& data_cb_;
-    PeerStateCallback&    state_cb_;
+    RawBytesCallback&  data_cb_;
+    PeerStateCallback& state_cb_;
 };
 
 // ============================================================================
@@ -59,7 +56,7 @@ struct CorbaPeer::Impl {
     PortableServer::POA_var     poa;
     CorbaPeerConfig             config;
 
-    DataReceivedCallback        data_cb;
+    RawBytesCallback            data_cb;
     PeerStateCallback           state_cb;
 
     CorbaAdaptor::RawDataChannel_var    channel;
@@ -113,7 +110,7 @@ struct CorbaPeer::Impl {
 
             connected = true;
             ACE_DEBUG((LM_INFO, "CorbaPeer: connected to raw data channel\n"));
-            if (state_cb) state_cb(PeerId::corba_peer, true);
+            if (state_cb) state_cb(true);
             return true;
 
         } catch (const CORBA::Exception& ex) {
@@ -220,7 +217,7 @@ struct CorbaPeer::Impl {
             ACE_DEBUG((LM_WARNING,
                        "CorbaPeer: send failed: %s\n", ex._info().c_str()));
             connected = false;
-            if (state_cb) state_cb(PeerId::corba_peer, false);
+            if (state_cb) state_cb(false);
 
             // Trigger reconnection safely (no thread leak)
             if (running && config.auto_reconnect) {
@@ -246,7 +243,7 @@ CorbaPeer::~CorbaPeer() {
     if (impl_) impl_->stop();
 }
 
-void CorbaPeer::set_data_callback(DataReceivedCallback cb) {
+void CorbaPeer::set_data_callback(RawBytesCallback cb) {
     impl_->data_cb = std::move(cb);
 }
 

@@ -1,33 +1,39 @@
 // SPDX-License-Identifier: MIT
 // Conduit CORBA Adaptor - Main Orchestrator
 //
-// Ties together the TCP peer, CORBA peer, supplier, and command servant
-// into a single cohesive bridge.  Data flows:
+// Ties together the (Conduit-backed) TCP peer, the CORBA raw-data peer,
+// the full set of typed named suppliers, and the command receiver into a
+// single cohesive bridge.
 //
-//   TCP Peer  ──┐
-//               ├──▶ Adaptor ──▶ DataSupplier ──▶ N consumers
-//   CORBA Peer ─┘         ▲
-//                         │
-//         CommandReceiver ─┘  (external systems issue commands)
+//    TCP Peer  ──▶ tcp_peer::<Msg>  ──▶ translate ──▶ typed supplier ──▶ N consumers
+//    CORBA Peer (raw bytes)
+//         └──▶ Conduit ISession::decode_frame ──▶ corba_peer::<Msg>
+//                                             ──▶ translate ──▶ typed supplier ──▶ N consumers
 //
-// The adaptor also routes outbound data: commands or supplier-driven
-// writes can send data back to either peer.
+// All suppliers + the command receiver are registered in the CORBA Naming
+// Service under their IDL-declared `NAME` constants (e.g.
+// "CorbaAdaptor/Heartbeat"). Clients discover suppliers by name — there is
+// no dynamic filtering and no IOR file exchange.
 
 #pragma once
 
-#include <adaptor/codec/codec_bridge.hpp>
 #include <adaptor/command_servant.hpp>
 #include <adaptor/corba_peer.hpp>
+#include <adaptor/naming.hpp>
 #include <adaptor/supplier.hpp>
 #include <adaptor/tcp_peer.hpp>
 #include <adaptor/types.hpp>
+
+#include <conduit/traits/session_traits.hpp>
 
 #include <tao/ORB.h>
 #include <tao/PortableServer/PortableServer.h>
 
 #include <atomic>
-#include <functional>
+#include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -42,18 +48,32 @@ struct AdaptorConfig {
     TcpPeerConfig       tcp;
     CorbaPeerConfig     corba_peer;
 
-    /// Health-check interval for the supplier's consumer sweep.
+    /// Health-check interval for each supplier's consumer sweep.
     std::chrono::seconds health_check_interval{30};
 
-    /// Write the supplier IOR to this file (empty = don't write).
-    std::string supplier_ior_file;
-
-    /// Write the command receiver IOR to this file (empty = don't write).
-    std::string command_ior_file;
-
     /// Number of ORB thread-pool threads (1 = single-threaded, default).
-    /// Higher values allow concurrent CORBA request processing.
-    uint32_t orb_threads{1};
+    std::uint32_t orb_threads{1};
+};
+
+// ============================================================================
+// TypedSuppliers
+// ============================================================================
+//
+// Owns one servant per leaf message type. The Adaptor constructs these at
+// start(), activates them on the POA, and binds each one into the Naming
+// Service under its IDL-declared NAME constant.
+
+struct TypedSuppliers {
+    // TCP peer side
+    std::unique_ptr<HeartbeatSupplierServant>       heartbeat;
+    std::unique_ptr<StatusReportSupplierServant>    status_report;
+    std::unique_ptr<DataPayloadSupplierServant>     data_payload;
+    std::unique_ptr<CommandResponseSupplierServant> command_response;
+
+    // CORBA peer side
+    std::unique_ptr<TelemetrySupplierServant>       telemetry;
+    std::unique_ptr<EventSupplierServant>           event;
+    std::unique_ptr<AlarmSupplierServant>           alarm;
 };
 
 // ============================================================================
@@ -70,7 +90,8 @@ public:
     Adaptor(const Adaptor&) = delete;
     Adaptor& operator=(const Adaptor&) = delete;
 
-    /// Initialize all sub-components and activate CORBA servants.
+    /// Initialize all sub-components, wire typed handlers, activate CORBA
+    /// servants, and bind them into the Naming Service.
     void start();
 
     /// Graceful shutdown of all sub-components.
@@ -79,26 +100,24 @@ public:
     /// Request shutdown (signal-safe — only sets an atomic flag).
     void request_shutdown();
 
-    /// Block until shutdown is signalled (e.g. via signal or CommandReceiver).
+    /// Block until shutdown is signalled.
     void wait_for_shutdown();
-
-    /// Send raw data to a specific peer (bypasses codec).
-    [[nodiscard]] bool send_to_peer(PeerId peer, std::span<const uint8_t> data);
-
-    /// Encode a typed message via the codec and send to a specific peer.
-    [[nodiscard]] bool send_message(PeerId peer, uint64_t type_id, const std::any& payload);
 
     // --- Access to sub-components for advanced configuration ----------------
 
     [[nodiscard]] CommandReceiverServant& command_servant() noexcept;
-    [[nodiscard]] DataSupplierServant&    supplier() noexcept;
-    [[nodiscard]] TcpPeer&               tcp_peer() noexcept;
-    [[nodiscard]] CorbaPeer&             corba_peer() noexcept;
-    [[nodiscard]] codec::CodecBridge&    codec_bridge() noexcept;
+    [[nodiscard]] TypedSuppliers&         suppliers()        noexcept;
+    [[nodiscard]] TcpPeer&                tcp_peer()         noexcept;
+    [[nodiscard]] CorbaPeer&              corba_peer()       noexcept;
 
 private:
-    void on_data_received(InternalPacket pkt);
     void register_builtin_commands();
+    void wire_tcp_handlers();
+    void dispatch_corba_decoded(
+        const conduit::traits::DecodedMessage& msg);
+    void on_corba_raw_bytes(std::span<const std::uint8_t> bytes);
+    void activate_and_bind_suppliers();
+    void unbind_all();
     void orb_thread_func();
 
     CORBA::ORB_var              orb_;
@@ -107,9 +126,16 @@ private:
 
     std::unique_ptr<TcpPeer>                tcp_;
     std::unique_ptr<CorbaPeer>              corba_;
-    std::unique_ptr<DataSupplierServant>    supplier_;
     std::unique_ptr<CommandReceiverServant> command_;
-    std::unique_ptr<codec::CodecBridge>     codec_;
+
+    TypedSuppliers                          suppliers_;
+
+    /// CORBA-peer codec session — used to decode the raw byte stream
+    /// delivered via `RawDataChannel::on_raw_data`.
+    std::unique_ptr<conduit::traits::ISession> corba_session_;
+    std::mutex                              corba_session_mu_;
+
+    std::unique_ptr<NamingHelper>           naming_;
 
     std::atomic<bool>           running_{false};
     std::atomic<bool>           shutdown_requested_{false};
