@@ -2,8 +2,8 @@
 // Conduit CORBA Adaptor - Named Supplier Template Base
 //
 // NamedSupplierServant<Skeleton, Consumer, Message> is a reusable template
-// base that implements the boilerplate subscription registry, health-check
-// sweep, and error-based reaping for a typed CORBA supplier.
+// base that implements the boilerplate subscription registry and
+// error-based reaping for a typed CORBA supplier.
 //
 // Concrete servants derive from this template (which in turn derives from
 // their POA_CorbaAdaptor::<X>Supplier skeleton) and only need to implement
@@ -15,9 +15,10 @@
 //   2. The protected `deliver_one(consumer, msg)` hook, which knows the
 //      typed `on_<x>(msg)` method name to invoke on each consumer.
 //
-// Common lifecycle methods inherited from BaseSupplier/BaseConsumer
-// (`unsubscribe`, `subscriber_count`, `is_alive`, `on_supplier_disconnect`)
-// are implemented once here.
+// Health checks are *not* run from a per-supplier thread any more. The
+// owning Adaptor runs a single periodic sweep over its supplier registry
+// and invokes `sweep_dead_consumers()` on each entry. This collapses N
+// sleeping threads (one per message type) into one.
 
 #pragma once
 
@@ -27,13 +28,11 @@
 
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
-#include <functional>
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -50,12 +49,10 @@ public:
     using ConsumerVar = typename Consumer::_var_type;
     using ConsumerPtr = typename Consumer::_ptr_type;
 
-    using ReapCallback =
-        std::function<void(CorbaAdaptor::SubscriptionId)>;
-
     NamedSupplierServant() = default;
 
     ~NamedSupplierServant() override {
+        // Double-shutdown is safe: the second call will find an empty map.
         shutdown("servant destroyed");
     }
 
@@ -100,25 +97,38 @@ public:
         }
     }
 
-    /// Start the periodic health-check sweep thread.
-    void start_health_checks(std::chrono::seconds interval) {
-        if (health_running_.exchange(true)) return;
-        health_interval_ = interval;
-        health_thread_ = std::thread([this] { health_check_loop(); });
-    }
+    /// Perform one health-check sweep: call `is_alive()` on every currently
+    /// subscribed consumer and reap any that return false or raise. Safe to
+    /// call from any thread. The Adaptor calls this on a periodic timer.
+    void sweep_dead_consumers() {
+        auto targets = snapshot();
 
-    /// Stop health checks and notify all consumers of shutdown.
-    void shutdown(const std::string& reason) {
-        if (health_running_.exchange(false)) {
-            {
-                std::lock_guard lock(health_mu_);
-                health_cv_.notify_all();
-            }
-            if (health_thread_.joinable()) {
-                health_thread_.join();
+        std::vector<CorbaAdaptor::SubscriptionId> dead;
+        for (auto& target : targets) {
+            try {
+                if (!target.consumer->is_alive()) {
+                    dead.push_back(target.id);
+                }
+            } catch (const CORBA::Exception&) {
+                dead.push_back(target.id);
             }
         }
 
+        if (dead.empty()) return;
+
+        std::unique_lock lock(mu_);
+        for (auto id : dead) {
+            if (subs_.erase(id)) {
+                ACE_DEBUG((LM_WARNING,
+                    "NamedSupplier(%s): health-check reaped consumer "
+                    "(id=%u)\n", type_name(), id));
+            }
+        }
+    }
+
+    /// Notify all currently subscribed consumers of shutdown and clear the
+    /// subscription map. Idempotent — a second call is a no-op.
+    void shutdown(const std::string& reason) {
         std::vector<ConsumerVar> to_notify;
         {
             std::unique_lock lock(mu_);
@@ -137,11 +147,6 @@ public:
                 // Consumer already gone — ignore
             }
         }
-    }
-
-    void set_reap_callback(ReapCallback cb) {
-        std::unique_lock lock(mu_);
-        reap_cb_ = std::move(cb);
     }
 
 protected:
@@ -188,8 +193,8 @@ private:
         CorbaAdaptor::SubscriptionId            id{};
         ConsumerVar                             consumer;
         std::chrono::steady_clock::time_point   subscribed_at{};
-        std::atomic<uint64_t>                   packets_delivered{0};
-        std::atomic<uint64_t>                   delivery_errors{0};
+        std::atomic<std::uint64_t>              packets_delivered{0};
+        std::atomic<std::uint64_t>              delivery_errors{0};
     };
 
     struct DeliveryTarget {
@@ -210,6 +215,9 @@ private:
         return targets;
     }
 
+    /// Bump the delivery counter and zero the error counter for a successful
+    /// send. Only acquires a shared lock because the fields being mutated
+    /// are `std::atomic`.
     void reset_error_count(CorbaAdaptor::SubscriptionId id) {
         std::shared_lock lock(mu_);
         if (auto it = subs_.find(id); it != subs_.end()) {
@@ -219,85 +227,26 @@ private:
     }
 
     void record_delivery_error(CorbaAdaptor::SubscriptionId id) {
-        ReapCallback cb_to_fire;
-        CorbaAdaptor::SubscriptionId reap_id{0};
-        {
-            std::unique_lock lock(mu_);
-            if (auto it = subs_.find(id); it != subs_.end()) {
-                auto errs = it->second->delivery_errors.fetch_add(
-                    1, std::memory_order_relaxed) + 1;
-                if (errs > kMaxDeliveryErrors) {
-                    reap_id = it->first;
-                    subs_.erase(it);
-                    cb_to_fire = reap_cb_;
-                    ACE_DEBUG((LM_WARNING,
-                        "NamedSupplier(%s): reaped dead consumer (id=%u)\n",
-                        type_name(), reap_id));
-                }
-            }
-        }
-        if (cb_to_fire) {
-            cb_to_fire(reap_id);
+        std::unique_lock lock(mu_);
+        auto it = subs_.find(id);
+        if (it == subs_.end()) return;
+
+        auto errs = it->second->delivery_errors.fetch_add(
+            1, std::memory_order_relaxed) + 1;
+        if (errs > kMaxDeliveryErrors) {
+            ACE_DEBUG((LM_WARNING,
+                "NamedSupplier(%s): reaped dead consumer (id=%u)\n",
+                type_name(), id));
+            subs_.erase(it);
         }
     }
 
-    void health_check_loop() {
-        while (health_running_) {
-            {
-                std::unique_lock lock(health_mu_);
-                health_cv_.wait_for(lock, health_interval_,
-                    [this] { return !health_running_.load(); });
-            }
-            if (!health_running_) break;
-
-            auto targets = snapshot();
-
-            std::vector<CorbaAdaptor::SubscriptionId> dead;
-            for (auto& target : targets) {
-                try {
-                    if (!target.consumer->is_alive()) {
-                        dead.push_back(target.id);
-                    }
-                } catch (const CORBA::Exception&) {
-                    dead.push_back(target.id);
-                }
-            }
-
-            if (!dead.empty()) {
-                ReapCallback cb_to_fire;
-                std::vector<CorbaAdaptor::SubscriptionId> reaped;
-                {
-                    std::unique_lock lock(mu_);
-                    for (auto id : dead) {
-                        if (subs_.erase(id)) {
-                            ACE_DEBUG((LM_WARNING,
-                                "NamedSupplier(%s): health-check reaped consumer "
-                                "(id=%u)\n", type_name(), id));
-                            reaped.push_back(id);
-                        }
-                    }
-                    cb_to_fire = reap_cb_;
-                }
-                if (cb_to_fire) {
-                    for (auto id : reaped) cb_to_fire(id);
-                }
-            }
-        }
-    }
-
-    mutable std::shared_mutex                                               mu_;
+    mutable std::shared_mutex                                       mu_;
     std::unordered_map<CorbaAdaptor::SubscriptionId,
-                       std::shared_ptr<Subscription>>                       subs_;
-    CorbaAdaptor::SubscriptionId                                            next_id_{1};
-    ReapCallback                                                            reap_cb_;
+                       std::shared_ptr<Subscription>>               subs_;
+    CorbaAdaptor::SubscriptionId                                    next_id_{1};
 
-    std::atomic<bool>       health_running_{false};
-    std::thread             health_thread_;
-    std::mutex              health_mu_;
-    std::condition_variable health_cv_;
-    std::chrono::seconds    health_interval_{30};
-
-    static constexpr uint64_t kMaxDeliveryErrors = 3;
+    static constexpr std::uint64_t kMaxDeliveryErrors = 3;
 };
 
 } // namespace adaptor

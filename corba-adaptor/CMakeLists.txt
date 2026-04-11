@@ -50,6 +50,17 @@ if(NOT TARGET conduit)
     endif()
 endif()
 
+# Verify the target name matches what we'll link against — conduit's build
+# could rename or split this target in the future, and we'd rather fail at
+# configure time than with a confusing linker error.
+if(NOT TARGET conduit)
+    message(FATAL_ERROR
+        "corba-adaptor: expected a 'conduit' CMake target to be defined after "
+        "adding the conduit subdirectory at ${CONDUIT_DIR}, but none was found. "
+        "Check conduit's top-level CMakeLists.txt for the correct target name "
+        "and update corba-adaptor/CMakeLists.txt to match.")
+endif()
+
 message(STATUS "Conduit include: ${CONDUIT_DIR}/include")
 
 # ============================================================================
@@ -128,6 +139,17 @@ bgen_generate(
     NAMESPACE   corba_peer
     PROTOCOL_NAME corba_peer
 )
+
+# Fail fast if bgen_generate didn't actually produce the targets we're about
+# to link against — e.g. if its signature changes and TARGET stops meaning
+# "create a library with this name".
+foreach(_required_target conduit tcp_peer_codec corba_peer_codec)
+    if(NOT TARGET ${_required_target})
+        message(FATAL_ERROR
+            "corba-adaptor: required CMake target '${_required_target}' is not "
+            "defined. The adaptor library cannot be built without it.")
+    endif()
+endforeach()
 
 # ============================================================================
 # Main adaptor library

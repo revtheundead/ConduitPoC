@@ -32,6 +32,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -77,6 +78,39 @@ struct TypedSuppliers {
 };
 
 // ============================================================================
+// SupplierEntry
+// ============================================================================
+//
+// Type-erased handle to one typed supplier servant. The Adaptor builds a
+// vector of these at `start()` and drives every bulk operation (bind in the
+// naming service, health-check sweep, shutdown notification, status query
+// formatting, POA deactivation) off it — so adding a new typed message
+// requires touching exactly one location in `Adaptor::build_supplier_entries`
+// rather than a dozen scattered sites.
+
+struct SupplierEntry {
+    /// POA servant pointer, needed for activation/deactivation. The actual
+    /// owning `unique_ptr` lives in `TypedSuppliers`.
+    PortableServer::Servant                 servant{nullptr};
+
+    /// Fully-qualified naming-service path (e.g. "CorbaAdaptor/Heartbeat").
+    /// Comes from the IDL `NAME` constant on the supplier interface.
+    const char*                             idl_name{nullptr};
+
+    /// Short label used in the `status` query output.
+    const char*                             status_label{nullptr};
+
+    /// Invoke `sweep_dead_consumers()` on the underlying servant.
+    std::function<void()>                   sweep;
+
+    /// Notify all consumers of shutdown and drain the subscription map.
+    std::function<void(const std::string&)> shutdown;
+
+    /// Current subscriber count, used by the `status` builtin command.
+    std::function<CORBA::ULong()>           subscriber_count;
+};
+
+// ============================================================================
 // Adaptor
 // ============================================================================
 
@@ -116,9 +150,11 @@ private:
     void dispatch_corba_decoded(
         const conduit::traits::DecodedMessage& msg);
     void on_corba_raw_bytes(std::span<const std::uint8_t> bytes);
+    void build_supplier_entries();
     void activate_and_bind_suppliers();
     void unbind_all();
     void orb_thread_func();
+    void health_check_loop();
 
     CORBA::ORB_var              orb_;
     PortableServer::POA_var     poa_;
@@ -129,6 +165,12 @@ private:
     std::unique_ptr<CommandReceiverServant> command_;
 
     TypedSuppliers                          suppliers_;
+
+    /// Type-erased handles over every typed supplier. Built once at
+    /// `start()`. Every bulk operation (bind, unbind, shutdown, sweep,
+    /// status) iterates this vector instead of enumerating each servant
+    /// by name — so adding a new message type is a one-location edit.
+    std::vector<SupplierEntry>              supplier_entries_;
 
     /// CORBA-peer codec session — used to decode the raw byte stream
     /// delivered via `RawDataChannel::on_raw_data`.
@@ -141,6 +183,13 @@ private:
     std::atomic<bool>           shutdown_requested_{false};
     std::mutex                  shutdown_mu_;
     std::condition_variable     shutdown_cv_;
+
+    /// Single periodic sweep thread that walks `supplier_entries_` and
+    /// calls `sweep()` on each. Replaces the per-supplier health thread
+    /// that used to live inside `NamedSupplierServant`.
+    std::thread                 health_thread_;
+    std::mutex                  health_mu_;
+    std::condition_variable     health_cv_;
 
     std::vector<std::thread>    orb_threads_;
 };
