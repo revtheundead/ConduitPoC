@@ -1062,7 +1062,7 @@ jobs:
 
   # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
   cpp-macos:
-    runs-on: macos-latest
+    runs-on: macos-16
 
     steps:
       - uses: actions/checkout@v4

@@ -134,7 +134,7 @@ jobs:
             conduit/lib/libconduit_codec_jni.so
 
   build-macos-arm64:
-    runs-on: macos-latest   # Apple Silicon (M1+)
+    runs-on: macos-16   # Apple Silicon (M1+)
 
     steps:
       - uses: actions/checkout@v4
@@ -189,7 +189,7 @@ jobs:
             conduit/lib/libconduit_codec_jni.dylib
 
   build-macos-x86_64:
-    runs-on: macos-latest   # Cross-compile for Intel on Apple Silicon
+    runs-on: macos-16   # Cross-compile for Intel on Apple Silicon
 
     steps:
       - uses: actions/checkout@v4
