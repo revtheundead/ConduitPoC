@@ -14,9 +14,6 @@ on:
 permissions:
   contents: write   # needed for creating GitHub Releases
 
-env:
-  CONDUIT_VERSION: "0.1.0"
-
 jobs:
   # ============================================================================
   # Build native artifacts on each platform
@@ -137,7 +134,7 @@ jobs:
             conduit/lib/libconduit_codec_jni.so
 
   build-macos-arm64:
-    runs-on: macos-15   # Apple Silicon (M1+)
+    runs-on: macos-26   # Apple Silicon (M1+)
 
     steps:
       - uses: actions/checkout@v4
@@ -192,7 +189,7 @@ jobs:
             conduit/lib/libconduit_codec_jni.dylib
 
   build-macos-x86_64:
-    runs-on: macos-15   # Cross-compile for Intel on Apple Silicon
+    runs-on: macos-15-intel   # Cross-compile for Intel on Apple Silicon
 
     steps:
       - uses: actions/checkout@v4
@@ -322,6 +319,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve version from tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "CONDUIT_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "Using version: ${TAG#v}"
+
+      - name: Sync project files to release version
+        run: ./conduit/scripts/bump_version.sh "${{ env.CONDUIT_VERSION }}"
+
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -416,14 +426,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Determine release tag
+      - name: Determine release tag and version
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            TAG="${{ github.event.inputs.tag }}"
           else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF#refs/tags/}"
           fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "CONDUIT_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+          echo "Release tag: ${TAG}, version: ${TAG#v}"
 
       # Download all platform artifacts
       - name: Download linux-x86_64

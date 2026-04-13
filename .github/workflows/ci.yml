@@ -7,6 +7,69 @@ on:
     branches: [master, dev]
 
 jobs:
+  # ── Version consistency check ─────────────────────────────────────────────
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify versions are in sync
+        run: |
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          echo "VERSION file: $VERSION"
+          ERRORS=0
+
+          check_file() {
+            local file="$1" pattern="$2" label="$3"
+            if [ -f "$file" ]; then
+              if ! grep -q "$pattern" "$file"; then
+                echo "MISMATCH: $label ($file)"
+                ERRORS=$((ERRORS+1))
+              else
+                echo "  OK: $label"
+              fi
+            fi
+          }
+
+          # Java bindings pom.xml (first <version> after artifactId)
+          check_file "conduit/bindings/java/pom.xml" \
+            "<version>${VERSION}</version>" \
+            "Java bindings pom.xml"
+
+          # Java example pom.xml files
+          check_file "conduit/examples/xcvr-java11/pom.xml" \
+            "<version>${VERSION}</version>" \
+            "xcvr-java11 pom.xml"
+
+          check_file "conduit/examples/xcvr-java21/pom.xml" \
+            "<version>${VERSION}</version>" \
+            "xcvr-java21 pom.xml"
+
+          # Python pyproject.toml
+          check_file "conduit/bindings/python/pyproject.toml" \
+            "version = \"${VERSION}\"" \
+            "Python pyproject.toml"
+
+          # Python __init__.py
+          check_file "conduit/bindings/python/conduit/__init__.py" \
+            "__version__ = \"${VERSION}\"" \
+            "Python __init__.py"
+
+          # C ABI version string
+          check_file "conduit/src/cabi/conduit_cabi.cpp" \
+            "return \"${VERSION}\"" \
+            "C ABI version string"
+
+          if [ $ERRORS -gt 0 ]; then
+            echo ""
+            echo "ERROR: $ERRORS file(s) have mismatched versions."
+            echo "Run ./conduit/scripts/bump_version.sh to sync all files to VERSION."
+            exit 1
+          fi
+
+          echo ""
+          echo "All version strings match: $VERSION"
+
   # ── C++ / Windows MSVC ─────────────────────────────────────────────────────
   cpp-windows-msvc:
     runs-on: windows-latest
@@ -999,7 +1062,7 @@ jobs:
 
   # ── C++ / macOS AppleClang ─────────────────────────────────────────────────
   cpp-macos:
-    runs-on: macos-15
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4
