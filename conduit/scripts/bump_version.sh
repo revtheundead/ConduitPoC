@@ -48,7 +48,11 @@ sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERS
 sed -i "s/version = '[^']*'/version = '${VERSION}'/" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java11/build.gradle"
 
-# Java pom.xml (xcvr-java21) — all <version> tags matching old pattern
+# Java pom.xml (xcvr-java11) — all <version> tags matching semver
+sed -i "s/<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*<\/version>/<version>${VERSION}<\/version>/g" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-java11/pom.xml"
+
+# Java pom.xml (xcvr-java21) — all <version> tags matching semver
 sed -i "s/<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*<\/version>/<version>${VERSION}<\/version>/g" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java21/pom.xml"
 
@@ -74,15 +78,12 @@ if [ -f "$PROJECT_ROOT/conduit/scripts/package_fat_jar.bat" ]; then
         "$PROJECT_ROOT/conduit/scripts/package_fat_jar.bat"
 fi
 
-# GitHub Actions release.yml — CONDUIT_VERSION: "..."
-sed -i "s/CONDUIT_VERSION: \"[^\"]*\"/CONDUIT_VERSION: \"${VERSION}\"/" \
-    "$PROJECT_ROOT/.github/workflows/release.yml"
-
 echo ""
 echo "Updated files:"
 echo "  conduit/CMakeLists.txt"
 echo "  conduit/bindings/java/pom.xml"
 echo "  conduit/examples/xcvr-java11/build.gradle"
+echo "  conduit/examples/xcvr-java11/pom.xml"
 echo "  conduit/examples/xcvr-java21/pom.xml"
 echo "  conduit/bindings/python/pyproject.toml"
 echo "  conduit/bindings/python/conduit/__init__.py"
@@ -91,6 +92,5 @@ echo "  conduit/scripts/package_fat_jar.sh"
 if [ -f "$PROJECT_ROOT/conduit/scripts/package_fat_jar.bat" ]; then
     echo "  conduit/scripts/package_fat_jar.bat"
 fi
-echo "  .github/workflows/release.yml"
 echo ""
 echo "Done. VERSION = $VERSION"

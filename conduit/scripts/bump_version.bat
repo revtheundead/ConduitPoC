@@ -50,6 +50,9 @@ REM Java pom.xml (bindings) — first <version> tag
 REM Java build.gradle (xcvr-java11)
 %PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\build.gradle') -replace \"version = '[^']*'\",\"version = '!VERSION!'\" | Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\build.gradle' -Encoding UTF8"
 
+REM Java pom.xml (xcvr-java11) — all version tags with semver
+%PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\pom.xml') -replace '<version>\d+\.\d+\.\d+</version>','<version>!VERSION!</version>' | Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\pom.xml' -Encoding UTF8"
+
 REM Java pom.xml (xcvr-java21) — all version tags with semver
 %PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java21\pom.xml') -replace '<version>\d+\.\d+\.\d+</version>','<version>!VERSION!</version>' | Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java21\pom.xml' -Encoding UTF8"
 
@@ -70,21 +73,18 @@ if exist "%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat" (
     %PS% "(Get-Content '%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat') -replace '^set VERSION=.*','set VERSION=!VERSION!' | Set-Content '%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat' -Encoding UTF8"
 )
 
-REM GitHub Actions release.yml
-%PS% "(Get-Content '%PROJECT_ROOT%\.github\workflows\release.yml') -replace 'CONDUIT_VERSION: \"[^\"]*\"','CONDUIT_VERSION: \"!VERSION!\"' | Set-Content '%PROJECT_ROOT%\.github\workflows\release.yml' -Encoding UTF8"
-
 echo.
 echo Updated files:
 echo   conduit\CMakeLists.txt
 echo   conduit\bindings\java\pom.xml
 echo   conduit\examples\xcvr-java11\build.gradle
+echo   conduit\examples\xcvr-java11\pom.xml
 echo   conduit\examples\xcvr-java21\pom.xml
 echo   conduit\bindings\python\pyproject.toml
 echo   conduit\bindings\python\conduit\__init__.py
 echo   conduit\src\cabi\conduit_cabi.cpp
 echo   conduit\scripts\package_fat_jar.sh
 if exist "%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat" echo   conduit\scripts\package_fat_jar.bat
-echo   .github\workflows\release.yml
 echo.
 echo Done. VERSION = !VERSION!
 
