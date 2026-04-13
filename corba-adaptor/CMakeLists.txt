@@ -29,39 +29,101 @@ if(TAO_VERSION)
     message(STATUS "TAO version: ${TAO_VERSION}")
 endif()
 
-# Conduit — required for codec sessions and the TCP transceiver.
-set(CONDUIT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../conduit")
-if(NOT EXISTS "${CONDUIT_DIR}/include")
-    message(FATAL_ERROR
-        "corba-adaptor: Conduit include dir not found at ${CONDUIT_DIR}/include. "
-        "The adaptor requires Conduit for both codec sessions and the TCP "
-        "transceiver — build the conduit project first.")
-endif()
+# ============================================================================
+# Conduit — headers, libraries, and bgen
+# ============================================================================
+#
+# The adaptor is a separate application from Conduit.  It requires:
+#   - Conduit headers       (include/conduit/)
+#   - Conduit static libs   (libconduit.a, libconduit_codec.a)
+#   - The bgen executable   (bin/bgen)
+#
+# Discovery strategy:
+#   1. Try find_package(conduit) for a cmake-installed Conduit
+#   2. Fall back to CONDUIT_ROOT pointing at a release tarball or
+#      install prefix
+#
+# Usage:
+#   cmake -DCONDUIT_ROOT=/path/to/conduit-0.1.0-linux-x86_64 ...
+# Or (if installed via cmake --install):
+#   cmake -Dconduit_ROOT=/usr/local ...
+# ============================================================================
 
-if(NOT TARGET conduit)
-    if(EXISTS "${CONDUIT_DIR}/CMakeLists.txt")
-        add_subdirectory("${CONDUIT_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/_conduit_build"
-                         EXCLUDE_FROM_ALL)
-    else()
-        message(FATAL_ERROR
-            "corba-adaptor: Could not locate Conduit build targets. "
-            "Expected a 'conduit' target or a buildable conduit tree at "
-            "${CONDUIT_DIR}.")
+find_package(conduit QUIET CONFIG)
+
+if(conduit_FOUND)
+    message(STATUS "Conduit: found via find_package (version ${conduit_VERSION})")
+else()
+    # Try CONDUIT_ROOT cmake variable or environment variable
+    if(NOT CONDUIT_ROOT AND DEFINED ENV{CONDUIT_ROOT})
+        set(CONDUIT_ROOT "$ENV{CONDUIT_ROOT}")
     endif()
+
+    if(NOT CONDUIT_ROOT)
+        message(FATAL_ERROR
+            "Conduit not found.  Set CONDUIT_ROOT to a Conduit release "
+            "directory or install prefix:\n"
+            "  cmake -DCONDUIT_ROOT=/path/to/conduit-release ...\n"
+            "Or install Conduit so that find_package(conduit) succeeds.")
+    endif()
+
+    if(NOT EXISTS "${CONDUIT_ROOT}/include/conduit")
+        message(FATAL_ERROR
+            "CONDUIT_ROOT (${CONDUIT_ROOT}) does not contain include/conduit/")
+    endif()
+
+    message(STATUS "Conduit: using CONDUIT_ROOT=${CONDUIT_ROOT}")
+
+    # Import conduit::conduit (transceiver + codec)
+    add_library(conduit::conduit STATIC IMPORTED)
+    find_library(_CONDUIT_LIB conduit
+        PATHS "${CONDUIT_ROOT}/lib" NO_DEFAULT_PATH)
+    if(NOT _CONDUIT_LIB)
+        message(FATAL_ERROR "libconduit not found in ${CONDUIT_ROOT}/lib")
+    endif()
+    set_target_properties(conduit::conduit PROPERTIES
+        IMPORTED_LOCATION "${_CONDUIT_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_ROOT}/include"
+        INTERFACE_LINK_LIBRARIES "Threads::Threads"
+    )
+
+    # Import conduit::conduit_codec
+    add_library(conduit::conduit_codec STATIC IMPORTED)
+    find_library(_CONDUIT_CODEC_LIB conduit_codec
+        PATHS "${CONDUIT_ROOT}/lib" NO_DEFAULT_PATH)
+    if(NOT _CONDUIT_CODEC_LIB)
+        message(FATAL_ERROR "libconduit_codec not found in ${CONDUIT_ROOT}/lib")
+    endif()
+    set_target_properties(conduit::conduit_codec PROPERTIES
+        IMPORTED_LOCATION "${_CONDUIT_CODEC_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_ROOT}/include"
+        INTERFACE_LINK_LIBRARIES "Threads::Threads"
+    )
 endif()
 
-# Verify the target name matches what we'll link against — conduit's build
-# could rename or split this target in the future, and we'd rather fail at
-# configure time than with a confusing linker error.
-if(NOT TARGET conduit)
+# bgen executable — required for code generation
+find_program(BGEN_EXECUTABLE bgen
+    HINTS "${CONDUIT_ROOT}/bin"
+    PATHS ENV PATH
+)
+if(conduit_DIR AND NOT BGEN_EXECUTABLE)
+    # When installed via cmake, bgen is next to the prefix root
+    find_program(BGEN_EXECUTABLE bgen
+        HINTS "${conduit_DIR}/../../../bin")
+endif()
+if(NOT BGEN_EXECUTABLE)
     message(FATAL_ERROR
-        "corba-adaptor: expected a 'conduit' CMake target to be defined after "
-        "adding the conduit subdirectory at ${CONDUIT_DIR}, but none was found. "
-        "Check conduit's top-level CMakeLists.txt for the correct target name "
-        "and update corba-adaptor/CMakeLists.txt to match.")
+        "bgen executable not found.  Ensure Conduit was built with "
+        "CONDUIT_BUILD_BGEN=ON and bgen is in CONDUIT_ROOT/bin or PATH.")
 endif()
 
-message(STATUS "Conduit include: ${CONDUIT_DIR}/include")
+# Create an imported target so BgenGenerate.cmake finds it
+if(NOT TARGET bgen)
+    add_executable(bgen IMPORTED GLOBAL)
+    set_target_properties(bgen PROPERTIES IMPORTED_LOCATION "${BGEN_EXECUTABLE}")
+endif()
+
+message(STATUS "bgen: ${BGEN_EXECUTABLE}")
 
 # ============================================================================
 # Compiler warnings
@@ -122,7 +184,7 @@ endif()
 # bgen code generation for the TCP and CORBA peer protocols
 # ============================================================================
 
-include("${CONDUIT_DIR}/cmake/BgenGenerate.cmake")
+include(BgenGenerate)
 
 bgen_generate(
     TARGET      tcp_peer_codec
@@ -140,17 +202,6 @@ bgen_generate(
     PROTOCOL_NAME corba_peer
 )
 
-# Fail fast if bgen_generate didn't actually produce the targets we're about
-# to link against — e.g. if its signature changes and TARGET stops meaning
-# "create a library with this name".
-foreach(_required_target conduit tcp_peer_codec corba_peer_codec)
-    if(NOT TARGET ${_required_target})
-        message(FATAL_ERROR
-            "corba-adaptor: required CMake target '${_required_target}' is not "
-            "defined. The adaptor library cannot be built without it.")
-    endif()
-endforeach()
-
 # ============================================================================
 # Main adaptor library
 # ============================================================================
@@ -160,13 +211,14 @@ add_library(corba_adaptor_lib STATIC
     src/corba_peer.cpp
     src/command_servant.cpp
     src/naming.cpp
+    src/subscription_manager.cpp
+    src/supplier.cpp
     src/adaptor.cpp
 )
 
 target_include_directories(corba_adaptor_lib PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${IDL_OUTPUT_DIR}"
-    "${CONDUIT_DIR}/include"
     "${CMAKE_CURRENT_BINARY_DIR}/generated"
 )
 
@@ -174,7 +226,8 @@ target_link_libraries(corba_adaptor_lib PUBLIC
     corba_adaptor_idl
     tcp_peer_codec
     corba_peer_codec
-    conduit
+    conduit::conduit
+    conduit::conduit_codec
     adaptor_warnings
     Threads::Threads
 )

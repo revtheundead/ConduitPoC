@@ -1,92 +1,62 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - Typed Supplier Servants
+// Conduit CORBA Adaptor - Adaptor Supplier Servant
 //
-// One concrete servant per typed supplier interface declared in the IDL.
-// All share the same subscription management / reaping / health-check
-// machinery via `NamedSupplierServant<Skeleton, Consumer, Message>`.
+// Single supplier servant that publishes all adaptor message types to
+// subscribed consumers.  Inherits BaseSupplier (subscribe/unsubscribe/
+// subscriber_count) from the IDL and delegates all subscription lifecycle
+// to a SubscriptionManager.
 //
-// Each concrete class only has to:
-//   - Implement the typed `subscribe(<X>Consumer_ptr)` method by delegating
-//     to `add_subscription()` on the base.
-//   - Override the protected `deliver_one()` hook so the base's `publish()`
-//     knows which typed `on_<x>(msg)` method to invoke.
+// Consumers subscribe as BaseConsumer references.  On each publish call
+// the servant narrows to AdaptorConsumer and invokes the typed callback.
+// Consumers that do not implement AdaptorConsumer are silently skipped
+// (they still receive lifecycle events like on_supplier_disconnect).
 
 #pragma once
 
 #include <CorbaAdaptorS.h>
-#include <adaptor/named_supplier.hpp>
+#include <adaptor/subscription_manager.hpp>
+
+#include <string>
 
 namespace adaptor {
 
-// ============================================================================
-// Macro: declare a typed supplier servant
-// ============================================================================
-//
-// The IDL shape is uniform — each `<Name>Supplier` has exactly one typed
-// `subscribe()` returning a `SubscriptionId`, and its matching
-// `<Name>Consumer` has exactly one typed `on_<name>()` callback — so the
-// per-message boilerplate collapses into a macro.
-//
-// Usage:
-//     ADAPTOR_DECLARE_TYPED_SUPPLIER(
-//         Heartbeat,           // interface prefix in IDL
-//         HeartbeatMsg,        // CORBA struct type
-//         on_heartbeat,        // typed consumer method name
-//         "Heartbeat");        // short type name (for logging)
-// ============================================================================
+class AdaptorSupplierServant : public POA_CorbaAdaptor::AdaptorSupplier {
+public:
+    AdaptorSupplierServant() = default;
+    ~AdaptorSupplierServant() override = default;
 
-#define ADAPTOR_DECLARE_TYPED_SUPPLIER(Iface, Struct, DeliverMethod, TypeName) \
-class Iface##SupplierServant                                                   \
-    : public NamedSupplierServant<                                             \
-          POA_CorbaAdaptor::Iface##Supplier,                                   \
-          CorbaAdaptor::Iface##Consumer,                                       \
-          CorbaAdaptor::Struct>                                                \
-{                                                                              \
-public:                                                                        \
-    CorbaAdaptor::SubscriptionId subscribe(                                    \
-        CorbaAdaptor::Iface##Consumer_ptr consumer) override {                 \
-        return add_subscription(consumer);                                     \
-    }                                                                          \
-                                                                               \
-protected:                                                                     \
-    void deliver_one(                                                          \
-        CorbaAdaptor::Iface##Consumer_ptr consumer,                            \
-        const CorbaAdaptor::Struct& msg) override {                            \
-        consumer->DeliverMethod(msg);                                          \
-    }                                                                          \
-                                                                               \
-    const char* type_name() const noexcept override { return TypeName; }       \
+    AdaptorSupplierServant(const AdaptorSupplierServant&) = delete;
+    AdaptorSupplierServant& operator=(const AdaptorSupplierServant&) = delete;
+
+    // -- BaseSupplier CORBA methods (delegated to SubscriptionManager) --------
+
+    CORBA::Long subscribe(
+        CorbaAdaptor::BaseConsumer_ptr consumer) override;
+
+    void unsubscribe(CORBA::Long subscription_id) override;
+
+    CORBA::Long subscriber_count() override;
+
+    // -- Typed publish methods ------------------------------------------------
+    //
+    // Each method takes a snapshot of subscribers, narrows each
+    // BaseConsumer to AdaptorConsumer, and invokes the typed callback.
+
+    void publish_heartbeat(const CorbaAdaptor::HeartbeatMsg& msg);
+    void publish_status_report(const CorbaAdaptor::StatusReportMsg& msg);
+    void publish_data_payload(const CorbaAdaptor::DataPayloadMsg& msg);
+    void publish_command_response(const CorbaAdaptor::CommandResponseMsg& msg);
+    void publish_telemetry(const CorbaAdaptor::TelemetryMsg& msg);
+    void publish_event(const CorbaAdaptor::EventMsg& msg);
+    void publish_alarm(const CorbaAdaptor::AlarmMsg& msg);
+
+    // -- Lifecycle / health ---------------------------------------------------
+
+    void shutdown(const std::string& reason);
+    void sweep_dead_consumers();
+
+private:
+    SubscriptionManager mgr_;
 };
-
-// ============================================================================
-// TCP peer-side suppliers (decoded from the Conduit TCP Transceiver)
-// ============================================================================
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    Heartbeat, HeartbeatMsg, on_heartbeat, "Heartbeat")
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    StatusReport, StatusReportMsg, on_status_report, "StatusReport")
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    DataPayload, DataPayloadMsg, on_data_payload, "DataPayload")
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    CommandResponse, CommandResponseMsg, on_command_response, "CommandResponse")
-
-// ============================================================================
-// CORBA peer-side suppliers (decoded from the CORBA raw byte stream)
-// ============================================================================
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    Telemetry, TelemetryMsg, on_telemetry, "Telemetry")
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    Event, EventMsg, on_event, "Event")
-
-ADAPTOR_DECLARE_TYPED_SUPPLIER(
-    Alarm, AlarmMsg, on_alarm, "Alarm")
-
-#undef ADAPTOR_DECLARE_TYPED_SUPPLIER
 
 } // namespace adaptor

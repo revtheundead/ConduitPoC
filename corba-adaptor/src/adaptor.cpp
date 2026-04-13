@@ -51,7 +51,7 @@ void Adaptor::start() {
 
     ACE_DEBUG((LM_INFO, "Adaptor: starting...\n"));
 
-    // 1. Resolve the naming service before touching any servant.
+    // 1. Resolve the naming service.
     naming_ = std::make_unique<NamingHelper>(orb_.in());
     if (!naming_->is_valid()) {
         throw std::runtime_error(
@@ -59,23 +59,29 @@ void Adaptor::start() {
             "-ORBInitRef NameService=corbaloc:...");
     }
 
-    // 2. Construct typed suppliers, activate them on the POA, and bind
-    //    each one into the Naming Service under its IDL NAME constant
-    //    (also binds the CommandReceiver).
-    activate_and_bind_suppliers();
+    // 2. Create, activate and bind the supplier and command receiver.
+    supplier_ = std::make_unique<AdaptorSupplierServant>();
 
-    // 3. Build the type-erased supplier registry. Every bulk operation
-    //    below (sweep, shutdown, unbind, status query) iterates this
-    //    single vector instead of enumerating each servant by name.
-    build_supplier_entries();
+    auto activate_and_bind =
+        [this](PortableServer::Servant servant, const char* name) {
+            PortableServer::ObjectId_var oid =
+                poa_->activate_object(servant);
+            CORBA::Object_var ref = poa_->id_to_reference(oid.in());
+            naming_->bind(name, ref.in());
+        };
 
-    // 4. Register built-in commands.
+    activate_and_bind(supplier_.get(),
+                      CorbaAdaptor::AdaptorSupplier::NAME);
+    activate_and_bind(command_.get(),
+                      CorbaAdaptor::CommandReceiver::NAME);
+
+    // 3. Register built-in commands.
     register_builtin_commands();
 
-    // 5. Wire typed TCP handlers (before tcp_->start()).
+    // 4. Wire typed TCP handlers (before tcp_->start()).
     wire_tcp_handlers();
 
-    // 6. Wire CORBA raw-byte callback — bytes run through the codec
+    // 5. Wire CORBA raw-byte callback — bytes run through the codec
     //    session and each decoded message is dispatched by type_id.
     corba_->set_data_callback([this](std::span<const std::uint8_t> bytes) {
         on_corba_raw_bytes(bytes);
@@ -85,19 +91,18 @@ void Adaptor::start() {
                    connected ? "connected" : "disconnected"));
     });
 
-    // 7. Launch ORB thread pool.
+    // 6. Launch ORB thread pool.
     auto n_threads = std::max(config_.orb_threads, 1u);
     orb_threads_.reserve(n_threads);
     for (std::uint32_t i = 0; i < n_threads; ++i) {
         orb_threads_.emplace_back([this] { orb_thread_func(); });
     }
 
-    // 8. Start peers.
+    // 7. Start peers.
     tcp_->start();
     corba_->start();
 
-    // 9. Start the single periodic health-check sweep. It walks the
-    //    supplier registry on every tick and reaps dead consumers.
+    // 8. Start the periodic health-check sweep.
     health_thread_ = std::thread([this] { health_check_loop(); });
 
     ACE_DEBUG((LM_INFO, "Adaptor: started successfully (%u ORB thread(s))\n",
@@ -113,7 +118,7 @@ void Adaptor::stop() {
 
     ACE_DEBUG((LM_INFO, "Adaptor: stopping...\n"));
 
-    // Wake and join the health sweep thread before touching suppliers.
+    // Wake and join the health sweep thread.
     {
         std::lock_guard lock(health_mu_);
         health_cv_.notify_all();
@@ -126,9 +131,10 @@ void Adaptor::stop() {
     tcp_->stop();
     corba_->stop();
 
-    // Remove all naming-service bindings (best-effort, noexcept).
+    // Remove naming-service bindings (best-effort, noexcept).
     if (naming_) {
-        unbind_all();
+        naming_->unbind(CorbaAdaptor::AdaptorSupplier::NAME);
+        naming_->unbind(CorbaAdaptor::CommandReceiver::NAME);
     }
 
     // Deactivate CORBA servants before tearing down subscriptions.
@@ -142,16 +148,12 @@ void Adaptor::stop() {
         }
     };
 
-    for (const auto& entry : supplier_entries_) {
-        deactivate(entry.servant);
-    }
+    deactivate(supplier_.get());
     deactivate(command_.get());
 
-    // Notify consumers (shutdown()) for each supplier via the type-erased
-    // hook stored in the registry.
-    const std::string reason = "adaptor shutting down";
-    for (const auto& entry : supplier_entries_) {
-        if (entry.shutdown) entry.shutdown(reason);
+    // Notify consumers of shutdown.
+    if (supplier_) {
+        supplier_->shutdown("adaptor shutting down");
     }
 
     // Shut down the ORB and join threads.
@@ -185,7 +187,7 @@ void Adaptor::wait_for_shutdown() {
 }
 
 CommandReceiverServant& Adaptor::command_servant() noexcept { return *command_; }
-TypedSuppliers&         Adaptor::suppliers()        noexcept { return suppliers_; }
+AdaptorSupplierServant& Adaptor::supplier()        noexcept { return *supplier_; }
 TcpPeer&                Adaptor::tcp_peer()         noexcept { return *tcp_; }
 CorbaPeer&              Adaptor::corba_peer()       noexcept { return *corba_; }
 
@@ -202,7 +204,7 @@ void Adaptor::orb_thread_func() {
     }
 }
 
-// --- Single health-check sweep thread --------------------------------------
+// --- Health-check sweep thread ---------------------------------------------
 
 void Adaptor::health_check_loop() {
     const auto interval = config_.health_check_interval;
@@ -214,92 +216,8 @@ void Adaptor::health_check_loop() {
         }
         if (!running_) break;
 
-        for (const auto& entry : supplier_entries_) {
-            if (entry.sweep) entry.sweep();
-        }
+        supplier_->sweep_dead_consumers();
     }
-}
-
-// --- Typed supplier activation + naming-service binding ---------------------
-
-void Adaptor::activate_and_bind_suppliers() {
-    suppliers_.heartbeat        = std::make_unique<HeartbeatSupplierServant>();
-    suppliers_.status_report    = std::make_unique<StatusReportSupplierServant>();
-    suppliers_.data_payload     = std::make_unique<DataPayloadSupplierServant>();
-    suppliers_.command_response = std::make_unique<CommandResponseSupplierServant>();
-    suppliers_.telemetry        = std::make_unique<TelemetrySupplierServant>();
-    suppliers_.event            = std::make_unique<EventSupplierServant>();
-    suppliers_.alarm            = std::make_unique<AlarmSupplierServant>();
-
-    auto activate_and_bind =
-        [this](PortableServer::Servant servant, const char* name) {
-            PortableServer::ObjectId_var oid =
-                poa_->activate_object(servant);
-            CORBA::Object_var ref = poa_->id_to_reference(oid.in());
-            naming_->bind(name, ref.in());
-        };
-
-    activate_and_bind(suppliers_.heartbeat.get(),
-                      CorbaAdaptor::HeartbeatSupplier::NAME);
-    activate_and_bind(suppliers_.status_report.get(),
-                      CorbaAdaptor::StatusReportSupplier::NAME);
-    activate_and_bind(suppliers_.data_payload.get(),
-                      CorbaAdaptor::DataPayloadSupplier::NAME);
-    activate_and_bind(suppliers_.command_response.get(),
-                      CorbaAdaptor::CommandResponseSupplier::NAME);
-    activate_and_bind(suppliers_.telemetry.get(),
-                      CorbaAdaptor::TelemetrySupplier::NAME);
-    activate_and_bind(suppliers_.event.get(),
-                      CorbaAdaptor::EventSupplier::NAME);
-    activate_and_bind(suppliers_.alarm.get(),
-                      CorbaAdaptor::AlarmSupplier::NAME);
-    activate_and_bind(command_.get(),
-                      CorbaAdaptor::CommandReceiver::NAME);
-}
-
-void Adaptor::build_supplier_entries() {
-    // Single source of truth for the typed-supplier list. Every bulk
-    // operation (sweep, shutdown, unbind, status query, POA deactivation)
-    // iterates this vector — adding a new typed message means adding a
-    // field to `TypedSuppliers`, one `add(...)` call here, and one new
-    // `tcp_->on<T>` or `dispatch_corba_decoded` arm.
-    supplier_entries_.clear();
-    supplier_entries_.reserve(7);
-
-    auto add = [this](auto* servant,
-                      const char* idl_name,
-                      const char* status_label) {
-        SupplierEntry e;
-        e.servant          = servant;
-        e.idl_name         = idl_name;
-        e.status_label     = status_label;
-        e.sweep            = [servant] { servant->sweep_dead_consumers(); };
-        e.shutdown         = [servant](const std::string& r) { servant->shutdown(r); };
-        e.subscriber_count = [servant] { return servant->subscriber_count(); };
-        supplier_entries_.push_back(std::move(e));
-    };
-
-    add(suppliers_.heartbeat.get(),
-        CorbaAdaptor::HeartbeatSupplier::NAME,        "heartbeat");
-    add(suppliers_.status_report.get(),
-        CorbaAdaptor::StatusReportSupplier::NAME,     "status_report");
-    add(suppliers_.data_payload.get(),
-        CorbaAdaptor::DataPayloadSupplier::NAME,      "data_payload");
-    add(suppliers_.command_response.get(),
-        CorbaAdaptor::CommandResponseSupplier::NAME,  "command_response");
-    add(suppliers_.telemetry.get(),
-        CorbaAdaptor::TelemetrySupplier::NAME,        "telemetry");
-    add(suppliers_.event.get(),
-        CorbaAdaptor::EventSupplier::NAME,            "event");
-    add(suppliers_.alarm.get(),
-        CorbaAdaptor::AlarmSupplier::NAME,            "alarm");
-}
-
-void Adaptor::unbind_all() {
-    for (const auto& entry : supplier_entries_) {
-        naming_->unbind(entry.idl_name);
-    }
-    naming_->unbind(CorbaAdaptor::CommandReceiver::NAME);
 }
 
 // --- TCP handler wiring -----------------------------------------------------
@@ -307,19 +225,19 @@ void Adaptor::unbind_all() {
 void Adaptor::wire_tcp_handlers() {
     tcp_->on<tcp_peer::Heartbeat>(
         [this](const tcp_peer::Heartbeat& m) {
-            suppliers_.heartbeat->publish(translate::to_corba(m));
+            supplier_->publish_heartbeat(translate::to_corba(m));
         });
     tcp_->on<tcp_peer::StatusReport>(
         [this](const tcp_peer::StatusReport& m) {
-            suppliers_.status_report->publish(translate::to_corba(m));
+            supplier_->publish_status_report(translate::to_corba(m));
         });
     tcp_->on<tcp_peer::DataPayload>(
         [this](const tcp_peer::DataPayload& m) {
-            suppliers_.data_payload->publish(translate::to_corba(m));
+            supplier_->publish_data_payload(translate::to_corba(m));
         });
     tcp_->on<tcp_peer::CommandResponse>(
         [this](const tcp_peer::CommandResponse& m) {
-            suppliers_.command_response->publish(translate::to_corba(m));
+            supplier_->publish_command_response(translate::to_corba(m));
         });
 }
 
@@ -349,13 +267,13 @@ void Adaptor::dispatch_corba_decoded(const conduit::traits::DecodedMessage& msg)
     try {
         if (msg.type_id == corba_peer::TelemetryRecord::TYPE_ID) {
             const auto& m = std::any_cast<const corba_peer::TelemetryRecord&>(msg.payload);
-            suppliers_.telemetry->publish(translate::to_corba(m));
+            supplier_->publish_telemetry(translate::to_corba(m));
         } else if (msg.type_id == corba_peer::EventRecord::TYPE_ID) {
             const auto& m = std::any_cast<const corba_peer::EventRecord&>(msg.payload);
-            suppliers_.event->publish(translate::to_corba(m));
+            supplier_->publish_event(translate::to_corba(m));
         } else if (msg.type_id == corba_peer::AlarmRecord::TYPE_ID) {
             const auto& m = std::any_cast<const corba_peer::AlarmRecord&>(msg.payload);
-            suppliers_.alarm->publish(translate::to_corba(m));
+            supplier_->publish_alarm(translate::to_corba(m));
         } else {
             ACE_DEBUG((LM_DEBUG,
                 "Adaptor: corba-peer dropped message with unhandled type_id=%llu\n",
@@ -378,11 +296,7 @@ void Adaptor::register_builtin_commands() {
         std::ostringstream ss;
         ss << "tcp_peer="    << (tcp_->is_connected()   ? "connected" : "disconnected")
            << " corba_peer=" << (corba_->is_connected() ? "connected" : "disconnected")
-           << " subscribers";
-        for (const auto& entry : supplier_entries_) {
-            ss << ' ' << entry.status_label << '='
-               << (entry.subscriber_count ? entry.subscriber_count() : 0u);
-        }
+           << " subscribers=" << supplier_->subscriber_count();
         res.message = CORBA::string_dup(ss.str().c_str());
         return res;
     });

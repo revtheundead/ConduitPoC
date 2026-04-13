@@ -12,6 +12,10 @@
 // All conversions are trivial field copies — no heap allocation beyond
 // whatever the CORBA sequence types do internally — so they are defined
 // inline and kept header-only.
+//
+// The IDL uses signed types (long, long long) for portability.  The bgen
+// types use unsigned C++ types (uint32_t, uint64_t).  Explicit casts are
+// applied where needed.
 
 #pragma once
 
@@ -49,8 +53,8 @@ inline void copy_bytes(CorbaAdaptor::OctetSeq& out,
 
 inline CorbaAdaptor::HeartbeatMsg to_corba(const tcp_peer::Heartbeat& src) {
     CorbaAdaptor::HeartbeatMsg dst;
-    dst.sequence  = src.sequence();
-    dst.timestamp = src.timestamp();
+    dst.sequence  = static_cast<CORBA::Long>(src.sequence());
+    dst.timestamp = static_cast<CORBA::LongLong>(src.timestamp());
     return dst;
 }
 
@@ -58,7 +62,7 @@ inline CorbaAdaptor::StatusReportMsg to_corba(const tcp_peer::StatusReport& src)
     CorbaAdaptor::StatusReportMsg dst;
     dst.status      = static_cast<CORBA::Octet>(src.status());
     dst.flags       = static_cast<CORBA::UShort>(src.flags().raw());
-    dst.uptime_secs = src.uptime_secs();
+    dst.uptime_secs = static_cast<CORBA::Long>(src.uptime_secs());
     dst.error_count = src.error_count();
     return dst;
 }
@@ -66,7 +70,7 @@ inline CorbaAdaptor::StatusReportMsg to_corba(const tcp_peer::StatusReport& src)
 inline CorbaAdaptor::DataPayloadMsg to_corba(const tcp_peer::DataPayload& src) {
     CorbaAdaptor::DataPayloadMsg dst;
     dst.channel_id  = src.channel_id();
-    dst.sequence    = src.sequence();
+    dst.sequence    = static_cast<CORBA::Long>(src.sequence());
     dst.data_length = src.data_length();
     copy_bytes(dst.data, src.data(), src.data_length());
     return dst;
@@ -87,8 +91,8 @@ inline CorbaAdaptor::CommandResponseMsg to_corba(const tcp_peer::CommandResponse
 inline CorbaAdaptor::TelemetryMsg to_corba(const corba_peer::TelemetryRecord& src) {
     CorbaAdaptor::TelemetryMsg dst;
     dst.source_id = src.source_id();
-    dst.sequence  = src.sequence();
-    dst.timestamp = src.timestamp();
+    dst.sequence  = static_cast<CORBA::Long>(src.sequence());
+    dst.timestamp = static_cast<CORBA::LongLong>(src.timestamp());
     dst.channel   = src.channel();
     dst.value     = src.value();
     return dst;
@@ -97,7 +101,7 @@ inline CorbaAdaptor::TelemetryMsg to_corba(const corba_peer::TelemetryRecord& sr
 inline CorbaAdaptor::EventMsg to_corba(const corba_peer::EventRecord& src) {
     CorbaAdaptor::EventMsg dst;
     dst.source_id  = src.source_id();
-    dst.timestamp  = src.timestamp();
+    dst.timestamp  = static_cast<CORBA::LongLong>(src.timestamp());
     dst.event_code = src.event_code();
     dst.severity   = static_cast<CORBA::Octet>(src.severity());
     copy_bytes(dst.data, src.data(), src.data_len());
@@ -107,7 +111,7 @@ inline CorbaAdaptor::EventMsg to_corba(const corba_peer::EventRecord& src) {
 inline CorbaAdaptor::AlarmMsg to_corba(const corba_peer::AlarmRecord& src) {
     CorbaAdaptor::AlarmMsg dst;
     dst.source_id = src.source_id();
-    dst.timestamp = src.timestamp();
+    dst.timestamp = static_cast<CORBA::LongLong>(src.timestamp());
     dst.alarm_id  = src.alarm_id();
     dst.severity  = static_cast<CORBA::Octet>(src.severity());
     dst.flags     = static_cast<CORBA::Octet>(src.flags().raw());
