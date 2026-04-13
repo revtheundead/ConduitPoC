@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
-project(conduit VERSION 0.1.0 LANGUAGES CXX)
+
+# Read version from the root VERSION file (single source of truth).
+# bump_version.sh keeps a copy here for quick reference, but the file
+# read at configure time is authoritative.
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../VERSION" _conduit_version)
+string(STRIP "${_conduit_version}" _conduit_version)
+project(conduit VERSION ${_conduit_version} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
