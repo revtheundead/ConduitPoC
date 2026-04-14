@@ -51,6 +51,13 @@ target_include_directories(bgen PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Statically link the C/C++ runtime on Linux so the resulting binary does not
+# depend on the build host's glibc / libstdc++ version.  bgen is a pure
+# file-I/O CLI tool (no DNS/NSS/dlopen), so full static linking is safe.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(bgen PRIVATE -static)
+endif()
+
 # Put bgen binary under build/bgen/ for easy discovery.
 # Per-config overrides are needed because the parent project sets global
 # CMAKE_RUNTIME_OUTPUT_DIRECTORY_<CONFIG> — without these, the per-config
