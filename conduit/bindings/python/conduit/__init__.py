@@ -1,4 +1,4 @@
-"""Conduit - Python bindings for the Conduit binary protocol library."""
+﻿"""Conduit - Python bindings for the Conduit binary protocol library."""
 
 from conduit.transceiver import Transceiver, ConduitError
 from conduit.codec_binding import CodecSession, CodecFramer, DecodedMessage, ConduitCodecError
@@ -21,4 +21,4 @@ __all__ = [
     "SerialParity", "SerialStopBits", "SerialFlowControl",
 ]
 
-__version__ = "0.1.0"
+__version__ = "1.0.9"

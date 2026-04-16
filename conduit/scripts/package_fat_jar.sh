@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # ============================================================================
-# package_fat_jar.sh — Assemble a fat JAR with bundled native libraries
+# package_fat_jar.sh â€” Assemble a fat JAR with bundled native libraries
 # ============================================================================
 #
 # This script copies pre-built JNI native libraries into the Maven resource
