@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 REM ============================================================================
 REM package_fat_jar.bat -- Assemble a fat JAR with bundled native libraries
 REM ============================================================================
@@ -31,7 +31,7 @@ set "SCRIPT_DIR=%~dp0"
 set "PROJECT_ROOT=%SCRIPT_DIR%..\.."
 set "BINDINGS_DIR=%PROJECT_ROOT%\conduit\bindings\java"
 set "RESOURCES_DIR=%BINDINGS_DIR%\src\main\resources\native"
-set VERSION=0.1.0
+set VERSION=1.0.8
 
 set "NATIVE_DIR="
 set "OUTPUT="

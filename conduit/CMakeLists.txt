@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.20)
+﻿cmake_minimum_required(VERSION 3.20)
 
 # Read version from the root VERSION file (single source of truth).
 # bump_version.sh keeps a copy here for quick reference, but the file
 # read at configure time is authoritative.
 file(READ "${CMAKE_CURRENT_LIST_DIR}/../VERSION" _conduit_version)
 string(STRIP "${_conduit_version}" _conduit_version)
-project(conduit VERSION ${_conduit_version} LANGUAGES CXX)
+project(conduit VERSION 1.0.81.0.8${_conduit_version} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,7 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Place all shared libraries (.dll/.so) in a single directory at the project
 # root so that downstream consumers (Java apps, Python scripts, xcvr examples)
 # only need one path.  Per-config overrides prevent MSVC multi-config
-# generators from appending a config subdirectory — all libraries land
+# generators from appending a config subdirectory â€” all libraries land
 # directly in <project>/lib regardless of build type.
 # This also ensures Windows finds dependent DLLs (e.g. conduit_cabi.dll
 # needed by conduit_jni.dll) without extra PATH manipulation.
@@ -26,13 +26,13 @@ foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_SOURCE_DIR}/lib")
 endforeach()
 
-# Threading support — required for std::mutex across all platforms.
+# Threading support â€” required for std::mutex across all platforms.
 # On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
 # Threads::Threads target (no -pthread flag).  We patch it to always
 # carry -pthread so that __gthread_active_p() returns true and std::mutex
 # works correctly on every toolchain (older glibc, musl, macOS, MinGW).
 # On MSVC the pthread probe prints harmless "not found" messages during
-# configure — these can be safely ignored; Win32 threads are used instead.
+# configure â€” these can be safely ignored; Win32 threads are used instead.
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -83,7 +83,7 @@ if(MSVC)
     # SRWLOCK).  When a DLL built with the new toolchain is loaded into a host
     # process (e.g. a JVM) that already has an older msvcp140.dll, the mutex
     # is initialized with the new layout but lock/unlock dispatches to the old
-    # DLL which expects _Mtx_t — causing an access violation at NULL.
+    # DLL which expects _Mtx_t â€” causing an access violation at NULL.
     # Defining this macro reverts to the classic non-constexpr constructor so
     # the mutex is always initialized through the CRT, ensuring binary
     # compatibility regardless of which msvcp140.dll version is loaded.
@@ -115,7 +115,7 @@ else()
     # targeting MSVC links against msvcp140.dll and is subject to the same
     # constexpr-mutex ABI mismatch described above.
     # When using LLVM MinGW (MINGW is set), Clang uses its own libc++ and
-    # mingw-w64 headers — these MSVC-specific defines are not needed.
+    # mingw-w64 headers â€” these MSVC-specific defines are not needed.
     if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MINGW)
         target_compile_definitions(conduit_warnings INTERFACE
             NOMINMAX WIN32_LEAN_AND_MEAN _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
@@ -220,7 +220,7 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
 endif()
 
 # ============================================================================
-# conduit_codec — pure computation, no OS deps (except threading for StreamFramer mutex)
+# conduit_codec â€” pure computation, no OS deps (except threading for StreamFramer mutex)
 # ============================================================================
 
 set(CONDUIT_CODEC_SOURCES
@@ -250,7 +250,7 @@ endif()
 target_link_libraries(conduit_codec PUBLIC Threads::Threads)
 
 # ============================================================================
-# conduit — full library (depends on conduit_codec, adds transport + threading)
+# conduit â€” full library (depends on conduit_codec, adds transport + threading)
 # ============================================================================
 
 set(CONDUIT_TRANSCEIVER_SOURCES
@@ -729,7 +729,7 @@ file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
 ${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
-# Write javac argfile — keeps classpath semicolons out of CMake COMMAND parsing
+# Write javac argfile â€” keeps classpath semicolons out of CMake COMMAND parsing
 # (on Windows the classpath separator is semicolon which CMake treats as a list separator)
 file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
