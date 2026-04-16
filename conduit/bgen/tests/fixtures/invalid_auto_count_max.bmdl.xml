@@ -8,7 +8,7 @@
   </types>
   <messages>
     <message name="Msg">
-      <!-- auto="count" + constraint max should be rejected -->
+      <!-- auto="count" + constraint max is allowed -->
       <field name="count" type="uint8" auto="count(items)">
         <constraint max="100"/>
       </field>
