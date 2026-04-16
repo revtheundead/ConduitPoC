@@ -1068,7 +1068,7 @@ CONDUIT_CABI_API void conduit_log_clear_sinks(void) {
 // ============================================================================
 
 CONDUIT_CABI_API const char* conduit_version(void) {
-    return "1.0.8";
+    return "1.0.9";
 }
 
 } // extern "C"
