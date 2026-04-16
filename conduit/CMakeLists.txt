@@ -5,7 +5,7 @@
 # read at configure time is authoritative.
 file(READ "${CMAKE_CURRENT_LIST_DIR}/../VERSION" _conduit_version)
 string(STRIP "${_conduit_version}" _conduit_version)
-project(conduit VERSION 1.0.81.0.8${_conduit_version} LANGUAGES CXX)
+project(conduit VERSION 1.0.8${_conduit_version} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
