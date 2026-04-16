@@ -69,14 +69,16 @@ jobs:
           name: linux-x86_64
           path: staging/
 
-      # JNI libs needed for fat JAR assembly
-      - name: Upload JNI native libs
+      # Native libs needed for fat JAR assembly (JNI for Java 11, CABI for Java 21 Panama)
+      - name: Upload native libs for fat JAR
         uses: actions/upload-artifact@v4
         with:
           name: jni-linux-x86_64
           path: |
             conduit/lib/libconduit_jni.so
             conduit/lib/libconduit_codec_jni.so
+            conduit/lib/libconduit_cabi.so
+            conduit/lib/libconduit_codec_cabi.so
 
   build-linux-aarch64:
     runs-on: ubuntu-24.04-arm
@@ -125,13 +127,15 @@ jobs:
           name: linux-aarch64
           path: staging/
 
-      - name: Upload JNI native libs
+      - name: Upload native libs for fat JAR
         uses: actions/upload-artifact@v4
         with:
           name: jni-linux-aarch64
           path: |
             conduit/lib/libconduit_jni.so
             conduit/lib/libconduit_codec_jni.so
+            conduit/lib/libconduit_cabi.so
+            conduit/lib/libconduit_codec_cabi.so
 
   build-macos-arm64:
     runs-on: macos-26   # Apple Silicon (M1+)
@@ -180,13 +184,15 @@ jobs:
           name: macos-arm64
           path: staging/
 
-      - name: Upload JNI native libs
+      - name: Upload native libs for fat JAR
         uses: actions/upload-artifact@v4
         with:
           name: jni-macos-arm64
           path: |
             conduit/lib/libconduit_jni.dylib
             conduit/lib/libconduit_codec_jni.dylib
+            conduit/lib/libconduit_cabi.dylib
+            conduit/lib/libconduit_codec_cabi.dylib
 
   build-macos-x86_64:
     runs-on: macos-15-intel   # Cross-compile for Intel on Apple Silicon
@@ -233,13 +239,15 @@ jobs:
           name: macos-x86_64
           path: staging/
 
-      - name: Upload JNI native libs
+      - name: Upload native libs for fat JAR
         uses: actions/upload-artifact@v4
         with:
           name: jni-macos-x86_64
           path: |
             conduit/lib/libconduit_jni.dylib
             conduit/lib/libconduit_codec_jni.dylib
+            conduit/lib/libconduit_cabi.dylib
+            conduit/lib/libconduit_codec_cabi.dylib
 
   build-windows-x86_64:
     runs-on: windows-latest
@@ -295,13 +303,15 @@ jobs:
           name: windows-x86_64
           path: staging/
 
-      - name: Upload JNI native libs
+      - name: Upload native libs for fat JAR
         uses: actions/upload-artifact@v4
         with:
           name: jni-windows-x86_64
           path: |
             conduit/lib/conduit_jni.dll
             conduit/lib/conduit_codec_jni.dll
+            conduit/lib/conduit_cabi.dll
+            conduit/lib/conduit_codec_cabi.dll
 
   # ============================================================================
   # Assemble fat JAR with all platform native libraries

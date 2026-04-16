@@ -36,9 +36,9 @@ fi
 
 echo "Setting version to: $VERSION"
 
-# CMakeLists.txt — project(conduit VERSION X.Y.Z ...)
-sed -i "s/\(project(conduit VERSION \)[^ ]*/\1${VERSION}/" \
-    "$PROJECT_ROOT/conduit/CMakeLists.txt"
+# NOTE: conduit/CMakeLists.txt is intentionally NOT updated here — it reads
+# the version dynamically from the VERSION file via file(READ ...) at CMake
+# configure time, so no hardcoded version string exists to patch.
 
 # Java pom.xml (bindings) — top-level <version>
 sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/" \
@@ -80,7 +80,6 @@ fi
 
 echo ""
 echo "Updated files:"
-echo "  conduit/CMakeLists.txt"
 echo "  conduit/bindings/java/pom.xml"
 echo "  conduit/examples/xcvr-java11/build.gradle"
 echo "  conduit/examples/xcvr-java11/pom.xml"

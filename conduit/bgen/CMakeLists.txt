@@ -54,8 +54,13 @@ target_include_directories(bgen PRIVATE
 # Statically link the C/C++ runtime on Linux so the resulting binary does not
 # depend on the build host's glibc / libstdc++ version.  bgen is a pure
 # file-I/O CLI tool (no DNS/NSS/dlopen), so full static linking is safe.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(bgen PRIVATE -static)
+# Skipped when sanitizers are active because -static and -fsanitize are
+# mutually exclusive (sanitizer runtimes require dynamic linking).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CONDUIT_ENABLE_SANITIZERS)
+    string(FIND "${CMAKE_CXX_FLAGS}${CMAKE_EXE_LINKER_FLAGS}" "sanitize" _bgen_sanitize_pos)
+    if(_bgen_sanitize_pos EQUAL -1)
+        target_link_options(bgen PRIVATE -static)
+    endif()
 endif()
 
 # Put bgen binary under build/bgen/ for easy discovery.

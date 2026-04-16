@@ -41,8 +41,9 @@ echo Setting version to: !VERSION!
 REM Use PowerShell for reliable find-and-replace across files
 set "PS=powershell -NoProfile -Command"
 
-REM CMakeLists.txt
-%PS% "(Get-Content '%PROJECT_ROOT%\conduit\CMakeLists.txt') -replace 'project\(conduit VERSION [^ ]*','project(conduit VERSION !VERSION!' | Set-Content '%PROJECT_ROOT%\conduit\CMakeLists.txt' -Encoding UTF8"
+REM NOTE: conduit/CMakeLists.txt is intentionally NOT updated here — it reads
+REM the version dynamically from the VERSION file via file(READ ...) at CMake
+REM configure time, so no hardcoded version string exists to patch.
 
 REM Java pom.xml (bindings) — first <version> tag
 %PS% "$f='%PROJECT_ROOT%\conduit\bindings\java\pom.xml'; $c=Get-Content $f -Raw; $c=$c -replace '(?<=<artifactId>conduit-java</artifactId>\s*\n\s*)<version>[^<]*</version>','<version>!VERSION!</version>'; Set-Content $f $c -Encoding UTF8 -NoNewline"
@@ -75,7 +76,6 @@ if exist "%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat" (
 
 echo.
 echo Updated files:
-echo   conduit\CMakeLists.txt
 echo   conduit\bindings\java\pom.xml
 echo   conduit\examples\xcvr-java11\build.gradle
 echo   conduit\examples\xcvr-java11\pom.xml
