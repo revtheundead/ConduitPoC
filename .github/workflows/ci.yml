@@ -868,7 +868,7 @@ jobs:
       - name: Install conduit Python bindings and xcvr-python
         run: |
           pip install conduit/bindings/python/
-          pip install conduit/examples/xcvr-python/
+          pip install --no-deps conduit/examples/xcvr-python/
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         env:
@@ -950,7 +950,7 @@ jobs:
       - name: Install conduit Python bindings and xcvr-python
         run: |
           pip install conduit/bindings/python/
-          pip install conduit/examples/xcvr-python/
+          pip install --no-deps conduit/examples/xcvr-python/
 
       - name: Smoke-test xcvr-python (DummyPeer server + PocApp client)
         shell: pwsh

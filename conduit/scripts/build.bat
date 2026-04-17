@@ -576,7 +576,9 @@ if "%RUN_TESTS%"=="1" (
         set "JUNIT_JAR=!PROJECT_DIR!\third_party\junit5\junit-platform-console-standalone-1.11.4.jar"
     )
     set "JAVA_TEST_CLASSES=!BUILD_DIR!\tests\java-test-classes"
-    set "JAVA_JAR=!PROJECT_DIR!\lib\conduit-java-0.1.0.jar"
+    set /p _ver=<"!PROJECT_DIR!\..\VERSION"
+    for /f "tokens=* delims= " %%a in ("!_ver!") do set "_ver=%%a"
+    set "JAVA_JAR=!PROJECT_DIR!\lib\conduit-java-!_ver!.jar"
     if defined JUNIT_JAR (
         if exist "!JAVA_TEST_CLASSES!" (
             if exist "!JAVA_JAR!" (

@@ -184,7 +184,7 @@ if(CONDUIT_BUILD_JAVA_BENCHMARKS)
         )
 
         # Java JAR from main build
-        set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-0.1.0.jar")
+        set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-${PROJECT_VERSION}.jar")
 
         # Classpath separator
         if(WIN32)
