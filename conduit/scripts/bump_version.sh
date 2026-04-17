@@ -44,8 +44,10 @@ echo "Setting version to: $VERSION"
 sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/" \
     "$PROJECT_ROOT/conduit/bindings/java/pom.xml"
 
-# Java build.gradle (xcvr-java11) — version = '...'
+# Java build.gradle (xcvr-java11) — version = '...' and dependency version
 sed -i "s/version = '[^']*'/version = '${VERSION}'/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-java11/build.gradle"
+sed -i "s/conduit-java:[^']*'/conduit-java:${VERSION}'/" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java11/build.gradle"
 
 # Java pom.xml (xcvr-java11) — project version (first occurrence) …

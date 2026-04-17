@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 // Conduit Full Transceiver C ABI Implementation
 
 #ifndef CONDUIT_CABI_EXPORTS

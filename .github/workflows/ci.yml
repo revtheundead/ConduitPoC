@@ -60,6 +60,22 @@ jobs:
             "return \"${VERSION}\"" \
             "C ABI version string"
 
+          # Java build.gradle (xcvr-java11) — project version + dependency
+          check_file "conduit/examples/xcvr-java11/build.gradle" \
+            "version = '${VERSION}'" \
+            "xcvr-java11 build.gradle (project version)"
+          check_file "conduit/examples/xcvr-java11/build.gradle" \
+            "conduit-java:${VERSION}" \
+            "xcvr-java11 build.gradle (dependency version)"
+
+          # Packaging scripts
+          check_file "conduit/scripts/package_fat_jar.sh" \
+            "VERSION=\"${VERSION}\"" \
+            "package_fat_jar.sh"
+          check_file "conduit/scripts/package_fat_jar.bat" \
+            "set VERSION=${VERSION}" \
+            "package_fat_jar.bat"
+
           if [ $ERRORS -gt 0 ]; then
             echo ""
             echo "ERROR: $ERRORS file(s) have mismatched versions."
