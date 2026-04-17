@@ -51,11 +51,11 @@ REM Java pom.xml (bindings) — first <version> tag
 REM Java build.gradle (xcvr-java11)
 %PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\build.gradle') -replace \"version = '[^']*'\",\"version = '!VERSION!'\" ^| Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\build.gradle' -Encoding UTF8"
 
-REM Java pom.xml (xcvr-java11) — all version tags with semver
-%PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\pom.xml') -replace '<version>\d+\.\d+\.\d+</version>','<version>!VERSION!</version>' ^| Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java11\pom.xml' -Encoding UTF8"
+REM Java pom.xml (xcvr-java11) — project version + conduit-java dependency only
+%PS% "$f='%PROJECT_ROOT%\conduit\examples\xcvr-java11\pom.xml'; $c=Get-Content $f -Raw; $c=$c -replace '(?<=<artifactId>conduit-example-xcvr-java11</artifactId>\s*\r?\n\s*)<version>[^<]*</version>','<version>!VERSION!</version>'; $c=$c -replace '(?<=<artifactId>conduit-java</artifactId>\s*\r?\n\s*)<version>[^<]*</version>','<version>!VERSION!</version>'; Set-Content $f $c -Encoding UTF8 -NoNewline"
 
-REM Java pom.xml (xcvr-java21) — all version tags with semver
-%PS% "(Get-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java21\pom.xml') -replace '<version>\d+\.\d+\.\d+</version>','<version>!VERSION!</version>' ^| Set-Content '%PROJECT_ROOT%\conduit\examples\xcvr-java21\pom.xml' -Encoding UTF8"
+REM Java pom.xml (xcvr-java21) — project version + conduit-java dependency only
+%PS% "$f='%PROJECT_ROOT%\conduit\examples\xcvr-java21\pom.xml'; $c=Get-Content $f -Raw; $c=$c -replace '(?<=<artifactId>conduit-example-xcvr-java21</artifactId>\s*\r?\n\s*)<version>[^<]*</version>','<version>!VERSION!</version>'; $c=$c -replace '(?<=<artifactId>conduit-java</artifactId>\s*\r?\n\s*)<version>[^<]*</version>','<version>!VERSION!</version>'; Set-Content $f $c -Encoding UTF8 -NoNewline"
 
 REM Python pyproject.toml
 %PS% "(Get-Content '%PROJECT_ROOT%\conduit\bindings\python\pyproject.toml') -replace '^version = \"[^\"]*\"','version = \"!VERSION!\"' ^| Set-Content '%PROJECT_ROOT%\conduit\bindings\python\pyproject.toml' -Encoding UTF8"
