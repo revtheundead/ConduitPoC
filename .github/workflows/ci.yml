@@ -974,8 +974,12 @@ jobs:
           CONDUIT_CABI_LIB: ${{ github.workspace }}/conduit/lib/conduit_cabi.dll
           PYTHONUNBUFFERED: "1"
         run: |
+          # Resolve the full Python path so Start-Process uses the same
+          # interpreter that pip installed packages into.
+          $py = (Get-Command python).Source
+
           # Start DummyPeer in server mode in the background
-          $server = Start-Process -FilePath "python" `
+          $server = Start-Process -FilePath $py `
             -ArgumentList "-m", "src.dummy_peer", "server", "--port", "15003", "--interval-ms", "500" `
             -WorkingDirectory "conduit/examples/xcvr-python" `
             -PassThru -NoNewWindow `
@@ -985,7 +989,7 @@ jobs:
           Start-Sleep -Seconds 2
 
           # Start PocApp client in background, then wait 5 seconds
-          $client = Start-Process -FilePath "python" `
+          $client = Start-Process -FilePath $py `
             -ArgumentList "-m", "src.poc_app", "127.0.0.1", "15003", "--interval-ms", "500" `
             -WorkingDirectory "conduit/examples/xcvr-python" `
             -PassThru -NoNewWindow `
