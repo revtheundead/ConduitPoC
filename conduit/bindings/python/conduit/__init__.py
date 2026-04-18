@@ -1,4 +1,4 @@
-﻿"""Conduit - Python bindings for the Conduit binary protocol library."""
+"""Conduit - Python bindings for the Conduit binary protocol library."""
 
 from conduit.transceiver import Transceiver, ConduitError
 from conduit.codec_binding import CodecSession, CodecFramer, DecodedMessage, ConduitCodecError

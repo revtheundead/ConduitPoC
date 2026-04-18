@@ -8,6 +8,7 @@ build_*/
 build-*/
 conduit/lib/
 .gradle/
+**/target/
 **/generated/
 *.egg-info/
 test_roundtrip

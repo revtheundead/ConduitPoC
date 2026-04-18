@@ -1020,9 +1020,6 @@ private:
                         if (base != model::PrimitiveBase::Uint && base != model::PrimitiveBase::Int) {
                             error(f.loc, "field '" + f.name + "': auto=\"count\" requires integer type");
                         }
-                        if (f.constraint && (f.constraint->equals || f.constraint->min || f.constraint->max)) {
-                            error(f.loc, "field '" + f.name + "': auto=\"count\" fields cannot have constraints");
-                        }
                         if (f.auto_expr->field_ref.empty()) {
                             error(f.loc, "field '" + f.name + "': auto=\"count\" requires a field reference, e.g. auto=\"count(items)\"");
                         }

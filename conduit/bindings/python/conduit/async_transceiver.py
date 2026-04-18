@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 from typing import Any, Callable, Optional
 
 from conduit.transceiver import Transceiver, ConduitError, _is_message_class, _is_message_instance
@@ -298,7 +299,7 @@ class AsyncTransceiver:
         if loop is None or loop.is_closed():
             return
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             loop.call_soon_threadsafe(
                 lambda: asyncio.ensure_future(func(*args)))
         else:
@@ -306,7 +307,7 @@ class AsyncTransceiver:
 
     def _make_async_bridge(self, func: Callable) -> Callable:
         """Create a sync callback that bridges to an async handler."""
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             def bridge(peer_id, payload):
                 self._dispatch_async(func, peer_id, payload)
             return bridge

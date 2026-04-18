@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 REM ============================================================================
 REM package_fat_jar.bat -- Assemble a fat JAR with bundled native libraries
 REM ============================================================================

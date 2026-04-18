@@ -406,7 +406,7 @@ endif()
 if(CONDUIT_BUILD_JAVA_JAR)
     set(_java_bindings_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java")
     set(_java_src_dir "${_java_bindings_dir}/src/main/java")
-    set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-0.1.0.jar")
+    set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-${PROJECT_VERSION}.jar")
     set(_java_jar_built FALSE)
 
     # Detect JDK version (needed for test compilation regardless of build strategy)
@@ -450,7 +450,7 @@ execute_process(\n\
 if(NOT _rc EQUAL 0)\n\
     message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")\n\
 endif()\n\
-set(_src_jar \"${_java_bindings_dir}/target/conduit-java-0.1.0.jar\")\n\
+set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")\n\
 if(NOT EXISTS \"\${_src_jar}\")\n\
     message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")\n\
 endif()\n\
@@ -467,7 +467,7 @@ endif()\n\
             OUTPUT "${_java_jar}"
             COMMAND ${CMAKE_COMMAND} -P "${_mvn_build_script}"
             DEPENDS ${_java_core_sources}
-            COMMENT "Building conduit-java-0.1.0.jar (Maven)"
+            COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Maven)"
             VERBATIM
         )
         set(_java_jar_built TRUE)
@@ -487,7 +487,7 @@ execute_process(\n\
 if(NOT _rc EQUAL 0)\n\
     message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")\n\
 endif()\n\
-set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar\")\n\
+set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")\n\
 if(NOT EXISTS \"\${_src_jar}\")\n\
     message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")\n\
 endif()\n\
@@ -504,7 +504,7 @@ endif()\n\
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_gradle_build_script}"
                 DEPENDS ${_java_core_sources}
-                COMMENT "Building conduit-java-0.1.0.jar (Gradle)"
+                COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Gradle)"
                 VERBATIM
             )
             set(_java_jar_built TRUE)
@@ -597,7 +597,7 @@ endif()\n\
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_javac_build_script}"
                 DEPENDS ${_java_sources}
-                COMMENT "Building conduit-java-0.1.0.jar (javac)"
+                COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (javac)"
                 VERBATIM
             )
             set(_java_jar_built TRUE)
