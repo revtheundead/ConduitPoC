@@ -1009,7 +1009,7 @@ class TestBitReaderExhaustion:
 # ---- Native library setup (mirrors test_xcvr_scenarios.py) ----
 # Guarded so codec-only tests above still run when the native lib is absent.
 
-from conftest import resolve_native_lib, load_native_lib
+from conftest import resolve_native_lib, load_native_lib, resolve_and_load_codec_lib
 
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", ".."))
@@ -1023,16 +1023,12 @@ try:
         raise OSError(f"Not found: {_CABI_LIB_PATH}")
     os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB_PATH
 
-    _CODEC_LIB_PATH = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
-    if not os.path.isfile(_CODEC_LIB_PATH):
-        _CODEC_LIB_PATH = _CABI_LIB_PATH
-    os.environ["CONDUIT_CODEC_LIB"] = _CODEC_LIB_PATH
-
     _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
     if _BINDINGS_DIR not in sys.path:
         sys.path.insert(0, _BINDINGS_DIR)
 
-    _codec_preload = load_native_lib(_CODEC_LIB_PATH, global_symbols=True)
+    _CODEC_LIB_PATH, _codec_preload = resolve_and_load_codec_lib(
+        _CABI_LIB_PATH, global_symbols=True)
 
     import conduit.transceiver as _xcvr_mod
     _xcvr_mod._lib = None

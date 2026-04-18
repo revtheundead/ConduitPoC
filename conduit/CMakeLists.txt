@@ -204,17 +204,30 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
     endif()
     set(CATCH_INSTALL_DOCS OFF CACHE INTERNAL "")
     set(CATCH_INSTALL_EXTRAS OFF CACHE INTERNAL "")
-    add_subdirectory(
-        "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
-        "${CMAKE_BINARY_DIR}/_deps/Catch2"
-    )
     # Mark Catch2 headers as SYSTEM so that the project's strict warning
     # flags (applied via conduit_warnings) do not trigger warnings inside
     # Catch2 header code when test sources #include them.
-    get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
-    if(_catch2_inc)
-        set_target_properties(Catch2 PROPERTIES
-            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.25")
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+            SYSTEM
+        )
+    else()
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+        )
+        get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2_inc)
+            set_target_properties(Catch2 PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+        endif()
+        get_target_property(_catch2wm_inc Catch2WithMain INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2wm_inc)
+            set_target_properties(Catch2WithMain PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2wm_inc}")
+        endif()
     endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
@@ -733,7 +746,7 @@ list(JOIN _all_src \"\\n\" _src_list)
 # (on Windows the classpath separator is semicolon which CMake treats as a list separator)
 file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
+    COMMAND \"${JAVAC_EXECUTABLE}\" ${_java_test_release_flags}
         \"@${_java_test_classes_dir}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )
