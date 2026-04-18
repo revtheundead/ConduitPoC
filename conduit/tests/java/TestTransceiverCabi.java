@@ -261,9 +261,10 @@ public class TestTransceiverCabi {
     @Test
     @DisplayName("Add peer: UDP peer with session_protocol succeeds")
     void addPeerUdpSucceeds() throws Throwable {
-        try (Arena arena = Arena.ofConfined()) {
+        try (Arena arena = Arena.ofShared()) {
             MemorySegment xcvr = (MemorySegment) CabiBindings.conduit_create.invokeExact();
             try {
+                MemorySegment handle = MemorySegment.ofAddress(xcvr.address());
                 var nameStr = arena.allocateUtf8String("radar");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
                 var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
@@ -274,7 +275,7 @@ public class TestTransceiverCabi {
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
                 int err = (int) CabiBindings.conduit_add_peer.invokeExact(
-                    xcvr, nameStr, sessionStr, cfg, peerIdOut);
+                    handle, nameStr, sessionStr, cfg, peerIdOut);
                 assertEquals(0, err, "Adding UDP peer should succeed");
 
                 int peerId = peerIdOut.get(ValueLayout.JAVA_INT, 0);
@@ -416,9 +417,10 @@ public class TestTransceiverCabi {
     @Test
     @DisplayName("Peer by name: low-level API works")
     void peerByNameLowLevel() throws Throwable {
-        try (Arena arena = Arena.ofConfined()) {
+        try (Arena arena = Arena.ofShared()) {
             MemorySegment xcvr = (MemorySegment) CabiBindings.conduit_create.invokeExact();
             try {
+                MemorySegment handle = MemorySegment.ofAddress(xcvr.address());
                 // Add peer
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
@@ -429,7 +431,7 @@ public class TestTransceiverCabi {
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
                 int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(
-                    xcvr, nameStr, sessionStr, cfg, peerIdOut);
+                    handle, nameStr, sessionStr, cfg, peerIdOut);
                 assertEquals(0, addErr);
                 int addedId = peerIdOut.get(ValueLayout.JAVA_INT, 0);
 
@@ -437,7 +439,7 @@ public class TestTransceiverCabi {
                 var lookupName = arena.allocateUtf8String("sensor");
                 var lookupOut = arena.allocate(ValueLayout.JAVA_INT);
                 int lookupErr = (int) CabiBindings.conduit_peer_by_name.invokeExact(
-                    xcvr, lookupName, lookupOut);
+                    handle, lookupName, lookupOut);
                 assertEquals(0, lookupErr, "Peer lookup by name should succeed");
                 assertEquals(addedId, lookupOut.get(ValueLayout.JAVA_INT, 0));
             } finally {
@@ -481,9 +483,10 @@ public class TestTransceiverCabi {
     @Test
     @DisplayName("Sole peer: low-level API works")
     void solePeerLowLevel() throws Throwable {
-        try (Arena arena = Arena.ofConfined()) {
+        try (Arena arena = Arena.ofShared()) {
             MemorySegment xcvr = (MemorySegment) CabiBindings.conduit_create.invokeExact();
             try {
+                MemorySegment handle = MemorySegment.ofAddress(xcvr.address());
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
                 var cfg = arena.allocate(TRANSPORT_CONFIG_SIZE, 8);
@@ -492,12 +495,12 @@ public class TestTransceiverCabi {
                 cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
 
-                int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(xcvr, nameStr, sessionStr, cfg, peerIdOut);
+                int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(handle, nameStr, sessionStr, cfg, peerIdOut);
                 assertEquals(0, addErr, "add_peer should succeed");
                 int addedId = peerIdOut.get(ValueLayout.JAVA_INT, 0);
 
                 var soleOut = arena.allocate(ValueLayout.JAVA_INT);
-                int err = (int) CabiBindings.conduit_sole_peer.invokeExact(xcvr, soleOut);
+                int err = (int) CabiBindings.conduit_sole_peer.invokeExact(handle, soleOut);
                 assertEquals(0, err, "sole_peer should succeed with one peer");
                 assertEquals(addedId, soleOut.get(ValueLayout.JAVA_INT, 0));
             } finally {
@@ -574,9 +577,10 @@ public class TestTransceiverCabi {
     @Test
     @DisplayName("Handler: remove_handler succeeds after registration")
     void removeHandlerAfterRegistration() throws Throwable {
-        try (Arena arena = Arena.ofConfined()) {
+        try (Arena arena = Arena.ofShared()) {
             MemorySegment xcvr = (MemorySegment) CabiBindings.conduit_create.invokeExact();
             try {
+                MemorySegment handle = MemorySegment.ofAddress(xcvr.address());
                 // Add a peer first (handlers are per-peer in the C ABI)
                 var nameStr = arena.allocateUtf8String("sensor");
                 var sessionStr = arena.allocateUtf8String("session_protocol");
@@ -585,7 +589,7 @@ public class TestTransceiverCabi {
                 var addrStr = arena.allocateUtf8String("0.0.0.0:9001");
                 cfg.set(ValueLayout.ADDRESS, TC_OFF_ADDRESS, addrStr);
                 var peerIdOut = arena.allocate(ValueLayout.JAVA_INT);
-                int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(xcvr, nameStr, sessionStr, cfg, peerIdOut);
+                int addErr = (int) CabiBindings.conduit_add_peer.invokeExact(handle, nameStr, sessionStr, cfg, peerIdOut);
                 assertEquals(0, addErr, "add_peer should succeed");
                 int peerId = peerIdOut.get(ValueLayout.JAVA_INT, 0);
 
@@ -598,12 +602,12 @@ public class TestTransceiverCabi {
                     target, MSG_CALLBACK_DESC, arena);
 
                 int cbId = (int) CabiBindings.conduit_on_message.invokeExact(
-                    xcvr, PING_TYPE_ID, stub, MemorySegment.NULL);
+                    handle, PING_TYPE_ID, stub, MemorySegment.NULL);
                 assertTrue(cbId >= 0);
 
                 // Remove the handler — returns count of removed handlers (1 = success)
                 int removeResult = (int) CabiBindings.conduit_remove_handler.invokeExact(
-                    xcvr, peerId, PING_TYPE_ID);
+                    handle, peerId, PING_TYPE_ID);
                 assertTrue(removeResult >= 0, "Removing registered handler should return non-negative count");
             } finally {
                 CabiBindings.conduit_destroy.invokeExact(xcvr);
