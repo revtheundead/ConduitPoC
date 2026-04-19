@@ -315,38 +315,3 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_JNI AND CONDUIT_BUILD_CABI)
         set_target_properties(conduit_jni_test PROPERTIES PREFIX "")
     endif()
 endif()
-
-# ============================================================================
-# Post-build: verify shared libraries have no unresolvable dependencies
-# ============================================================================
-
-foreach(_verify_target conduit_codec_cabi_test conduit_cabi_test conduit_jni_test)
-    if(TARGET ${_verify_target})
-        if(MINGW)
-            find_program(_OBJDUMP objdump)
-            if(NOT _OBJDUMP)
-                find_program(_OBJDUMP llvm-objdump)
-            endif()
-            if(_OBJDUMP)
-                add_custom_command(TARGET ${_verify_target} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND}
-                        -DLIB_FILE=$<TARGET_FILE:${_verify_target}>
-                        -DOBJDUMP=${_OBJDUMP}
-                        -DMINGW_VERIFY=1
-                        -P "${CMAKE_SOURCE_DIR}/cmake/VerifySharedLibDeps.cmake"
-                    COMMENT "Verifying ${_verify_target} has no MinGW runtime dependencies"
-                )
-            endif()
-        elseif(UNIX)
-            find_program(_LDD ldd)
-            if(_LDD)
-                add_custom_command(TARGET ${_verify_target} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND}
-                        -DLIB_FILE=$<TARGET_FILE:${_verify_target}>
-                        -P "${CMAKE_SOURCE_DIR}/cmake/VerifySharedLibDeps.cmake"
-                    COMMENT "Verifying ${_verify_target} dependencies"
-                )
-            endif()
-        endif()
-    endif()
-endforeach()

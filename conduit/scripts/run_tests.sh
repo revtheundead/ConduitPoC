@@ -48,36 +48,6 @@ run_suite() {
     fi
 }
 
-# Check if a shared library's runtime dependencies are all resolvable.
-can_load_lib() {
-    local lib="$1"
-    [ -f "$lib" ] || return 1
-    if command -v ldd &>/dev/null; then
-        if ldd "$lib" 2>&1 | grep -q 'not found'; then
-            warn "$lib has unresolved dependencies:"
-            ldd "$lib" 2>&1 | grep 'not found' | sed 's/^/    /'
-            return 1
-        fi
-    fi
-    return 0
-}
-
-# Find a loadable shared library by base name across directories.
-# Prints the found path to stdout; returns 1 if none found.
-find_loadable_lib() {
-    local base="$1"
-    shift
-    for _d in "$@"; do
-        for _f in "$_d/lib${base}.so" "$_d/lib${base}.dylib" "$_d/${base}.dll"; do
-            if can_load_lib "$_f"; then
-                echo "$_f"
-                return 0
-            fi
-        done
-    done
-    return 1
-}
-
 # ============================================================================
 # C++ Tests (Catch2)
 # ============================================================================
@@ -120,17 +90,18 @@ JAVA_JAR="$PROJECT_DIR/lib/conduit-java-${_version}.jar"
 
 if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
-        # Conditionally exclude CABI/JNI tests based on whether native test
-        # libraries exist AND can actually be loaded (all dependencies resolved).
+        # Conditionally exclude CABI/JNI tests based on whether native test libraries exist
         JUNIT_EXCLUDES=()
         _has_cabi_test_libs=false
         _has_jni_test_libs=false
-        if find_loadable_lib conduit_cabi_test "$PROJECT_DIR/lib" "$BUILD_DIR/tests" >/dev/null; then
-            _has_cabi_test_libs=true
-        fi
-        if find_loadable_lib conduit_jni_test "$PROJECT_DIR/lib" "$BUILD_DIR/tests" >/dev/null; then
-            _has_jni_test_libs=true
-        fi
+        for _d in "$PROJECT_DIR/lib" "$BUILD_DIR/tests"; do
+            if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_cabi_test_libs=true
+            fi
+            if ls "$_d"/libconduit_jni_test* "$_d"/conduit_jni_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                _has_jni_test_libs=true
+            fi
+        done
         if [ "$_has_cabi_test_libs" != true ]; then
             JUNIT_EXCLUDES+=(--exclude-classname "TestTransceiverCabi"
                              --exclude-classname ".*CodecCabi.*")
@@ -201,13 +172,14 @@ if [ -d "$PYTHON_TESTS" ]; then
                 cmake --build "$BUILD_DIR" --target pytest_generated 2>/dev/null || true
             fi
 
-            # Exclude CABI-dependent tests if native test libraries are missing
-            # or have unresolvable dependencies.
+            # Exclude CABI-dependent tests if native test libraries are not available
             PYTEST_IGNORES=()
             _has_cabi_libs=false
-            if find_loadable_lib conduit_cabi_test "$PROJECT_DIR/lib" "$BUILD_DIR/tests" >/dev/null; then
-                _has_cabi_libs=true
-            fi
+            for _d in "$PROJECT_DIR/lib" "$BUILD_DIR/tests"; do
+                if ls "$_d"/libconduit_cabi_test* "$_d"/conduit_cabi_test* 2>/dev/null | head -1 >/dev/null 2>&1; then
+                    _has_cabi_libs=true; break
+                fi
+            done
             if [ "$_has_cabi_libs" != true ]; then
                 PYTEST_IGNORES+=(--ignore="$PYTHON_TESTS/test_codec_cabi.py"
                                  --ignore="$PYTHON_TESTS/test_transceiver_cabi.py"

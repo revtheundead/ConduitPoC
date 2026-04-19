@@ -31,16 +31,6 @@ set "PATH=!PROJECT_DIR!\lib;%PATH%"
 set "PASSED=0"
 set "FAILED=0"
 
-:: Detect a Python interpreter for DLL loadability checks
-set "VERIFY_PYTHON="
-py -c "exit(0)" >nul 2>&1
-if not errorlevel 1 (
-    set "VERIFY_PYTHON=py"
-) else (
-    python -c "exit(0)" >nul 2>&1
-    if not errorlevel 1 set "VERIFY_PYTHON=python"
-)
-
 :: ============================================================================
 :: C++ Tests (Catch2)
 :: ============================================================================
@@ -134,18 +124,17 @@ if defined JUNIT_JAR (
             java -version >nul 2>&1
             if not errorlevel 1 (
                 echo   Running Java JUnit tests...
-                rem Conditionally exclude CABI/JNI tests based on native test library
-                rem presence AND loadability (all DLL dependencies resolved).
+                rem Conditionally exclude CABI/JNI tests based on native test library presence
                 set "JUNIT_EXCLUDES="
                 set "_have_cabi=0"
-                call :check_dll "!PROJECT_DIR!\lib\conduit_cabi_test.dll" _have_cabi
-                if "!_have_cabi!"=="0" call :check_dll "!BUILD_DIR!\tests\conduit_cabi_test.dll" _have_cabi
+                if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
+                if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
                 if "!_have_cabi!"=="0" (
                     set "JUNIT_EXCLUDES=--exclude-classname TestTransceiverCabi --exclude-classname .*CodecCabi.*"
                 )
                 set "_have_jni=0"
-                call :check_dll "!PROJECT_DIR!\lib\conduit_jni_test.dll" _have_jni
-                if "!_have_jni!"=="0" call :check_dll "!BUILD_DIR!\tests\conduit_jni_test.dll" _have_jni
+                if exist "!PROJECT_DIR!\lib\conduit_jni_test.dll" set "_have_jni=1"
+                if exist "!BUILD_DIR!\tests\conduit_jni_test.dll" set "_have_jni=1"
                 if "!_have_jni!"=="0" (
                     set "JUNIT_EXCLUDES=!JUNIT_EXCLUDES! --exclude-classname TestTransceiverJni --exclude-classname TestXcvrScenarios --exclude-classname TestTransceiverAdvanced --exclude-classname TestUdpMulticast"
                 )
@@ -220,12 +209,11 @@ if exist "!PYTHON_TESTS!" (
         )
         !PYTHON_CMD! -c "import pytest" >nul 2>&1
         if not errorlevel 1 (
-            rem Exclude CABI-dependent tests if native test libraries are missing
-            rem or have unresolvable dependencies.
+            rem Exclude CABI-dependent tests if native test libraries are not available
             set "PYTEST_IGNORES="
             set "_have_cabi=0"
-            call :check_dll "!PROJECT_DIR!\lib\conduit_cabi_test.dll" _have_cabi
-            if "!_have_cabi!"=="0" call :check_dll "!BUILD_DIR!\tests\conduit_cabi_test.dll" _have_cabi
+            if exist "!PROJECT_DIR!\lib\conduit_cabi_test.dll" set "_have_cabi=1"
+            if exist "!BUILD_DIR!\tests\conduit_cabi_test.dll" set "_have_cabi=1"
             if "!_have_cabi!"=="0" (
                 set "PYTEST_IGNORES=--ignore=!PYTHON_TESTS!\test_codec_cabi.py --ignore=!PYTHON_TESTS!\test_transceiver_cabi.py --ignore=!PYTHON_TESTS!\test_xcvr_scenarios.py --ignore=!PYTHON_TESTS!\test_async_roundtrip.py --ignore=!PYTHON_TESTS!\test_udp_multicast.py"
             )
@@ -263,23 +251,3 @@ echo ===========================================================================
 
 if !FAILED! gtr 0 exit /b 1
 exit /b 0
-
-:: ============================================================================
-:: Subroutine: verify a DLL exists and can be loaded (dependencies resolved).
-:: Usage: call :check_dll "path\to.dll" result_var
-:: Sets result_var to 1 if the DLL is loadable, leaves it unchanged otherwise.
-:: ============================================================================
-:check_dll
-if not exist "%~1" goto :eof
-if defined VERIFY_PYTHON (
-    !VERIFY_PYTHON! -c "import ctypes; ctypes.CDLL(r'%~1')" >nul 2>&1
-    if not errorlevel 1 (
-        set "%~2=1"
-    ) else (
-        echo   Warning: %~nx1 exists but cannot be loaded ^(missing dependencies^)
-    )
-) else (
-    :: No Python available to verify — accept file existence
-    set "%~2=1"
-)
-goto :eof
