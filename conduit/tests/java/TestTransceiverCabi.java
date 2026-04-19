@@ -11,7 +11,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
 import io.conduit.CabiBindings;
-import io.conduit.PanamaNativeBinding;
 import io.conduit.Transceiver;
 import io.conduit.Transceiver.StatsSnapshot;
 import io.conduit.TransportConfig;
@@ -261,16 +260,12 @@ public class TestTransceiverCabi {
 
     @Test
     @DisplayName("Add peer: UDP peer with session_protocol succeeds")
-    void addPeerUdpSucceeds() throws Throwable {
-        try (PanamaNativeBinding pnb = new PanamaNativeBinding()) {
-            long h = pnb.create();
-            try {
-                int peerId = pnb.addPeer(h, "radar", "session_protocol",
-                    TransportConfig.udp("0.0.0.0:5000"));
-                assertTrue(peerId >= 0, "Adding UDP peer should succeed");
-            } finally {
-                pnb.destroy(h);
-            }
+    void addPeerUdpSucceeds() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("radar", "session_protocol",
+                TransportConfig.udp("0.0.0.0:5000"));
+            assertTrue(peerId >= 0, "Adding UDP peer should succeed");
+            assertEquals(1, t.peerCount(), "Should have exactly one peer");
         }
     }
 
@@ -403,26 +398,15 @@ public class TestTransceiverCabi {
     }
 
     @Test
-    @DisplayName("Peer by name: low-level API works")
-    void peerByNameLowLevel() throws Throwable {
-        try (PanamaNativeBinding pnb = new PanamaNativeBinding();
-             Arena arena = Arena.ofShared()) {
-            long h = pnb.create();
-            MemorySegment xcvr = MemorySegment.ofAddress(h);
-            try {
-                int addedId = pnb.addPeer(h, "sensor", "session_protocol",
-                    TransportConfig.udp("0.0.0.0:7005"));
-                assertTrue(addedId >= 0);
+    @DisplayName("Peer by name: API works")
+    void peerByNameLowLevel() {
+        try (Transceiver t = new Transceiver()) {
+            int addedId = t.addPeer("sensor", "session_protocol",
+                TransportConfig.udp("0.0.0.0:7005"));
+            assertTrue(addedId >= 0);
 
-                var lookupName = arena.allocateUtf8String("sensor");
-                var lookupOut = arena.allocate(ValueLayout.JAVA_INT);
-                int lookupErr = (int) CabiBindings.conduit_peer_by_name.invokeExact(
-                    xcvr, lookupName, lookupOut);
-                assertEquals(0, lookupErr, "Peer lookup by name should succeed");
-                assertEquals(addedId, lookupOut.get(ValueLayout.JAVA_INT, 0));
-            } finally {
-                pnb.destroy(h);
-            }
+            int lookedUp = t.peerByName("sensor");
+            assertEquals(addedId, lookedUp, "peerByName should return the added peer ID");
         }
     }
 
@@ -459,24 +443,15 @@ public class TestTransceiverCabi {
     }
 
     @Test
-    @DisplayName("Sole peer: low-level API works")
-    void solePeerLowLevel() throws Throwable {
-        try (PanamaNativeBinding pnb = new PanamaNativeBinding();
-             Arena arena = Arena.ofShared()) {
-            long h = pnb.create();
-            MemorySegment xcvr = MemorySegment.ofAddress(h);
-            try {
-                int addedId = pnb.addPeer(h, "sensor", "session_protocol",
-                    TransportConfig.udp("0.0.0.0:8004"));
-                assertTrue(addedId >= 0, "add_peer should succeed");
+    @DisplayName("Sole peer: API works")
+    void solePeerLowLevel() {
+        try (Transceiver t = new Transceiver()) {
+            int addedId = t.addPeer("sensor", "session_protocol",
+                TransportConfig.udp("0.0.0.0:8004"));
+            assertTrue(addedId >= 0, "add_peer should succeed");
 
-                var soleOut = arena.allocate(ValueLayout.JAVA_INT);
-                int err = (int) CabiBindings.conduit_sole_peer.invokeExact(xcvr, soleOut);
-                assertEquals(0, err, "sole_peer should succeed with one peer");
-                assertEquals(addedId, soleOut.get(ValueLayout.JAVA_INT, 0));
-            } finally {
-                pnb.destroy(h);
-            }
+            int sole = t.solePeer();
+            assertEquals(addedId, sole, "sole_peer should return the added peer ID");
         }
     }
 
@@ -547,35 +522,18 @@ public class TestTransceiverCabi {
 
     @Test
     @DisplayName("Handler: remove_handler succeeds after registration")
-    void removeHandlerAfterRegistration() throws Throwable {
-        try (PanamaNativeBinding pnb = new PanamaNativeBinding();
-             Arena arena = Arena.ofShared()) {
-            long h = pnb.create();
-            MemorySegment xcvr = MemorySegment.ofAddress(h);
-            try {
-                int peerId = pnb.addPeer(h, "sensor", "session_protocol",
-                    TransportConfig.udp("0.0.0.0:9001"));
-                assertTrue(peerId >= 0, "add_peer should succeed");
+    void removeHandlerAfterRegistration() {
+        try (Transceiver t = new Transceiver()) {
+            int peerId = t.addPeer("sensor", "session_protocol",
+                TransportConfig.udp("0.0.0.0:9001"));
+            assertTrue(peerId >= 0, "add_peer should succeed");
 
-                MethodHandle target = MethodHandles.lookup().findStatic(
-                    TestTransceiverCabi.class, "dummyMsgCallback",
-                    MethodType.methodType(void.class, int.class, long.class,
-                        MemorySegment.class, MemorySegment.class, long.class, MemorySegment.class));
+            int cbId = t.onMessage(PING_TYPE_ID,
+                (pid, typeId, typeName, data) -> { /* no-op */ });
+            assertTrue(cbId >= 0, "on_message should return valid callback ID");
 
-                MemorySegment stub = Linker.nativeLinker().upcallStub(
-                    target, MSG_CALLBACK_DESC, arena);
-
-                int cbId = (int) CabiBindings.conduit_on_message.invokeExact(
-                    xcvr, PING_TYPE_ID, stub, MemorySegment.NULL);
-                assertTrue(cbId >= 0);
-
-                // Remove the handler — returns count of removed handlers (1 = success)
-                int removeResult = (int) CabiBindings.conduit_remove_handler.invokeExact(
-                    xcvr, peerId, PING_TYPE_ID);
-                assertTrue(removeResult >= 0, "Removing registered handler should return non-negative count");
-            } finally {
-                pnb.destroy(h);
-            }
+            boolean removed = t.removeHandler(peerId, PING_TYPE_ID);
+            assertTrue(removed, "Removing registered handler should succeed");
         }
     }
 

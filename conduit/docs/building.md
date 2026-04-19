@@ -23,7 +23,7 @@ Conduit's shared libraries (`conduit_cabi`, `conduit_jni`, etc.) are compiled C+
 | Platform | Toolchain | Runtime dependency |
 |----------|-----------|-------------------|
 | **Windows** | MSVC | [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) (x64). Required on machines without Visual Studio. |
-| **Windows** | Clang / LLVM MinGW | None -- ships its own libc++ |
+| **Windows** | Clang / LLVM MinGW | None -- the CMake build statically links libc++ and libunwind. Ensure `conduit/lib/` is on `PATH` so DLLs can find each other (see [Native library path](#native-library-path-conduitlib)). |
 | **Linux** | GCC | `libstdc++6` -- usually pre-installed. Install via `apt install libstdc++6` or `yum install libstdc++` if missing. |
 | **Linux** | Clang | `libc++` -- install via `apt install libc++1` if missing |
 | **macOS** | Any | None -- system libc++ is always present |

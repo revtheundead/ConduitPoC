@@ -122,12 +122,14 @@ else()
     endif()
 endif()
 
-# MinGW: statically link the GCC/C++ runtime (libstdc++, libgcc, libwinpthread)
-# into executables so they don't depend on MinGW's bin directory being on PATH
-# at runtime.  Without this, executables fail to start when the MinGW DLLs
-# cannot be found or conflict with other MinGW distributions (e.g. MSYS2).
+# MinGW: statically link the GCC/C++ runtime (libstdc++/libc++, libgcc,
+# libwinpthread, libunwind) into all binaries so they don't depend on MinGW's
+# bin directory being on PATH at runtime.  Without this, executables fail to
+# start and shared libraries fail to load (Java System.load / Python ctypes)
+# when the MinGW runtime DLLs cannot be found.
 if(MINGW)
-    string(APPEND CMAKE_EXE_LINKER_FLAGS " -static")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS    " -static")
+    string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libstdc++ -static-libgcc")
 endif()
 
 # ============================================================================
@@ -204,17 +206,37 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
     endif()
     set(CATCH_INSTALL_DOCS OFF CACHE INTERNAL "")
     set(CATCH_INSTALL_EXTRAS OFF CACHE INTERNAL "")
-    add_subdirectory(
-        "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
-        "${CMAKE_BINARY_DIR}/_deps/Catch2"
-    )
     # Mark Catch2 headers as SYSTEM so that the project's strict warning
     # flags (applied via conduit_warnings) do not trigger warnings inside
     # Catch2 header code when test sources #include them.
-    get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
-    if(_catch2_inc)
-        set_target_properties(Catch2 PROPERTIES
-            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.25")
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+            SYSTEM
+        )
+    else()
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+        )
+        get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2_inc)
+            set_target_properties(Catch2 PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+        endif()
+        get_target_property(_catch2wm_inc Catch2WithMain INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2wm_inc)
+            set_target_properties(Catch2WithMain PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2wm_inc}")
+        endif()
+    endif()
+    # Catch2's TEST_CASE macro uses __COUNTER__ which Clang 22+ flags as a
+    # C2y extension under -Wpedantic.  The warning fires at the macro
+    # expansion point in user test files, so SYSTEM includes don't help.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(Catch2 INTERFACE -Wno-c2y-extensions)
+        target_compile_options(Catch2WithMain INTERFACE -Wno-c2y-extensions)
     endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
@@ -733,7 +755,7 @@ list(JOIN _all_src \"\\n\" _src_list)
 # (on Windows the classpath separator is semicolon which CMake treats as a list separator)
 file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
+    COMMAND \"${JAVAC_EXECUTABLE}\" ${_java_test_release_flags}
         \"@${_java_test_classes_dir}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )
