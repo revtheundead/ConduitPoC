@@ -231,6 +231,13 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
                 INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2wm_inc}")
         endif()
     endif()
+    # Catch2's TEST_CASE macro uses __COUNTER__ which Clang 22+ flags as a
+    # C2y extension under -Wpedantic.  The warning fires at the macro
+    # expansion point in user test files, so SYSTEM includes don't help.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(Catch2 INTERFACE -Wno-c2y-extensions)
+        target_compile_options(Catch2WithMain INTERFACE -Wno-c2y-extensions)
+    endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
 
