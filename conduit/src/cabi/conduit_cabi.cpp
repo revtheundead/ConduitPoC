@@ -238,7 +238,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     std::shared_ptr<trans_ns::ITransport> trans;
     std::string addr(transport->address ? transport->address : "");
 
-    // Parse "host:port" from address string (must not throw — extern "C")
+    // Parse "host:port" from address string (must not throw â€” extern "C")
     auto parse_host_port = [](const std::string& a)
         -> std::pair<std::string, uint16_t> {
         auto colon = a.rfind(':');
@@ -264,7 +264,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
                 cfg.remote_address = rhost;
                 cfg.remote_port    = transport->remote_port ? transport->remote_port : rport;
             } else if (is_multicast) {
-                // Multicast: address/remote not required — group is the destination
+                // Multicast: address/remote not required â€” group is the destination
                 cfg.bind_port = transport->bind_port;
                 if (!addr.empty()) {
                     auto [rhost, rport] = parse_host_port(addr);
@@ -1068,7 +1068,7 @@ CONDUIT_CABI_API void conduit_log_clear_sinks(void) {
 // ============================================================================
 
 CONDUIT_CABI_API const char* conduit_version(void) {
-    return "0.1.0";
+    return "1.0.9";
 }
 
 } // extern "C"

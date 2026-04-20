@@ -32,10 +32,21 @@ public final class JniNativeBinding implements NativeBinding {
         if (loaded) return;
         String libPath = System.getProperty("conduit.jni.path");
         if (libPath != null) {
+            // Load conduit_cabi first (conduit_jni depends on it).
+            // If conduit.cabi.path is set, load it; otherwise try java.library.path.
+            String cabiPath = System.getProperty("conduit.cabi.path");
+            if (cabiPath != null) {
+                System.load(cabiPath);
+            } else {
+                try { System.loadLibrary("conduit_cabi"); } catch (UnsatisfiedLinkError ignored) {}
+            }
             System.load(libPath);
         } else {
             // NativeLoader tries java.library.path first, then extracts from
-            // bundled JAR resources (native/<os>-<arch>/libconduit_jni.so|.dll|.dylib)
+            // bundled JAR resources (native/<os>-<arch>/libconduit_jni.so|.dll|.dylib).
+            // Load conduit_cabi first so the dynamic linker can resolve the dependency
+            // when conduit_jni.so is loaded from the fat JAR's temp extraction dir.
+            NativeLoader.load("conduit_cabi");
             NativeLoader.load("conduit_jni");
         }
         loaded = true;

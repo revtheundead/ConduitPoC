@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# package_fat_jar.sh — Assemble a fat JAR with bundled native libraries
+# package_fat_jar.sh -- Assemble a fat JAR with bundled native libraries
 # ============================================================================
 #
 # This script copies pre-built JNI native libraries into the Maven resource
@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BINDINGS_DIR="$PROJECT_ROOT/conduit/bindings/java"
 RESOURCES_DIR="$BINDINGS_DIR/src/main/resources/native"
-VERSION="0.1.0"
+VERSION="1.0.9"
 
 NATIVE_DIR=""
 OUTPUT=""

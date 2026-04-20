@@ -8,7 +8,10 @@ build_*/
 build-*/
 conduit/lib/
 .gradle/
+**/target/
 **/generated/
+!corba-adaptor/generated/
+!corba-adaptor/generated/**
 *.egg-info/
 test_roundtrip
 test_roundtrip_old

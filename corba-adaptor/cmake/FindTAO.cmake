@@ -112,12 +112,57 @@ find_program(TAO_IDL_COMPILER
 
 # ---------------------------------------------------------------------------
 # Version detection
+#
+# ACE/TAO 5.4 defines MAJOR/MINOR/BETA macros in Version.h rather than the
+# newer string form.  We probe both to support 5.4 through modern versions.
+#
+# We report the ACE version (e.g. 5.4.x), which is the version the adaptor
+# pins against via `find_package(TAO 5.4 EXACT REQUIRED)`.  This matches the
+# historical ACE-TAO 5.4 pairing used by this project.
 # ---------------------------------------------------------------------------
 
-if(TAO_INCLUDE_DIR AND EXISTS "${TAO_INCLUDE_DIR}/tao/Version.h")
-    file(STRINGS "${TAO_INCLUDE_DIR}/tao/Version.h" _tao_version_line
-         REGEX "#define TAO_VERSION \"[^\"]+\"")
-    if(_tao_version_line MATCHES "\"([0-9]+\\.[0-9]+\\.[0-9]+)\"")
+set(_tao_ver_file "")
+if(EXISTS "${ACE_INCLUDE_DIR}/ace/Version.h")
+    set(_tao_ver_file "${ACE_INCLUDE_DIR}/ace/Version.h")
+elseif(EXISTS "${TAO_INCLUDE_DIR}/ace/Version.h")
+    set(_tao_ver_file "${TAO_INCLUDE_DIR}/ace/Version.h")
+endif()
+
+if(_tao_ver_file)
+    file(READ "${_tao_ver_file}" _ver_contents)
+    # Newer form: #define ACE_VERSION "x.y.z"
+    if(_ver_contents MATCHES "#define[ \t]+ACE_VERSION[ \t]+\"([0-9]+\\.[0-9]+\\.[0-9]+)\"")
+        set(TAO_VERSION "${CMAKE_MATCH_1}")
+    else()
+        # Older form (5.4 era): MAJOR/MINOR/BETA separate macros.
+        set(_ver_major "")
+        set(_ver_minor "")
+        set(_ver_beta  "")
+        if(_ver_contents MATCHES "#define[ \t]+ACE_MAJOR_VERSION[ \t]+([0-9]+)")
+            set(_ver_major "${CMAKE_MATCH_1}")
+        endif()
+        if(_ver_contents MATCHES "#define[ \t]+ACE_MINOR_VERSION[ \t]+([0-9]+)")
+            set(_ver_minor "${CMAKE_MATCH_1}")
+        endif()
+        if(_ver_contents MATCHES "#define[ \t]+ACE_BETA_VERSION[ \t]+([0-9]+)")
+            set(_ver_beta "${CMAKE_MATCH_1}")
+        elseif(_ver_contents MATCHES "#define[ \t]+ACE_MICRO_VERSION[ \t]+([0-9]+)")
+            set(_ver_beta "${CMAKE_MATCH_1}")
+        endif()
+        if(_ver_major AND _ver_minor)
+            if(_ver_beta)
+                set(TAO_VERSION "${_ver_major}.${_ver_minor}.${_ver_beta}")
+            else()
+                set(TAO_VERSION "${_ver_major}.${_ver_minor}.0")
+            endif()
+        endif()
+    endif()
+endif()
+
+# Fallback to tao/Version.h if ACE version wasn't resolvable.
+if(NOT TAO_VERSION AND TAO_INCLUDE_DIR AND EXISTS "${TAO_INCLUDE_DIR}/tao/Version.h")
+    file(READ "${TAO_INCLUDE_DIR}/tao/Version.h" _tver)
+    if(_tver MATCHES "#define[ \t]+TAO_VERSION[ \t]+\"([0-9]+\\.[0-9]+\\.[0-9]+)\"")
         set(TAO_VERSION "${CMAKE_MATCH_1}")
     endif()
 endif()

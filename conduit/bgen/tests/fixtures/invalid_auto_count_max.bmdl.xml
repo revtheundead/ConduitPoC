@@ -8,11 +8,11 @@
   </types>
   <messages>
     <message name="Msg">
-      <!-- auto="count" + constraint max should be rejected -->
+      <!-- auto="count" + constraint max is allowed -->
       <field name="count" type="uint8" auto="count(items)">
         <constraint max="100"/>
       </field>
-      <array name="items" type="uint16" length-from="count"/>
+      <array name="items" type="uint16" count-from="count"/>
     </message>
   </messages>
 </bmdl>

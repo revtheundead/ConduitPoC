@@ -1,28 +1,19 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - Common Types
-//
-// Intentionally minimal: the adaptor now uses typed messages end-to-end via
-// Conduit for the TCP peer, and typed messages via a Conduit `ISession` for
-// the CORBA peer's byte stream. The only "raw" surface is the CORBA
-// RawDataChannel; these aliases describe its callback contracts.
+// Conduit CORBA Adaptor - Common Types (C++11)
 
-#pragma once
+#ifndef ADAPTOR_TYPES_HPP
+#define ADAPTOR_TYPES_HPP
 
 #include <cstdint>
 #include <functional>
-#include <span>
+
+#include "compat11/span.hpp"
 
 namespace adaptor {
 
-// ============================================================================
-// Callback types used internally
-// ============================================================================
-
-/// Called when a peer delivers raw bytes to the adaptor (CORBA peer only).
-/// The span is valid only for the duration of the call.
-using RawBytesCallback = std::function<void(std::span<const std::uint8_t>)>;
-
-/// Called when a peer's connection state changes.
-using PeerStateCallback = std::function<void(bool /*connected*/)>;
+typedef std::function<void(cpp11::span<const std::uint8_t>)> RawBytesCallback;
+typedef std::function<void(bool /*connected*/)> PeerStateCallback;
 
 } // namespace adaptor
+
+#endif

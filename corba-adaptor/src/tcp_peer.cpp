@@ -1,106 +1,85 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - TCP Peer Implementation
+// Adaptor - TCP Peer implementation (ACE-backed, C++11)
 
-#include <adaptor/tcp_peer.hpp>
-
-#include <ace/Log_Msg.h>
-
-#include <memory>
-#include <stdexcept>
-#include <utility>
+#include "adaptor/tcp_peer.hpp"
+#include "adaptor/ace_tcp_client.hpp"
 
 namespace adaptor {
 
-namespace {
-
-conduit::transceiver::transport::TcpClientConfig
-make_tcp_client_config(const TcpPeerConfig& cfg) {
-    conduit::transceiver::transport::TcpClientConfig out;
-    out.host             = cfg.host;
-    out.port             = cfg.port;
-    out.recv_buffer_size = cfg.recv_buffer_size;
-    out.connect_timeout  = cfg.connect_timeout;
-
-    out.reconnect.enabled            = cfg.auto_reconnect;
-    out.reconnect.initial_delay      = cfg.initial_delay;
-    out.reconnect.max_delay          = cfg.max_delay;
-    out.reconnect.backoff_multiplier = cfg.backoff_multiplier;
-    out.reconnect.max_attempts       = cfg.max_attempts;
-    return out;
+TcpPeer::TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor)
+    : config_(config), reactor_(reactor), started_(false) {
+    AceTcpClientConfig c;
+    c.host = config_.host;
+    c.port = config_.port;
+    c.recv_buffer_size = config_.recv_buffer_size;
+    c.connect_timeout_ms = config_.connect_timeout_ms;
+    c.auto_reconnect = config_.auto_reconnect;
+    c.initial_delay_ms = config_.initial_delay_ms;
+    c.max_delay_ms = config_.max_delay_ms;
+    c.backoff_multiplier = config_.backoff_multiplier;
+    c.max_attempts = config_.max_attempts;
+    client_.reset(new AceTcpClient(reactor_, c));
+    client_->set_bytes_callback(
+        std::bind(&TcpPeer::on_bytes, this,
+                  std::placeholders::_1, std::placeholders::_2));
+    client_->set_state_callback([this](bool connected) {
+        on_state_change_internal(connected ? Connected : Disconnected);
+    });
 }
-
-} // namespace
-
-// ============================================================================
-// TcpPeer
-// ============================================================================
-
-TcpPeer::TcpPeer(TcpPeerConfig config)
-    : config_(std::move(config))
-    , tx_(conduit::transceiver::TransceiverConfig{})
-{}
 
 TcpPeer::~TcpPeer() {
     stop();
 }
 
 void TcpPeer::on_state_change(StateCallback cb) {
-    (void)tx_.on_state_change(
-        [cb = std::move(cb)](conduit::transceiver::PeerId,
-                             conduit::net::ConnectionState state) {
-            cb(state);
-        });
+    state_callbacks_.push_back(cb);
 }
 
 void TcpPeer::start() {
     if (started_) return;
-
-    auto session   = std::make_unique<tcp_peer::TcpPeerFrameSession>();
-    auto transport = std::make_shared<
-        conduit::transceiver::transport::TcpClientTransport>(
-            make_tcp_client_config(config_));
-
-    auto peer_result = tx_.add_peer(
-        config_.name, std::move(session), std::move(transport));
-    if (!peer_result) {
-        throw std::runtime_error(
-            "TcpPeer: add_peer failed: "
-            + peer_result.error().format_short());
-    }
-    peer_id_ = *peer_result;
-
-    auto start_result = tx_.start();
-    if (!start_result) {
-        throw std::runtime_error(
-            "TcpPeer: transceiver start failed: "
-            + start_result.error().format_short());
-    }
-
     started_ = true;
-
-    ACE_DEBUG((LM_INFO,
-        "TcpPeer: started (host=%s port=%u peer_id=%u)\n",
-        config_.host.c_str(),
-        static_cast<unsigned>(config_.port),
-        peer_id_.value()));
+    on_state_change_internal(Connecting);
+    client_->connect();
 }
 
 void TcpPeer::stop() {
     if (!started_) return;
-    tx_.stop();
     started_ = false;
-    ACE_DEBUG((LM_INFO, "TcpPeer: stopped\n"));
+    if (client_) client_->close();
 }
 
-bool TcpPeer::is_connected() const noexcept {
-    return state() == conduit::net::ConnectionState::Connected;
+bool TcpPeer::is_connected() const {
+    return client_ && client_->is_connected();
 }
 
-conduit::net::ConnectionState TcpPeer::state() const noexcept {
-    if (!peer_id_.valid()) {
-        return conduit::net::ConnectionState::Disconnected;
+ConnectionState TcpPeer::state() const {
+    if (!started_) return Disconnected;
+    if (client_ && client_->is_connected()) return Connected;
+    return Connecting;
+}
+
+bool TcpPeer::send_bytes(const std::vector<uint8_t>& bytes) {
+    if (!client_ || !client_->is_connected()) return false;
+    return client_->send(bytes.data(), bytes.size()) == 0;
+}
+
+void TcpPeer::on_bytes(const uint8_t* data, std::size_t size) {
+    bgen11::Result<std::vector<bgen11::traits::DecodedMessage> > result =
+        session_.decode_frame(cpp11::span<const uint8_t>(data, size));
+    if (!result) return;
+    for (std::size_t i = 0; i < result->size(); ++i) {
+        const bgen11::traits::DecodedMessage& dm = (*result)[i];
+        std::map<uint64_t, TypedHandler>::iterator it = handlers_.find(dm.type_id);
+        if (it != handlers_.end()) {
+            it->second(dm.payload);
+        }
     }
-    return tx_.peer_state(peer_id_);
+}
+
+void TcpPeer::on_state_change_internal(ConnectionState s) {
+    for (std::size_t i = 0; i < state_callbacks_.size(); ++i) {
+        state_callbacks_[i](s);
+    }
 }
 
 } // namespace adaptor

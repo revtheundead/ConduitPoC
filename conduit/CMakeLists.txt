@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+﻿cmake_minimum_required(VERSION 3.20)
 
 # Read version from the root VERSION file (single source of truth).
 # bump_version.sh keeps a copy here for quick reference, but the file
@@ -15,7 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Place all shared libraries (.dll/.so) in a single directory at the project
 # root so that downstream consumers (Java apps, Python scripts, xcvr examples)
 # only need one path.  Per-config overrides prevent MSVC multi-config
-# generators from appending a config subdirectory — all libraries land
+# generators from appending a config subdirectory â€” all libraries land
 # directly in <project>/lib regardless of build type.
 # This also ensures Windows finds dependent DLLs (e.g. conduit_cabi.dll
 # needed by conduit_jni.dll) without extra PATH manipulation.
@@ -26,13 +26,13 @@ foreach(_cfg RELEASE DEBUG RELWITHDEBINFO MINSIZEREL)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${_cfg} "${CMAKE_SOURCE_DIR}/lib")
 endforeach()
 
-# Threading support — required for std::mutex across all platforms.
+# Threading support â€” required for std::mutex across all platforms.
 # On glibc >= 2.34 pthreads is in libc, so FindThreads creates an empty
 # Threads::Threads target (no -pthread flag).  We patch it to always
 # carry -pthread so that __gthread_active_p() returns true and std::mutex
 # works correctly on every toolchain (older glibc, musl, macOS, MinGW).
 # On MSVC the pthread probe prints harmless "not found" messages during
-# configure — these can be safely ignored; Win32 threads are used instead.
+# configure â€” these can be safely ignored; Win32 threads are used instead.
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
@@ -83,7 +83,7 @@ if(MSVC)
     # SRWLOCK).  When a DLL built with the new toolchain is loaded into a host
     # process (e.g. a JVM) that already has an older msvcp140.dll, the mutex
     # is initialized with the new layout but lock/unlock dispatches to the old
-    # DLL which expects _Mtx_t — causing an access violation at NULL.
+    # DLL which expects _Mtx_t â€” causing an access violation at NULL.
     # Defining this macro reverts to the classic non-constexpr constructor so
     # the mutex is always initialized through the CRT, ensuring binary
     # compatibility regardless of which msvcp140.dll version is loaded.
@@ -115,19 +115,21 @@ else()
     # targeting MSVC links against msvcp140.dll and is subject to the same
     # constexpr-mutex ABI mismatch described above.
     # When using LLVM MinGW (MINGW is set), Clang uses its own libc++ and
-    # mingw-w64 headers — these MSVC-specific defines are not needed.
+    # mingw-w64 headers â€” these MSVC-specific defines are not needed.
     if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MINGW)
         target_compile_definitions(conduit_warnings INTERFACE
             NOMINMAX WIN32_LEAN_AND_MEAN _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
     endif()
 endif()
 
-# MinGW: statically link the GCC/C++ runtime (libstdc++, libgcc, libwinpthread)
-# into executables so they don't depend on MinGW's bin directory being on PATH
-# at runtime.  Without this, executables fail to start when the MinGW DLLs
-# cannot be found or conflict with other MinGW distributions (e.g. MSYS2).
+# MinGW: statically link the GCC/C++ runtime (libstdc++/libc++, libgcc,
+# libwinpthread, libunwind) into all binaries so they don't depend on MinGW's
+# bin directory being on PATH at runtime.  Without this, executables fail to
+# start and shared libraries fail to load (Java System.load / Python ctypes)
+# when the MinGW runtime DLLs cannot be found.
 if(MINGW)
-    string(APPEND CMAKE_EXE_LINKER_FLAGS " -static")
+    string(APPEND CMAKE_EXE_LINKER_FLAGS    " -static")
+    string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libstdc++ -static-libgcc")
 endif()
 
 # ============================================================================
@@ -204,23 +206,43 @@ if((CONDUIT_BUILD_TESTS OR CONDUIT_BUILD_BENCHMARKS) AND NOT TARGET Catch2::Catc
     endif()
     set(CATCH_INSTALL_DOCS OFF CACHE INTERNAL "")
     set(CATCH_INSTALL_EXTRAS OFF CACHE INTERNAL "")
-    add_subdirectory(
-        "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
-        "${CMAKE_BINARY_DIR}/_deps/Catch2"
-    )
     # Mark Catch2 headers as SYSTEM so that the project's strict warning
     # flags (applied via conduit_warnings) do not trigger warnings inside
     # Catch2 header code when test sources #include them.
-    get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
-    if(_catch2_inc)
-        set_target_properties(Catch2 PROPERTIES
-            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.25")
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+            SYSTEM
+        )
+    else()
+        add_subdirectory(
+            "${CONDUIT_THIRD_PARTY_DIR}/Catch2"
+            "${CMAKE_BINARY_DIR}/_deps/Catch2"
+        )
+        get_target_property(_catch2_inc Catch2 INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2_inc)
+            set_target_properties(Catch2 PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2_inc}")
+        endif()
+        get_target_property(_catch2wm_inc Catch2WithMain INTERFACE_INCLUDE_DIRECTORIES)
+        if(_catch2wm_inc)
+            set_target_properties(Catch2WithMain PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_catch2wm_inc}")
+        endif()
+    endif()
+    # Catch2's TEST_CASE macro uses __COUNTER__ which Clang 22+ flags as a
+    # C2y extension under -Wpedantic.  The warning fires at the macro
+    # expansion point in user test files, so SYSTEM includes don't help.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(Catch2 INTERFACE -Wno-c2y-extensions)
+        target_compile_options(Catch2WithMain INTERFACE -Wno-c2y-extensions)
     endif()
     list(APPEND CMAKE_MODULE_PATH "${CONDUIT_THIRD_PARTY_DIR}/Catch2/extras")
 endif()
 
 # ============================================================================
-# conduit_codec — pure computation, no OS deps (except threading for StreamFramer mutex)
+# conduit_codec â€” pure computation, no OS deps (except threading for StreamFramer mutex)
 # ============================================================================
 
 set(CONDUIT_CODEC_SOURCES
@@ -250,7 +272,7 @@ endif()
 target_link_libraries(conduit_codec PUBLIC Threads::Threads)
 
 # ============================================================================
-# conduit — full library (depends on conduit_codec, adds transport + threading)
+# conduit â€” full library (depends on conduit_codec, adds transport + threading)
 # ============================================================================
 
 set(CONDUIT_TRANSCEIVER_SOURCES
@@ -406,7 +428,7 @@ endif()
 if(CONDUIT_BUILD_JAVA_JAR)
     set(_java_bindings_dir "${CMAKE_CURRENT_SOURCE_DIR}/bindings/java")
     set(_java_src_dir "${_java_bindings_dir}/src/main/java")
-    set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-0.1.0.jar")
+    set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-${PROJECT_VERSION}.jar")
     set(_java_jar_built FALSE)
 
     # Detect JDK version (needed for test compilation regardless of build strategy)
@@ -450,7 +472,7 @@ execute_process(\n\
 if(NOT _rc EQUAL 0)\n\
     message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")\n\
 endif()\n\
-set(_src_jar \"${_java_bindings_dir}/target/conduit-java-0.1.0.jar\")\n\
+set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")\n\
 if(NOT EXISTS \"\${_src_jar}\")\n\
     message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")\n\
 endif()\n\
@@ -467,7 +489,7 @@ endif()\n\
             OUTPUT "${_java_jar}"
             COMMAND ${CMAKE_COMMAND} -P "${_mvn_build_script}"
             DEPENDS ${_java_core_sources}
-            COMMENT "Building conduit-java-0.1.0.jar (Maven)"
+            COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Maven)"
             VERBATIM
         )
         set(_java_jar_built TRUE)
@@ -487,7 +509,7 @@ execute_process(\n\
 if(NOT _rc EQUAL 0)\n\
     message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")\n\
 endif()\n\
-set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-0.1.0.jar\")\n\
+set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")\n\
 if(NOT EXISTS \"\${_src_jar}\")\n\
     message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")\n\
 endif()\n\
@@ -504,7 +526,7 @@ endif()\n\
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_gradle_build_script}"
                 DEPENDS ${_java_core_sources}
-                COMMENT "Building conduit-java-0.1.0.jar (Gradle)"
+                COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Gradle)"
                 VERBATIM
             )
             set(_java_jar_built TRUE)
@@ -597,7 +619,7 @@ endif()\n\
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_javac_build_script}"
                 DEPENDS ${_java_sources}
-                COMMENT "Building conduit-java-0.1.0.jar (javac)"
+                COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (javac)"
                 VERBATIM
             )
             set(_java_jar_built TRUE)
@@ -729,11 +751,11 @@ file(GLOB_RECURSE _gen_src \"${_java_test_gen_dir}/*.java\")
 file(GLOB _test_src \"${_java_test_src_dir}/*.java\")
 ${_java_test_exclude_filter}list(APPEND _all_src \${_gen_src} \${_test_src})
 list(JOIN _all_src \"\\n\" _src_list)
-# Write javac argfile — keeps classpath semicolons out of CMake COMMAND parsing
+# Write javac argfile â€” keeps classpath semicolons out of CMake COMMAND parsing
 # (on Windows the classpath separator is semicolon which CMake treats as a list separator)
 file(WRITE \"${_java_test_classes_dir}/javac_args.txt\" \"-cp\\n${_java_jar}${_cp_sep}${_junit_jar}\\n-d\\n${_java_test_classes_dir}\\n\${_src_list}\\n\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} ${_java_test_release_flags}
+    COMMAND \"${JAVAC_EXECUTABLE}\" ${_java_test_release_flags}
         \"@${_java_test_classes_dir}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )

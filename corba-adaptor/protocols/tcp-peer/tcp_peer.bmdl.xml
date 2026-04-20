@@ -8,8 +8,6 @@
     - "receive" messages: sent by the TCP peer, decoded by the adaptor
     - "send" messages: encoded by the adaptor, sent to the TCP peer
     - no direction: bidirectional
-
-  TODO: Replace placeholder messages with the actual protocol definition.
 -->
 <bmdl version="2.0">
   <defaults>
@@ -17,9 +15,6 @@
     <endian>big</endian>
   </defaults>
 
-  <!-- =================================================================== -->
-  <!-- Primitive types                                                      -->
-  <!-- =================================================================== -->
   <types>
     <type name="uint8"   base="uint" bits="8"/>
     <type name="uint16"  base="uint" bits="16"/>
@@ -30,7 +25,6 @@
     <type name="float32" base="float" bits="32"/>
     <type name="bool8"   base="bool"  bits="8"/>
 
-    <!-- Protocol-specific types (placeholders — refine as needed) -->
     <type name="msg-type" base="uint" bits="8">
       <enum>
         <value id="1"  name="heartbeat"/>
@@ -64,68 +58,49 @@
     </type>
   </types>
 
-  <!-- =================================================================== -->
-  <!-- Frame definition                                                     -->
-  <!--                                                                      -->
-  <!-- Wire format:                                                         -->
-  <!--   [sync:2][msg-type:1][length:2][payload...][checksum:1]             -->
-  <!--                                                                      -->
-  <!-- The sync pattern allows stream framing; length is auto-computed.     -->
-  <!-- TODO: Adjust sync pattern, length width, and checksum to match the   -->
-  <!--       actual wire protocol.                                          -->
-  <!-- =================================================================== -->
   <frame name="TcpPeerFrame">
-    <field name="sync"     type="uint16" value="0xCAFE"/>
     <field name="msg-id"   type="uint8"  auto="id"/>
     <field name="length"   type="uint16" auto="length"/>
     <payload/>
   </frame>
 
-  <!-- =================================================================== -->
-  <!-- Messages                                                             -->
-  <!-- =================================================================== -->
+  <messages>
+    <message id="1" name="Heartbeat">
+      <field name="sequence"  type="uint32"/>
+      <field name="timestamp" type="uint64"/>
+    </message>
 
-  <!-- Heartbeat: bidirectional keep-alive -->
-  <message id="1" name="Heartbeat">
-    <field name="sequence"  type="uint32"/>
-    <field name="timestamp" type="uint64"/>
-  </message>
+    <message id="2" name="StatusReport" direction="receive">
+      <field name="status"      type="status-code"/>
+      <field name="flags"       type="status-flags"/>
+      <field name="uptime-secs" type="uint32"/>
+      <field name="error-count" type="uint16"/>
+    </message>
 
-  <!-- Status report: received from TCP peer -->
-  <message id="2" name="StatusReport" direction="receive">
-    <field name="status"      type="status-code"/>
-    <field name="flags"       type="status-flags"/>
-    <field name="uptime-secs" type="uint32"/>
-    <field name="error-count" type="uint16"/>
-  </message>
+    <message id="3" name="DataPayload" direction="receive">
+      <field name="channel-id"  type="uint8"/>
+      <field name="sequence"    type="uint32"/>
+      <field name="data-length" type="uint16"/>
+      <field name="data"        bytes="256"/>
+    </message>
 
-  <!-- Data payload: received from TCP peer, forwarded to CORBA consumers -->
-  <message id="3" name="DataPayload" direction="receive">
-    <field name="channel-id"  type="uint8"/>
-    <field name="sequence"    type="uint32"/>
-    <field name="data-length" type="uint16"/>
-    <field name="data"        bytes="256"/>  <!-- TODO: adjust to actual max payload -->
-  </message>
+    <message id="10" name="CommandRequest" direction="send">
+      <field name="command-id"   type="uint16"/>
+      <field name="param-length" type="uint8"/>
+      <field name="params"       bytes="64"/>
+    </message>
 
-  <!-- Command request: sent to TCP peer by the adaptor -->
-  <message id="10" name="CommandRequest" direction="send">
-    <field name="command-id"   type="uint16"/>
-    <field name="param-length" type="uint8"/>
-    <field name="params"       bytes="64"/>  <!-- TODO: adjust -->
-  </message>
+    <message id="11" name="CommandResponse" direction="receive">
+      <field name="command-id"     type="uint16"/>
+      <field name="result-code"    type="status-code"/>
+      <field name="result-length"  type="uint8"/>
+      <field name="result-data"    bytes="64"/>
+    </message>
 
-  <!-- Command response: received from TCP peer -->
-  <message id="11" name="CommandResponse" direction="receive">
-    <field name="command-id"     type="uint16"/>
-    <field name="result-code"    type="status-code"/>
-    <field name="result-length"  type="uint8"/>
-    <field name="result-data"    bytes="64"/>  <!-- TODO: adjust -->
-  </message>
-
-  <!-- Config update: sent to TCP peer -->
-  <message id="20" name="ConfigUpdate" direction="send">
-    <field name="config-key"    type="uint16"/>
-    <field name="config-length" type="uint8"/>
-    <field name="config-data"   bytes="128"/>  <!-- TODO: adjust -->
-  </message>
+    <message id="20" name="ConfigUpdate" direction="send">
+      <field name="config-key"    type="uint16"/>
+      <field name="config-length" type="uint8"/>
+      <field name="config-data"   bytes="128"/>
+    </message>
+  </messages>
 </bmdl>

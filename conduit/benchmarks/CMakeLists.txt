@@ -184,7 +184,7 @@ if(CONDUIT_BUILD_JAVA_BENCHMARKS)
         )
 
         # Java JAR from main build
-        set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-0.1.0.jar")
+        set(_java_jar "${CMAKE_SOURCE_DIR}/lib/conduit-java-${PROJECT_VERSION}.jar")
 
         # Classpath separator
         if(WIN32)
@@ -233,7 +233,7 @@ list(APPEND _all_src \${_gen_src}
 list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_bench_java_classes}/javac_args.txt\" \"-cp\\n${_java_jar}\\n-d\\n${_bench_java_classes}\\n--release\\n11\\n\${_src_list}\\n\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} \"@${_bench_java_classes}/javac_args.txt\"
+    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_bench_java_classes}/javac_args.txt\"
     RESULT_VARIABLE _rc
 )
 if(NOT _rc EQUAL 0)
@@ -275,7 +275,7 @@ list(APPEND _all_src \${_gen_src}
 list(JOIN _all_src \"\\n\" _src_list)
 file(WRITE \"${_bench_java_classes}/javac_panama_args.txt\" \"-cp\\n${_java_jar}\\n-d\\n${_bench_java_classes}\\n--release\\n21\\n--enable-preview\\n\${_src_list}\\n\")
 execute_process(
-    COMMAND ${JAVAC_EXECUTABLE} \"@${_bench_java_classes}/javac_panama_args.txt\"
+    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_bench_java_classes}/javac_panama_args.txt\"
     RESULT_VARIABLE _rc
 )
 if(NOT _rc EQUAL 0)

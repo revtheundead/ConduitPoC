@@ -24,7 +24,7 @@
 //       --health-interval <secs>    Consumer health-check interval (default: 30)
 //       --orb-threads <n>           ORB thread pool size (default: 1)
 
-#include <adaptor/adaptor.hpp>
+#include "adaptor/adaptor.hpp"
 
 #include <tao/ORB.h>
 #include <tao/PortableServer/PortableServer.h>
@@ -103,8 +103,8 @@ int main(int argc, char* argv[]) {
                     config.corba_peer.channel_ior = get_opt.opt_arg();
                     break;
                 case 'I':
-                    config.health_check_interval =
-                        std::chrono::seconds(std::atoi(get_opt.opt_arg()));
+                    config.health_check_interval_seconds =
+                        static_cast<uint32_t>(std::atoi(get_opt.opt_arg()));
                     break;
                 case 'T':
                     config.orb_threads = static_cast<uint32_t>(std::atoi(get_opt.opt_arg()));
@@ -131,7 +131,7 @@ int main(int argc, char* argv[]) {
         poa_mgr->activate();
 
         // Create and start the adaptor.
-        adaptor::Adaptor the_adaptor(orb.in(), root_poa.in(), std::move(config));
+        adaptor::Adaptor the_adaptor(orb.in(), root_poa.in(), config);
         the_adaptor.start();
 
         ACE_DEBUG((LM_INFO, "Adaptor: running (Ctrl+C to stop)\n"));
