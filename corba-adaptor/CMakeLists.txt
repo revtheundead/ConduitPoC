@@ -82,14 +82,100 @@ if(NOT MSVC)
 endif()
 
 # -----------------------------------------------------------------------------
-# Committed bgen-generated (C++11 translated) codec headers
+# bgen-generated (C++11 translated) codec headers
+#
+# Hybrid workflow:
+#   - `generated/<proto>/*.hpp` is committed to the repo and is the
+#     primary source of truth for builds.
+#   - If the committed headers are missing (user deleted the directory,
+#     fresh checkout of a branch that did not include them, etc.), and
+#     both `bgen` and Python are available, auto-regenerate them at
+#     configure time.  Otherwise fail with a clear message.
+#   - The opt-in `regenerate_bgen` target below forces a refresh from
+#     the .bmdl.xml sources even when the committed files exist.
 # -----------------------------------------------------------------------------
 
-add_subdirectory(generated/tcp-peer)
-add_subdirectory(generated/corba-peer)
+set(_bgen_cpp11
+    "${CMAKE_CURRENT_SOURCE_DIR}/../tools/bgen-cpp11/bgen_to_cpp11.py")
+
+set(_generated_marker_tcp   "${CMAKE_CURRENT_SOURCE_DIR}/generated/tcp-peer/sessions.hpp")
+set(_generated_marker_corba "${CMAKE_CURRENT_SOURCE_DIR}/generated/corba-peer/sessions.hpp")
+
+function(_corba_adaptor_run_bgen proto_in proto_out ns)
+    find_program(BGEN_EXECUTABLE bgen)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    if(NOT BGEN_EXECUTABLE)
+        message(FATAL_ERROR
+            "corba-adaptor: generated/${ns}/ is missing AND bgen was not "
+            "found on PATH.  Either restore the committed generated/ "
+            "directory, or install bgen so CMake can regenerate it "
+            "automatically.  Pass -DBGEN_EXECUTABLE=/path/to/bgen to "
+            "point at a custom location.")
+    endif()
+    if(NOT EXISTS "${_bgen_cpp11}")
+        message(FATAL_ERROR
+            "corba-adaptor: bgen-cpp11 converter not found at ${_bgen_cpp11}")
+    endif()
+
+    set(raw_dir "${CMAKE_CURRENT_BINARY_DIR}/_bgen-raw/${ns}")
+    file(MAKE_DIRECTORY "${raw_dir}")
+    execute_process(
+        COMMAND "${BGEN_EXECUTABLE}"
+                --input     "${proto_in}"
+                --output    "${raw_dir}"
+                --namespace "${ns}"
+        RESULT_VARIABLE _rc)
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR "bgen failed for ${ns} (rc=${_rc})")
+    endif()
+
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${_bgen_cpp11}"
+                --input  "${raw_dir}"
+                --output "${proto_out}"
+        RESULT_VARIABLE _rc)
+    if(NOT _rc EQUAL 0)
+        message(FATAL_ERROR "bgen-cpp11 failed for ${ns} (rc=${_rc})")
+    endif()
+
+    # The adaptor never uses JSON output and it pulls in nlohmann/json.
+    file(REMOVE "${proto_out}/json.hpp")
+endfunction()
+
+if(NOT EXISTS "${_generated_marker_tcp}")
+    message(STATUS "corba-adaptor: generated/tcp-peer/ missing — regenerating")
+    _corba_adaptor_run_bgen(
+        "${CMAKE_CURRENT_SOURCE_DIR}/protocols/tcp-peer/tcp_peer.bmdl.xml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/tcp-peer"
+        tcp_peer)
+endif()
+
+if(NOT EXISTS "${_generated_marker_corba}")
+    message(STATUS "corba-adaptor: generated/corba-peer/ missing — regenerating")
+    _corba_adaptor_run_bgen(
+        "${CMAKE_CURRENT_SOURCE_DIR}/protocols/corba-peer/corba_peer.bmdl.xml"
+        "${CMAKE_CURRENT_SOURCE_DIR}/generated/corba-peer"
+        corba_peer)
+endif()
+
+# Codec INTERFACE libraries are declared here (not in generated/*/CMakeLists.txt)
+# so that a missing or freshly-deleted generated/ directory does not break
+# CMake configuration before the auto-regen above has populated it.
+
+add_library(tcp_peer_codec INTERFACE)
+target_include_directories(tcp_peer_codec INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated")
+target_link_libraries(tcp_peer_codec INTERFACE cpp11::compat)
+
+add_library(corba_peer_codec INTERFACE)
+target_include_directories(corba_peer_codec INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/generated")
+target_link_libraries(corba_peer_codec INTERFACE cpp11::compat)
 
 # -----------------------------------------------------------------------------
-# Optional: regenerate codec via bgen + bgen-cpp11 converter
+# Optional: force-refresh codec from .bmdl.xml via bgen + bgen-cpp11.
+# Use this target when you change a protocol file and want the committed
+# headers updated.
 # -----------------------------------------------------------------------------
 
 option(CORBA_ADAPTOR_REGENERATE_BGEN
@@ -100,8 +186,6 @@ if(CORBA_ADAPTOR_REGENERATE_BGEN)
     if(NOT BGEN_EXECUTABLE)
         message(WARNING "bgen not found; regenerate_bgen will fail at build time")
     endif()
-    set(_bgen_cpp11
-        "${CMAKE_CURRENT_SOURCE_DIR}/../tools/bgen-cpp11/bgen_to_cpp11.py")
     add_custom_target(regenerate_bgen
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/_bgen-raw/tcp-peer"
         COMMAND ${BGEN_EXECUTABLE}
@@ -119,6 +203,9 @@ if(CORBA_ADAPTOR_REGENERATE_BGEN)
         COMMAND ${Python3_EXECUTABLE} "${_bgen_cpp11}"
                 --input  "${CMAKE_CURRENT_BINARY_DIR}/_bgen-raw/corba-peer"
                 --output "${CMAKE_CURRENT_SOURCE_DIR}/generated/corba-peer"
+        COMMAND ${CMAKE_COMMAND} -E remove -f
+                "${CMAKE_CURRENT_SOURCE_DIR}/generated/tcp-peer/json.hpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/generated/corba-peer/json.hpp"
         COMMENT "Regenerating bgen codec and translating to C++11"
         VERBATIM
     )

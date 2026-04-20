@@ -76,7 +76,12 @@ public:
             const T* p = cpp11::any_cast<T>(&payload);
             if (p) cb(*p);
         };
-        handlers_[T::TYPE_ID] = wrapper;
+        // Copy TYPE_ID into a local to avoid ODR-use: std::map::operator[]
+        // takes its key by const reference, which under strict C++11 would
+        // bind to the static constexpr class member and require an
+        // out-of-class definition that bgen never emits.
+        const uint64_t id = T::TYPE_ID;
+        handlers_[id] = wrapper;
     }
 
     void on_state_change(StateCallback cb);
