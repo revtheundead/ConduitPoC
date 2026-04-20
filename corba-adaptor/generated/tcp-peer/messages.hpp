@@ -33,7 +33,7 @@ class ConfigUpdate;
 class Heartbeat {
 public:
     static constexpr uint64_t TYPE_ID = 0xbb06e4bc7e4e3277ULL;
-    static constexpr const char TYPE_NAME[] = "Heartbeat";
+    static constexpr const char* TYPE_NAME = "Heartbeat";
     static constexpr uint8 ID_VALUE = 1;
 
     const uint8& msg_id() const { return msg_id_; }
@@ -129,7 +129,7 @@ public:
 class StatusReport {
 public:
     static constexpr uint64_t TYPE_ID = 0xadee13e259dac771ULL;
-    static constexpr const char TYPE_NAME[] = "StatusReport";
+    static constexpr const char* TYPE_NAME = "StatusReport";
     static constexpr uint8 ID_VALUE = 2;
 
     const uint8& msg_id() const { return msg_id_; }
@@ -249,7 +249,7 @@ public:
 class DataPayload {
 public:
     static constexpr uint64_t TYPE_ID = 0x33460c26d11e6e05ULL;
-    static constexpr const char TYPE_NAME[] = "DataPayload";
+    static constexpr const char* TYPE_NAME = "DataPayload";
     static constexpr uint8 ID_VALUE = 3;
 
     const uint8& msg_id() const { return msg_id_; }
@@ -369,7 +369,7 @@ public:
 class CommandRequest {
 public:
     static constexpr uint64_t TYPE_ID = 0x690fe6e07a2be67fULL;
-    static constexpr const char TYPE_NAME[] = "CommandRequest";
+    static constexpr const char* TYPE_NAME = "CommandRequest";
     static constexpr uint8 ID_VALUE = 10;
 
     const uint8& msg_id() const { return msg_id_; }
@@ -477,7 +477,7 @@ public:
 class CommandResponse {
 public:
     static constexpr uint64_t TYPE_ID = 0x47d59132f22db045ULL;
-    static constexpr const char TYPE_NAME[] = "CommandResponse";
+    static constexpr const char* TYPE_NAME = "CommandResponse";
     static constexpr uint8 ID_VALUE = 11;
 
     const uint8& msg_id() const { return msg_id_; }
@@ -597,7 +597,7 @@ public:
 class ConfigUpdate {
 public:
     static constexpr uint64_t TYPE_ID = 0x0820be0261660676ULL;
-    static constexpr const char TYPE_NAME[] = "ConfigUpdate";
+    static constexpr const char* TYPE_NAME = "ConfigUpdate";
     static constexpr uint8 ID_VALUE = 20;
 
     const uint8& msg_id() const { return msg_id_; }

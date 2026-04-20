@@ -439,13 +439,23 @@ def rewrite_constexpr_array(text):
 
 def rewrite_static_stringview_constants(text):
     """static constexpr std::string_view NAME = "...";
-    -> static constexpr const char NAME[] = "...";
-    (convertible to cpp11::string_view at point of use)."""
-    # Apply after std::string_view -> ::cpp11::string_view has happened.
+    -> static constexpr const char* NAME = "...";
+
+    Using a pointer (not an array) avoids the C++11 ODR-use trap:
+    class-scope `static constexpr const char NAME[]` must be defined
+    out-of-class whenever the member is passed to a function (any
+    array-to-pointer decay is an ODR-use).  C++17 made static constexpr
+    members implicitly inline, which papered over this; under strict
+    C++11 we get undefined-reference link errors for every instantiation
+    of a template that reads the name (e.g. the variant-decode visitor).
+    A constexpr pointer accessed by value is not ODR-used; the string
+    literal has its own static storage, so no out-of-class definition
+    is required.
+    """
     pat = re.compile(
         r'static\s+(?:inline\s+)?constexpr\s+::?cpp11::string_view\s+(\w+)\s*=\s*("[^"]*")\s*;'
     )
-    return pat.sub(r'static constexpr const char \1[] = \2;', text)
+    return pat.sub(r'static constexpr const char* \1 = \2;', text)
 
 
 def apply_ns_subs(text):
