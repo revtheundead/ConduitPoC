@@ -108,6 +108,117 @@ public:
         return v;
     }
 
+    // Aviation wire-format reads -------------------------------------------
+
+    Result<uint64_t> read_bcd(std::size_t bits) {
+        if (bits == 0) return uint64_t(0);
+        if (bits % 4 != 0)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_bcd: bits must be a multiple of 4"));
+        if (bits / 4 > 16)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_bcd: max 64 bits (16 digits) supported"));
+        BGEN11_TRY_ASSIGN(uint64_t, raw, read_bits(bits));
+        uint64_t result = 0;
+        uint64_t mult = 1;
+        std::size_t nibbles = bits / 4;
+        for (std::size_t i = 0; i < nibbles; ++i) {
+            uint8_t digit = uint8_t((raw >> (i * 4)) & 0xF);
+            if (digit > 9)
+                return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                    "read_bcd: invalid digit"));
+            result += digit * mult;
+            mult *= 10;
+        }
+        return result;
+    }
+
+    Result<int64_t> read_bcd_signed(std::size_t bits) {
+        if (bits < 5)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_bcd_signed: bits must be >= 5"));
+        if ((bits - 1) % 4 != 0)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_bcd_signed: (bits-1) must be multiple of 4"));
+        if ((bits - 1) / 4 > 15)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_bcd_signed: max 61 bits supported"));
+        BGEN11_TRY_ASSIGN(uint64_t, raw, read_bits(bits));
+        bool negative = ((raw >> (bits - 1)) & 1) != 0;
+        uint64_t bcd_part = raw & ((uint64_t(1) << (bits - 1)) - 1);
+        int64_t result = 0;
+        int64_t mult = 1;
+        std::size_t nibbles = (bits - 1) / 4;
+        for (std::size_t i = 0; i < nibbles; ++i) {
+            uint8_t digit = uint8_t((bcd_part >> (i * 4)) & 0xF);
+            if (digit > 9)
+                return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                    "read_bcd_signed: invalid digit"));
+            result += digit * mult;
+            mult *= 10;
+        }
+        return negative ? -result : result;
+    }
+
+    Result<int64_t> read_sign_magnitude(std::size_t bits) {
+        if (bits < 2)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "read_sign_magnitude: bits must be >= 2"));
+        BGEN11_TRY_ASSIGN(uint64_t, raw, read_bits(bits));
+        bool negative = ((raw >> (bits - 1)) & 1) != 0;
+        uint64_t magnitude = raw & ((uint64_t(1) << (bits - 1)) - 1);
+        return negative ? -int64_t(magnitude) : int64_t(magnitude);
+    }
+
+    Result<uint64_t> read_u48(int e = Endian_Big) {
+        align_to_byte();
+        if (byte_pos_ + 6 > data_.size())
+            return cpp11::make_unexpected(Error(ErrorCode_BufferUnderrun, "read_u48"));
+        uint64_t v = 0;
+        if (e == Endian_Big) {
+            for (int i = 0; i < 6; ++i) v = (v << 8) | data_[byte_pos_ + i];
+        } else {
+            for (int i = 5; i >= 0; --i) v = (v << 8) | data_[byte_pos_ + i];
+        }
+        byte_pos_ += 6;
+        return v;
+    }
+
+    Result<float> read_f16(int e = Endian_Big) {
+        BGEN11_TRY_ASSIGN(uint16_t, raw, read_u16(e));
+        uint32_t sign = (uint32_t(raw) & 0x8000u) << 16;
+        uint32_t exp  = (raw >> 10) & 0x1Fu;
+        uint32_t mant = raw & 0x03FFu;
+        uint32_t bits;
+        if (exp == 0) {
+            if (mant == 0) {
+                bits = sign;
+            } else {
+                while (!(mant & 0x0400u)) { mant <<= 1; --exp; }
+                ++exp;
+                mant &= ~0x0400u;
+                exp += (127 - 15);
+                bits = sign | (exp << 23) | (mant << 13);
+            }
+        } else if (exp == 31) {
+            bits = sign | 0x7F800000u | (mant << 13);
+        } else {
+            exp += (127 - 15);
+            bits = sign | (exp << 23) | (mant << 13);
+        }
+        float out;
+        std::memcpy(&out, &bits, sizeof(out));
+        return out;
+    }
+
+    Result<double> read_f48(int e = Endian_Big) {
+        BGEN11_TRY_ASSIGN(uint64_t, raw, read_u48(e));
+        uint64_t d = raw << 16;
+        double out;
+        std::memcpy(&out, &d, sizeof(out));
+        return out;
+    }
+
     Result<float> read_f32(int e = Endian_Big) {
         BGEN11_TRY_ASSIGN(uint32_t, raw, read_u32(e));
         float f;

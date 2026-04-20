@@ -98,6 +98,92 @@ public:
         return VoidResult();
     }
 
+    // Aviation writes ------------------------------------------------------
+
+    VoidResult write_bcd(uint64_t value, std::size_t bits) {
+        if (bits == 0) return VoidResult();
+        if (bits % 4 != 0)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "write_bcd: bits must be multiple of 4"));
+        std::size_t nibbles = bits / 4;
+        uint64_t raw = 0;
+        for (std::size_t i = 0; i < nibbles; ++i) {
+            raw |= (uint64_t(value % 10) & 0xF) << (i * 4);
+            value /= 10;
+        }
+        return write_bits(raw, bits);
+    }
+
+    VoidResult write_bcd_signed(int64_t value, std::size_t bits) {
+        if (bits < 5)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "write_bcd_signed: bits >= 5"));
+        bool negative = value < 0;
+        uint64_t magnitude = negative ? uint64_t(-value) : uint64_t(value);
+        std::size_t nibbles = (bits - 1) / 4;
+        uint64_t raw = 0;
+        for (std::size_t i = 0; i < nibbles; ++i) {
+            raw |= (uint64_t(magnitude % 10) & 0xF) << (i * 4);
+            magnitude /= 10;
+        }
+        if (negative) raw |= uint64_t(1) << (bits - 1);
+        return write_bits(raw, bits);
+    }
+
+    VoidResult write_sign_magnitude(int64_t value, std::size_t bits) {
+        if (bits < 2)
+            return cpp11::make_unexpected(Error(ErrorCode_InvalidArgument,
+                "write_sign_magnitude: bits >= 2"));
+        bool negative = value < 0;
+        uint64_t magnitude = negative ? uint64_t(-value) : uint64_t(value);
+        uint64_t mask = (uint64_t(1) << (bits - 1)) - 1;
+        uint64_t raw = (magnitude & mask);
+        if (negative) raw |= uint64_t(1) << (bits - 1);
+        return write_bits(raw, bits);
+    }
+
+    VoidResult write_u48(uint64_t v, int e = Endian_Big) {
+        align_to_byte();
+        if (e == Endian_Big) {
+            for (int i = 5; i >= 0; --i) buf_.push_back(uint8_t(v >> (i * 8)));
+        } else {
+            for (int i = 0; i < 6; ++i) buf_.push_back(uint8_t(v >> (i * 8)));
+        }
+        bit_pos_ += 48;
+        return VoidResult();
+    }
+
+    VoidResult write_f16(float value, int e = Endian_Big) {
+        uint32_t f;
+        std::memcpy(&f, &value, sizeof(f));
+        uint16_t sign = uint16_t((f >> 16) & 0x8000u);
+        int32_t  exp  = int32_t((f >> 23) & 0xFFu) - 127 + 15;
+        uint32_t mant = f & 0x007FFFFFu;
+        uint16_t h;
+        if (((f >> 23) & 0xFFu) == 255) {
+            h = uint16_t(sign | 0x7C00u | (mant ? 0x0200u : 0));
+        } else if (exp >= 31) {
+            h = uint16_t(sign | 0x7C00u);
+        } else if (exp <= 0) {
+            if (exp < -10) {
+                h = sign;
+            } else {
+                mant |= 0x00800000u;
+                uint32_t shift = uint32_t(1 - exp);
+                h = uint16_t(sign | (mant >> (13 + shift)));
+            }
+        } else {
+            h = uint16_t(sign | (uint16_t(exp) << 10) | uint16_t(mant >> 13));
+        }
+        return write_u16(h, e);
+    }
+
+    VoidResult write_f48(double value, int e = Endian_Big) {
+        uint64_t d;
+        std::memcpy(&d, &value, sizeof(d));
+        return write_u48(d >> 16, e);
+    }
+
     VoidResult write_f32(float v, int e = Endian_Big) {
         uint32_t raw;
         std::memcpy(&raw, &v, sizeof(raw));

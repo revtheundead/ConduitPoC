@@ -156,13 +156,20 @@ def rewrite_includes(text):
 
 
 def prepend_polyfill_includes(text):
-    """Insert polyfill umbrella includes right after the #pragma once."""
+    """Insert polyfill umbrella includes right after the #pragma once,
+    and the idempotency sentinel as the very first line.
+
+    If the sentinel is already present, leave the file untouched.
+    """
+    if IDEMPOTENCY_SENTINEL in text:
+        return text
+    header = IDEMPOTENCY_SENTINEL + '\n'
     marker = '#pragma once'
     inject = ('\n#include "compat11/compat11.hpp"'
               '\n#include "bgen11/bgen11.hpp"\n')
     if marker in text:
-        return text.replace(marker, marker + inject, 1)
-    return inject + text
+        return header + text.replace(marker, marker + inject, 1)
+    return header + inject + text
 
 
 def rewrite_default_equality(text):
@@ -290,6 +297,41 @@ def find_class_members(text, op_pos, cls_name):
             line_start = i + 1
         i += 1
     return members
+
+
+IDEMPOTENCY_SENTINEL = '// bgen-cpp11: translated'
+
+
+def rewrite_nested_namespace(text):
+    """Convert `namespace a::b::c { ... }` (C++17) to the C++11
+    `namespace a { namespace b { namespace c { ... } } }` form.
+
+    We only rewrite the opening line; the corresponding closing brace
+    gets additional `}` appended at its location, matched via balanced
+    braces.
+    """
+    pat = re.compile(r'namespace\s+(\w+(?:::\w+)+)\s*\{')
+    out = []
+    i = 0
+    while True:
+        m = pat.search(text, i)
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:m.start()])
+        parts = m.group(1).split('::')
+        n_extra = len(parts) - 1
+        opener = ' '.join('namespace ' + p + ' {' for p in parts)
+        out.append(opener)
+        brace_open = m.end() - 1
+        close = _find_matching_brace(text, brace_open)
+        if close < 0:
+            out.append(text[m.end():])
+            break
+        out.append(text[m.end():close + 1])
+        out.append(' }' * n_extra)
+        i = close + 1
+    return ''.join(out)
 
 
 def rewrite_inline_constexpr(text):
@@ -485,74 +527,126 @@ def _find_matching_brace(text, open_idx):
 
 
 def rewrite_generic_lambda_visits(text):
-    """Rewrite every `::cpp11::visit([...](const auto& x) { body }, EXPR)`
-    to one of the bgen11 detail helpers based on the body pattern.
+    """Rewrite `::cpp11::visit([caps](const auto& v) [-> R] { body }, EXPR)`
+    into namespace-scope bgen11 detail helpers.
+
+    C++11 forbids member templates in local classes, which blocks the
+    straightforward "lift to local templated functor" approach.  Instead
+    we rely on a closed set of bgen emit patterns (encode / to_string /
+    session-decode) and map each to a pre-defined templated helper in
+    `::bgen11::detail`.  Unknown generic-lambda shapes are left in place
+    and will surface as compile errors so the user can extend the
+    converter explicitly rather than silently producing wrong code.
     """
     out = []
     i = 0
     needle = '::cpp11::visit('
+    counter = 0
     while True:
         idx = text.find(needle, i)
         if idx < 0:
             out.append(text[i:])
             break
         out.append(text[i:idx])
-        open_paren = idx + len(needle) - 1  # position of '('
+        open_paren = idx + len(needle) - 1
         close_paren = _find_matching_paren(text, open_paren)
         if close_paren < 0:
             out.append(text[idx:])
             break
-        inner = text[open_paren + 1:close_paren]
-        # Parse lambda head
+
+        # Parse "[caps](const auto& v) [-> R] {" starting just after '('.
+        head_start = open_paren + 1
         m = re.match(
             r'\s*\[([^\]]*)\]\s*\(\s*const\s+auto\s*&\s*(\w+)\s*\)'
-            r'(\s*->\s*[^\{]+)?\s*\{',
-            inner)
+            r'(\s*->\s*([^\{]+))?\s*\{',
+            text[head_start:close_paren])
         if not m:
-            # Not a generic lambda — keep as-is
             out.append(text[idx:close_paren + 1])
             i = close_paren + 1
             continue
+
         capture = m.group(1).strip()
         var = m.group(2)
-        brace_start = open_paren + 1 + m.end() - 1  # absolute index of '{'
+        ret = m.group(4).strip() if m.group(4) else None
+        brace_start = head_start + m.end() - 1  # absolute '{' pos in text
         brace_end = _find_matching_brace(text, brace_start)
-        if brace_end < 0:
+        if brace_end < 0 or brace_end >= close_paren:
             out.append(text[idx:close_paren + 1])
             i = close_paren + 1
             continue
-        body = text[brace_start + 1:brace_end].strip()
-        # Skip comma and whitespace after lambda
-        j = brace_end + 1
-        while j < close_paren and text[j] in ' \t\n,':
-            j += 1
-        variant_expr = text[j:close_paren].strip()
 
-        # Identify helper to use based on body content.
-        if re.match(r'return\s+' + re.escape(var) + r'\.encode\s*\(\s*\w+\s*\)\s*;\s*$', body):
-            # Pattern 1: variant_encode
-            cap_m = re.match(r'^&?\s*(\w+)$', capture)
-            if cap_m:
-                writer = cap_m.group(1)
-                repl = '::bgen11::detail::variant_encode({0}, {1})'.format(variant_expr, writer)
+        body = text[brace_start + 1:brace_end]
+
+        # Tail between '}' and ')': ", EXPR"
+        j = brace_end + 1
+        while j < close_paren and text[j] in ' \t\n\r':
+            j += 1
+        if j >= close_paren or text[j] != ',':
+            out.append(text[idx:close_paren + 1])
+            i = close_paren + 1
+            continue
+        variant_expr = text[j + 1:close_paren].strip()
+
+        body_stripped = body.strip()
+
+        # Pattern A: variant_encode
+        # body := `return <var>.encode(<writer>);`
+        ma = re.match(
+            r'^return\s+' + re.escape(var) +
+            r'\.encode\s*\(\s*(\w+)\s*\)\s*;\s*$',
+            body_stripped, re.DOTALL)
+        if ma:
+            writer_name = ma.group(1)
+            # The writer must be a named single-&-capture.
+            if len(cap_names := [
+                re.match(r'^&?\s*(\w+)$', p.strip()).group(1)
+                for p in capture.split(',')
+                if p.strip() and re.match(r'^&?\s*\w+$', p.strip())
+            ]) >= 1 and writer_name in cap_names:
+                repl = ('::bgen11::detail::variant_encode(' +
+                        variant_expr + ', ' + writer_name + ')')
                 out.append(repl)
                 i = close_paren + 1
                 continue
-        if re.match(r'return\s+' + re.escape(var) + r'\.to_string\s*\(\s*\)\s*;\s*$', body):
-            # Pattern 2: variant_to_string
-            if capture == '':
-                repl = '::bgen11::detail::variant_to_string({0})'.format(variant_expr)
-                out.append(repl)
-                i = close_paren + 1
-                continue
-        if '::bgen11::traits::DecodedMessage' in body and 'messages' in body:
-            # Pattern 3: session decode dispatch
-            repl = '::bgen11::detail::variant_decode_append({0}, messages, raw_copy)'.format(variant_expr)
+
+        # Pattern B: variant_to_string
+        # body := `return <var>.to_string();`
+        mb = re.match(
+            r'^return\s+' + re.escape(var) + r'\.to_string\s*\(\s*\)\s*;\s*$',
+            body_stripped, re.DOTALL)
+        if mb:
+            repl = '::bgen11::detail::variant_to_string(' + variant_expr + ')'
             out.append(repl)
             i = close_paren + 1
             continue
-        # Unrecognized generic-lambda visit — emit as-is (will fail compile;
-        # user gets a clear message rather than silently wrong code).
+
+        # Pattern B2: `return <var>.to_string(<overrides>);` — variant
+        # dispatch with a `to_string(overrides)` overload.
+        mb2 = re.match(
+            r'^return\s+' + re.escape(var) + r'\.to_string\s*\((.+)\)\s*;\s*$',
+            body_stripped, re.DOTALL)
+        if mb2:
+            args = mb2.group(1).strip()
+            repl = ('::bgen11::detail::variant_to_string_with(' +
+                    variant_expr + ', ' + args + ')')
+            out.append(repl)
+            i = close_paren + 1
+            continue
+
+        # Pattern C: session decode append
+        # body mentions DecodedMessage + messages.push_back
+        if ('::bgen11::traits::DecodedMessage' in body_stripped and
+                'messages.push_back' in body_stripped):
+            repl = ('::bgen11::detail::variant_decode_append(' +
+                    variant_expr + ', messages, raw_copy)')
+            out.append(repl)
+            i = close_paren + 1
+            continue
+
+        # Unknown pattern: leave the visit call untouched.  The compiler
+        # will flag the use of the C++14 generic lambda, and the user can
+        # either teach the converter a new pattern or hand-convert the
+        # call site.
         out.append(text[idx:close_paren + 1])
         i = close_paren + 1
     return ''.join(out)
@@ -614,7 +708,20 @@ def transform_file(src, dst):
             f.write(text)
         return
 
+    # Idempotency guard: if the file has already been translated, pass
+    # it through unchanged.  Any content after our sentinel is presumed
+    # already-converted output.
+    with open(src, 'r', encoding='utf-8') as f:
+        probe = f.read(4096)
+    if IDEMPOTENCY_SENTINEL in probe:
+        dst_dir = os.path.dirname(dst)
+        if dst_dir and not os.path.isdir(dst_dir):
+            os.makedirs(dst_dir)
+        shutil.copy2(src, dst)
+        return
+
     text = rewrite_includes(text)
+    text = rewrite_nested_namespace(text)
     text = prepend_polyfill_includes(text)
     text = apply_ns_subs(text)
     text = rewrite_inline_constexpr(text)

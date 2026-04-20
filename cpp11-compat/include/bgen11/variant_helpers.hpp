@@ -48,6 +48,25 @@ std::string variant_to_string(const Variant& v) {
     return vis.result;
 }
 
+template <typename Overrides>
+struct VariantToStringWithVisitor {
+    const Overrides* overrides;
+    std::string result;
+
+    template <typename T>
+    void operator()(const T& m) {
+        result = m.to_string(*overrides);
+    }
+};
+
+template <typename Variant, typename Overrides>
+std::string variant_to_string_with(const Variant& v, const Overrides& overrides) {
+    VariantToStringWithVisitor<Overrides> vis;
+    vis.overrides = &overrides;
+    cpp11::visit(vis, v);
+    return vis.result;
+}
+
 struct VariantDecodeAppendVisitor {
     std::vector<traits::DecodedMessage>* messages;
     const std::vector<uint8_t>* raw;
