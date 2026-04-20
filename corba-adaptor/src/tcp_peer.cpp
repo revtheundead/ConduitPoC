@@ -1,30 +1,45 @@
 // SPDX-License-Identifier: MIT
-// Adaptor - TCP Peer implementation (ACE-backed, C++11)
+// Adaptor - TCP Peer implementation (C++11)
 
 #include "adaptor/tcp_peer.hpp"
 #include "adaptor/ace_tcp_client.hpp"
+#include "adaptor/ace_tcp_client_standalone.hpp"
 
 namespace adaptor {
 
 TcpPeer::TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor)
-    : config_(config), reactor_(reactor), started_(false) {
-    AceTcpClientConfig c;
-    c.host = config_.host;
-    c.port = config_.port;
-    c.recv_buffer_size = config_.recv_buffer_size;
-    c.connect_timeout_ms = config_.connect_timeout_ms;
-    c.auto_reconnect = config_.auto_reconnect;
-    c.initial_delay_ms = config_.initial_delay_ms;
-    c.max_delay_ms = config_.max_delay_ms;
-    c.backoff_multiplier = config_.backoff_multiplier;
-    c.max_attempts = config_.max_attempts;
-    client_.reset(new AceTcpClient(reactor_, c));
+    : config_(config), started_(false) {
+    client_.reset(new AceTcpClient(reactor, config_));
     client_->set_bytes_callback(
         std::bind(&TcpPeer::on_bytes, this,
                   std::placeholders::_1, std::placeholders::_2));
     client_->set_state_callback([this](bool connected) {
         on_state_change_internal(connected ? Connected : Disconnected);
     });
+}
+
+TcpPeer::TcpPeer(const TcpPeerConfig& config)
+    : config_(config), started_(false) {
+    client_.reset(new AceTcpClientStandalone(config_));
+    client_->set_bytes_callback(
+        std::bind(&TcpPeer::on_bytes, this,
+                  std::placeholders::_1, std::placeholders::_2));
+    client_->set_state_callback([this](bool connected) {
+        on_state_change_internal(connected ? Connected : Disconnected);
+    });
+}
+
+TcpPeer::TcpPeer(const TcpPeerConfig& config,
+                 std::unique_ptr<ITcpClient> client)
+    : config_(config), client_(std::move(client)), started_(false) {
+    if (client_) {
+        client_->set_bytes_callback(
+            std::bind(&TcpPeer::on_bytes, this,
+                      std::placeholders::_1, std::placeholders::_2));
+        client_->set_state_callback([this](bool connected) {
+            on_state_change_internal(connected ? Connected : Disconnected);
+        });
+    }
 }
 
 TcpPeer::~TcpPeer() {
@@ -39,7 +54,7 @@ void TcpPeer::start() {
     if (started_) return;
     started_ = true;
     on_state_change_internal(Connecting);
-    client_->connect();
+    if (client_) client_->connect();
 }
 
 void TcpPeer::stop() {

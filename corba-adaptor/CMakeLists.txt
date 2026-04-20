@@ -218,6 +218,7 @@ endif()
 add_library(corba_adaptor_lib STATIC
     src/tcp_peer.cpp
     src/ace_tcp_client.cpp
+    src/ace_tcp_client_standalone.cpp
     src/corba_peer.cpp
     src/command_servant.cpp
     src/naming.cpp

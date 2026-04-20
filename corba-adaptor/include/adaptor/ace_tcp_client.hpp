@@ -19,41 +19,26 @@
 #include <ace/SOCK_Stream.h>
 #include <ace/Time_Value.h>
 
+#include "adaptor/tcp_client.hpp"
+
 namespace adaptor {
 
-struct AceTcpClientConfig {
-    std::string host;
-    uint16_t    port;
-    std::size_t recv_buffer_size;
-    uint32_t    connect_timeout_ms;
-    bool        auto_reconnect;
-    uint32_t    initial_delay_ms;
-    uint32_t    max_delay_ms;
-    double      backoff_multiplier;
-    uint32_t    max_attempts;
+// Retained as an alias for source-backward-compatibility; the concrete
+// config struct is now `TcpClientConfig` in tcp_client.hpp.
+typedef TcpClientConfig AceTcpClientConfig;
 
-    AceTcpClientConfig()
-        : host("127.0.0.1"), port(0), recv_buffer_size(65536),
-          connect_timeout_ms(10000), auto_reconnect(true),
-          initial_delay_ms(1000), max_delay_ms(30000),
-          backoff_multiplier(2.0), max_attempts(0) {}
-};
-
-class AceTcpClient : public ACE_Event_Handler {
+class AceTcpClient : public ITcpClient, public ACE_Event_Handler {
 public:
-    typedef std::function<void(const uint8_t*, std::size_t)> BytesCallback;
-    typedef std::function<void(bool /*connected*/)> StateCallback;
-
-    AceTcpClient(ACE_Reactor* reactor, const AceTcpClientConfig& config);
+    AceTcpClient(ACE_Reactor* reactor, const TcpClientConfig& config);
     virtual ~AceTcpClient();
 
-    void set_bytes_callback(const BytesCallback& cb) { bytes_cb_ = cb; }
-    void set_state_callback(const StateCallback& cb) { state_cb_ = cb; }
-
-    int connect();
-    int send(const uint8_t* data, std::size_t size);
-    void close();
-    bool is_connected() const;
+    // ITcpClient overrides.
+    virtual void set_bytes_callback(const BytesCallback& cb) { bytes_cb_ = cb; }
+    virtual void set_state_callback(const StateCallback& cb) { state_cb_ = cb; }
+    virtual int connect();
+    virtual int send(const uint8_t* data, std::size_t size);
+    virtual void close();
+    virtual bool is_connected() const;
 
     // ACE_Event_Handler overrides.
     virtual ACE_HANDLE get_handle() const;
@@ -68,7 +53,7 @@ private:
     void do_state_change(bool connected);
 
     ACE_Reactor* reactor_;
-    AceTcpClientConfig config_;
+    TcpClientConfig config_;
     ACE_SOCK_Stream stream_;
     ACE_SOCK_Connector connector_;
     mutable std::mutex mu_;

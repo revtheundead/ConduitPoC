@@ -31,14 +31,29 @@
 
 namespace adaptor {
 
+enum TcpClientMode {
+    // Adaptor does not touch any ACE_Reactor; TCP peer runs a dedicated
+    // receive thread.  Safe to use when the reactor is owned by another
+    // subsystem.  Default.
+    TcpClientMode_Standalone = 0,
+    // Adaptor spins up a private ACE_Reactor on its own thread and uses
+    // an ACE_Event_Handler-based TCP client.  Pick this only when you
+    // have a reason to want reactor-driven I/O (e.g. for coalesced
+    // wake-ups against many sockets).
+    TcpClientMode_Reactor = 1
+};
+
 struct AdaptorConfig {
     TcpPeerConfig   tcp;
     CorbaPeerConfig corba_peer;
     uint32_t        health_check_interval_seconds;
     uint32_t        orb_threads;
+    TcpClientMode   tcp_client_mode;
 
     AdaptorConfig()
-        : health_check_interval_seconds(30), orb_threads(1) {}
+        : health_check_interval_seconds(30),
+          orb_threads(1),
+          tcp_client_mode(TcpClientMode_Standalone) {}
 };
 
 class Adaptor {

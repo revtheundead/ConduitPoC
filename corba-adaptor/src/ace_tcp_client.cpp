@@ -10,7 +10,7 @@
 namespace adaptor {
 
 AceTcpClient::AceTcpClient(ACE_Reactor* reactor,
-                           const AceTcpClientConfig& config)
+                           const TcpClientConfig& config)
     : reactor_(reactor), config_(config),
       attempts_(0),
       current_delay_ms_(config.initial_delay_ms),

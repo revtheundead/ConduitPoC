@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - TCP Peer (ACE-backed, C++11)
+// Conduit CORBA Adaptor - TCP Peer (C++11)
 //
-// Connects to a TCP server using an ACE_Reactor + ACE_Event_Handler based
-// client. Incoming bytes are decoded via the bgen-generated
-// `tcp_peer::TcpPeerFrameSession` codec (translated to C++11 via
-// tools/bgen-cpp11). Typed handlers are dispatched on decode.
+// Holds a pluggable ITcpClient backend (either AceTcpClient which binds
+// to a caller-owned ACE_Reactor, or AceTcpClientStandalone which runs a
+// self-contained receive thread without touching any reactor).  Incoming
+// bytes are decoded via the bgen-generated `tcp_peer::TcpPeerFrameSession`
+// codec.  Typed handlers are dispatched on decode.
 
 #ifndef ADAPTOR_TCP_PEER_HPP
 #define ADAPTOR_TCP_PEER_HPP
 
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -24,11 +24,9 @@
 #include "tcp-peer/tcp_peer.hpp"
 #include "tcp-peer/sessions.hpp"
 
-#include <ace/Event_Handler.h>
-#include <ace/INET_Addr.h>
-#include <ace/Reactor.h>
-#include <ace/SOCK_Connector.h>
-#include <ace/SOCK_Stream.h>
+#include "adaptor/tcp_client.hpp"
+
+class ACE_Reactor;
 
 namespace adaptor {
 
@@ -38,33 +36,32 @@ enum ConnectionState {
     Connected = 2
 };
 
-struct TcpPeerConfig {
-    std::string host;
-    uint16_t    port;
-    std::size_t recv_buffer_size;
-    uint32_t    connect_timeout_ms;
-    bool        auto_reconnect;
-    uint32_t    initial_delay_ms;
-    uint32_t    max_delay_ms;
-    double      backoff_multiplier;
-    uint32_t    max_attempts;  // 0 = unlimited
+struct TcpPeerConfig : public TcpClientConfig {
     std::string name;
 
-    TcpPeerConfig()
-        : host("127.0.0.1"), port(0), recv_buffer_size(65536),
-          connect_timeout_ms(10000), auto_reconnect(true),
-          initial_delay_ms(1000), max_delay_ms(30000),
-          backoff_multiplier(2.0), max_attempts(0), name("tcp-peer") {}
+    TcpPeerConfig() : TcpClientConfig(), name("tcp-peer") {}
 };
-
-class AceTcpClient;
 
 class TcpPeer {
 public:
     typedef std::function<void(ConnectionState)> StateCallback;
     typedef std::function<void(const cpp11::any&)> TypedHandler;
 
-    explicit TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor);
+    /// Reactor-backed constructor: the adaptor (or caller) supplies an
+    /// ACE_Reactor pointer whose event loop drives the TCP client.
+    TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor);
+
+    /// Standalone (reactor-free) constructor: the TCP client runs on its
+    /// own dedicated receive thread and never touches an ACE_Reactor.
+    /// Use this when the host environment owns its reactor and does not
+    /// permit the adaptor to register event handlers against it.
+    explicit TcpPeer(const TcpPeerConfig& config);
+
+    /// Dependency-injection constructor: caller constructs the ITcpClient
+    /// and hands it over.  Useful for tests or exotic transports.
+    TcpPeer(const TcpPeerConfig& config,
+            std::unique_ptr<ITcpClient> client);
+
     ~TcpPeer();
 
     TcpPeer(const TcpPeer&);              // = delete, but C++11 friendly.
@@ -106,8 +103,7 @@ private:
     void on_state_change_internal(ConnectionState s);
 
     TcpPeerConfig config_;
-    ACE_Reactor* reactor_;
-    std::unique_ptr<AceTcpClient> client_;
+    std::unique_ptr<ITcpClient> client_;
     tcp_peer::TcpPeerFrameSession session_;
     std::map<uint64_t, TypedHandler> handlers_;
     std::vector<StateCallback> state_callbacks_;
