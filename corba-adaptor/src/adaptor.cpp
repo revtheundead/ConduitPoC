@@ -26,8 +26,13 @@ Adaptor::Adaptor(CORBA::ORB_ptr orb,
       config_(config),
       running_(false),
       shutdown_requested_(false) {
-    adaptor_reactor_.reset(new ACE_Reactor(new ACE_Select_Reactor, 1));
-    tcp_.reset(new TcpPeer(config_.tcp, adaptor_reactor_.get()));
+    if (config_.tcp_client_mode == TcpClientMode_Reactor) {
+        adaptor_reactor_.reset(new ACE_Reactor(new ACE_Select_Reactor, 1));
+        tcp_.reset(new TcpPeer(config_.tcp, adaptor_reactor_.get()));
+    } else {
+        // Default: standalone client, no reactor.
+        tcp_.reset(new TcpPeer(config_.tcp));
+    }
     corba_.reset(new CorbaPeer(orb, poa, config_.corba_peer));
     command_.reset(new CommandReceiverServant);
     corba_session_.reset(new corba_peer::CorbaPeerFrameSession);
@@ -74,7 +79,9 @@ void Adaptor::start() {
     for (uint32_t i = 0; i < n; ++i) {
         orb_threads_.push_back(std::thread(&Adaptor::orb_thread_func, this));
     }
-    reactor_thread_ = std::thread(&Adaptor::reactor_thread_func, this);
+    if (adaptor_reactor_) {
+        reactor_thread_ = std::thread(&Adaptor::reactor_thread_func, this);
+    }
 
     tcp_->start();
     corba_->start();
