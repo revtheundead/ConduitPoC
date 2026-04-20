@@ -5,8 +5,6 @@
 
 #include <chrono>
 
-#include <ace/Log_Msg.h>
-#include <ace/OS_NS_errno.h>
 #include <ace/Time_Value.h>
 
 namespace adaptor {
@@ -79,19 +77,15 @@ void AceTcpClientStandalone::set_connected(bool c) {
 
 bool AceTcpClientStandalone::try_connect_once() {
     ACE_INET_Addr addr(config_.port, config_.host.c_str());
-    ACE_Time_Value timeout(
-        static_cast<time_t>(config_.connect_timeout_ms / 1000),
-        static_cast<suseconds_t>((config_.connect_timeout_ms % 1000) * 1000));
+    ACE_Time_Value timeout(config_.connect_timeout_ms / 1000,
+                           (config_.connect_timeout_ms % 1000) * 1000);
 
-    ACE_SOCK_Stream fresh;
-    if (connector_.connect(fresh, addr, &timeout) == -1) {
-        return false;
-    }
-    {
-        std::lock_guard<std::mutex> lock(stream_mu_);
-        stream_ = fresh;
-    }
-    return true;
+    // Connect directly into the member stream_.  The lock is briefly
+    // held for this to serialize against close() and against another
+    // caller racing against stream handle ownership; recv() does NOT
+    // need the lock, which is crucial because it blocks.
+    std::lock_guard<std::mutex> lock(stream_mu_);
+    return connector_.connect(stream_, addr, &timeout) == 0;
 }
 
 void AceTcpClientStandalone::wait_backoff() {
