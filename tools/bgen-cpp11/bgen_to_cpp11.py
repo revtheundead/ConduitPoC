@@ -302,6 +302,43 @@ def find_class_members(text, op_pos, cls_name):
 IDEMPOTENCY_SENTINEL = '// bgen-cpp11: translated'
 
 
+def rewrite_if_constexpr_requires(text):
+    """Rewrite the exact `if constexpr (requires { ... }) { ... } else { ... }`
+    pattern bgen emits in json.hpp to an SFINAE-backed helper call.
+
+    The only shape bgen produces today is:
+
+        if constexpr (requires { <VAR>.size(); <VAR>.begin();
+                                 std::tuple_size<std::decay_t<decltype(<VAR>)>>::value; }) {
+            auto n_ = std::min(<SRC>.size(), <VAR>.size());
+            std::copy_n(<SRC>.begin(), n_, <VAR>.begin());
+        } else {
+            <VAR> = std::move(<SRC>);
+        }
+
+    It replaces the whole block with:
+
+        ::bgen11::detail::assign_fixed_or_move(<VAR>, std::move(<SRC>));
+    """
+    pat = re.compile(
+        r'if\s+constexpr\s*\(\s*requires\s*\{\s*'
+        r'(\w+)\.size\(\)\s*;\s*\1\.begin\(\)\s*;\s*'
+        r'std::tuple_size\s*<\s*(?:typename\s+)?std::decay(?:_t)?\s*<\s*'
+        r'decltype\(\s*\1\s*\)\s*>(?:::type)?\s*>\s*::\s*value\s*;\s*'
+        r'\}\s*\)\s*\{\s*'
+        r'auto\s+n_\s*=\s*std::min\(\s*(\w+)\.size\(\)\s*,\s*\1\.size\(\)\s*\)\s*;\s*'
+        r'std::copy_n\(\s*\2\.begin\(\)\s*,\s*n_\s*,\s*\1\.begin\(\)\s*\)\s*;\s*'
+        r'\}\s*else\s*\{\s*'
+        r'\1\s*=\s*std::move\(\s*\2\s*\)\s*;\s*'
+        r'\}',
+        re.DOTALL
+    )
+    return pat.sub(
+        r'::bgen11::detail::assign_fixed_or_move(\1, std::move(\2));',
+        text
+    )
+
+
 def rewrite_nested_namespace(text):
     """Convert `namespace a::b::c { ... }` (C++17) to the C++11
     `namespace a { namespace b { namespace c { ... } } }` form.
@@ -643,6 +680,22 @@ def rewrite_generic_lambda_visits(text):
             i = close_paren + 1
             continue
 
+        # Pattern D: json-field dispatch
+        # body := `nlohmann::json vj; to_json(vj, <var>); <j>[<key>] = std::move(vj);`
+        md = re.match(
+            r'^nlohmann::json\s+(\w+)\s*;\s*'
+            r'to_json\s*\(\s*\1\s*,\s*' + re.escape(var) + r'\s*\)\s*;\s*'
+            r'(\w+)\s*\[\s*("[^"]*")\s*\]\s*=\s*std::move\s*\(\s*\1\s*\)\s*;\s*$',
+            body_stripped, re.DOTALL)
+        if md:
+            jvar = md.group(2)
+            key = md.group(3)
+            repl = ('::bgen11::detail::variant_to_json_field(' +
+                    jvar + ', ' + key + ', ' + variant_expr + ')')
+            out.append(repl)
+            i = close_paren + 1
+            continue
+
         # Unknown pattern: leave the visit call untouched.  The compiler
         # will flag the use of the C++14 generic lambda, and the user can
         # either teach the converter a new pattern or hand-convert the
@@ -721,6 +774,7 @@ def transform_file(src, dst):
         return
 
     text = rewrite_includes(text)
+    text = rewrite_if_constexpr_requires(text)
     text = rewrite_nested_namespace(text)
     text = prepend_polyfill_includes(text)
     text = apply_ns_subs(text)

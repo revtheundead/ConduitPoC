@@ -67,6 +67,75 @@ std::string variant_to_string_with(const Variant& v, const Overrides& overrides)
     return vis.result;
 }
 
+// ---------------------------------------------------------------------------
+// JSON field dispatch: for each alternative in a variant, delegate to a
+// user-supplied ADL-found `to_json(JsonT&, const T&)` and assign the
+// result to `j[key]`.
+//
+// Templated on the JSON type so the helper does not pull in nlohmann
+// headers.  Instantiated at call sites in the translated json.hpp.
+// ---------------------------------------------------------------------------
+
+template <typename JsonT>
+struct VariantToJsonFieldVisitor {
+    JsonT* j;
+    const char* key;
+
+    template <typename T>
+    void operator()(const T& inner) {
+        JsonT vj;
+        using std::move;
+        to_json(vj, inner);
+        (*j)[key] = std::move(vj);
+    }
+};
+
+template <typename JsonT, typename Variant>
+void variant_to_json_field(JsonT& j, const char* key, const Variant& v) {
+    VariantToJsonFieldVisitor<JsonT> vis;
+    vis.j = &j;
+    vis.key = key;
+    cpp11::visit(vis, v);
+}
+
+// ---------------------------------------------------------------------------
+// JSON helpers: assign-to-fixed-size-array OR move-assign.
+//
+// bgen's json.hpp emits:
+//   if constexpr (requires { dest_.size(); dest_.begin();
+//                            std::tuple_size<std::decay_t<decltype(dest_)>>::value; })
+//     { std::copy_n(arr_.begin(), std::min(arr_.size(), dest_.size()), dest_.begin()); }
+//   else { dest_ = std::move(arr_); }
+//
+// The C++23 `if constexpr requires` path is replaced by this SFINAE
+// overload set in C++11.  The first overload is selected when
+// `std::tuple_size<T>::value` is well-formed (i.e. T is a std::array or
+// tuple-like type with a known compile-time size), otherwise the
+// fallback overload runs the move-assignment.
+// ---------------------------------------------------------------------------
+
+#include <algorithm>
+#include <tuple>
+
+template <typename Dest, typename Src>
+auto assign_fixed_or_move_impl(Dest& dest, Src&& src, int)
+    -> decltype((void)std::tuple_size<typename std::decay<Dest>::type>::value) {
+    typedef typename std::decay<Src>::type SrcDecay;
+    SrcDecay tmp(std::forward<Src>(src));
+    std::size_t n = tmp.size() < dest.size() ? tmp.size() : dest.size();
+    std::copy_n(tmp.begin(), n, dest.begin());
+}
+
+template <typename Dest, typename Src>
+void assign_fixed_or_move_impl(Dest& dest, Src&& src, long) {
+    dest = std::forward<Src>(src);
+}
+
+template <typename Dest, typename Src>
+void assign_fixed_or_move(Dest& dest, Src&& src) {
+    assign_fixed_or_move_impl(dest, std::forward<Src>(src), 0);
+}
+
 struct VariantDecodeAppendVisitor {
     std::vector<traits::DecodedMessage>* messages;
     const std::vector<uint8_t>* raw;
