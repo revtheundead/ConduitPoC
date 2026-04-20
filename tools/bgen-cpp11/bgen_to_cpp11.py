@@ -189,22 +189,30 @@ MEMBER_DECL_RE = re.compile(
 
 
 def find_class_members(text, op_pos, cls_name):
-    """Find private trailing-underscore data members of the class that
-    contains the operator== at `op_pos`. Very mechanical — relies on
-    bgen's consistent emit pattern (private section with `Type name_;` lines).
+    """Find the data members of the class that contains the operator== at
+    `op_pos`.  Only scans the `private:` section (bgen always places data
+    members there), so local variables in member-function bodies are
+    ignored.
+
+    Mechanical rules (matching bgen's emit conventions):
+    - Start at the class-opening brace.
+    - Find the top-level `private:` label (depth == 1).
+    - Collect `Type  name_;` style declarations up to the matching
+      closing brace, skipping nested block scopes.
     """
-    # Find enclosing class by scanning backward for `class <cls_name>` or
-    # `struct <cls_name>` and forward for the matching closing brace.
-    class_pat = re.compile(r'(?:class|struct)\s+' + re.escape(cls_name) + r'\b[^{]*\{')
+    class_pat = re.compile(
+        r'(?:class|struct)\s+' + re.escape(cls_name) + r'\b[^{]*\{'
+    )
     start_match = None
     for m in class_pat.finditer(text, 0, op_pos):
         start_match = m
     if not start_match:
         return []
-    # Find matching close brace.
+
+    # Find matching close brace of the class body.
     depth = 0
     i = start_match.end() - 1
-    end = -1
+    class_end = -1
     while i < len(text):
         c = text[i]
         if c == '{':
@@ -212,21 +220,90 @@ def find_class_members(text, op_pos, cls_name):
         elif c == '}':
             depth -= 1
             if depth == 0:
-                end = i
+                class_end = i
                 break
         i += 1
-    if end < 0:
+    if class_end < 0:
         return []
-    body = text[start_match.end():end]
+
+    body_start = start_match.end()
+    body = text[body_start:class_end]
+
+    # Find the `private:` label at the class body's top level (depth 0
+    # relative to the body).  Ignore labels in nested scopes.
+    private_idx = -1
+    bd = 0
+    i = 0
+    while i < len(body):
+        c = body[i]
+        if c == '{':
+            bd += 1
+        elif c == '}':
+            bd -= 1
+        elif bd == 0 and body[i:i+8] == 'private:':
+            private_idx = i + 8
+            break
+        i += 1
+    if private_idx < 0:
+        # No private section: scan the whole class body at depth 0.
+        private_idx = 0
+
+    # Walk the private region line-by-line, but skip any nested braces
+    # (shouldn't normally occur for data members).
     members = []
-    for line in body.splitlines():
+    remainder = body[private_idx:]
+    bd2 = 0
+    line_buf = []
+    def try_match_line(line):
         s = line.strip()
         if not s or s.startswith('//') or s.startswith('#'):
-            continue
-        m = re.match(r'^[A-Za-z_][\w:<>, \t\*&]*?\b(\w+_)\s*(?:=\s*[^;{]+|\{[^}]*\})?\s*;\s*(?://.*)?$', s)
-        if m:
-            members.append(m.group(1))
+            return None
+        if s.endswith(':'):  # another access label
+            return None
+        if s.startswith('static ') or s.startswith('typedef ') or s.startswith('using '):
+            return None
+        if 'friend ' in s or 'operator' in s or '(' in s.split('=')[0].split('{')[0]:
+            # Looks like a function declaration, not a member variable.
+            return None
+        mm = re.match(
+            r'^[A-Za-z_][\w:<>, \t\*&]*?\b(\w+_?)\s*'
+            r'(?:=\s*[^;{]+|\{[^}]*\})?\s*;\s*(?://.*)?$',
+            s)
+        if mm:
+            return mm.group(1)
+        return None
+
+    # Iterate characters; emit logical lines at `;` when brace depth is 0.
+    i = 0
+    line_start = 0
+    while i < len(remainder):
+        c = remainder[i]
+        if c == '{':
+            bd2 += 1
+        elif c == '}':
+            bd2 -= 1
+        elif c == ';' and bd2 == 0:
+            line = remainder[line_start:i + 1]
+            name = try_match_line(line)
+            if name:
+                members.append(name)
+            line_start = i + 1
+        i += 1
     return members
+
+
+def rewrite_inline_constexpr(text):
+    """Strip `inline` from `inline constexpr` variable declarations.
+    C++11 does not support inline variables; the `inline` specifier is
+    only valid on functions. For integral/literal constexpr members
+    defined at namespace scope, `constexpr` by itself is the C++11 form
+    (internal linkage, so no ODR issue for single-TU headers).
+    """
+    # Matches `inline constexpr TYPE NAME = value;` at start of a line.
+    return re.sub(
+        r'(^|\n)([ \t]*)inline\s+constexpr\s+',
+        r'\1\2constexpr ',
+        text)
 
 
 def rewrite_constexpr_array(text):
@@ -540,6 +617,7 @@ def transform_file(src, dst):
     text = rewrite_includes(text)
     text = prepend_polyfill_includes(text)
     text = apply_ns_subs(text)
+    text = rewrite_inline_constexpr(text)
     text = rewrite_constexpr_array(text)
     text = rewrite_static_stringview_constants(text)
     text = rewrite_default_equality(text)

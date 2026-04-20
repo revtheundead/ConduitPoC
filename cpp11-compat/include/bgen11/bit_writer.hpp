@@ -129,6 +129,12 @@ public:
         if (bit_pos_ % 8 != 0) bit_pos_ = (bit_pos_ / 8 + 1) * 8;
     }
 
+    bool patch_u8(std::size_t byte_offset, uint8_t value) {
+        if (byte_offset >= buf_.size()) return false;
+        buf_[byte_offset] = value;
+        return true;
+    }
+
     bool patch_u16(std::size_t byte_offset, uint16_t value, int e = Endian_Big) {
         if (byte_offset + 2 > buf_.size()) return false;
         if (e == Endian_Big) {
