@@ -21,4 +21,4 @@ __all__ = [
     "SerialParity", "SerialStopBits", "SerialFlowControl",
 ]
 
-__version__ = "0.1.0"
+__version__ = "1.0.9"

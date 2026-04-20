@@ -23,10 +23,18 @@ public final class JniCodecBinding implements NativeCodecBinding {
         if (loaded) return;
         String libPath = System.getProperty("conduit.codec.jni.path");
         if (libPath != null) {
+            // Load conduit_codec_cabi first (conduit_codec_jni depends on it).
+            String cabiPath = System.getProperty("conduit.codec.cabi.path");
+            if (cabiPath != null) {
+                System.load(cabiPath);
+            } else {
+                try { System.loadLibrary("conduit_codec_cabi"); } catch (UnsatisfiedLinkError ignored) {}
+            }
             System.load(libPath);
         } else {
-            // NativeLoader tries java.library.path first, then extracts from
-            // bundled JAR resources (native/<os>-<arch>/libconduit_codec_jni.so|.dll|.dylib)
+            // Load conduit_codec_cabi first so the dynamic linker can resolve the dependency
+            // when conduit_codec_jni.so is loaded from the fat JAR's temp extraction dir.
+            NativeLoader.load("conduit_codec_cabi");
             NativeLoader.load("conduit_codec_jni");
         }
         loaded = true;

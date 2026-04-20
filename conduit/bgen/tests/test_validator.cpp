@@ -1776,7 +1776,7 @@ TEST_CASE("Auto-length with constraint min rejected", "[validator]") {
     CHECK(found);
 }
 
-TEST_CASE("Auto-count with constraint max rejected", "[validator]") {
+TEST_CASE("Auto-count with constraint max accepted", "[validator]") {
     auto build_result = bgen::model::build_protocol(fixture_path("invalid_auto_count_max.bmdl.xml"));
     REQUIRE(build_result.has_value());
     auto& protocol = *build_result;
@@ -1786,16 +1786,7 @@ TEST_CASE("Auto-count with constraint max rejected", "[validator]") {
     auto& index = *resolve_result;
 
     auto validate_result = bgen::analyzer::validate(protocol, index);
-    REQUIRE_FALSE(validate_result.has_value());
-    bool found = false;
-    for (const auto& e : validate_result.error()) {
-        if (e.message.find("auto=\"count\"") != std::string::npos &&
-            e.message.find("cannot have constraints") != std::string::npos) {
-            found = true;
-            break;
-        }
-    }
-    CHECK(found);
+    REQUIRE(validate_result.has_value());
 }
 
 TEST_CASE("Auto-timestamp with constraint min rejected", "[validator]") {

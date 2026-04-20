@@ -93,6 +93,28 @@ def load_native_lib(path: str, *, global_symbols: bool = False) -> ctypes.CDLL:
         return ctypes.CDLL(path)
 
 
+def resolve_and_load_codec_lib(cabi_lib_path, *, global_symbols=False):
+    """Resolve and load the codec CABI test library with fallback.
+
+    On Windows a stale or dependency-broken ``conduit_codec_cabi_test`` DLL may
+    pass ``os.path.isfile`` but fail to load.  Fall back to the combined CABI
+    test library (which bundles the codec API) when that happens.
+    """
+    codec_path = resolve_native_lib("CONDUIT_CODEC_TEST_LIB", "conduit_codec_cabi_test")
+    if not os.path.isfile(codec_path):
+        codec_path = cabi_lib_path
+    try:
+        lib = load_native_lib(codec_path, global_symbols=global_symbols)
+    except OSError:
+        if codec_path != cabi_lib_path:
+            codec_path = cabi_lib_path
+            lib = load_native_lib(codec_path, global_symbols=global_symbols)
+        else:
+            raise
+    os.environ["CONDUIT_CODEC_LIB"] = codec_path
+    return codec_path, lib
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

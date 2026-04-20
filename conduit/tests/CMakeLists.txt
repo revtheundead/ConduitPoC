@@ -222,6 +222,7 @@ if(CONDUIT_BUILD_BGEN AND CONDUIT_BUILD_CODEC_CABI)
         test_choice_protocol
         test_sentry_link
         test_direction_qualified
+        ${CMAKE_DL_LIBS}
     )
     target_include_directories(conduit_codec_cabi_test PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>

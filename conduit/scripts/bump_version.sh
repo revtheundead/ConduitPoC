@@ -36,24 +36,32 @@ fi
 
 echo "Setting version to: $VERSION"
 
-# CMakeLists.txt — project(conduit VERSION X.Y.Z ...)
-sed -i "s/\(project(conduit VERSION \)[^ ]*/\1${VERSION}/" \
-    "$PROJECT_ROOT/conduit/CMakeLists.txt"
+# NOTE: conduit/CMakeLists.txt is intentionally NOT updated here — it reads
+# the version dynamically from the VERSION file via file(READ ...) at CMake
+# configure time, so no hardcoded version string exists to patch.
 
 # Java pom.xml (bindings) — top-level <version>
 sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/" \
     "$PROJECT_ROOT/conduit/bindings/java/pom.xml"
 
-# Java build.gradle (xcvr-java11) — version = '...'
+# Java build.gradle (xcvr-java11) — version = '...' and dependency version
 sed -i "s/version = '[^']*'/version = '${VERSION}'/" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java11/build.gradle"
+sed -i "s/conduit-java:[^']*'/conduit-java:${VERSION}'/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-java11/build.gradle"
 
-# Java pom.xml (xcvr-java11) — all <version> tags matching semver
-sed -i "s/<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*<\/version>/<version>${VERSION}<\/version>/g" \
+# Java pom.xml (xcvr-java11) — project version (first occurrence) …
+sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-java11/pom.xml"
+# … and conduit-java dependency version
+sed -i "/<artifactId>conduit-java<\/artifactId>/{n;s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/;}" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java11/pom.xml"
 
-# Java pom.xml (xcvr-java21) — all <version> tags matching semver
-sed -i "s/<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*<\/version>/<version>${VERSION}<\/version>/g" \
+# Java pom.xml (xcvr-java21) — project version (first occurrence) …
+sed -i "0,/<version>[^<]*<\/version>/s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-java21/pom.xml"
+# … and conduit-java dependency version
+sed -i "/<artifactId>conduit-java<\/artifactId>/{n;s/<version>[^<]*<\/version>/<version>${VERSION}<\/version>/;}" \
     "$PROJECT_ROOT/conduit/examples/xcvr-java21/pom.xml"
 
 # Python pyproject.toml — version = "..."
@@ -80,7 +88,6 @@ fi
 
 echo ""
 echo "Updated files:"
-echo "  conduit/CMakeLists.txt"
 echo "  conduit/bindings/java/pom.xml"
 echo "  conduit/examples/xcvr-java11/build.gradle"
 echo "  conduit/examples/xcvr-java11/pom.xml"

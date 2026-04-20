@@ -85,7 +85,8 @@ if [ -f "$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.
     JUNIT_JAR="$PROJECT_DIR/third_party/junit5/junit-platform-console-standalone-1.11.4.jar"
 fi
 JAVA_TEST_CLASSES="$BUILD_DIR/tests/java-test-classes"
-JAVA_JAR="$PROJECT_DIR/lib/conduit-java-0.1.0.jar"
+_version=$(tr -d '[:space:]' < "$PROJECT_DIR/../VERSION")
+JAVA_JAR="$PROJECT_DIR/lib/conduit-java-${_version}.jar"
 
 if [ -n "$JUNIT_JAR" ] && [ -d "$JAVA_TEST_CLASSES" ] && [ -f "$JAVA_JAR" ]; then
     if command -v java &>/dev/null; then
