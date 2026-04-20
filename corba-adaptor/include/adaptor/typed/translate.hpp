@@ -17,18 +17,21 @@
 // types use unsigned C++ types (uint32_t, uint64_t).  Explicit casts are
 // applied where needed.
 
-#pragma once
+#ifndef ADAPTOR_TYPED_TRANSLATE_HPP
+#define ADAPTOR_TYPED_TRANSLATE_HPP
 
 #include <CorbaAdaptorC.h>
 
-#include <tcp-peer/tcp_peer.hpp>
-#include <corba-peer/corba_peer.hpp>
+#include "tcp-peer/tcp_peer.hpp"
+#include "tcp-peer/messages.hpp"
+#include "corba-peer/corba_peer.hpp"
+#include "corba-peer/messages.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 
-namespace adaptor::translate {
+namespace adaptor { namespace translate {
 
 // ============================================================================
 // Helpers
@@ -40,7 +43,7 @@ template <std::size_t N>
 inline void copy_bytes(CorbaAdaptor::OctetSeq& out,
                        const std::array<std::uint8_t, N>& in,
                        std::size_t logical_length) {
-    const auto len = static_cast<CORBA::ULong>(std::min<std::size_t>(logical_length, N));
+    const CORBA::ULong len = static_cast<CORBA::ULong>(std::min<std::size_t>(logical_length, N));
     out.length(len);
     for (CORBA::ULong i = 0; i < len; ++i) {
         out[i] = in[i];
@@ -118,4 +121,6 @@ inline CorbaAdaptor::AlarmMsg to_corba(const corba_peer::AlarmRecord& src) {
     return dst;
 }
 
-} // namespace adaptor::translate
+} } // namespace adaptor::translate
+
+#endif

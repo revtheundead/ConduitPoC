@@ -1,55 +1,42 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - CORBA Raw-Data Peer Implementation
-//
-// Connects to a remote RawDataChannel, registers our RawDataCallback
-// servant to receive inbound data, and exposes send() for outbound.
-// Reconnects automatically when the channel becomes unreachable.
-// Reconnection runs on a dedicated thread with proper lifecycle management.
+// Conduit CORBA Adaptor - CORBA Raw-Data Peer Implementation (C++11)
 
-#include <adaptor/corba_peer.hpp>
+#include "adaptor/corba_peer.hpp"
 
 #include <ace/Log_Msg.h>
-#include <ace/OS_NS_unistd.h>
 #include <ace/Time_Value.h>
 
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
-#include <span>
+#include <mutex>
+#include <thread>
+#include <utility>
 
 namespace adaptor {
 
-// ============================================================================
-// RawDataCallbackServant — receives inbound raw data
-// ============================================================================
-
 class RawDataCallbackServant : public POA_CorbaAdaptor::RawDataCallback {
 public:
-    explicit RawDataCallbackServant(RawBytesCallback& cb,
-                                    PeerStateCallback& state_cb)
+    RawDataCallbackServant(RawBytesCallback& cb, PeerStateCallback& state_cb)
         : data_cb_(cb), state_cb_(state_cb) {}
 
-    void on_raw_data(const CorbaAdaptor::OctetSeq& data) override {
+    virtual void on_raw_data(const CorbaAdaptor::OctetSeq& data) {
         if (data_cb_) {
-            data_cb_(std::span<const std::uint8_t>(
+            data_cb_(cpp11::span<const std::uint8_t>(
                 data.get_buffer(), data.length()));
         }
     }
 
-    void on_channel_disconnect(const char* reason) override {
+    virtual void on_channel_disconnect(const char* reason) {
         ACE_DEBUG((LM_WARNING,
                    "CorbaPeer: channel disconnect notification: %s\n", reason));
-        if (state_cb_) {
-            state_cb_(false);
-        }
+        if (state_cb_) state_cb_(false);
     }
 
 private:
     RawBytesCallback&  data_cb_;
     PeerStateCallback& state_cb_;
 };
-
-// ============================================================================
-// CorbaPeer::Impl
-// ============================================================================
 
 struct CorbaPeer::Impl {
     CORBA::ORB_var              orb;
@@ -63,25 +50,24 @@ struct CorbaPeer::Impl {
     PortableServer::ServantBase_var     callback_servant;
     CorbaAdaptor::RawDataCallback_var   callback_ref;
 
-    std::atomic<bool>       connected{false};
-    std::atomic<bool>       running{false};
+    std::atomic<bool>       connected;
+    std::atomic<bool>       running;
     std::thread             reconnect_thread;
     std::mutex              mu;
     std::condition_variable cv;
 
-    Impl(CORBA::ORB_ptr o, PortableServer::POA_ptr p, CorbaPeerConfig cfg)
-        : orb(CORBA::ORB::_duplicate(o))
-        , poa(PortableServer::POA::_duplicate(p))
-        , config(std::move(cfg))
-    {
-    }
+    Impl(CORBA::ORB_ptr o, PortableServer::POA_ptr p, const CorbaPeerConfig& cfg)
+        : orb(CORBA::ORB::_duplicate(o)),
+          poa(PortableServer::POA::_duplicate(p)),
+          config(cfg),
+          connected(false),
+          running(false) {}
 
     void activate_callback_servant() {
-        if (!CORBA::is_nil(callback_ref.in())) return;  // Already activated
-
-        auto* servant = new RawDataCallbackServant(data_cb, state_cb);
+        if (!CORBA::is_nil(callback_ref.in())) return;
+        RawDataCallbackServant* servant =
+            new RawDataCallbackServant(data_cb, state_cb);
         callback_servant = servant;
-
         PortableServer::ObjectId_var oid = poa->activate_object(servant);
         CORBA::Object_var cb_obj = poa->id_to_reference(oid.in());
         callback_ref = CorbaAdaptor::RawDataCallback::_narrow(cb_obj.in());
@@ -91,108 +77,62 @@ struct CorbaPeer::Impl {
         try {
             CORBA::Object_var obj =
                 orb->string_to_object(config.channel_ior.c_str());
-            if (CORBA::is_nil(obj.in())) {
-                ACE_DEBUG((LM_WARNING, "CorbaPeer: nil object from IOR\n"));
-                return false;
-            }
+            if (CORBA::is_nil(obj.in())) return false;
 
             channel = CorbaAdaptor::RawDataChannel::_narrow(obj.in());
-            if (CORBA::is_nil(channel.in())) {
-                ACE_DEBUG((LM_WARNING, "CorbaPeer: narrow failed\n"));
-                return false;
-            }
+            if (CORBA::is_nil(channel.in())) return false;
 
-            // Ensure callback servant is activated (only once)
             activate_callback_servant();
-
-            // Register with remote channel
             channel->register_callback(callback_ref.in());
 
             connected = true;
-            ACE_DEBUG((LM_INFO, "CorbaPeer: connected to raw data channel\n"));
+            ACE_DEBUG((LM_INFO, "CorbaPeer: connected\n"));
             if (state_cb) state_cb(true);
             return true;
-
-        } catch (const CORBA::Exception& ex) {
-            ACE_DEBUG((LM_WARNING,
-                       "CorbaPeer: connection failed: %s\n",
-                       ex._info().c_str()));
+        } catch (const CORBA::Exception&) {
             return false;
         }
     }
 
-    void start_reconnect() {
-        // Join any prior reconnect thread safely
-        {
-            std::lock_guard lock(mu);
-            cv.notify_all();
-        }
-        if (reconnect_thread.joinable()) {
-            reconnect_thread.join();
-        }
-        reconnect_thread = std::thread([this] { reconnect_loop(); });
-    }
-
     void reconnect_loop() {
-        auto delay = config.initial_delay;
+        std::chrono::milliseconds delay(config.initial_delay_ms);
         uint32_t attempts = 0;
-
         while (running && !connected) {
             {
-                std::unique_lock lock(mu);
-                cv.wait_for(lock, delay, [this] { return !running.load(); });
+                std::unique_lock<std::mutex> lock(mu);
+                cv.wait_for(lock, delay);
             }
-
             if (!running) break;
-
             ++attempts;
-            ACE_DEBUG((LM_INFO, "CorbaPeer: reconnect attempt %u\n", attempts));
-
             if (try_connect()) return;
-
-            if (config.max_attempts > 0 && attempts >= config.max_attempts) {
-                ACE_DEBUG((LM_ERROR,
-                           "CorbaPeer: max reconnect attempts (%u) reached\n",
-                           config.max_attempts));
+            if (config.max_attempts > 0 && attempts >= config.max_attempts)
                 return;
-            }
-
             delay = std::chrono::milliseconds(
                 static_cast<int64_t>(delay.count() * config.backoff_multiplier));
-            if (delay > config.max_delay) delay = config.max_delay;
+            if (delay.count() > config.max_delay_ms)
+                delay = std::chrono::milliseconds(config.max_delay_ms);
         }
     }
 
     void start() {
         running = true;
-
         if (!try_connect() && config.auto_reconnect) {
-            reconnect_thread = std::thread([this] { reconnect_loop(); });
+            reconnect_thread = std::thread(&Impl::reconnect_loop, this);
         }
     }
 
     void stop() {
-        if (!running.exchange(false)) return;
-
-        // Wake and join reconnect thread
+        bool expected = true;
+        if (!running.compare_exchange_strong(expected, false)) return;
         {
-            std::lock_guard lock(mu);
+            std::lock_guard<std::mutex> lock(mu);
             cv.notify_all();
         }
-        if (reconnect_thread.joinable()) {
-            reconnect_thread.join();
-        }
+        if (reconnect_thread.joinable()) reconnect_thread.join();
 
-        // Unregister callback from channel
         if (connected && !CORBA::is_nil(channel.in())) {
-            try {
-                channel->unregister_callback();
-            } catch (const CORBA::Exception&) {
-                // Channel already gone
-            }
+            try { channel->unregister_callback(); } catch (const CORBA::Exception&) {}
         }
-
-        // Deactivate servant
         if (!CORBA::is_nil(callback_ref.in())) {
             try {
                 PortableServer::ObjectId_var oid =
@@ -200,66 +140,41 @@ struct CorbaPeer::Impl {
                 poa->deactivate_object(oid.in());
             } catch (const CORBA::Exception&) {}
         }
-
         connected = false;
     }
 
-    bool send(std::span<const uint8_t> data) {
+    bool send(cpp11::span<const uint8_t> data) {
         if (!connected || CORBA::is_nil(channel.in())) return false;
-
         try {
             CorbaAdaptor::OctetSeq seq;
             seq.length(static_cast<CORBA::ULong>(data.size()));
-            std::copy(data.begin(), data.end(), seq.get_buffer());
+            for (std::size_t i = 0; i < data.size(); ++i) seq[i] = data[i];
             channel->send_raw(seq);
             return true;
-        } catch (const CORBA::Exception& ex) {
-            ACE_DEBUG((LM_WARNING,
-                       "CorbaPeer: send failed: %s\n", ex._info().c_str()));
+        } catch (const CORBA::Exception&) {
             connected = false;
             if (state_cb) state_cb(false);
-
-            // Trigger reconnection safely (no thread leak)
-            if (running && config.auto_reconnect) {
-                start_reconnect();
-            }
             return false;
         }
     }
 };
 
-// ============================================================================
-// CorbaPeer public API
-// ============================================================================
-
 CorbaPeer::CorbaPeer(CORBA::ORB_ptr orb,
-                      PortableServer::POA_ptr poa,
-                      CorbaPeerConfig config)
-    : impl_(std::make_unique<Impl>(orb, poa, std::move(config)))
-{
-}
+                     PortableServer::POA_ptr poa,
+                     const CorbaPeerConfig& config)
+    : impl_(new Impl(orb, poa, config)) {}
 
-CorbaPeer::~CorbaPeer() {
-    if (impl_) impl_->stop();
-}
+CorbaPeer::~CorbaPeer() { if (impl_) impl_->stop(); }
 
 void CorbaPeer::set_data_callback(RawBytesCallback cb) {
     impl_->data_cb = std::move(cb);
 }
-
 void CorbaPeer::set_state_callback(PeerStateCallback cb) {
     impl_->state_cb = std::move(cb);
 }
-
 void CorbaPeer::start() { impl_->start(); }
 void CorbaPeer::stop()  { impl_->stop(); }
-
-bool CorbaPeer::send(std::span<const uint8_t> data) {
-    return impl_->send(data);
-}
-
-bool CorbaPeer::is_connected() const noexcept {
-    return impl_->connected;
-}
+bool CorbaPeer::send(cpp11::span<const uint8_t> data) { return impl_->send(data); }
+bool CorbaPeer::is_connected() const { return impl_->connected; }
 
 } // namespace adaptor

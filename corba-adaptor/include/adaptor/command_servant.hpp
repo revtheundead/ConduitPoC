@@ -1,85 +1,63 @@
 // SPDX-License-Identifier: MIT
-// Conduit CORBA Adaptor - Command Receiver Servant
-//
-// Implements the CommandReceiver CORBA interface.  External systems call
-// execute_command() / query() to interact with the adaptor.  Commands
-// are dispatched to registered handlers by name.
+// Conduit CORBA Adaptor - Command Receiver Servant (C++11)
 
-#pragma once
+#ifndef ADAPTOR_COMMAND_SERVANT_HPP
+#define ADAPTOR_COMMAND_SERVANT_HPP
 
 #include <CorbaAdaptorS.h>
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <mutex>
-#include <span>
 #include <string>
-#include <unordered_map>
-#include <vector>
+
+#include "compat11/span.hpp"
 
 namespace adaptor {
 
-// ============================================================================
-// Command handler signature
-// ============================================================================
+typedef std::function<
+    CorbaAdaptor::CommandResult(const std::string&,
+                                cpp11::span<const uint8_t>)>
+    CommandHandler;
 
-/// A command handler receives the command name, binary params, and returns
-/// a status + message pair.
-using CommandHandler = std::function<
-    CorbaAdaptor::CommandResult(const std::string& command,
-                                std::span<const uint8_t> params)>;
-
-/// A query handler receives the query name and returns status + message.
-using QueryHandler = std::function<
-    CorbaAdaptor::CommandResult(const std::string& name)>;
-
-// ============================================================================
-// CommandReceiverServant
-// ============================================================================
+typedef std::function<
+    CorbaAdaptor::CommandResult(const std::string&)>
+    QueryHandler;
 
 class CommandReceiverServant : public POA_CorbaAdaptor::CommandReceiver {
 public:
+    typedef std::function<void()> ShutdownCallback;
+
     CommandReceiverServant();
-    ~CommandReceiverServant() override;
+    virtual ~CommandReceiverServant();
 
-    CommandReceiverServant(const CommandReceiverServant&) = delete;
-    CommandReceiverServant& operator=(const CommandReceiverServant&) = delete;
+    CommandReceiverServant(const CommandReceiverServant&);
+    CommandReceiverServant& operator=(const CommandReceiverServant&);
 
-    // --- CORBA interface ----------------------------------------------------
-
-    CorbaAdaptor::CommandResult execute_command(
+    virtual CorbaAdaptor::CommandResult execute_command(
         const char* command,
-        const CorbaAdaptor::OctetSeq& params) override;
+        const CorbaAdaptor::OctetSeq& params);
 
-    CorbaAdaptor::CommandResult query(const char* name) override;
+    virtual CorbaAdaptor::CommandResult query(const char* name);
 
-    void request_shutdown() override;
+    virtual void request_shutdown();
 
-    // --- Local API ----------------------------------------------------------
-
-    /// Register a handler for a specific command name.
     void register_command(const std::string& name, CommandHandler handler);
-
-    /// Register a handler for a specific query name.
     void register_query(const std::string& name, QueryHandler handler);
-
-    /// Register a catch-all command handler for unrecognized commands.
     void set_default_command_handler(CommandHandler handler);
-
-    /// Register a catch-all query handler for unrecognized queries.
     void set_default_query_handler(QueryHandler handler);
-
-    /// Set the callback invoked when request_shutdown() is called.
-    using ShutdownCallback = std::function<void()>;
     void set_shutdown_callback(ShutdownCallback cb);
 
 private:
-    mutable std::mutex                              mu_;
-    std::unordered_map<std::string, CommandHandler>  cmd_handlers_;
-    std::unordered_map<std::string, QueryHandler>    query_handlers_;
-    CommandHandler                                   default_cmd_handler_;
-    QueryHandler                                     default_query_handler_;
-    ShutdownCallback                                 shutdown_cb_;
+    mutable std::mutex                       mu_;
+    std::map<std::string, CommandHandler>    cmd_handlers_;
+    std::map<std::string, QueryHandler>      query_handlers_;
+    CommandHandler                           default_cmd_handler_;
+    QueryHandler                             default_query_handler_;
+    ShutdownCallback                         shutdown_cb_;
 };
 
 } // namespace adaptor
+
+#endif
