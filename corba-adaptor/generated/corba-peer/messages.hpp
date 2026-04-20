@@ -32,7 +32,7 @@ class Acknowledgement;
 class TelemetryRecord {
 public:
     static constexpr uint64_t TYPE_ID = 0xe61c22548b598185ULL;
-    static constexpr const char TYPE_NAME[] = "TelemetryRecord";
+    static constexpr const char* TYPE_NAME = "TelemetryRecord";
     static constexpr uint8 ID_VALUE = 1;
 
     const uint8& record_id() const { return record_id_; }
@@ -164,7 +164,7 @@ public:
 class EventRecord {
 public:
     static constexpr uint64_t TYPE_ID = 0xfb93ed505e7d44b6ULL;
-    static constexpr const char TYPE_NAME[] = "EventRecord";
+    static constexpr const char* TYPE_NAME = "EventRecord";
     static constexpr uint8 ID_VALUE = 2;
 
     const uint8& record_id() const { return record_id_; }
@@ -308,7 +308,7 @@ public:
 class AlarmRecord {
 public:
     static constexpr uint64_t TYPE_ID = 0x06133c911fe765afULL;
-    static constexpr const char TYPE_NAME[] = "AlarmRecord";
+    static constexpr const char* TYPE_NAME = "AlarmRecord";
     static constexpr uint8 ID_VALUE = 3;
 
     const uint8& record_id() const { return record_id_; }
@@ -440,7 +440,7 @@ public:
 class ControlCommand {
 public:
     static constexpr uint64_t TYPE_ID = 0xb573424f3445046fULL;
-    static constexpr const char TYPE_NAME[] = "ControlCommand";
+    static constexpr const char* TYPE_NAME = "ControlCommand";
     static constexpr uint8 ID_VALUE = 10;
 
     const uint8& record_id() const { return record_id_; }
@@ -560,7 +560,7 @@ public:
 class Acknowledgement {
 public:
     static constexpr uint64_t TYPE_ID = 0x2162a9b62e857857ULL;
-    static constexpr const char TYPE_NAME[] = "Acknowledgement";
+    static constexpr const char* TYPE_NAME = "Acknowledgement";
     static constexpr uint8 ID_VALUE = 11;
 
     const uint8& record_id() const { return record_id_; }

@@ -52,62 +52,74 @@ set(_TAO_SEARCH_PATHS
 
 # ---------------------------------------------------------------------------
 # Find ACE
+#
+# PATH_SUFFIXES covers both layouts we care about:
+#   - installed layout (modern, `make install`-style):
+#         $ACE_ROOT/include/ace/ACE.h, $ACE_ROOT/lib*/libACE.*
+#   - in-tree ACE-TAO 5.4 layout (default MPC build):
+#         $ACE_ROOT/ace/ACE.h,        $ACE_ROOT/ace/libACE.*
+# `""` (the empty suffix) keeps find_path honest when the root path
+# itself is an `ace/` or `tao/` directory.
 # ---------------------------------------------------------------------------
 
 find_path(ACE_INCLUDE_DIR
     NAMES ace/ACE.h
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES include
+    PATH_SUFFIXES include "" ace/..
 )
 
 find_library(ACE_LIBRARY
-    NAMES ACE
+    NAMES ACE libACE
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 ace "" bin
 )
 
 # ---------------------------------------------------------------------------
-# Find TAO
+# Find TAO (same dual-layout treatment)
 # ---------------------------------------------------------------------------
 
 find_path(TAO_INCLUDE_DIR
     NAMES tao/ORB.h
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES include
+    PATH_SUFFIXES include "" tao/..
 )
 
 find_library(TAO_LIBRARY
-    NAMES TAO
+    NAMES TAO libTAO
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 tao "" bin
 )
 
 find_library(TAO_PORTABLE_SERVER_LIBRARY
-    NAMES TAO_PortableServer
+    NAMES TAO_PortableServer libTAO_PortableServer
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 tao/PortableServer tao "" bin
 )
 
 find_library(TAO_ANYTYPECODE_LIBRARY
-    NAMES TAO_AnyTypeCode
+    NAMES TAO_AnyTypeCode libTAO_AnyTypeCode
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 tao/AnyTypeCode tao "" bin
 )
 
 find_library(TAO_COSNAMING_LIBRARY
-    NAMES TAO_CosNaming
+    NAMES TAO_CosNaming libTAO_CosNaming
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES lib lib64
+    PATH_SUFFIXES lib lib64 orbsvcs/orbsvcs "" bin
 )
 
 # ---------------------------------------------------------------------------
 # Find tao_idl compiler
+#
+# In-tree TAO 5.4 puts tao_idl under $TAO_ROOT/TAO_IDL/ (alongside an
+# executable named `tao_idl` that launches via a wrapper script).
+# Modern installs drop it in $prefix/bin.
 # ---------------------------------------------------------------------------
 
 find_program(TAO_IDL_COMPILER
     NAMES tao_idl
     PATHS ${_TAO_SEARCH_PATHS}
-    PATH_SUFFIXES bin
+    PATH_SUFFIXES bin TAO_IDL tao/TAO_IDL ""
 )
 
 # ---------------------------------------------------------------------------
