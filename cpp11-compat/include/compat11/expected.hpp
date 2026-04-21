@@ -70,6 +70,7 @@ public:
         return *this;
     }
     expected& operator=(expected&& o) {
+        if (this == &o) return *this;
         destroy();
         has_value_ = o.has_value_;
         if (has_value_) new (val_ptr()) T(std::move(*o.val_ptr()));
@@ -140,6 +141,7 @@ public:
         return *this;
     }
     expected& operator=(expected&& o) {
+        if (this == &o) return *this;
         if (!has_value_) err_ptr()->~E();
         has_value_ = o.has_value_;
         if (!has_value_) new (err_ptr()) E(std::move(*o.err_ptr()));

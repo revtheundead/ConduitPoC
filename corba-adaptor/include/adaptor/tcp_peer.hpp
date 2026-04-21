@@ -91,6 +91,27 @@ public:
         return send_bytes(enc->bytes);
     }
 
+    /// Send N messages of the same type in a single frame.  Requires the
+    /// protocol to declare `<payload count="*"/>` so bgen emits an
+    /// `encode_batch` override; otherwise the default bgen11 runtime
+    /// implementation returns `NotImplemented` and this returns false.
+    template <typename T>
+    bool send_batch(cpp11::span<const T> msgs) {
+        if (msgs.empty()) return true;
+        std::vector<cpp11::any> anys;
+        anys.reserve(msgs.size());
+        for (std::size_t i = 0; i < msgs.size(); ++i) {
+            anys.push_back(cpp11::any(msgs[i]));
+        }
+        const uint64_t id = T::TYPE_ID;
+        bgen11::Result<bgen11::traits::EncodeResult> enc =
+            session_.encode_batch(
+                id,
+                cpp11::span<const cpp11::any>(anys.data(), anys.size()));
+        if (!enc) return false;
+        return send_bytes(enc->bytes);
+    }
+
     void start();
     void stop();
 
@@ -105,6 +126,7 @@ private:
     TcpPeerConfig config_;
     std::unique_ptr<ITcpClient> client_;
     tcp_peer::TcpPeerFrameSession session_;
+    bgen11::StreamFramer framer_;
     std::map<uint64_t, TypedHandler> handlers_;
     std::vector<StateCallback> state_callbacks_;
     bool started_;
