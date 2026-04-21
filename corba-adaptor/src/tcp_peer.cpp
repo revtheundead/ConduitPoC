@@ -8,7 +8,7 @@
 namespace adaptor {
 
 TcpPeer::TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor)
-    : config_(config), started_(false) {
+    : config_(config), framer_(session_), started_(false) {
     client_.reset(new AceTcpClient(reactor, config_));
     client_->set_bytes_callback(
         std::bind(&TcpPeer::on_bytes, this,
@@ -19,7 +19,7 @@ TcpPeer::TcpPeer(const TcpPeerConfig& config, ACE_Reactor* reactor)
 }
 
 TcpPeer::TcpPeer(const TcpPeerConfig& config)
-    : config_(config), started_(false) {
+    : config_(config), framer_(session_), started_(false) {
     client_.reset(new AceTcpClientStandalone(config_));
     client_->set_bytes_callback(
         std::bind(&TcpPeer::on_bytes, this,
@@ -31,7 +31,8 @@ TcpPeer::TcpPeer(const TcpPeerConfig& config)
 
 TcpPeer::TcpPeer(const TcpPeerConfig& config,
                  std::unique_ptr<ITcpClient> client)
-    : config_(config), client_(std::move(client)), started_(false) {
+    : config_(config), framer_(session_),
+      client_(std::move(client)), started_(false) {
     if (client_) {
         client_->set_bytes_callback(
             std::bind(&TcpPeer::on_bytes, this,
@@ -79,14 +80,33 @@ bool TcpPeer::send_bytes(const std::vector<uint8_t>& bytes) {
 }
 
 void TcpPeer::on_bytes(const uint8_t* data, std::size_t size) {
-    bgen11::Result<std::vector<bgen11::traits::DecodedMessage> > result =
-        session_.decode_frame(cpp11::span<const uint8_t>(data, size));
-    if (!result) return;
-    for (std::size_t i = 0; i < result->size(); ++i) {
-        const bgen11::traits::DecodedMessage& dm = (*result)[i];
-        std::map<uint64_t, TypedHandler>::iterator it = handlers_.find(dm.type_id);
-        if (it != handlers_.end()) {
-            it->second(dm.payload);
+    // TCP is a byte stream: the chunk delivered by the client backend
+    // is not guaranteed to start or end on a frame boundary.  The
+    // StreamFramer buffers across calls and emits only complete frames.
+    bgen11::Result<std::vector<std::vector<uint8_t> > > frames_r =
+        framer_.push_data(cpp11::span<const uint8_t>(data, size));
+    if (!frames_r) {
+        // Framing error (buffer overflow).  Reset and drop; the TCP
+        // peer will have its state propagated separately if the link
+        // itself is unhealthy.
+        framer_.reset();
+        return;
+    }
+    const std::vector<std::vector<uint8_t> >& frames = *frames_r;
+    for (std::size_t fi = 0; fi < frames.size(); ++fi) {
+        const std::vector<uint8_t>& frame = frames[fi];
+        bgen11::Result<std::vector<bgen11::traits::DecodedMessage> > dec =
+            session_.decode_frame(
+                cpp11::span<const uint8_t>(frame.data(), frame.size()));
+        if (!dec) continue;  // malformed frame; skip, keep framing
+
+        for (std::size_t i = 0; i < dec->size(); ++i) {
+            const bgen11::traits::DecodedMessage& dm = (*dec)[i];
+            std::map<uint64_t, TypedHandler>::iterator it =
+                handlers_.find(dm.type_id);
+            if (it != handlers_.end()) {
+                it->second(dm.payload);
+            }
         }
     }
 }
