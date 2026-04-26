@@ -146,6 +146,107 @@ static bool multicast_available() {
     return cached != 0;
 }
 
+// Probe whether multicast loopback fans out to multiple sockets bound to the
+// same port via SO_REUSEADDR/SO_REUSEPORT. Containerised CI runners often
+// allow basic loopback (single socket) but drop the second copy.
+static bool multicast_fanout_available() {
+    static int cached = -1;
+    if (cached >= 0) return cached != 0;
+    if (!multicast_available()) { cached = 0; return false; }
+
+    auto open_recv = [](sockaddr_in& bound) -> int {
+#ifdef _WIN32
+        auto s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s == INVALID_SOCKET) return -1;
+#else
+        auto s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s < 0) return -1;
+#endif
+        int one = 1;
+#ifdef _WIN32
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+                   reinterpret_cast<const char*>(&one), sizeof(one));
+#else
+        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    #ifdef SO_REUSEPORT
+        setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+    #endif
+#endif
+        if (::bind(s, reinterpret_cast<sockaddr*>(&bound), sizeof(bound)) != 0) {
+#ifdef _WIN32
+            ::closesocket(s);
+#else
+            ::close(s);
+#endif
+            return -1;
+        }
+        struct ip_mreq mreq{};
+        inet_pton(AF_INET, TEST_MCAST_GROUP, &mreq.imr_multiaddr);
+        mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+#ifdef _WIN32
+        setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                   reinterpret_cast<const char*>(&mreq), sizeof(mreq));
+        int loop = 1;
+        setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP,
+                   reinterpret_cast<const char*>(&loop), sizeof(loop));
+        DWORD rcvto = 500;
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO,
+                   reinterpret_cast<const char*>(&rcvto), sizeof(rcvto));
+#else
+        setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+        unsigned char loop = 1;
+        setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
+        struct timeval tv{0, 500000};
+        setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+        return s;
+    };
+
+    sockaddr_in bound{};
+    bound.sin_family = AF_INET;
+    bound.sin_addr.s_addr = htonl(INADDR_ANY);
+    bound.sin_port = 0;  // Let kernel pick for the first socket
+
+    int s1 = open_recv(bound);
+    if (s1 < 0) { cached = 0; return false; }
+
+    socklen_t alen = sizeof(bound);
+    getsockname(s1, reinterpret_cast<sockaddr*>(&bound), &alen);
+
+    int s2 = open_recv(bound);  // Bind to the same port as s1
+    if (s2 < 0) {
+#ifdef _WIN32
+        ::closesocket(s1);
+#else
+        ::close(s1);
+#endif
+        cached = 0; return false;
+    }
+
+    sockaddr_in dest{};
+    dest.sin_family = AF_INET;
+    inet_pton(AF_INET, TEST_MCAST_GROUP, &dest.sin_addr);
+    dest.sin_port = bound.sin_port;
+    const char probe[] = "fanout";
+    sendto(s1, probe, sizeof(probe), 0,
+           reinterpret_cast<sockaddr*>(&dest), sizeof(dest));
+
+    char buf[64];
+    auto n1 = recv(s1, buf, sizeof(buf), 0);
+    auto n2 = recv(s2, buf, sizeof(buf), 0);
+
+#ifdef _WIN32
+    ::closesocket(s1);
+    ::closesocket(s2);
+#else
+    ::close(s1);
+    ::close(s2);
+#endif
+
+    cached = (n1 > 0 && n2 > 0) ? 1 : 0;
+    return cached != 0;
+}
+
 static TransportCallbacks make_collecting_callbacks(
     std::vector<uint8_t>& received,
     std::mutex& mtx,
@@ -206,7 +307,8 @@ TEST_CASE("UDP multicast: send/receive loopback", "[udp][multicast]") {
 }
 
 TEST_CASE("UDP multicast: two receivers get same datagram", "[udp][multicast]") {
-    if (!multicast_available()) SKIP("Multicast not available on this host");
+    if (!multicast_fanout_available())
+        SKIP("Multicast SO_REUSEPORT fan-out not supported on this host");
 
     uint16_t port = static_cast<uint16_t>(mcast_base_port() + 1);
 
@@ -239,7 +341,16 @@ TEST_CASE("UDP multicast: two receivers get same datagram", "[udp][multicast]") 
     auto sr = receiver1.send(PeerId{10}, msg);
     REQUIRE(sr.has_value());
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    // Poll for delivery to both receivers instead of one fixed sleep — slow
+    // CI runners would otherwise flake.
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+        bool got1, got2;
+        { std::lock_guard l(mtx1); got1 = (recv1 == msg); }
+        { std::lock_guard l(mtx2); got2 = (recv2 == msg); }
+        if (got1 && got2) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 
     receiver1.stop();
     receiver2.stop();
