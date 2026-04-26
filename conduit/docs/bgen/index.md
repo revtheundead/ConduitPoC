@@ -55,7 +55,7 @@ Given a minimal BMDL file `my-protocol.bmdl.xml`:
 bgen --input my-protocol.bmdl.xml --output generated/
 ```
 
-This produces 7 header files in `generated/`:
+This produces 8 header files in `generated/`:
 
 | File | Purpose |
 |------|---------|
@@ -65,6 +65,7 @@ This produces 7 header files in `generated/`:
 | `messages.hpp` | Message classes with `TYPE_ID`, `encode_bytes()`, `decode_bytes()`; Frame class with `wrap()` |
 | `sessions.hpp` | Session classes implementing `ISession` for frame-based dispatch |
 | `protocol.hpp` | `ProtocolDescriptor` with type registry and session factory |
+| `json.hpp` | nlohmann/json `to_json`/`from_json` overloads (only pulls in `<nlohmann/json.hpp>` when included) |
 | `my_protocol.hpp` | Umbrella header that includes all of the above |
 
 ### Generating Java

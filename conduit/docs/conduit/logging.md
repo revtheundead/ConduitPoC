@@ -110,7 +110,7 @@ sink->setColorEnabled(false);   // disable ANSI colors
 sink->setCompactFormat(true);   // use short format
 ```
 
-> **Note:** Even with `colorize = true`, color output is automatically disabled if the terminal does not support ANSI colors (detected via `isatty()` and environment variables).
+> **Note:** Color auto-detection happens **once at construction time**. When you pass `colorize = true`, `ConsoleSink` checks `colors::supportsColor(use_stderr)` (which inspects `isatty()` and the `NO_COLOR` / `FORCE_COLOR` / `WT_SESSION` / `ConEmuANSI` environment variables) and stores the resulting boolean. After that, subsequent log writes do not re-check the terminal — `LogEntry::format()` simply trusts the stored decision. Use `setColorEnabled(bool)` to override the stored value at runtime.
 
 ### FileSink
 

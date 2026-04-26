@@ -95,6 +95,6 @@ The target language is selected by `--language` (`cpp`, `java`, or `python`; def
 **Python backend** (`python_backend.cpp`) generates `.py` module files:
    - `__init__.py`, `bit_io.py`, `constants.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`
 
-If any file write fails, bgen reports the error and exits with code 3.
+If the output directory cannot be created or accessed, bgen exits with code 2. If any individual file write fails after the directory is in place, bgen reports the error and exits with code 3. (Parser errors exit with 1; see [CLI Reference](cli.md#exit-codes).)
 
 See [Generated File Structure](output-files.md) for details on each backend's output files.
