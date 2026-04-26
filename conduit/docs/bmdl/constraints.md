@@ -141,7 +141,7 @@ This eliminates the need to specify both `default` and `constraint equals` with 
 
 - `validate` timing does **not** inherit. A field using a type with `<constraint validate="deferred">` still defaults to `immediate` at the field level unless explicitly overridden. Each `<constraint>` independently defaults to `immediate`.
 - Immediate-constrained setters return errors that must be checked. Forgetting to check silently discards the error.
-- Each field or type should have at most one `<constraint>` child. If multiple `<constraint>` elements are present, only the first is used; the rest are silently ignored.
+- Each field or type should have at most one `<constraint>` child. The XML parser reads only the first `<constraint>` element it encounters under a parent — additional `<constraint>` siblings are not parsed at all and are silently dropped.
 - `equals` and `min`/`max` are mutually exclusive on the same `<constraint>`.
 - Constraints on optional fields (controlled by `present-when`, bitmap `bit`, or FX) are only validated when the field is present. Absent fields do not trigger constraint validation.
 

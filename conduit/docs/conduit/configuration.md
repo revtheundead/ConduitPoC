@@ -95,6 +95,7 @@ struct MessageLogConfig {
     std::string sent_filename;             // per-direction override for sends
     std::string received_filename;         // per-direction override for receives
     bool include_message_content = true;
+    bool include_raw_bytes = false;        // hex dump of wire bytes, opt-in
 };
 ```
 
@@ -103,12 +104,15 @@ struct MessageLogConfig {
 | `enabled` | `false` | Enable/disable message logging |
 | `mode` | `Combined` | File splitting strategy: `Combined`, `SeparateDirection`, `PerPeer`, `PerPeerDirection` |
 | `output` | `File` | Where to write: `File`, `Stdout`, `Both` |
-| `directory` | `"."` | Directory for log files |
+| `directory` | `"."` | Directory for log files (created if it does not exist; failure is logged but non-fatal) |
 | `prefix` | `"conduit"` | File name prefix (ignored when `filename` is set) |
 | `filename` | `""` (empty) | Custom filename pattern with `{peer}` and `{direction}` placeholders. When set, overrides prefix-based naming. |
 | `sent_filename` | `""` (empty) | Override filename for sent messages. Takes priority over `filename`. Supports `{peer}` placeholder. |
 | `received_filename` | `""` (empty) | Override filename for received messages. Takes priority over `filename`. Supports `{peer}` placeholder. |
 | `include_message_content` | `true` | Include `to_string()` output in log entries (has performance cost) |
+| `include_raw_bytes` | `false` | Include a `hex:` dump of the raw wire bytes after the metadata line. Opt-in because hex output can be large for big frames. |
+
+> **Note:** Peer names are sanitized when interpolated into a filename or used in `PerPeer`/`PerPeerDirection` mode — `/`, `\`, `:`, and NUL are replaced with `_`. This prevents dynamic peer names like `"server/0"` (TCP server children) from accidentally creating subdirectories.
 
 ## PeerConfig
 

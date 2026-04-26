@@ -123,5 +123,5 @@ Each bitmap-controlled item is optional:
 - The FSPEC array size is determined by the **highest assigned bit**, not by `<bitmap bits="N">`. A 16-bit bitmap with fields only at bits 0-4 generates a 1-byte FSPEC.
 - The extension bit position (e.g., `ext="0"`) is reserved for the continuation indicator and **cannot** be used for data fields.
 - `<reserved>` does not take a `bit` attribute in bitmap structs. Unassigned FSPEC bit positions simply remain unset -- there is no need to "fill" them with `<reserved>`.
-- Bit numbering: bit 7 is MSB of the first octet, bit 0 is LSB. Bits 8-15 are the second octet, etc.
+- Bit numbering follows ASTERIX FSPEC convention: within each octet, the higher bit number is the MSB. The first octet covers bits 7..0 (bit 7 = MSB, bit 0 = LSB / extension when extended). The second octet covers bits 15..8 (bit 15 = MSB, bit 8 = LSB), and so on for further extension octets.
 - `<fx>` cannot appear inside a bitmap struct. Bitmap and FX are separate presence mechanisms and cannot be combined.

@@ -176,7 +176,7 @@ The `direction` attribute on `<case>` filters encode/decode behavior for [sessio
 | `receive` | Receivable only; encoding triggers a warning at the session level |
 | `send` | Sendable only; decoding triggers a warning at the session level |
 
-`direction` is only meaningful for session metadata -- all leaf types participate in both `decode_frame()` and `encode_wrap()` regardless of direction. A warning is logged when a direction-constrained type is used in the opposite direction. `direction` is not valid on `<otherwise>` (it is implicitly receive-only).
+`direction` is only meaningful for session metadata -- all leaf types participate in both `decode_frame()` and `encode_wrap()` regardless of direction. A warning is logged when a direction-constrained type is used in the opposite direction. `<otherwise>` is always treated as receive-only for dispatch, so a `direction` attribute on it has no effect (the validator does not flag it as an error, but the value is ignored).
 
 ### Direction-Qualified Overlapping Cases
 
