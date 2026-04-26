@@ -884,3 +884,69 @@ TEST_CASE("UDP: ephemeral port bound when bind_port=0", "[udp]") {
     // Transport started successfully with ephemeral port — this validates binding works
     transport.stop();
 }
+
+// ============================================================================
+// Zero-length datagrams are valid UDP and must be delivered to handlers.
+// Regression: the io_loop previously discarded recvfrom() == 0 the same way
+// TCP discards a graceful close, dropping legitimate empty heartbeats.
+// ============================================================================
+
+TEST_CASE("UDP: zero-length datagram is delivered to on_data_received", "[udp]") {
+    uint16_t port_a = static_cast<uint16_t>(test_base_port() + 60);
+    uint16_t port_b = static_cast<uint16_t>(test_base_port() + 61);
+
+    UdpConfig cfg_a;
+    cfg_a.bind_address = "127.0.0.1";
+    cfg_a.bind_port = port_a;
+    cfg_a.remote_address = "127.0.0.1";
+    cfg_a.remote_port = port_b;
+
+    UdpConfig cfg_b;
+    cfg_b.bind_address = "127.0.0.1";
+    cfg_b.bind_port = port_b;
+    cfg_b.remote_address = "127.0.0.1";
+    cfg_b.remote_port = port_a;
+
+    auto ta = std::make_shared<UdpTransport>(cfg_a);
+    auto tb = std::make_shared<UdpTransport>(cfg_b);
+
+    PeerId peer_a(1), peer_b(2);
+    std::atomic<int> b_callbacks{0};
+    std::atomic<size_t> b_last_size{999};
+
+    TransportCallbacks cb_a;
+    cb_a.on_data_received = [](PeerId, std::span<const uint8_t>) {};
+    cb_a.on_peer_connected = [&](std::string) -> PeerId { return peer_a; };
+    cb_a.on_peer_disconnected = [](PeerId) {};
+    cb_a.on_state_changed = [](PeerId, net::ConnectionState) {};
+
+    TransportCallbacks cb_b;
+    cb_b.on_data_received = [&](PeerId, std::span<const uint8_t> data) {
+        b_last_size.store(data.size());
+        b_callbacks.fetch_add(1);
+    };
+    cb_b.on_peer_connected = [&](std::string) -> PeerId { return peer_b; };
+    cb_b.on_peer_disconnected = [](PeerId) {};
+    cb_b.on_state_changed = [](PeerId, net::ConnectionState) {};
+
+    REQUIRE(ta->start(std::move(cb_a)).has_value());
+    REQUIRE(tb->start(std::move(cb_b)).has_value());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Send a zero-length datagram from A to B.
+    std::vector<uint8_t> empty;
+    auto sr = ta->send(peer_a, empty);
+    REQUIRE(sr.has_value());
+
+    // Wait for delivery (give the io_loop time).
+    for (int i = 0; i < 50 && b_callbacks.load() == 0; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+
+    ta->stop();
+    tb->stop();
+
+    CHECK(b_callbacks.load() == 1);
+    CHECK(b_last_size.load() == 0);
+}

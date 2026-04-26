@@ -1162,3 +1162,37 @@ TEST_CASE("Java: empty struct with <empty/> generates valid code", "[java][empty
     CHECK(found_empty_struct);
     CHECK(found_empty_msg);
 }
+
+// ============================================================================
+// Java reserved-word field names
+//
+// Field names that are valid C++ identifiers but Java reserved words must be
+// renamed by the Java backend (suffixed with '_'); otherwise the generated
+// .java file fails to compile.
+// ============================================================================
+
+TEST_CASE("Java: Java-only reserved words in field names are suffixed with _",
+          "[java][keywords]") {
+    auto java = gen_java("java_only_keywords.bmdl.xml");
+    REQUIRE(java.has_value());
+
+    auto& msg = java->files.at("JavaKeywordMsg.java");
+
+    // Each Java reserved word must appear as a renamed identifier.  We check
+    // for the suffix form ("interface_") rather than the bare keyword to
+    // avoid matching the language token itself (e.g., a `final` modifier on
+    // some other declaration).
+    for (const std::string kw :
+         {"interface_", "implements_", "instanceof_", "extends_",
+          "super_", "synchronized_", "transient_", "strictfp_",
+          "finally_", "assert_", "throws_"}) {
+        CAPTURE(kw);
+        CHECK(msg.find(kw) != std::string::npos);
+    }
+
+    // And the bare keyword must NOT appear as an identifier with a leading
+    // type ("int interface;" would be a hard compile error).
+    CHECK(msg.find("int interface;") == std::string::npos);
+    CHECK(msg.find("int implements;") == std::string::npos);
+    CHECK(msg.find("int super;") == std::string::npos);
+}

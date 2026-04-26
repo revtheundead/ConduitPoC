@@ -39,6 +39,27 @@ bool write_file(const std::filesystem::path& path, const std::string& content) {
 
 std::string j_class(std::string_view name) { return to_pascal_case(name); }
 
+// Java reserved words and reserved literals.  Some overlap with C++ keywords
+// (and are therefore already rejected by the validator), but listing them here
+// keeps the rule complete: the C++ keyword check would not catch Java-only
+// reservations such as `assert`, `interface`, `null`, `super`, etc.
+inline bool is_java_keyword(std::string_view name) {
+    static const std::set<std::string_view> kw = {
+        // Reserved keywords
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch",
+        "char", "class", "const", "continue", "default", "do", "double",
+        "else", "enum", "extends", "final", "finally", "float", "for",
+        "goto", "if", "implements", "import", "instanceof", "int",
+        "interface", "long", "native", "new", "package", "private",
+        "protected", "public", "return", "short", "static", "strictfp",
+        "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "try", "void", "volatile", "while",
+        // Reserved literals
+        "true", "false", "null",
+    };
+    return kw.count(name) > 0;
+}
+
 std::string j_field(std::string_view name) {
     auto s = to_snake_case(name);
     // camelCase for Java
@@ -49,13 +70,7 @@ std::string j_field(std::string_view name) {
         if (cap) { r += static_cast<char>(std::toupper(static_cast<unsigned char>(c))); cap = false; }
         else r += c;
     }
-    // Java keywords
-    if (r == "class" || r == "default" || r == "switch" || r == "case" || r == "new" ||
-        r == "return" || r == "int" || r == "long" || r == "float" || r == "double" ||
-        r == "boolean" || r == "byte" || r == "short" || r == "char" || r == "void" ||
-        r == "static" || r == "final" || r == "public" || r == "private" || r == "protected" ||
-        r == "abstract" || r == "native" || r == "import" || r == "package")
-        r += "_";
+    if (is_java_keyword(r)) r += "_";
     return r;
 }
 
