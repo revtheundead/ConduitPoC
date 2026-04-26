@@ -142,11 +142,11 @@
         Subfield #2: MIPT - MIP Table Reference Number (1 octet)
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="rim" bit="2" type="Cat007I415Rim">
+        <bitmap ext="7"/>
+        <field name="rim" bit="5" type="Cat007I415Rim">
           <doc>Subfield #1: Required Interrogation Modes - Specific MIP</doc>
         </field>
-        <field name="mipt" bit="1" type="uint8">
+        <field name="mipt" bit="6" type="uint8">
           <doc>Subfield #2: MIP Table Reference Number</doc>
         </field>
       </struct>
@@ -216,74 +216,74 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FSPEC Octet 1 (FRN 1-7) -->
 
         <!-- FRN 1: I007/010 - Data Source Identifier (2 octets) -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I007/010 - Data Source Identifier</doc>
         </field>
 
         <!-- FRN 2: I007/025 - Data Destination Identifier (2 octets) -->
-        <field name="i025" bit="6" type="DataSourceId">
+        <field name="i025" bit="1" type="DataSourceId">
           <doc>I007/025 - Data Destination Identifier</doc>
         </field>
 
         <!-- FRN 3: I007/410 - Directed Interrogation Message Type (1 octet) -->
-        <field name="i410" bit="5" type="Cat007I410">
+        <field name="i410" bit="2" type="Cat007I410">
           <doc>I007/410 - Directed Interrogation Message Type</doc>
         </field>
 
         <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
-        <field name="i140" bit="4" type="time-of-day">
+        <field name="i140" bit="3" type="time-of-day">
           <doc>I007/140 - Time of Day</doc>
         </field>
 
         <!-- FRN 5: I007/400 - Directed Interrogation Request Number (2 octets) -->
-        <field name="i400" bit="3" type="Cat007I400">
+        <field name="i400" bit="4" type="Cat007I400">
           <doc>I007/400 - Directed Interrogation Request Number</doc>
         </field>
 
         <!-- FRN 6: I007/040 - Measured Position in Slant Polar (4 octets) -->
-        <field name="i040" bit="2" type="Cat007I040">
+        <field name="i040" bit="5" type="Cat007I040">
           <doc>I007/040 - Measured Position in Slant Polar Coordinates</doc>
         </field>
 
         <!-- FRN 7: I007/220 - Aircraft Address (3 octets) -->
-        <field name="i220" bit="1" type="aircraft-address">
+        <field name="i220" bit="6" type="aircraft-address">
           <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I007/161 - Track Number (2 octets) -->
-        <field name="i161" bit="15" type="Cat007I161">
+        <field name="i161" bit="8" type="Cat007I161">
           <doc>I007/161 - Track Number</doc>
         </field>
 
         <!-- FRN 9: I007/042 - Calculated Position in Cartesian (4 octets) -->
-        <field name="i042" bit="14" type="Cat007I042">
+        <field name="i042" bit="9" type="Cat007I042">
           <doc>I007/042 - Calculated Position in Cartesian Coordinates</doc>
         </field>
 
         <!-- FRN 10: I007/200 - Calculated Track Velocity in Polar (4 octets) -->
-        <field name="i200" bit="13" type="Cat007I200">
+        <field name="i200" bit="10" type="Cat007I200">
           <doc>I007/200 - Calculated Track Velocity in Polar Representation</doc>
         </field>
 
         <!-- FRN 11: I007/415 - Required Interrogation Modes (compound) -->
-        <field name="i415" bit="12" type="Cat007I415">
+        <field name="i415" bit="11" type="Cat007I415">
           <doc>I007/415 - Required Interrogation Modes</doc>
         </field>
 
         <!-- FRN 12: I007/420 - Directed Interrogation Window (8 octets) -->
-        <field name="i420" bit="11" type="Cat007I420">
+        <field name="i420" bit="12" type="Cat007I420">
           <doc>I007/420 - Directed Interrogation Window</doc>
         </field>
 
         <!-- FRN 13: I007/440 - BDS Register Request (repetitive) -->
-        <field name="i440" bit="10" type="Cat007I440">
+        <field name="i440" bit="13" type="Cat007I440">
           <doc>I007/440 - Directed Interrogation BDS Register Request</doc>
         </field>
 
@@ -294,7 +294,7 @@
         <!-- FRN 15-19: Unused -->
 
         <!-- FRN 20: SPF - Special Purpose Field -->
-        <struct name="spf" bit="18">
+        <struct name="spf" bit="21">
           <doc>Special Purpose Field</doc>
           <field name="len" type="uint8">
             <doc>Length of SPF including this length byte</doc>
@@ -303,7 +303,7 @@
         </struct>
 
         <!-- FRN 21: REF - Reserved Expansion Field -->
-        <struct name="ref" bit="17">
+        <struct name="ref" bit="22">
           <doc>Reserved Expansion Field</doc>
           <field name="len" type="uint8">
             <doc>Length of REF including this length byte</doc>

@@ -515,7 +515,7 @@ private:
                                 error(c.loc, "duplicate bitmap bit " + std::to_string(*c.bit) +
                                       " in " + s.name);
                             }
-                            if (s.bitmap_ext && *c.bit == *s.bitmap_ext) {
+                            if (s.bitmap_ext && (*c.bit % 8) == *s.bitmap_ext) {
                                 error(c.loc, "field '" + c.name + "' uses extension bit position " +
                                       std::to_string(*s.bitmap_ext) + " in " + s.name);
                             }
@@ -532,7 +532,7 @@ private:
                                 error(c.loc, "duplicate bitmap bit " + std::to_string(*c.bit) +
                                       " in " + s.name);
                             }
-                            if (s.bitmap_ext && *c.bit == *s.bitmap_ext) {
+                            if (s.bitmap_ext && (*c.bit % 8) == *s.bitmap_ext) {
                                 error(c.loc, "struct '" + c.name + "' uses extension bit position " +
                                       std::to_string(*s.bitmap_ext) + " in " + s.name);
                             }
@@ -562,7 +562,7 @@ private:
                                 error(c.loc, "duplicate bitmap bit " + std::to_string(*c.bit) +
                                       " in " + s.name);
                             }
-                            if (s.bitmap_ext && *c.bit == *s.bitmap_ext) {
+                            if (s.bitmap_ext && (*c.bit % 8) == *s.bitmap_ext) {
                                 error(c.loc, "array '" + c.name + "' uses extension bit position " +
                                       std::to_string(*s.bitmap_ext) + " in " + s.name);
                             }

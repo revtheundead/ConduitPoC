@@ -17,10 +17,10 @@
       <field name="value" type="uint32"/>
     </struct>
     <struct name="BitmapItems" presence="bitmap">
-      <bitmap bits="8" ext="0"/>
-      <field name="item010" type="DataItem010" bit="7"/>
-      <field name="item020" type="DataItem020" bit="6"/>
-      <field name="item030" type="DataItem030" bit="5"/>
+      <bitmap bits="8" ext="7"/>
+      <field name="item010" type="DataItem010" bit="0"/>
+      <field name="item020" type="DataItem020" bit="1"/>
+      <field name="item030" type="DataItem030" bit="2"/>
     </struct>
   </types>
   <messages>

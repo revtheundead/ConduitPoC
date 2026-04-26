@@ -181,11 +181,13 @@ Inline array elements (arrays with `<field>` children instead of a `type` attrib
 Structs with `presence="bitmap"` use FSPEC-based encoding. Fields are assigned to bitmap bits and are all `std::optional`:
 
 - **Without `ext`**: A fixed-size FSPEC of `(max_bit / 8) + 1` bytes is always written and read, where `max_bit` is the highest bit position assigned to any field in the bitmap. The size is determined at code-generation time from the actually-used bits, *not* from `<bitmap bits="N"/>` — declaring `<bitmap bits="16"/>` but only assigning fields to bits 0–4 produces a 1-byte FSPEC, not a 2-byte one. (The `bits` attribute on `<bitmap>` is purely a sanity bound; the FSPEC layout follows the assigned bits.)
-- **With `ext`**: Multi-byte FSPEC. Same `(max_bit / 8) + 1` formula, plus the extension bit at position `ext` on `<bitmap>` is set in each FSPEC byte except the last, allowing the decoder to read as many FSPEC bytes as needed.
-- **Bit ordering**: For a field with `bit="N"`, the byte index is `N / 8` and the bit within that byte is `N % 8`. Encoding sets `fspec[N / 8] |= (1 << (N % 8))`. Decoding tests the same bit. Bit 0 is therefore the LSB of FSPEC byte 0; bit 7 is its MSB; bit 8 is the LSB of FSPEC byte 1; and so on.
-- All bitmap fields use optional accessors (`has_X()`, `set_X()`, `clear_X()`, etc.)
-- String fields within bitmaps are properly trimmed after decode
-- Bitmap structs may also contain inline structs and choices assigned to bitmap bits
+- **With `ext`**: Multi-byte FSPEC. Same `(max_bit / 8) + 1` formula, plus the extension bit at position `ext` on `<bitmap>` is set in each FSPEC byte except the last, allowing the decoder to read as many FSPEC bytes as needed. `ext="7"` is the typical value for ASTERIX-style FSPECs (FX bit at the LSB of each octet).
+- **Bit ordering** (wire-order numbering): For a field with `bit="N"`, the byte index is `N / 8` and the within-byte position counted from the MSB is `N % 8`. Encoding sets `fspec[N / 8] |= (1 << (7 - N % 8))`. Decoding tests the same bit. Bit 0 is therefore the **MSB** of FSPEC byte 0 (the very first bit transmitted), bit 7 is its LSB, bit 8 is the MSB of FSPEC byte 1, and so on. The bit numbers count up monotonically with wire transmission order — there is no jump at byte boundaries.
+- **Endianness**: `<bitmap endian="little">` reverses the FSPEC byte order on the wire (logical byte 0 sent last, highest-numbered byte sent first) and also acts as the default endianness for any multi-byte primitive bitmap fields that don't set their own `endian`. Because bitmap fields start at a byte-aligned position (FSPEC ends on a byte boundary), generated code uses the `read_uN`/`write_uN` byte-aligned fast paths that honor the field's `endian` attribute.
+- **Field encode/decode order**: byte ascending, then BMDL bit ascending within each byte. The lowest BMDL bit number that is present (which corresponds to the leftmost set bit on the wire) is encoded first.
+- All bitmap fields use optional accessors (`has_X()`, `set_X()`, `clear_X()`, etc.).
+- String fields within bitmaps are properly trimmed after decode.
+- Bitmap structs may also contain inline structs and choices assigned to bitmap bits.
 
 ## FX Blocks
 
