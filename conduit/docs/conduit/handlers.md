@@ -129,15 +129,48 @@ The first match wins. If no handler matches, the message is silently discarded (
 
 > **Note:** `on_group()` registers individual typed handlers for each type ID in the group. These handlers share the same dispatch priority as `on<T>()` handlers (steps 1-2 above). If you register both `on<T>()` and `on_group()` for the same type ID, the last one installed wins.
 
+### Raw Catch-All (FFI Forwarding)
+
+Independent of the typed dispatch chain, `HandlerRegistry::set_raw_catch_all()`
+installs a single global callback that fires **for every dispatched message**
+with the raw frame bytes alongside the typed payload:
+
+```cpp
+using RawCatchAllFn = std::function<void(PeerId, uint64_t /*type_id*/,
+                                         const std::any& /*payload*/,
+                                         std::span<const uint8_t> /*raw*/)>;
+xcvr.handlers().set_raw_catch_all(my_raw_callback);
+```
+
+It runs *before* the typed handler in step 1–4 above, and the typed dispatch
+still proceeds normally afterwards. If a typed handler is found, dispatch
+returns `Handled`. If only the raw catch-all fired (no typed handler
+matched), dispatch still returns `Handled` because the raw catch-all has
+already taken responsibility for the message.
+
+This hook exists primarily so the C ABI / JNI / ctypes bindings can forward
+raw bytes to Java / Python without going through `std::any_cast`. Most C++
+applications do not need it; use `on<T>()` and `MessageHandler` instead.
+
 ## DispatchResult
 
 ```cpp
 enum class DispatchResult {
-    Handled,     // Handler found and invoked successfully
+    Handled,     // Handler found and invoked successfully (or raw catch-all fired)
     NotFound,    // No handler registered for this type_id/peer
     Error        // Handler found but threw an exception
 };
 ```
+
+`Error` is returned whenever a handler — typed, group, catch-all, or raw — throws
+any exception. The exception is caught and logged via `LOG_ERRORF`; the message
+is *not* retried, and dispatch continues with the next message. Specific
+diagnostics:
+
+- `std::bad_any_cast`: typed handler signature didn't match the dispatched
+  payload (programmer error — wrong type registered for the type_id).
+- `std::exception`: any user code throwing — the `what()` string is logged.
+- Anything else: logged as "unknown exception".
 
 ## Connection State Callbacks
 

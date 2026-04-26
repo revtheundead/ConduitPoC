@@ -110,7 +110,7 @@ This means a library type's wire behavior can vary depending on who imports it. 
 - **Transitive:** If A imports B and B imports C, then C's types are available to A.
 - **Diamond:** If A imports B and C, and both B and C import D, then D is processed exactly once.
 
-Each file is processed at most once, identified by its resolved absolute path. Circular imports are resolved safely by the same deduplication rule.
+Each file is processed at most once, identified by its resolved absolute path (case-insensitively on Windows). Circular imports are short-circuited by the same deduplication rule — re-entering a file that is already in the "seen" set returns immediately. As a backstop, the import resolver also enforces a maximum import nesting depth of **64** levels and reports `import depth exceeds 64 — possible circular import chain` if exceeded; this only triggers in pathological cases that defeat dedup (e.g., paths that resolve differently on each visit).
 
 ## Protocol Requirement
 

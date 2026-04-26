@@ -194,6 +194,15 @@ Set `back_pressure_threshold` to a value between 0.0 and 1.0 to automatically pa
 
 When back-pressure activates, only the transport that triggered the threshold crossing is paused. On resume (when fill drops below `threshold x 0.8`), **all** transports are resumed, since multiple transports may have been individually paused.
 
+> **Caveat — built-in transports don't implement pause/resume.** `ITransport::pause()`
+> and `ITransport::resume()` are virtual no-ops by default, and TCP client,
+> TCP server, UDP, and Serial **do not override them**. With the built-in
+> transports, `back_pressure_threshold` will fire the calls, but the I/O
+> thread keeps reading; the only effective back-pressure mechanism in that
+> case is the dispatch queue's `drop_policy`. Setting the threshold is still
+> useful with **custom** transports that override `pause()` / `resume()`.
+> See [Transports: ITransport Interface](transports.md#itransport-interface).
+
 ### Shutdown
 
 `shutdown_timeout` controls how long `stop()` waits for worker threads to drain the dispatch queue:
