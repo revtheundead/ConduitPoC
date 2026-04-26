@@ -128,9 +128,11 @@ std::string j_qualify_const(const std::string& val, bool is_long = false) {
     bool is_numeric = (c == '-' || std::isdigit(static_cast<unsigned char>(c)));
     if (is_numeric) {
         try {
-            // Check if value exceeds signed long max (need unsigned hex representation)
+            // Check if value exceeds signed long max (need unsigned hex representation).
+            // Pass base=0 so std::stoull autodetects 0x/0X (hex) and leading 0 (octal);
+            // otherwise hex literals like "0xFFFFFFFF" silently parse as 0.
             if (c != '-') {
-                unsigned long long uv = std::stoull(val);
+                unsigned long long uv = std::stoull(val, nullptr, 0);
                 if (uv > 9223372036854775807ULL) {
                     // Too large for signed long literal; use hex with L suffix
                     std::ostringstream oss;

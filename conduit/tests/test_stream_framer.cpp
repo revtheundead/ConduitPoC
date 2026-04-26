@@ -463,3 +463,59 @@ TEST_CASE("StreamFramer: interleaved errors and valid frames", "[stream_framer][
     CHECK((*result)[0] == frame1);
     CHECK((*result)[1] == frame2);
 }
+
+// ============================================================================
+// Defensive guard: a session reporting min_frame_header_size()==0 must not
+// produce a zero-length header span (UB inside session.extract_frame_length).
+// The framer clamps min_header up to 1 in that case.
+// ============================================================================
+
+TEST_CASE("StreamFramer: tolerates session reporting min_frame_header_size=0",
+          "[stream_framer][error]") {
+    MockFramerSession session;
+    session.sync = {};            // No sync pattern
+    session.min_header = 0;       // Misbehaving session
+    session.fixed_frame_length = 1;  // Each input byte is one frame
+
+    StreamFramer framer(session, 64);
+
+    std::vector<uint8_t> data = {0x10, 0x20, 0x30};
+    auto result = framer.push_data(data);
+    REQUIRE(result.has_value());
+    REQUIRE(result->size() == 3);
+    CHECK((*result)[0] == std::vector<uint8_t>{0x10});
+    CHECK((*result)[1] == std::vector<uint8_t>{0x20});
+    CHECK((*result)[2] == std::vector<uint8_t>{0x30});
+}
+
+// ============================================================================
+// buffered_bytes() reports remaining un-framed buffer correctly across resets
+// and partial pushes.
+// ============================================================================
+
+TEST_CASE("StreamFramer: buffered_bytes tracks unconsumed input", "[stream_framer]") {
+    MockFramerSession session;
+    session.sync = {0xAA, 0xBB};
+    session.min_header = 4;
+
+    StreamFramer framer(session, 64);
+    CHECK(framer.buffered_bytes() == 0);
+
+    // Push a partial header — nothing extractable yet.
+    std::vector<uint8_t> partial = {0xAA, 0xBB, 0x00};
+    auto r1 = framer.push_data(partial);
+    REQUIRE(r1.has_value());
+    REQUIRE(r1->empty());
+    CHECK(framer.buffered_bytes() == 3);
+
+    // Reset clears the internal buffer.
+    framer.reset();
+    CHECK(framer.buffered_bytes() == 0);
+
+    // Push a complete frame; afterwards buffered should be 0.
+    std::vector<uint8_t> full = {0xAA, 0xBB, 0x00, 0x04};
+    auto r2 = framer.push_data(full);
+    REQUIRE(r2.has_value());
+    REQUIRE(r2->size() == 1);
+    CHECK(framer.buffered_bytes() == 0);
+}

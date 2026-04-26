@@ -3,8 +3,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/queue/bounded_queue.hpp>
-#include <thread>
+#include <atomic>
+#include <chrono>
+#include <memory>
 #include <string>
+#include <thread>
 
 using namespace conduit::queue;
 
@@ -492,4 +495,50 @@ TEST_CASE("BoundedQueue DropOldest under contention", "[bounded_queue]") {
     CHECK(snap.enqueued == count);
     // Some items may have been dropped — that's expected with DropOldest
     CHECK(snap.enqueued == snap.dequeued + snap.dropped + snap.current_size);
+}
+
+// ============================================================================
+// clear() releases blocked producers (Block policy) without leaving them
+// stuck.  The pending push is woken by clear() because clear notifies the
+// not_full_ condition.
+// ============================================================================
+
+TEST_CASE("BoundedQueue clear unblocks blocked push (Block policy)", "[bounded_queue]") {
+    BoundedQueue<int> q(2, DropPolicy::Block);
+    q.try_push(1);
+    q.try_push(2);
+
+    std::atomic<bool> pushed{false};
+    std::thread producer([&] {
+        // Will block until clear() drains the queue
+        bool ok = q.push(3);
+        if (ok) pushed.store(true);
+    });
+
+    // Give the producer time to enter the wait
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    q.clear();
+
+    producer.join();
+    CHECK(pushed.load());
+    CHECK(q.size() == 1);  // The pushed value is still in the queue
+}
+
+// ============================================================================
+// pop_batch with move-only types preserves move semantics.
+// ============================================================================
+
+TEST_CASE("BoundedQueue pop_batch with move-only types", "[bounded_queue]") {
+    BoundedQueue<std::unique_ptr<int>> q(8);
+    for (int i = 0; i < 4; ++i) {
+        REQUIRE(q.try_push(std::make_unique<int>(i)));
+    }
+
+    auto batch = q.pop_batch(8);
+    REQUIRE(batch.size() == 4);
+    for (size_t i = 0; i < batch.size(); ++i) {
+        REQUIRE(batch[i]);
+        CHECK(*batch[i] == static_cast<int>(i));
+    }
+    CHECK(q.empty());
 }

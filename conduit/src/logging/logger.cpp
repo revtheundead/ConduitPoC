@@ -88,8 +88,10 @@ std::string LogEntry::format(bool with_color) const {
     oss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
 
-    // Level with color
-    if (with_color && colors::supportsColor()) {
+    // Level (callers pre-decide colorize_; trust their answer instead of
+    // re-checking supportsColor() against stdout, which would disable colors
+    // on a stderr sink whose stdout is redirected).
+    if (with_color) {
         oss << " " << colors::levelColor(level)
             << "[" << levelToString(level) << "]"
             << colors::Reset;
@@ -99,7 +101,7 @@ std::string LogEntry::format(bool with_color) const {
 
     // Category
     if (!category.empty()) {
-        if (with_color && colors::supportsColor()) {
+        if (with_color) {
             oss << " " << colors::Cyan << "[" << category << "]" << colors::Reset;
         } else {
             oss << " [" << category << "]";
@@ -131,8 +133,8 @@ std::string LogEntry::formatCompact(bool with_color) const {
 
     oss << std::put_time(&tm_buf, "%H:%M:%S");
 
-    // Level indicator
-    if (with_color && colors::supportsColor()) {
+    // Level indicator (trust the caller's with_color decision; see format()).
+    if (with_color) {
         oss << " " << colors::levelColor(level)
             << levelToShortString(level)
             << colors::Reset;

@@ -12,6 +12,22 @@ namespace conduit::transceiver {
 
 namespace {
 
+// Replace any character that would change directory layout when interpolated
+// into a filename (e.g. "{peer}.log") with '_'. TCP server peers are named
+// "<base>/<index>", which would otherwise create subdirectories.
+std::string sanitize_for_filename(std::string_view in) {
+    std::string out;
+    out.reserve(in.size());
+    for (char c : in) {
+        if (c == '/' || c == '\\' || c == ':' || c == '\0') {
+            out += '_';
+        } else {
+            out += c;
+        }
+    }
+    return out;
+}
+
 std::string timestamp_now() {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
@@ -120,7 +136,13 @@ std::ostream& MessageLog::get_stream(const std::string& key) {
     if (it != files_.end()) return *it->second;
 
     if (!dir_created_) {
-        std::filesystem::create_directories(config_.directory);
+        std::error_code ec;
+        std::filesystem::create_directories(config_.directory, ec);
+        if (ec) {
+            LOG_WARN("MessageLog: failed to create directory '" +
+                     config_.directory + "': " + ec.message());
+        }
+        // Cache the attempt either way so we don't retry on every message.
         dir_created_ = true;
     }
 
@@ -138,6 +160,7 @@ std::string MessageLog::expand_filename(const std::string& pattern,
                                          const std::string& direction_label,
                                          const std::string& peer_name) {
     std::string result = pattern;
+    std::string safe_peer = sanitize_for_filename(peer_name);
     // Replace {direction} placeholder
     for (std::string::size_type pos = 0;
          (pos = result.find("{direction}", pos)) != std::string::npos; ) {
@@ -147,8 +170,8 @@ std::string MessageLog::expand_filename(const std::string& pattern,
     // Replace {peer} placeholder
     for (std::string::size_type pos = 0;
          (pos = result.find("{peer}", pos)) != std::string::npos; ) {
-        result.replace(pos, 6, peer_name);
-        pos += peer_name.size();
+        result.replace(pos, 6, safe_peer);
+        pos += safe_peer.size();
     }
     return result;
 }
@@ -168,16 +191,19 @@ std::string MessageLog::resolve_file_key(const std::string& direction,
         return expand_filename(config_.filename, dir_label, peer_name);
     }
 
-    // Default prefix-based naming
+    // Default prefix-based naming.  Sanitize the peer name so dynamic peers
+    // (TCP server clients have names like "server/0") don't accidentally
+    // create subdirectories or escape config_.directory.
+    std::string safe_peer = sanitize_for_filename(peer_name);
     switch (config_.mode) {
         case MessageLogMode::Combined:
             return config_.prefix + "_messages.log";
         case MessageLogMode::SeparateDirection:
             return config_.prefix + "_" + dir_label + ".log";
         case MessageLogMode::PerPeer:
-            return config_.prefix + "_" + peer_name + ".log";
+            return config_.prefix + "_" + safe_peer + ".log";
         case MessageLogMode::PerPeerDirection:
-            return config_.prefix + "_" + peer_name + "_" + dir_label + ".log";
+            return config_.prefix + "_" + safe_peer + "_" + dir_label + ".log";
     }
     return config_.prefix + "_messages.log";
 }
