@@ -30,11 +30,11 @@
     <struct name="SubItems" presence="bitmap">
       <doc>Sub-items with their own FSPEC</doc>
       <bitmap bits="8"/>
-      <field name="alpha" type="uint8" bit="7">
+      <field name="alpha" type="uint8" bit="0">
         <doc>Alpha channel value</doc>
       </field>
-      <field name="beta" type="uint16" bit="6"/>
-      <field name="temp" type="scaled-temp" bit="5">
+      <field name="beta" type="uint16" bit="1"/>
+      <field name="temp" type="scaled-temp" bit="2">
         <doc>Temperature reading</doc>
       </field>
     </struct>
@@ -42,34 +42,34 @@
     <!-- Outer bitmap with various nested bitmap patterns -->
     <struct name="OuterItems" presence="bitmap">
       <doc>Outer items with nested bitmap children</doc>
-      <bitmap ext="0"/>
+      <bitmap ext="7"/>
 
-      <field name="id" type="uint8" bit="7">
+      <field name="id" type="uint8" bit="0">
         <doc>Item identifier</doc>
       </field>
-      <field name="status" type="device-status" bit="6">
+      <field name="status" type="device-status" bit="1">
         <doc>Current device status</doc>
       </field>
 
       <!-- Inline nested bitmap struct -->
-      <struct name="nested" bit="5" presence="bitmap">
+      <struct name="nested" bit="2" presence="bitmap">
         <doc>Inline nested bitmap sub-item</doc>
         <bitmap bits="8"/>
-        <field name="x" type="uint8" bit="7"/>
-        <field name="y" type="uint16" bit="6"/>
+        <field name="x" type="uint8" bit="0"/>
+        <field name="y" type="uint16" bit="1"/>
       </struct>
 
       <!-- Type-referenced bitmap struct -->
-      <field name="sub-items" type="SubItems" bit="4"/>
+      <field name="sub-items" type="SubItems" bit="3"/>
 
       <!-- Non-bitmap struct wrapping a bitmap (deeper nesting) -->
-      <struct name="wrapper" bit="3">
+      <struct name="wrapper" bit="4">
         <doc>Wrapper around a nested bitmap</doc>
         <field name="tag" type="uint8"/>
         <struct name="inner" presence="bitmap">
           <bitmap bits="8"/>
-          <field name="p" type="uint8" bit="7"/>
-          <field name="q" type="uint16" bit="6"/>
+          <field name="p" type="uint8" bit="0"/>
+          <field name="q" type="uint16" bit="1"/>
         </struct>
       </struct>
     </struct>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>bitmap_endian</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="uint32" base="uint" bits="32"/>
+
+    <!-- Big-endian bitmap (default): FSPEC byte 0 first on the wire,
+         multi-byte field values are big-endian. -->
+    <struct name="BigEndianBitmap" presence="bitmap">
+      <bitmap bits="16"/>
+      <field name="alpha" type="uint16" bit="0"/>   <!-- byte 0, MSB -->
+      <field name="bravo" type="uint16" bit="1"/>   <!-- byte 0 -->
+      <field name="charlie" type="uint16" bit="8"/> <!-- byte 1, MSB -->
+      <field name="delta" type="uint32" bit="9"/>   <!-- byte 1 -->
+    </struct>
+
+    <!-- Little-endian bitmap: FSPEC byte order reversed (highest-priority
+         logical byte transmitted last), multi-byte field values are
+         little-endian. -->
+    <struct name="LittleEndianBitmap" presence="bitmap">
+      <bitmap bits="16" endian="little"/>
+      <field name="alpha" type="uint16" bit="0" endian="little"/>
+      <field name="bravo" type="uint16" bit="1" endian="little"/>
+      <field name="charlie" type="uint16" bit="8" endian="little"/>
+      <field name="delta" type="uint32" bit="9" endian="little"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="EndianMsg">
+      <field name="big" type="BigEndianBitmap"/>
+      <field name="little" type="LittleEndianBitmap"/>
+    </message>
+  </messages>
+</bmdl>

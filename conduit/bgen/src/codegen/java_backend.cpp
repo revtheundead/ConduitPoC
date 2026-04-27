@@ -2555,15 +2555,17 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     bool has_ext = sd.bitmap_ext.has_value();
     int max_octet = max_bit / J_BITS_PER_BYTE;
     int num_octets = max_octet + 1;
-    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
+    bool fspec_le = sd.bitmap_endian == model::Endian::Little;
 
-    // Sort by bit position (octet first, then descending bit within octet)
+    // Sort: octet ascending, then bit-within-byte ascending so the lowest
+    // BMDL bit number in each byte (the MSB on the wire under the wire-order
+    // numbering convention) is encoded/decoded first.
     auto sorted_fields = bfields;
     std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
         int a_oct = a.bit / 8;
         int b_oct = b.bit / 8;
         if (a_oct != b_oct) return a_oct < b_oct;
-        return a.bit > b.bit;
+        return a.bit < b.bit;
     });
 
     std::set<std::string> type_imports;
@@ -2693,7 +2695,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.line("int b = r.readU8();");
         ctx.line("if (fspecLen < " + std::to_string(num_octets) + ") fspec[fspecLen] = (byte) b;");
         ctx.line("fspecLen++;");
-        ctx.line("if ((b & (1 << " + std::to_string(*sd.bitmap_ext) + ")) == 0) break;");
+        ctx.line("if ((b & (1 << " + std::to_string(J_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + ")) == 0) break;");
         ctx.dedent();
         ctx.line("}");
     } else {
@@ -2709,10 +2711,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     }
     ctx.line();
 
-    // Decode fields based on FSPEC bits
+    // Decode fields based on FSPEC bits.
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     for (const auto& bf : sorted_fields) {
         int byte_idx = bf.bit / J_BITS_PER_BYTE;
-        int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+        int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
         std::string m = "result." + j_field(bf.name);
         ctx.line("if (fspecLen > " + std::to_string(byte_idx) +
                  " && (fspec[" + std::to_string(byte_idx) +
@@ -2877,12 +2880,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     ctx.line("public void encode(BitWriter w) {");
     ctx.indent();
 
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     ctx.line("byte[] fspec = new byte[" + std::to_string(num_octets) + "];");
     if (has_ext) {
         ctx.line("int lastOctet = 0;");
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
             ctx.line("if (" + j_field(bf.name) + " != null) { fspec[" +
                      std::to_string(byte_idx) + "] = (byte)(fspec[" +
                      std::to_string(byte_idx) + "] | (1 << " +
@@ -2890,7 +2894,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                      std::to_string(byte_idx) + "); }");
         }
         ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] = (byte)(fspec[i] | (1 << " +
-                 std::to_string(*sd.bitmap_ext) + "));" );
+                 std::to_string(J_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + "));" );
         if (fspec_le) {
             ctx.line("for (int lo = 0, hi = lastOctet; lo < hi; lo++, hi--) { byte tmp = fspec[lo]; fspec[lo] = fspec[hi]; fspec[hi] = tmp; }");
         }
@@ -2898,7 +2902,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     } else {
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
             ctx.line("if (" + j_field(bf.name) + " != null) fspec[" +
                      std::to_string(byte_idx) + "] = (byte)(fspec[" +
                      std::to_string(byte_idx) + "] | (1 << " +

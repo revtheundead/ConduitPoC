@@ -139,10 +139,10 @@ On decode, `altitude` is only read when `has-altitude` evaluates to true. On enc
 
 ### Bitmap Presence
 
-Inside a `presence="bitmap"` struct, fields use `bit` to tie presence to a bitmap bit:
+Inside a `presence="bitmap"` struct, fields use `bit` to tie presence to a bitmap bit. BMDL uses **wire-order bit numbering**: `bit="0"` is the first bit transmitted on the wire (MSB of byte 0), `bit="7"` is the LSB of byte 0, `bit="8"` is the MSB of byte 1, and so on:
 
 ```xml
-<field name="callsign" bit="7" type="callsign"/>
+<field name="callsign" bit="0" type="callsign"/>  <!-- first FSPEC bit on the wire -->
 ```
 
 See [Bitmap](bitmap.md) for details.

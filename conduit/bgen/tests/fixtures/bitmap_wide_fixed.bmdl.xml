@@ -12,9 +12,9 @@
     <struct name="WideBitmap" presence="bitmap">
       <bitmap bits="24"/>
 
-      <field name="alpha" type="uint8" bit="0"/>
-      <field name="beta" type="uint16" bit="8"/>
-      <field name="gamma" type="uint32" bit="16"/>
+      <field name="alpha" type="uint8" bit="7"/>
+      <field name="beta" type="uint16" bit="15"/>
+      <field name="gamma" type="uint32" bit="23"/>
     </struct>
   </types>
 

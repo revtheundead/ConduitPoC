@@ -637,6 +637,20 @@ public:
                     }
                 }
             }
+            // Endian for the FSPEC byte order. Default Big inherited from
+            // StructDef, overridden by <bitmap endian="little"|"big">.
+            auto endian_attr = bitmap_node.attribute("endian");
+            if (endian_attr) {
+                std::string_view v = endian_attr.value();
+                if (v == "little") {
+                    sd.bitmap_endian = model::Endian::Little;
+                } else if (v == "big") {
+                    sd.bitmap_endian = model::Endian::Big;
+                } else {
+                    error(bitmap_node, "<bitmap> endian attribute must be 'big' or 'little', got '" +
+                         std::string(v) + "'");
+                }
+            }
         }
 
         auto bit_attr = parse_int_attr(node, "bit");

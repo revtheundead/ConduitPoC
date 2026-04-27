@@ -215,7 +215,9 @@ TEST_CASE("Parse bitmap struct with ext attribute", "[parser]") {
     REQUIRE(result.has_value());
 
     const auto& bmdl = *result;
-    // BitmapItems struct should have bitmap with ext
+    // BitmapItems struct should have bitmap with ext.
+    // The fixture uses wire-order numbering, so the FX bit (LSB of each
+    // FSPEC byte under the new convention) is recorded as ext="7".
     bool found_bitmap = false;
     for (const auto& sd : bmdl.structs) {
         if (sd.name == "BitmapItems") {
@@ -223,7 +225,7 @@ TEST_CASE("Parse bitmap struct with ext attribute", "[parser]") {
             CHECK(sd.is_bitmap);
             CHECK(sd.bitmap_bits == 8);
             REQUIRE(sd.bitmap_ext.has_value());
-            CHECK(*sd.bitmap_ext == 0);
+            CHECK(*sd.bitmap_ext == 7);
         }
     }
     CHECK(found_bitmap);

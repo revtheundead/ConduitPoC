@@ -11,8 +11,8 @@
     <!-- Bitmap with array using out-of-range bit value — should fail validation -->
     <struct name="BadBitmap" presence="bitmap">
       <bitmap bits="8"/>
-      <field name="foo" type="uint8" bit="7"/>
-      <array name="items" type="uint8" count="2" bit="99"/>
+      <field name="foo" type="uint8" bit="0"/>
+      <array name="items" type="uint8" count="2" bit="100"/>
     </struct>
   </types>
 </bmdl>
