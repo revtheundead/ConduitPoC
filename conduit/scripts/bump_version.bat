@@ -65,8 +65,11 @@ REM Python pyproject.toml
 REM Python __init__.py
 %PS% "$f='%PROJECT_ROOT%\conduit\bindings\python\conduit\__init__.py'; $c=Get-Content $f -Raw; $c=$c -replace '__version__ = \""[^\""]*\""','__version__ = \""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
 
-REM C ABI
+REM Full C ABI
 %PS% "$f='%PROJECT_ROOT%\conduit\src\cabi\conduit_cabi.cpp'; $c=Get-Content $f -Raw; $c=$c -replace 'return \""[0-9]+\.[0-9]+\.[0-9]+\""','return \""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
+
+REM Codec-only C ABI (conduit_codec_version)
+%PS% "$f='%PROJECT_ROOT%\conduit\src\cabi\conduit_codec_cabi.cpp'; $c=Get-Content $f -Raw; $c=$c -replace 'return \""[0-9]+\.[0-9]+\.[0-9]+\""','return \""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
 
 REM package_fat_jar.sh
 %PS% "$f='%PROJECT_ROOT%\conduit\scripts\package_fat_jar.sh'; $c=Get-Content $f -Raw; $c=$c -replace '(?m)^VERSION=\""[^\""]*\""','VERSION=\""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
@@ -85,6 +88,7 @@ echo   conduit\examples\xcvr-java21\pom.xml
 echo   conduit\bindings\python\pyproject.toml
 echo   conduit\bindings\python\conduit\__init__.py
 echo   conduit\src\cabi\conduit_cabi.cpp
+echo   conduit\src\cabi\conduit_codec_cabi.cpp
 echo   conduit\scripts\package_fat_jar.sh
 if exist "%PROJECT_ROOT%\conduit\scripts\package_fat_jar.bat" echo   conduit\scripts\package_fat_jar.bat
 echo.
