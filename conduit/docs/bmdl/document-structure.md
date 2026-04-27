@@ -169,5 +169,5 @@ When the generator resolves all files (the root file and all transitive imports)
 
 ## Common Pitfalls
 
-- Library files do not support a `<defaults>` block themselves, but the **importing protocol's** `<defaults>` are applied to library types during the build phase. This means a library type's wire behavior (endianness, string encoding, etc.) depends on who imports it. Use explicit attributes on individual `<type>` and `<field>` elements when consistent behavior is needed regardless of importer. See [Imports](imports.md) for details.
+- Library files do not support a `<defaults>` block themselves. During the build phase, for each library definition the importing protocol's `<defaults>` are used to fill in any **missing** attributes (endianness, string encoding, etc.) — explicit attributes on the library's own `<type>` and `<field>` elements are never overridden. The same library imported by two different protocols may therefore produce different wire behaviour for fields that did *not* set those attributes explicitly. Use explicit attributes when consistent behaviour is needed regardless of importer. See [Imports](imports.md) for details.
 - The `version` attribute on `<bmdl>` is the BMDL schema version (`"2.0"`), not a user-defined protocol version.

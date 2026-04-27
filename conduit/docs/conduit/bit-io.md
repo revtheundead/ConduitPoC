@@ -51,8 +51,9 @@ auto offset = reader.read_signed_bits(13);  // 13-bit signed field
 | `read_u16(Endian)` | `Result<uint16_t>` | Big | Read 2 bytes |
 | `read_u32(Endian)` | `Result<uint32_t>` | Big | Read 4 bytes |
 | `read_u64(Endian)` | `Result<uint64_t>` | Big | Read 8 bytes |
-| `read_f16(Endian)` | `Result<float>` | Big | Read IEEE 754 half-precision float (2 bytes) |
+| `read_f16(Endian)` | `Result<float>` | Big | Read IEEE 754 half-precision float (2 bytes), expanded to `float` |
 | `read_f32(Endian)` | `Result<float>` | Big | Read IEEE 754 single-precision float (4 bytes) |
+| `read_f48(Endian)` | `Result<double>` | Big | Read 48-bit truncated double (6 bytes) — same layout as IEEE 754 double, mantissa low 16 bits zero-filled |
 | `read_f64(Endian)` | `Result<double>` | Big | Read IEEE 754 double-precision float (8 bytes) |
 
 > **Pitfall -- auto-alignment:** Byte-level reads, bulk reads (`read_bytes`, `read_string`), and `sub_reader()` all auto-align to the next byte boundary before reading. If you read a 3-bit field followed by `read_u16()`, the remaining 5 bits of the current byte are skipped. Generated code tracks alignment and falls back to `read_bits()` when not byte-aligned.
@@ -123,8 +124,9 @@ The writer manages its own dynamically-growing buffer.
 | `write_u16(uint16_t, Endian)` | Big | Write 2 bytes |
 | `write_u32(uint32_t, Endian)` | Big | Write 4 bytes |
 | `write_u64(uint64_t, Endian)` | Big | Write 8 bytes |
-| `write_f16(float, Endian)` | Big | Write IEEE 754 half-precision float (2 bytes) |
+| `write_f16(float, Endian)` | Big | Write IEEE 754 half-precision float (2 bytes); narrows from `float` |
 | `write_f32(float, Endian)` | Big | Write IEEE 754 single-precision float (4 bytes) |
+| `write_f48(double, Endian)` | Big | Write 48-bit truncated double (6 bytes); the bottom 16 bits of the mantissa are dropped |
 | `write_f64(double, Endian)` | Big | Write IEEE 754 double-precision float (8 bytes) |
 
 > **Auto-alignment:** All byte-level writes, `write_bytes()`, and `write_string()` auto-align to the next byte boundary before writing. If you write a 3-bit field followed by `write_u16()`, the remaining 5 bits are zero-padded and a new byte starts.
@@ -219,12 +221,15 @@ Read multi-byte values directly from a byte buffer without constructing a `BitRe
 |----------|---------|-------------|
 | `read_u16(span, offset, Endian)` | `uint16_t` | Read 2 bytes |
 | `read_u32(span, offset, Endian)` | `uint32_t` | Read 4 bytes |
+| `read_u48(span, offset, Endian)` | `uint64_t` | Read 6 bytes (top 48 bits of returned `uint64_t`) |
 | `read_u64(span, offset, Endian)` | `uint64_t` | Read 8 bytes |
 | `read_f16(span, offset, Endian)` | `float` | Read IEEE 754 half-precision float (via f16→f32 conversion) |
 | `read_f32(span, offset, Endian)` | `float` | Read IEEE 754 single-precision float (via `memcpy`) |
+| `read_f48(span, offset, Endian)` | `double` | Read 48-bit truncated double; the missing low 16 mantissa bits are zero-filled |
 | `read_f64(span, offset, Endian)` | `double` | Read IEEE 754 double-precision float (via `memcpy`) |
 
-**Bounds checking:** If `offset + N` exceeds the span size, integer reads return 0 and float reads return 0.0. No error is signaled -- the caller is responsible for ensuring the offset is valid.
+**Bounds checking:** If `offset + N` exceeds the span size, integer reads return 0 and float reads return 0.0. No error is signaled — these helpers are
+called by `BitReader` after its own bounds check, so the caller is responsible for ensuring the offset is valid.
 
 ### Buffer Writes
 
@@ -234,12 +239,14 @@ Write multi-byte values directly to a byte buffer without constructing a `BitWri
 |----------|-------------|
 | `write_u16(span, offset, uint16_t, Endian)` | Write 2 bytes |
 | `write_u32(span, offset, uint32_t, Endian)` | Write 4 bytes |
+| `write_u48(span, offset, uint64_t, Endian)` | Write low 6 bytes of the value |
 | `write_u64(span, offset, uint64_t, Endian)` | Write 8 bytes |
 | `write_f16(span, offset, float, Endian)` | Write IEEE 754 half-precision float (via f32→f16 conversion) |
 | `write_f32(span, offset, float, Endian)` | Write IEEE 754 single-precision float (via `memcpy`) |
+| `write_f48(span, offset, double, Endian)` | Write 48-bit truncated double; the bottom 16 mantissa bits are dropped |
 | `write_f64(span, offset, double, Endian)` | Write IEEE 754 double-precision float (via `memcpy`) |
 
-**Bounds checking:** If `offset + N` exceeds the span size, writes are silently skipped (no-op). No error is signaled -- the caller is responsible for ensuring the offset is valid.
+**Bounds checking:** If `offset + N` exceeds the span size, writes are silently skipped (no-op). No error is signaled — same rationale as for the read helpers above.
 
 ### Example
 

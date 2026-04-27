@@ -49,6 +49,13 @@ public:
         return format_message(type_id, payload);
     }
     [[nodiscard]] virtual std::string_view protocol_name() const { return "unknown"; }
+
+    // Whether this session expects the caller to format messages for the
+    // message log itself (used by passthrough sessions that only see raw
+    // frames). The C ABI / JNI / ctypes bindings rely on this so Java /
+    // Python can render typed messages on their side; the C++ runtime
+    // never calls format_message()/format_outbound() when this returns true.
+    [[nodiscard]] virtual bool defers_message_logging() const { return false; }
 };
 
 }
@@ -56,11 +63,15 @@ public:
 
 Users do not implement `ISession` -- bgen generates implementations. You only interact with sessions through factory functions and the `Transceiver`.
 
-`ISession` also provides `encode_batch()` for array-payload protocols:
+`ISession` also provides an optional `encode_batch()` for array-payload
+protocols. The default returns `BatchNotSupported`; sessions generated from a
+frame whose `<payload count="*"/>` is an array override it to pack multiple
+messages into one frame:
 
 ```cpp
 // Default implementation returns BatchNotSupported.
-// Array-payload sessions override this to pack multiple messages into one frame.
+// Array-payload sessions (<payload count="*"/>) override this to pack multiple
+// messages into one frame.
 [[nodiscard]] virtual Result<EncodeResult>
     encode_batch(uint64_t type_id, std::span<const std::any> payloads);
 ```

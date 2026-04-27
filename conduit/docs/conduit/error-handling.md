@@ -106,8 +106,9 @@ err.is_transceiver_error(); // false
 err.is_recoverable();       // depends on code
 
 // Formatting
-err.format();        // "[WARNING] BufferUnderrun: need 4 bytes, have 2 (file.cpp:42)"
-err.format_short();  // "BufferUnderrun: need 4 bytes, have 2"
+err.format();        // "2025-01-15 10:30:45 [BUFFER_UNDERRUN] need 4 bytes, have 2 (at file.cpp:42 in function_name)"
+err.format_short();  // "[BUFFER_UNDERRUN] need 4 bytes, have 2"
+                     // With context: "[BUFFER_UNDERRUN] need 4 bytes, have 2 (in <ctx>)"
 
 // Static helpers
 Error::code_to_string(ErrorCode::BufferUnderrun);     // "BUFFER_UNDERRUN"
@@ -117,11 +118,27 @@ Error::severity_to_string(ErrorSeverity::Error);       // "ERROR"
 Error a(ErrorCode::BufferUnderrun, "msg A");
 Error b(ErrorCode::BufferUnderrun, "msg B");
 a == b;  // true (same code)
+a != b;  // false (operator!= is the negation generated from operator==)
 ```
+
+### Context Chaining
+
+`with_context()` chains contexts with " > " separators so that the outermost
+caller appears first. Use this to build a diagnostic trail across helper
+functions:
+
+```cpp
+Error inner(ErrorCode::BufferUnderrun, "underrun");
+auto e1 = inner.with_context("decode-field 'len'");      // "decode-field 'len'"
+auto e2 = e1.with_context("frame 7");                     // "frame 7 > decode-field 'len'"
+auto e3 = e2.with_context("session 'asterix'");           // "session 'asterix' > frame 7 > decode-field 'len'"
+```
+
+The underlying `code_`, `message_`, `location_`, and `timestamp_` are preserved across `with_context()` calls.
 
 ### Default Constructor
 
-`Error()` is default-constructible. A default-constructed error has code `ErrorCode::InternalError`, an empty message, no context, and an epoch timestamp (since no `std::chrono::system_clock::now()` call is made).
+`Error()` is default-constructible. A default-constructed error has code `ErrorCode::InternalError`, an empty message, no context, and an epoch timestamp (since no `std::chrono::system_clock::now()` call is made). Default-constructed errors are typically only used as placeholders inside `Result<T>` returns; production code constructs errors with `CONDUIT_ERROR(code, msg)` to capture both the message and the source location.
 
 ## Result Types
 

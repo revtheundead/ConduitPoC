@@ -182,31 +182,31 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FRN 1: Data Source Identifier (compulsory) -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I010 - Data Source Identifier</doc>
         </field>
 
         <!-- FRN 2: Target Report Descriptor (compulsory) -->
-        <struct name="i020" bit="6">
+        <struct name="i020" bit="1">
           <doc>I020 - Target Report Descriptor</doc>
           <field name="typ" type="cat001-report-type"/>
         </struct>
 
         <!-- FRN 3: Measured Position in Polar (optional) -->
-        <field name="i040" bit="5" type="PolarRhoTheta">
+        <field name="i040" bit="2" type="PolarRhoTheta">
           <doc>I040 - Measured Position in Polar Coordinates</doc>
         </field>
 
         <!-- FRN 4: Measured Position in Cartesian (optional) -->
-        <field name="i042" bit="4" type="CartesianXY">
+        <field name="i042" bit="3" type="CartesianXY">
           <doc>I042 - Calculated Position in Cartesian Coordinates</doc>
         </field>
 
         <!-- FRN 5: Mode 3/A Code (optional) -->
-        <struct name="i070" bit="3">
+        <struct name="i070" bit="4">
           <doc>I070 - Mode 3/A Code in Octal</doc>
           <field name="v" bits="1">
             <doc>Validated</doc>
@@ -222,7 +222,7 @@
         </struct>
 
         <!-- FRN 6: Flight Level (optional) -->
-        <struct name="i090" bit="2">
+        <struct name="i090" bit="5">
           <doc>I090 - Mode C Code / Flight Level</doc>
           <field name="v" bits="1"/>
           <field name="g" bits="1"/>
@@ -234,18 +234,18 @@
         </struct>
 
         <!-- FRN 7: Track Number (optional) -->
-        <field name="i161" bit="1" type="track-number">
+        <field name="i161" bit="6" type="track-number">
           <doc>I161 - Track Number</doc>
         </field>
 
         <!-- Second FSPEC octet -->
         <!-- FRN 8: Track Status (optional) -->
-        <field name="i170" bit="15" type="Cat001TrackStatus">
+        <field name="i170" bit="8" type="Cat001TrackStatus">
           <doc>I170 - Track Status</doc>
         </field>
 
         <!-- FRN 9: Time of Day (optional) -->
-        <field name="i141" bit="14" type="time-of-day">
+        <field name="i141" bit="9" type="time-of-day">
           <doc>I141 - Truncated Time of Day</doc>
         </field>
 
@@ -387,19 +387,19 @@
       <struct name="sub-items" presence="bitmap">
         <bitmap bits="8"/>
 
-        <field name="source-id" bit="7" type="DataSourceId"/>
-        <field name="callsign" bit="6" type="callsign"/>
-        <field name="aircraft-addr" bit="5" type="aircraft-address"/>
+        <field name="source-id" bit="0" type="DataSourceId"/>
+        <field name="callsign" bit="1" type="callsign"/>
+        <field name="aircraft-addr" bit="2" type="aircraft-address"/>
 
-        <struct name="position" bit="4">
+        <struct name="position" bit="3">
           <field name="lat" type="wgs84-fine"/>
           <field name="lon" type="wgs84-fine"/>
         </struct>
 
-        <field name="flight-level" bit="3" type="flight-level"/>
-        <field name="track-number" bit="2" type="track-number"/>
+        <field name="flight-level" bit="4" type="flight-level"/>
+        <field name="track-number" bit="5" type="track-number"/>
 
-        <struct name="velocity" bit="1">
+        <struct name="velocity" bit="6">
           <field name="vx" type="int16"/>
           <field name="vy" type="int16"/>
         </struct>
@@ -446,32 +446,32 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- ===== COMPULSORY ITEMS (FRN 1-5) ===== -->
 
         <!-- FRN 1: Data Source Identifier -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I010 - Data Source Identifier (COMPULSORY)</doc>
         </field>
 
         <!-- FRN 2: Time of Day -->
-        <field name="i020" bit="6" type="time-of-day">
+        <field name="i020" bit="1" type="time-of-day">
           <doc>I020 - Time of Message (COMPULSORY)</doc>
         </field>
 
         <!-- FRN 3: Sequence Number -->
-        <field name="i030" bit="5" type="uint16">
+        <field name="i030" bit="2" type="uint16">
           <doc>I030 - Message Sequence Number (COMPULSORY)</doc>
         </field>
 
         <!-- FRN 4: Message Type (2 spare + 6 type bits) -->
-        <field name="i040" bit="4" type="Cat253I040">
+        <field name="i040" bit="3" type="Cat253I040">
           <doc>I040 - Message Type Indicator (COMPULSORY)</doc>
         </field>
 
         <!-- FRN 5: Priority -->
-        <field name="i050" bit="3" type="uint8">
+        <field name="i050" bit="4" type="uint8">
           <doc>I050 - Message Priority (COMPULSORY)</doc>
         </field>
 
@@ -480,13 +480,13 @@
 
         <!-- FRN 6: Status Information -->
         <!-- Optional for type 1 (status), compulsory for types 2, 8 -->
-        <field name="i060" bit="2" type="Cat253I060">
+        <field name="i060" bit="5" type="Cat253I060">
           <doc>I060 - System Status (optional for type 1, compulsory for types 2, 8)</doc>
         </field>
 
         <!-- FRN 7: Sequence Information -->
         <!-- Optional for types 1, 2; compulsory for type 8 -->
-        <field name="i070" bit="1" type="Cat253I070">
+        <field name="i070" bit="6" type="Cat253I070">
           <doc>I070 - Sequence Information (optional for types 1-2, compulsory for type 8)</doc>
         </field>
 
@@ -494,19 +494,19 @@
 
         <!-- FRN 8: Extended Control (contains structure selector for I100) -->
         <!-- Compulsory for types 2, 8 -->
-        <field name="i080" bit="15" type="Cat253I080">
+        <field name="i080" bit="8" type="Cat253I080">
           <doc>I080 - Extended Control (compulsory for types 2, 8)</doc>
         </field>
 
         <!-- FRN 9: Priority and Flags -->
-        <field name="i090" bit="14" type="Cat253I090">
+        <field name="i090" bit="9" type="Cat253I090">
           <doc>I090 - Priority and Control Flags</doc>
         </field>
 
         <!-- FRN 10: Variable Format Data -->
         <!-- Structure determined by I080.structure-selector -->
         <!-- Compulsory for type 8 -->
-        <choice name="i100" bit="13" switch="i080.structure-selector">
+        <choice name="i100" bit="10" switch="i080.structure-selector">
           <doc>
             I100 - Variable Format Data (compulsory for type 8)
             Structure determined by I080.structure-selector:
@@ -525,26 +525,26 @@
         </choice>
 
         <!-- FRN 11: Text Annotation -->
-        <field name="i110" bit="12" type="Cat253I110">
+        <field name="i110" bit="11" type="Cat253I110">
           <doc>I110 - Optional text annotation</doc>
         </field>
 
         <!-- FRN 12: Reference Data -->
-        <field name="i120" bit="11" type="Cat253I120">
+        <field name="i120" bit="12" type="Cat253I120">
           <doc>I120 - Reference identifier for correlation</doc>
         </field>
 
         <!-- ===== THIRD FSPEC OCTET (if needed) ===== -->
 
         <!-- FRN 13: Reserved Expansion Field -->
-        <struct name="re" bit="23">
+        <struct name="re" bit="16">
           <doc>RE - Reserved Expansion Field</doc>
           <field name="len" type="uint8"/>
           <field name="data" type="bytes" length-from="len - 1"/>
         </struct>
 
         <!-- FRN 14: Special Purpose Field -->
-        <struct name="sp" bit="22">
+        <struct name="sp" bit="17">
           <doc>SP - Special Purpose Field</doc>
           <field name="len" type="uint8"/>
           <field name="data" type="bytes" length-from="len - 1"/>
@@ -613,22 +613,22 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FRN 1: Data Source Identifier -->
-        <field name="i010" bit="7" type="DataSourceId"/>
+        <field name="i010" bit="0" type="DataSourceId"/>
 
         <!-- FRN 2: Time of Day -->
-        <field name="i140" bit="6" type="time-of-day"/>
+        <field name="i140" bit="1" type="time-of-day"/>
 
         <!-- FRN 3: Target Report Descriptor -->
-        <field name="i020" bit="5" type="Cat048TargetReportDescriptor"/>
+        <field name="i020" bit="2" type="Cat048TargetReportDescriptor"/>
 
         <!-- FRN 4: Measured Position in Slant Polar -->
-        <field name="i040" bit="4" type="PolarRhoTheta"/>
+        <field name="i040" bit="3" type="PolarRhoTheta"/>
 
         <!-- FRN 5: Mode 3/A Code -->
-        <struct name="i070" bit="3">
+        <struct name="i070" bit="4">
           <field name="v" bits="1"/>
           <field name="g" bits="1"/>
           <field name="l" bits="1"/>
@@ -637,7 +637,7 @@
         </struct>
 
         <!-- FRN 6: Flight Level in Binary -->
-        <struct name="i090" bit="2">
+        <struct name="i090" bit="5">
           <field name="v" bits="1"/>
           <field name="g" bits="1"/>
           <field name="fl" bits="14" signed="true">
@@ -647,30 +647,30 @@
         </struct>
 
         <!-- FRN 7: Radar Plot Characteristics -->
-        <struct name="i130" bit="1">
+        <struct name="i130" bit="6">
           <doc>Compound item with sub-fields</doc>
           <struct name="sub" presence="bitmap">
             <bitmap bits="8"/>
-            <field name="srl" bit="7" type="uint8"/>
-            <field name="srr" bit="6" type="uint8"/>
-            <field name="sam" bit="5" type="int8"/>
-            <field name="prl" bit="4" type="uint8"/>
-            <field name="pam" bit="3" type="int8"/>
-            <field name="rpd" bit="2" type="int8"/>
-            <field name="apd" bit="1" type="int8"/>
+            <field name="srl" bit="0" type="uint8"/>
+            <field name="srr" bit="1" type="uint8"/>
+            <field name="sam" bit="2" type="int8"/>
+            <field name="prl" bit="3" type="uint8"/>
+            <field name="pam" bit="4" type="int8"/>
+            <field name="rpd" bit="5" type="int8"/>
+            <field name="apd" bit="6" type="int8"/>
           </struct>
         </struct>
 
         <!-- Second octet -->
 
         <!-- FRN 8: Aircraft Address -->
-        <field name="i220" bit="15" type="aircraft-address"/>
+        <field name="i220" bit="8" type="aircraft-address"/>
 
         <!-- FRN 9: Aircraft Identification (6-bit packed, 6 bytes) -->
-        <field name="i240" bit="14" type="aircraft-ident"/>
+        <field name="i240" bit="9" type="aircraft-ident"/>
 
         <!-- FRN 10: Mode S MB Data -->
-        <struct name="i250" bit="13">
+        <struct name="i250" bit="10">
           <field name="rep" type="uint8"/>
           <array name="bds" count-from="rep">
             <field name="data" bytes="7"/>
@@ -680,13 +680,13 @@
         </struct>
 
         <!-- FRN 11: Track Number -->
-        <field name="i161" bit="12" type="track-number"/>
+        <field name="i161" bit="11" type="track-number"/>
 
         <!-- FRN 12: Calculated Position in Cartesian -->
-        <field name="i042" bit="11" type="CartesianXY"/>
+        <field name="i042" bit="12" type="CartesianXY"/>
 
         <!-- FRN 13: Calculated Track Velocity -->
-        <struct name="i200" bit="10">
+        <struct name="i200" bit="13">
           <field name="ground-speed" type="uint16">
             <scale>0.00006103515625</scale>
             <unit>NM/s</unit>
@@ -698,7 +698,7 @@
         </struct>
 
         <!-- FRN 14: Track Status -->
-        <field name="i170" bit="9" type="Cat048TrackStatus"/>
+        <field name="i170" bit="14" type="Cat048TrackStatus"/>
 
       </struct>
     </message>

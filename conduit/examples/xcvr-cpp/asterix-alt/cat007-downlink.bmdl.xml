@@ -326,28 +326,28 @@
         controlling up to 7 subfields.
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="sum" bit="7" type="Cat007I085Sum">
+        <bitmap ext="7"/>
+        <field name="sum" bit="0" type="Cat007I085Sum">
           <doc>Subfield #1: Mode 5 Summary</doc>
         </field>
-        <field name="pmn" bit="6" type="Cat007I085Pmn">
+        <field name="pmn" bit="1" type="Cat007I085Pmn">
           <doc>Subfield #2: Mode 5 PIN/National Origin/Mission Code</doc>
         </field>
-        <field name="pos" bit="5" type="Cat007I085Pos">
+        <field name="pos" bit="2" type="Cat007I085Pos">
           <doc>Subfield #3: Mode 5 Reported Position</doc>
         </field>
-        <field name="ga" bit="4" type="Cat007I085Ga">
+        <field name="ga" bit="3" type="Cat007I085Ga">
           <doc>Subfield #4: Mode 5 GNSS-derived Altitude</doc>
         </field>
-        <field name="em1" bit="3" type="Cat007I085Em1">
+        <field name="em1" bit="4" type="Cat007I085Em1">
           <doc>Subfield #5: Extended Mode 1 Code in Octal Representation</doc>
         </field>
-        <field name="tos" bit="2" type="int8">
+        <field name="tos" bit="5" type="int8">
           <doc>Subfield #6: Time Offset for POS and GA (LSB = 1/128 s, range +/-1 s)</doc>
           <scale>0.0078125</scale>
           <unit>seconds</unit>
         </field>
-        <field name="xp" bit="1" type="Cat007I085Xp">
+        <field name="xp" bit="6" type="Cat007I085Xp">
           <doc>Subfield #7: X Pulse Presence</doc>
         </field>
       </struct>
@@ -460,11 +460,11 @@
         Bits 7 (CAL) and 6 (RDS) control presence of subfields.
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="cal" bit="7" type="Cat007I120Cal">
+        <bitmap ext="7"/>
+        <field name="cal" bit="0" type="Cat007I120Cal">
           <doc>Subfield #1: Calculated Doppler Speed</doc>
         </field>
-        <field name="rds" bit="6" type="Cat007I120Rds">
+        <field name="rds" bit="1" type="Cat007I120Rds">
           <doc>Subfield #2: Raw Doppler Speed</doc>
         </field>
       </struct>
@@ -482,26 +482,26 @@
         with up to 7 one-octet subfields.
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="srl" bit="7" type="uint8">
+        <bitmap ext="7"/>
+        <field name="srl" bit="0" type="uint8">
           <doc>SSR Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
         </field>
-        <field name="srr" bit="6" type="uint8">
+        <field name="srr" bit="1" type="uint8">
           <doc>Number of Received Replies for (M)SSR</doc>
         </field>
-        <field name="sam" bit="5" type="int8">
+        <field name="sam" bit="2" type="int8">
           <doc>Amplitude of (M)SSR Reply, LSB = 1 dBm</doc>
         </field>
-        <field name="prl" bit="4" type="uint8">
+        <field name="prl" bit="3" type="uint8">
           <doc>Primary Plot Runlength, LSB = 360/2^13 degrees (~0.044 deg)</doc>
         </field>
-        <field name="pam" bit="3" type="int8">
+        <field name="pam" bit="4" type="int8">
           <doc>Amplitude of Primary Plot, LSB = 1 dBm</doc>
         </field>
-        <field name="rpd" bit="2" type="int8">
+        <field name="rpd" bit="5" type="int8">
           <doc>Difference in Range (PSR-SSR), LSB = 1/256 NM</doc>
         </field>
-        <field name="apd" bit="1" type="int8">
+        <field name="apd" bit="6" type="int8">
           <doc>Difference in Azimuth (PSR-SSR), LSB = 360/2^14 degrees</doc>
         </field>
       </struct>
@@ -688,23 +688,23 @@
         Subfield #6: Selective Mode S Interrogations (1 octet)
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="tr" bit="7" type="Cat007I450Tr">
+        <bitmap ext="7"/>
+        <field name="tr" bit="0" type="Cat007I450Tr">
           <doc>Subfield #1: Truncation</doc>
         </field>
-        <field name="m4-nb" bit="6" type="uint8">
+        <field name="m4-nb" bit="1" type="uint8">
           <doc>Subfield #2: Number of Mode 4 Interrogations</doc>
         </field>
-        <field name="m5-nb" bit="5" type="uint8">
+        <field name="m5-nb" bit="2" type="uint8">
           <doc>Subfield #3: Number of Mode 5 Interrogations</doc>
         </field>
-        <field name="ms" bit="4" type="Cat007I450Ms">
+        <field name="ms" bit="3" type="Cat007I450Ms">
           <doc>Subfield #4: Mode S All Call Interrogations</doc>
         </field>
-        <field name="mx-nb" bit="3" type="uint8">
+        <field name="mx-nb" bit="4" type="uint8">
           <doc>Subfield #5: Number of Mark X Interrogations</doc>
         </field>
-        <field name="sms-nb" bit="2" type="uint8">
+        <field name="sms-nb" bit="5" type="uint8">
           <doc>Subfield #6: Number of Selective Mode S Interrogations</doc>
         </field>
       </struct>
@@ -726,170 +726,170 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FSPEC Octet 1 (FRN 1-7) -->
 
         <!-- FRN 1: I007/010 - Data Source Identifier (2 octets) -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I007/010 - Data Source Identifier</doc>
         </field>
 
         <!-- FRN 2: I007/025 - Data Destination Identifier (2 octets) -->
-        <field name="i025" bit="6" type="DataSourceId">
+        <field name="i025" bit="1" type="DataSourceId">
           <doc>I007/025 - Data Destination Identifier</doc>
         </field>
 
         <!-- FRN 3: I007/410 - Directed Interrogation Message Type (1 octet) -->
-        <field name="i410" bit="5" type="Cat007I410">
+        <field name="i410" bit="2" type="Cat007I410">
           <doc>I007/410 - Directed Interrogation Message Type</doc>
         </field>
 
         <!-- FRN 4: I007/140 - Time of Day (3 octets) -->
-        <field name="i140" bit="4" type="time-of-day">
+        <field name="i140" bit="3" type="time-of-day">
           <doc>I007/140 - Time of Day</doc>
         </field>
 
         <!-- FRN 5: I007/400 - Directed Interrogation Request Number (2 octets) -->
-        <field name="i400" bit="3" type="Cat007I400">
+        <field name="i400" bit="4" type="Cat007I400">
           <doc>I007/400 - Directed Interrogation Request Number</doc>
         </field>
 
         <!-- FRN 6: I007/020 - Target Report Descriptor (1+ octets) -->
-        <field name="i020" bit="2" type="Cat007I020">
+        <field name="i020" bit="5" type="Cat007I020">
           <doc>I007/020 - Target Report Descriptor</doc>
         </field>
 
         <!-- FRN 7: I007/040 - Measured Position in Slant Polar (4 octets) -->
-        <field name="i040" bit="1" type="Cat007I040">
+        <field name="i040" bit="6" type="Cat007I040">
           <doc>I007/040 - Measured Position in Slant Polar Coordinates</doc>
         </field>
 
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I007/070 - Mode-3/A Code in Octal (2 octets) -->
-        <field name="i070" bit="15" type="Cat007I070">
+        <field name="i070" bit="8" type="Cat007I070">
           <doc>I007/070 - Mode-3/A Code in Octal Representation</doc>
         </field>
 
         <!-- FRN 9: I007/090 - Flight Level in Binary (2 octets) -->
-        <field name="i090" bit="14" type="Cat007I090">
+        <field name="i090" bit="9" type="Cat007I090">
           <doc>I007/090 - Flight Level in Binary Representation</doc>
         </field>
 
         <!-- FRN 10: I007/130 - Radar Plot Characteristics (1+1+ octets, compound) -->
-        <field name="i130" bit="13" type="Cat007I130">
+        <field name="i130" bit="10" type="Cat007I130">
           <doc>I007/130 - Radar Plot Characteristics</doc>
         </field>
 
         <!-- FRN 11: I007/220 - Aircraft Address (3 octets) -->
-        <field name="i220" bit="12" type="aircraft-address">
+        <field name="i220" bit="11" type="aircraft-address">
           <doc>I007/220 - Aircraft Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FRN 12: I007/240 - Aircraft Identification (6 octets) -->
-        <field name="i240" bit="11" type="aircraft-ident">
+        <field name="i240" bit="12" type="aircraft-ident">
           <doc>I007/240 - Aircraft Identification (8 chars x 6 bits)</doc>
         </field>
 
         <!-- FRN 13: I007/250 - Mode S MB Data (1+8*n octets) -->
-        <field name="i250" bit="10" type="Cat007I250">
+        <field name="i250" bit="13" type="Cat007I250">
           <doc>I007/250 - Mode S MB Data</doc>
         </field>
 
         <!-- FRN 14: I007/161 - Track Number (2 octets) -->
-        <field name="i161" bit="9" type="Cat007I161">
+        <field name="i161" bit="14" type="Cat007I161">
           <doc>I007/161 - Track Number</doc>
         </field>
 
         <!-- FSPEC Octet 3 (FRN 15-21) -->
 
         <!-- FRN 15: I007/042 - Calculated Position in Cartesian (4 octets) -->
-        <field name="i042" bit="23" type="Cat007I042">
+        <field name="i042" bit="16" type="Cat007I042">
           <doc>I007/042 - Calculated Position in Cartesian Coordinates</doc>
         </field>
 
         <!-- FRN 16: I007/200 - Calculated Track Velocity in Polar (4 octets) -->
-        <field name="i200" bit="22" type="Cat007I200">
+        <field name="i200" bit="17" type="Cat007I200">
           <doc>I007/200 - Calculated Track Velocity in Polar Representation</doc>
         </field>
 
         <!-- FRN 17: I007/170 - Track Status (1+ octets) -->
-        <field name="i170" bit="21" type="Cat007I170">
+        <field name="i170" bit="18" type="Cat007I170">
           <doc>I007/170 - Track Status</doc>
         </field>
 
         <!-- FRN 18: I007/210 - Track Quality (4 octets) -->
-        <field name="i210" bit="20" type="Cat007I210">
+        <field name="i210" bit="19" type="Cat007I210">
           <doc>I007/210 - Track Quality</doc>
         </field>
 
         <!-- FRN 19: I007/030 - Warning/Error Conditions (1+ octets) -->
-        <field name="i030" bit="19" type="Cat007I030">
+        <field name="i030" bit="20" type="Cat007I030">
           <doc>I007/030 - Warning/Error Conditions</doc>
         </field>
 
         <!-- FRN 20: I007/080 - Mode-3/A Code Confidence (2 octets) -->
-        <field name="i080" bit="18" type="Cat007I080">
+        <field name="i080" bit="21" type="Cat007I080">
           <doc>I007/080 - Mode-3/A Code Confidence Indicator</doc>
         </field>
 
         <!-- FRN 21: I007/100 - Mode-C Code and Confidence (4 octets) -->
-        <field name="i100" bit="17" type="Cat007I100">
+        <field name="i100" bit="22" type="Cat007I100">
           <doc>I007/100 - Mode-C Code and Code Confidence Indicator</doc>
         </field>
 
         <!-- FSPEC Octet 4 (FRN 22-28) -->
 
         <!-- FRN 22: I007/110 - Height Measured by 3D Radar (2 octets) -->
-        <field name="i110" bit="31" type="Cat007I110">
+        <field name="i110" bit="24" type="Cat007I110">
           <doc>I007/110 - Height Measured by 3D Radar</doc>
         </field>
 
         <!-- FRN 23: I007/120 - Radial Doppler Speed (1+ octets, compound) -->
-        <field name="i120" bit="30" type="Cat007I120">
+        <field name="i120" bit="25" type="Cat007I120">
           <doc>I007/120 - Radial Doppler Speed</doc>
         </field>
 
         <!-- FRN 24: I007/230 - Communications/ACAS Capability (2 octets) -->
-        <field name="i230" bit="29" type="Cat007I230">
+        <field name="i230" bit="26" type="Cat007I230">
           <doc>I007/230 - Communications/ACAS Capability and Flight Status</doc>
         </field>
 
         <!-- FRN 25: I007/260 - ACAS Resolution Advisory Report (7 octets) -->
-        <field name="i260" bit="28" type="Cat007I260">
+        <field name="i260" bit="27" type="Cat007I260">
           <doc>I007/260 - ACAS Resolution Advisory Report</doc>
         </field>
 
         <!-- FRN 26: I007/055 - Mode-1 Code in Octal (1 octet) -->
-        <field name="i055" bit="27" type="Cat007I055">
+        <field name="i055" bit="28" type="Cat007I055">
           <doc>I007/055 - Mode-1 Code in Octal Representation</doc>
         </field>
 
         <!-- FRN 27: I007/050 - Mode-2 Code in Octal (2 octets) -->
-        <field name="i050" bit="26" type="Cat007I050">
+        <field name="i050" bit="29" type="Cat007I050">
           <doc>I007/050 - Mode-2 Code in Octal Representation</doc>
         </field>
 
         <!-- FRN 28: I007/065 - Mode-1 Code Confidence (1 octet) -->
-        <field name="i065" bit="25" type="Cat007I065">
+        <field name="i065" bit="30" type="Cat007I065">
           <doc>I007/065 - Mode-1 Code Confidence Indicator</doc>
         </field>
 
         <!-- FSPEC Octet 5 (FRN 29-35) -->
 
         <!-- FRN 29: I007/060 - Mode-2 Code Confidence (2 octets) -->
-        <field name="i060" bit="39" type="Cat007I060">
+        <field name="i060" bit="32" type="Cat007I060">
           <doc>I007/060 - Mode-2 Code Confidence Indicator</doc>
         </field>
 
         <!-- FRN 30: I007/450 - Directed Interrogation Result (1+ octets, compound) -->
-        <field name="i450" bit="38" type="Cat007I450">
+        <field name="i450" bit="33" type="Cat007I450">
           <doc>I007/450 - Directed Interrogation Result</doc>
         </field>
 
         <!-- FRN 31: I007/085 - Mode 5, Extended Mode 1, X-Pulse (1+ octets, compound) -->
-        <field name="i085" bit="37" type="Cat007I085">
+        <field name="i085" bit="34" type="Cat007I085">
           <doc>I007/085 - Mode 5, Extended Mode 1 and X-Pulse</doc>
         </field>
 
@@ -897,7 +897,7 @@
         <!-- FRN 33: Unused -->
 
         <!-- FRN 34: SPF - Special Purpose Field -->
-        <struct name="spf" bit="34">
+        <struct name="spf" bit="37">
           <doc>Special Purpose Field</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of SPF including this length byte</doc>
@@ -906,7 +906,7 @@
         </struct>
 
         <!-- FRN 35: REF - Reserved Expansion Field -->
-        <struct name="ref" bit="33">
+        <struct name="ref" bit="38">
           <doc>Reserved Expansion Field</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of REF including this length byte</doc>

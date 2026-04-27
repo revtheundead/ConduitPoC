@@ -137,8 +137,8 @@ cmake --build build
 | `CONDUIT_BUILD_BENCHMARKS` | OFF | Build C++ performance benchmarks |
 | `CONDUIT_BUILD_PYTHON_BENCHMARKS` | OFF | Build Python codec benchmarks (requires CABI + bgen) |
 | `CONDUIT_BUILD_JAVA_BENCHMARKS` | OFF | Build Java codec benchmarks (requires CABI + bgen + JAR) |
-| `CONDUIT_BUILD_CABI` | OFF | Build full Transceiver C ABI shared library |
-| `CONDUIT_BUILD_CODEC_CABI` | OFF | Build codec-only C ABI shared library |
+| `CONDUIT_BUILD_CABI` | OFF | Build full Transceiver C ABI shared library (`libconduit_cabi`) |
+| `CONDUIT_BUILD_CODEC_CABI` | OFF | Build codec-only C ABI shared library (`libconduit_codec_cabi`) — exposes only `conduit_session_*` / `conduit_decode_frame` / `conduit_encode_*` / `conduit_framer_*` for protocols that don't need the transceiver. Smaller binary; can be loaded on hosts with no networking. |
 | `CONDUIT_BUILD_JNI` | OFF | Build JNI shared libraries (Java 11+) |
 | `CONDUIT_BUILD_JAVA_JAR` | OFF | Build conduit-java JAR and compile Java tests |
 | `CONDUIT_ENABLE_SANITIZERS` | OFF | Enable AddressSanitizer + UBSan |

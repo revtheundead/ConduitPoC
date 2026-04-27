@@ -817,70 +817,70 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FSPEC Octet 1 (FRN 1-7) -->
 
         <!-- FRN 1: I253/010 - Data Source Identifier (2 octets) -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I253/010 - Data Source Identifier (SAC/SIC)</doc>
         </field>
 
         <!-- FRN 2: I253/015 - Local Data Source Identifier (1 octet) -->
-        <field name="i015" bit="6" type="uint8">
+        <field name="i015" bit="1" type="uint8">
           <doc>I253/015 - Local Data Source Identifier</doc>
         </field>
 
         <!-- FRN 3: I253/025 - Data Destination Identifier (1 + 3*N octets) -->
-        <field name="i025" bit="5" type="Cat253I025">
+        <field name="i025" bit="2" type="Cat253I025">
           <doc>I253/025 - Data Destination Identifier and Local Data Destination ID</doc>
         </field>
 
         <!-- FRN 4: I253/030 - Source Application Identifier (2 octets) -->
-        <field name="i030" bit="4" type="uint16">
+        <field name="i030" bit="3" type="uint16">
           <doc>I253/030 - Source Application Identifier</doc>
         </field>
 
         <!-- FRN 5: I253/040 - Message Type Identifier (1 octet) -->
-        <field name="i040" bit="3" type="Cat253I040">
+        <field name="i040" bit="4" type="Cat253I040">
           <doc>I253/040 - Message Type Identifier</doc>
         </field>
 
         <!-- FRN 6: I253/050 - Message Sequence Identifier (1 + 2*N octets) -->
-        <field name="i050" bit="2" type="Cat253I050">
+        <field name="i050" bit="5" type="Cat253I050">
           <doc>I253/050 - Message Sequence Identifier</doc>
         </field>
 
         <!-- FRN 7: I253/070 - Time of Day (3 octets) -->
-        <field name="i070" bit="1" type="TimeOfDay">
+        <field name="i070" bit="6" type="TimeOfDay">
           <doc>I253/070 - Time of Day</doc>
         </field>
 
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I253/035 - Data Origin Identifier (3 octets) -->
-        <field name="i035" bit="15" type="Cat253I035">
+        <field name="i035" bit="8" type="Cat253I035">
           <doc>I253/035 - Data Origin Identifier</doc>
         </field>
 
         <!-- FRN 9: I253/060 - Blocking Information (2 octets) -->
-        <field name="i060" bit="14" type="Cat253I060">
+        <field name="i060" bit="9" type="Cat253I060">
           <doc>I253/060 - Blocking Information</doc>
         </field>
 
         <!-- FRN 10: I253/080 - Application Data Structure (4+ octets, FX chain) -->
-        <field name="i080" bit="13" type="Cat253I080">
+        <field name="i080" bit="10" type="Cat253I080">
           <doc>I253/080 - Application Data Structure</doc>
         </field>
 
         <!-- FRN 11: I253/090 - Application Data (1 + 16*N octets, repetitive) -->
-        <field name="i090" bit="12" type="Cat253I090">
+        <field name="i090" bit="11" type="Cat253I090">
           <doc>I253/090 - Application Data (not used)</doc>
         </field>
 
         <!-- FRN 12: I253/100 - Transparent Application Data 1 -->
         <!-- Dispatch by I080 start-index: 5=Multipath, 6=Squitter, 35=BitReport -->
-        <struct name="i100" bit="11">
+        <struct name="i100" bit="12">
           <doc>I253/100 - Transparent Application Data 1</doc>
           <field name="len" type="uint8" auto="length">
               <doc>Length of I100 including this length byte</doc>
@@ -896,7 +896,7 @@
         </struct>
 
         <!-- FRN 13: SP - Special Purpose Field -->
-        <struct name="sp" bit="10">
+        <struct name="sp" bit="13">
           <doc>Special Purpose Field</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>
@@ -905,7 +905,7 @@
         </struct>
 
         <!-- FRN 14: RFS - Random Field Sequencing -->
-        <struct name="rfs" bit="9">
+        <struct name="rfs" bit="14">
           <doc>Random Field Sequencing</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of RFS including this length byte</doc>

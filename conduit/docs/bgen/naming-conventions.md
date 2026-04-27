@@ -182,9 +182,35 @@ The alias is emitted as a namespace-scope `using` declaration before the parent 
 
 The `typeName` attribute on `<choice>` overrides this variant alias name entirely. For example, `<choice name="payload" typeName="MessagePayload">` generates `using MessagePayload = std::variant<...>` instead of `MyMessage_payloadVariant`.
 
-## C++ Keyword Avoidance
+## Reserved Keyword Handling
 
-`name_utils.hpp` defines **`is_cpp_keyword(name)`**, which checks identifiers against all standard C++23 keywords and alternative operator tokens (`and`, `or`, `not`, `bitand`, `bitor`, etc.). It returns `true` if the name would collide with a C++ keyword. The validator calls this during validation and emits an **error** (not a warning) when a BMDL name would produce a C++ keyword after conversion (e.g., a field named `or` triggers a validation error because it collides with the C++ keyword `or`).
+Each backend handles reserved-word collisions differently. Authoring a BMDL
+field whose generated name would clash with a target language's keyword can
+fail at validation, get auto-renamed, or both — depending on which language
+the validator knows about and whether the keyword is shared.
+
+| Backend | Strategy | Where it happens |
+|---------|----------|------------------|
+| C++ | **Validation error.** A name that maps to a C++23 keyword (or alternative operator token) is rejected before codegen runs. | `is_cpp_keyword(name)` in `bgen/src/codegen/name_utils.hpp`, called from the validator's `check_keyword_collision()`. |
+| Java | **Auto-rename: trailing `_` suffix.** A field whose camelCase form is a Java reserved word (or one of the literals `true`, `false`, `null`) is emitted with `_` appended (e.g. `interface` → `interface_`, `class` → `class_`). | `is_java_keyword(name)` / `j_field()` in `bgen/src/codegen/java_backend.cpp`. |
+| Python | **Auto-rename: trailing `_` suffix.** A field whose snake_case form is a Python reserved word is emitted with `_` appended (e.g. `class` → `class_`, `for` → `for_`, `True` → `True_`). | `is_py_keyword(name)` / `py_field()` in `bgen/src/codegen/python_backend.cpp`. |
+
+> **Cross-language consequence:** Names that are reserved in C++ but *not* in
+> Java/Python (or vice versa) behave asymmetrically. For example, `class` is
+> reserved in all three: C++ rejects it, Java emits `class_`, Python emits
+> `class_`. But `interface` is only reserved in Java: a field named
+> `interface` validates and compiles in C++ and Python, but the Java backend
+> renames it to `interface_`. If you need stable cross-backend identifiers,
+> avoid any name in the union of all three keyword sets.
+
+Examples of auto-renamed fields:
+
+| BMDL field | C++ | Java | Python |
+|------------|-----|------|--------|
+| `class` | *validation error* | `class_` | `class_` |
+| `interface` | `interface()` / `set_interface()` | `interface_` (renamed) | `interface` (not a Py keyword) |
+| `for` | *validation error* | `for_` | `for_` |
+| `null` | `null()` / `set_null()` | `null_` (renamed) | `null` (not a Py keyword) |
 
 ## Type Shadowing
 

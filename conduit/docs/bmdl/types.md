@@ -164,7 +164,7 @@ These are mutually exclusive. The same rule applies to inline type definitions o
 
 ## Common Pitfalls
 
-- `float` requires `bits > 0`. Widths of 16, 32, and 64 are natively supported (IEEE 754 half/single/double). Other widths encode the raw bit pattern and use the closest IEEE format (≤32 → `float`, ≤64 → `double`).
+- `float` requires `bits > 0`. Natively supported widths are **16, 32, 48, and 64** — IEEE 754 half/single, the 48-bit truncated-mantissa double used by some legacy protocols, and IEEE 754 double. Other widths are accepted by the parser but the generated codec falls back to reading/writing a raw integer of that width and reinterpreting it through the closest standard format (≤32 → `float`, ≤64 → `double`); this path is not commonly used and not exercised by the protocol fixtures.
 - Enum, flags, and scale are mutually exclusive on a single type -- you can't have a scaled enum.
 - A field referencing a type that already has `<scale>` or `<offset>` cannot redefine them. The generator reports a parse error if both the type and the field specify `<scale>` or `<offset>`.
 - Explicitly specifying `wire-encoding="cb2"` on `int` or `wire-encoding="bnr"` on `uint` is a no-op (these are the defaults) but is accepted without error.

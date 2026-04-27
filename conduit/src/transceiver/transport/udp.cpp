@@ -469,7 +469,11 @@ void UdpTransport::Impl::io_loop() {
                                 &addrlen);
             #endif
 
-            if (n <= 0) continue;
+            // recvfrom: <0 is an error (signal, EAGAIN under unusual races);
+            // >=0 is a delivered datagram, including legitimate 0-byte
+            // datagrams that some protocols use as keep-alives.  Treating
+            // n==0 as an error would silently drop those packets.
+            if (n < 0) continue;
 
             PeerId sender;
             if (single_peer) {

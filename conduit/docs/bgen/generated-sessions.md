@@ -16,7 +16,16 @@ class SimpleFrameSession : public conduit::traits::ISession { ... };
 inline std::unique_ptr<conduit::traits::ISession> create_simple_frame_session();
 ```
 
-The session class name is formed by `to_cpp_type_name(frame_name) + "Session"`. Since `to_cpp_type_name` only replaces hyphens with underscores (preserving original casing), a BMDL frame named `Frame` produces `FrameSession`, while `data-frame` produces `data_frameSession`. The factory function name uses `to_lower_snake_case`, so `Frame` becomes `create_frame_session()` and `MyFrame` becomes `create_my_frame_session()`.
+The session class name is formed by `to_cpp_type_name(frame_name) + "Session"`. Since `to_cpp_type_name` only replaces hyphens with underscores (preserving original casing), a BMDL frame named `Frame` produces `FrameSession`, while `data-frame` produces `data_frameSession`.
+
+The factory function name is `"create_" + to_lower_snake_case(frame_name) + "_session"`. `to_lower_snake_case()` converts both hyphens and PascalCase boundaries to underscores and lowercases everything, so:
+
+| BMDL frame name | Factory function |
+|------------------|-------------------|
+| `Frame` | `create_frame_session()` |
+| `MyFrame` | `create_my_frame_session()` |
+| `data-frame` | `create_data_frame_session()` |
+| `HTTPParser` | `create_httpparser_session()` (consecutive uppercase letters are *not* split) |
 
 ### Config Parameter
 

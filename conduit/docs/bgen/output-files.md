@@ -14,7 +14,8 @@ bgen produces code files whose structure depends on the target language (`--lang
 | `messages.hpp` | `generate_messages()` | Message classes with `TYPE_ID`, convenience methods, `wrap()` |
 | `sessions.hpp` | `generate_sessions()` | Session classes implementing `ISession` |
 | `protocol.hpp` | `generate_protocol()` | `ProtocolDescriptor` with type registry and session factory |
-| `<protocol-name>.hpp` | `generate_umbrella()` | Umbrella header that includes everything |
+| `json.hpp` | `generate_json()` | nlohmann/json `to_json`/`from_json` overloads for every struct, message, and enum (header-only; pulls in `<nlohmann/json.hpp>` only when this file is included) |
+| `<protocol-name>.hpp` | `generate_umbrella()` | Umbrella header that includes all of the above. The filename is derived from the protocol's namespace via `to_lower_snake_case()`, so `<defaults><namespace>my_protocol</namespace></defaults>` produces `my_protocol.hpp`, and `MyProtocol` would produce `my_protocol.hpp` as well. |
 
 ## Include Chain
 
@@ -35,6 +36,11 @@ messages.hpp         ("structs.hpp", "types.hpp", "constants.hpp",
 sessions.hpp         ("messages.hpp", conduit/traits/session_traits.hpp)
 
 protocol.hpp         ("sessions.hpp", conduit/traits/session_traits.hpp)
+
+json.hpp             ("messages.hpp", "structs.hpp", "types.hpp",
+                      <nlohmann/json.hpp>) — only pulled in when you
+                      explicitly include json.hpp; the umbrella header
+                      includes it as well.
 
 <protocol-name>.hpp  (includes all of the above)
 ```

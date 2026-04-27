@@ -459,7 +459,7 @@ CONDUIT_CODEC_API void conduit_register_session(
 // ============================================================================
 
 CONDUIT_CODEC_API const char* conduit_codec_version(void) {
-    return "0.1.0";
+    return "1.1.3";
 }
 
 } // extern "C"

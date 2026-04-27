@@ -84,7 +84,19 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nDecodeFrame(
 
     for (size_t i = 0; i < count; i++) {
         jstring jtypeName = env->NewStringUTF(msgs[i].type_name ? msgs[i].type_name : "");
+        if (!jtypeName) {
+            // OOM creating the type-name string. Pending exception must be
+            // cleared before any further JNI use; abandon the rest of the
+            // decode and return what we have.
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            break;
+        }
         jbyteArray jmsgData = env->NewByteArray(static_cast<jsize>(msgs[i].data_len));
+        if (!jmsgData) {
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            env->DeleteLocalRef(jtypeName);
+            break;
+        }
         if (msgs[i].data && msgs[i].data_len > 0) {
             env->SetByteArrayRegion(jmsgData, 0, static_cast<jsize>(msgs[i].data_len),
                                     reinterpret_cast<const jbyte*>(msgs[i].data));
@@ -92,11 +104,15 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nDecodeFrame(
 
         jobject decoded = env->NewObject(g_decoded_msg_class, g_decoded_msg_ctor,
             static_cast<jlong>(msgs[i].type_id), jtypeName, jmsgData);
-        env->SetObjectArrayElement(result, static_cast<jsize>(i), decoded);
+        if (decoded) {
+            env->SetObjectArrayElement(result, static_cast<jsize>(i), decoded);
+            env->DeleteLocalRef(decoded);
+        } else if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
 
         env->DeleteLocalRef(jtypeName);
         env->DeleteLocalRef(jmsgData);
-        env->DeleteLocalRef(decoded);
     }
 
     conduit_free_decoded_msgs(msgs, count);
@@ -130,8 +146,12 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeMessage(
     if (err != 0) return nullptr;
 
     jbyteArray jresult = env->NewByteArray(static_cast<jsize>(result.data_len));
-    env->SetByteArrayRegion(jresult, 0, static_cast<jsize>(result.data_len),
-                            reinterpret_cast<const jbyte*>(result.data));
+    if (jresult) {
+        env->SetByteArrayRegion(jresult, 0, static_cast<jsize>(result.data_len),
+                                reinterpret_cast<const jbyte*>(result.data));
+    } else if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
 
     conduit_free_encode_result(&result);
     return jresult;
@@ -172,8 +192,12 @@ JNIEXPORT jbyteArray JNICALL Java_io_conduit_JniCodecBinding_nEncodeBatch(
 
         if (err == 0) {
             jresultArr = env->NewByteArray(static_cast<jsize>(result.data_len));
-            env->SetByteArrayRegion(jresultArr, 0, static_cast<jsize>(result.data_len),
-                                    reinterpret_cast<const jbyte*>(result.data));
+            if (jresultArr) {
+                env->SetByteArrayRegion(jresultArr, 0, static_cast<jsize>(result.data_len),
+                                        reinterpret_cast<const jbyte*>(result.data));
+            } else if (env->ExceptionCheck()) {
+                env->ExceptionClear();
+            }
             conduit_free_encode_result(&result);
         }
     }
@@ -330,6 +354,10 @@ JNIEXPORT jobjectArray JNICALL Java_io_conduit_JniCodecBinding_nFramerFeed(
 
     for (size_t i = 0; i < count; i++) {
         jbyteArray jframe = env->NewByteArray(static_cast<jsize>(frames[i].data_len));
+        if (!jframe) {
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            break;
+        }
         if (frames[i].data && frames[i].data_len > 0) {
             env->SetByteArrayRegion(jframe, 0, static_cast<jsize>(frames[i].data_len),
                                     reinterpret_cast<const jbyte*>(frames[i].data));

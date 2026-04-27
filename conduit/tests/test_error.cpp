@@ -261,4 +261,43 @@ TEST_CASE("Error operator== compares by code only", "[error]") {
         Error b(ErrorCode::InvalidConfig, "test");
         CHECK(a == b);
     }
+
+    SECTION("operator!= is the negation of operator==") {
+        Error a(ErrorCode::BufferUnderrun, "x");
+        Error b(ErrorCode::BufferUnderrun, "y");
+        Error c(ErrorCode::DecodingFailed, "y");
+        CHECK_FALSE(a != b);
+        CHECK(a != c);
+    }
+}
+
+// ============================================================================
+// Nested context: with_context preserves earlier context as a "outer > inner"
+// chain so callers can stack diagnostic frames.
+// ============================================================================
+
+TEST_CASE("Error with_context chains outer > inner contexts", "[error]") {
+    Error inner(ErrorCode::BufferUnderrun, "underrun");
+    auto level1 = inner.with_context("decode-field 'len'");
+    auto level2 = level1.with_context("frame 7");
+    auto level3 = level2.with_context("session 'asterix'");
+
+    // The outermost context appears first in the chain.
+    const std::string& ctx = level3.context();
+    CHECK(ctx.find("session 'asterix'") != std::string::npos);
+    CHECK(ctx.find("frame 7") != std::string::npos);
+    CHECK(ctx.find("decode-field 'len'") != std::string::npos);
+
+    auto outer_pos = ctx.find("session 'asterix'");
+    auto middle_pos = ctx.find("frame 7");
+    auto inner_pos = ctx.find("decode-field 'len'");
+    REQUIRE(outer_pos != std::string::npos);
+    REQUIRE(middle_pos != std::string::npos);
+    REQUIRE(inner_pos != std::string::npos);
+    CHECK(outer_pos < middle_pos);
+    CHECK(middle_pos < inner_pos);
+
+    // Underlying code/message preserved.
+    CHECK(level3.code() == ErrorCode::BufferUnderrun);
+    CHECK(level3.message() == "underrun");
 }

@@ -35,6 +35,16 @@ public:
 
 Each transport owns its I/O thread(s). The `Transceiver` calls `start()` / `stop()` and routes data through the callbacks.
 
+> **Pause / resume are stubs.** The default implementations of `pause()` and
+> `resume()` are empty, and **none** of the built-in transports (TCP client,
+> TCP server, UDP, Serial) override them. The transceiver still calls
+> `pause()` / `resume()` on threshold crossings when
+> `QueueConfig::back_pressure_threshold > 0` (see [Configuration](configuration.md#back-pressure)),
+> but with the built-in transports those calls are no-ops — back-pressure
+> only takes effect once the dispatch queue's drop policy fires. Custom
+> transports can override these methods to actually stop reading from the
+> underlying socket / device.
+
 ## TransportCallbacks
 
 ```cpp

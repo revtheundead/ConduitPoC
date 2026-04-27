@@ -25,19 +25,19 @@
       <bitmap bits="16"/>
 
       <!-- Enum in bitmap (bit 0) -->
-      <field name="status" type="status-code" bit="0"/>
+      <field name="status" type="status-code" bit="7"/>
 
       <!-- String in bitmap (bit 1) -->
-      <field name="label" type="string" length="8" bit="1"/>
+      <field name="label" type="string" length="8" bit="6"/>
 
       <!-- Bytes in bitmap (bit 2) -->
-      <field name="data" type="bytes" length="4" bit="2"/>
+      <field name="data" type="bytes" length="4" bit="5"/>
 
       <!-- BCD in bitmap (bit 3) -->
-      <field name="bcd-field" type="bcd-value" bit="3"/>
+      <field name="bcd-field" type="bcd-value" bit="4"/>
 
       <!-- Regular primitive in bitmap (bit 4) -->
-      <field name="counter" type="uint16" bit="4"/>
+      <field name="counter" type="uint16" bit="3"/>
     </struct>
   </types>
 

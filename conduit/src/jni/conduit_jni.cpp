@@ -104,6 +104,7 @@ static void state_callback_trampoline(
         cbd->callback_key,
         static_cast<jint>(peer),
         static_cast<jint>(new_state));
+    if (env->ExceptionCheck()) env->ExceptionClear();
 }
 
 static void error_callback_trampoline(

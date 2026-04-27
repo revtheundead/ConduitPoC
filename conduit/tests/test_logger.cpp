@@ -562,3 +562,64 @@ TEST_CASE("Logger hexDump truncates long data", "[logger]") {
     CHECK(fix.sink->entries[0].message.find("128 bytes") != std::string::npos);
     CHECK(fix.sink->entries[0].message.find("112 more bytes") != std::string::npos);
 }
+
+// ============================================================================
+// LogEntry colorize honored regardless of stdout terminal state
+//
+// Regression: format() previously ANDed `with_color` with supportsColor()
+// which always checks stdout. Under test the test harness has stdout
+// redirected to a non-tty, so colors got disabled even when callers had
+// already decided they wanted ANSI escapes (e.g., a stderr-attached sink).
+// ============================================================================
+
+TEST_CASE("LogEntry format honors with_color=true even when stdout is not a tty", "[logger]") {
+    LogEntry entry{
+        .level = Level::Error,
+        .timestamp = std::chrono::system_clock::now(),
+        .message = "boom",
+        .category = "cat",
+        .location = std::source_location::current()
+    };
+
+    auto with_color = entry.format(true);
+    auto without_color = entry.format(false);
+
+    // With color, the formatted string must contain at least one ANSI escape
+    // sequence (the level prefix or the category brackets).
+    CHECK(with_color.find("\033[") != std::string::npos);
+    CHECK(without_color.find("\033[") == std::string::npos);
+}
+
+TEST_CASE("LogEntry formatCompact honors with_color=true regardless of stdout", "[logger]") {
+    LogEntry entry{
+        .level = Level::Warn,
+        .timestamp = std::chrono::system_clock::now(),
+        .message = "hi",
+        .category = {},
+        .location = std::source_location::current()
+    };
+
+    auto with_color = entry.formatCompact(true);
+    auto without_color = entry.formatCompact(false);
+
+    CHECK(with_color.find("\033[") != std::string::npos);
+    CHECK(without_color.find("\033[") == std::string::npos);
+}
+
+// ============================================================================
+// Logger with no sinks does not crash
+// ============================================================================
+
+TEST_CASE("Logger with no sinks is a no-op (does not crash)", "[logger]") {
+    auto& logger = Logger::instance();
+    logger.clearSinks();
+    logger.setLevel(Level::Trace);
+
+    // None of these should throw or crash with no sinks installed.
+    logger.info("nope");
+    logger.error("nope");
+    logger.flush();
+
+    // Restore for other tests
+    logger.setLevel(Level::Info);
+}
