@@ -72,9 +72,13 @@ sed -i "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" \
 sed -i "s/__version__ = \"[^\"]*\"/__version__ = \"${VERSION}\"/" \
     "$PROJECT_ROOT/conduit/bindings/python/conduit/__init__.py"
 
-# C ABI — return "X.Y.Z"
+# Full C ABI — return "X.Y.Z"
 sed -i "s/return \"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"/return \"${VERSION}\"/" \
     "$PROJECT_ROOT/conduit/src/cabi/conduit_cabi.cpp"
+
+# Codec-only C ABI — same pattern (conduit_codec_version)
+sed -i "s/return \"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"/return \"${VERSION}\"/" \
+    "$PROJECT_ROOT/conduit/src/cabi/conduit_codec_cabi.cpp"
 
 # package_fat_jar.sh — VERSION="..."
 sed -i "s/^VERSION=\"[^\"]*\"/VERSION=\"${VERSION}\"/" \
@@ -95,6 +99,7 @@ echo "  conduit/examples/xcvr-java21/pom.xml"
 echo "  conduit/bindings/python/pyproject.toml"
 echo "  conduit/bindings/python/conduit/__init__.py"
 echo "  conduit/src/cabi/conduit_cabi.cpp"
+echo "  conduit/src/cabi/conduit_codec_cabi.cpp"
 echo "  conduit/scripts/package_fat_jar.sh"
 if [ -f "$PROJECT_ROOT/conduit/scripts/package_fat_jar.bat" ]; then
     echo "  conduit/scripts/package_fat_jar.bat"
