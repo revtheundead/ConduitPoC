@@ -95,6 +95,7 @@ struct MessageLogConfig {
     std::string sent_filename;             // per-direction override for sends
     std::string received_filename;         // per-direction override for receives
     bool include_message_content = true;
+    bool include_raw_bytes = false;        // hex dump of wire bytes, opt-in
 };
 ```
 
@@ -103,12 +104,15 @@ struct MessageLogConfig {
 | `enabled` | `false` | Enable/disable message logging |
 | `mode` | `Combined` | File splitting strategy: `Combined`, `SeparateDirection`, `PerPeer`, `PerPeerDirection` |
 | `output` | `File` | Where to write: `File`, `Stdout`, `Both` |
-| `directory` | `"."` | Directory for log files |
+| `directory` | `"."` | Directory for log files (created if it does not exist; failure is logged but non-fatal) |
 | `prefix` | `"conduit"` | File name prefix (ignored when `filename` is set) |
 | `filename` | `""` (empty) | Custom filename pattern with `{peer}` and `{direction}` placeholders. When set, overrides prefix-based naming. |
 | `sent_filename` | `""` (empty) | Override filename for sent messages. Takes priority over `filename`. Supports `{peer}` placeholder. |
 | `received_filename` | `""` (empty) | Override filename for received messages. Takes priority over `filename`. Supports `{peer}` placeholder. |
 | `include_message_content` | `true` | Include `to_string()` output in log entries (has performance cost) |
+| `include_raw_bytes` | `false` | Include a `hex:` dump of the raw wire bytes after the metadata line. Opt-in because hex output can be large for big frames. |
+
+> **Note:** Peer names are sanitized when interpolated into a filename or used in `PerPeer`/`PerPeerDirection` mode — `/`, `\`, `:`, and NUL are replaced with `_`. This prevents dynamic peer names like `"server/0"` (TCP server children) from accidentally creating subdirectories.
 
 ## PeerConfig
 
@@ -189,6 +193,15 @@ config.add_peer("link",
 Set `back_pressure_threshold` to a value between 0.0 and 1.0 to automatically pause transport reading when the queue fills beyond that ratio. The threshold uses multiplicative hysteresis: transports are paused when fill exceeds the threshold, and **all** transports resume when fill drops below `threshold × 0.8`. For example, with `threshold = 0.8` and `capacity = 1024`, transports pause at 820+ messages and resume when the queue drops below 656 messages (fill ratio 0.64).
 
 When back-pressure activates, only the transport that triggered the threshold crossing is paused. On resume (when fill drops below `threshold x 0.8`), **all** transports are resumed, since multiple transports may have been individually paused.
+
+> **Caveat — built-in transports don't implement pause/resume.** `ITransport::pause()`
+> and `ITransport::resume()` are virtual no-ops by default, and TCP client,
+> TCP server, UDP, and Serial **do not override them**. With the built-in
+> transports, `back_pressure_threshold` will fire the calls, but the I/O
+> thread keeps reading; the only effective back-pressure mechanism in that
+> case is the dispatch queue's `drop_policy`. Setting the threshold is still
+> useful with **custom** transports that override `pause()` / `resume()`.
+> See [Transports: ITransport Interface](transports.md#itransport-interface).
 
 ### Shutdown
 

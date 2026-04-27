@@ -1781,8 +1781,12 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
     ctx_.line("bool operator==(const " + class_name + "&) const = default;");
     ctx_.line();
 
-    // Determine FSPEC endianness from first bitmap field
-    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
+    // FSPEC byte order: from <bitmap endian="..."> if specified, else default big-endian.
+    bool fspec_le = sd.bitmap_endian == model::Endian::Little;
+
+    // Bit numbering is wire-order: bit="0" is the first bit transmitted (MSB
+    // of byte 0), bit="7" is the LSB of byte 0, bit="8" is MSB of byte 1, etc.
+    // The mask within a byte is therefore 1 << (7 - bit_in_byte).
 
     // Encode
     ctx_.line("conduit::VoidResult encode(conduit::io::BitWriter& w) const {");
@@ -1802,13 +1806,13 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % BITS_PER_BYTE;
+            int bit_in_byte = BITS_PER_BYTE - 1 - (bf.bit % BITS_PER_BYTE);
             ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[" +
                       std::to_string(byte_idx) + "] |= (1 << " +
                       std::to_string(bit_in_byte) + ");");
         }
         ctx_.line("for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << " +
-                  std::to_string(*sd.bitmap_ext) + ");");
+                  std::to_string(BITS_PER_BYTE - 1 - *sd.bitmap_ext) + ");");
         if (fspec_le) {
             ctx_.line("{ auto n = std::min(static_cast<size_t>(last_octet) + 1, fspec.size()); std::reverse(fspec.begin(), fspec.begin() + static_cast<ptrdiff_t>(n)); }");
         }
@@ -1820,7 +1824,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
         ctx_.line("std::array<uint8_t, " + std::to_string(num_octets) + "> fspec{};");
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % BITS_PER_BYTE;
+            int bit_in_byte = BITS_PER_BYTE - 1 - (bf.bit % BITS_PER_BYTE);
             ctx_.line("if (" + to_member_name(bf.name) + ".has_value()) fspec[" +
                       std::to_string(byte_idx) + "] |= (1 << " +
                       std::to_string(bit_in_byte) + ");");
@@ -1856,7 +1860,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.line("if (!byte) return std::unexpected(byte.error());");
             ctx_.line("if (fspec_len < " + std::to_string(num_octets) + ") fspec[fspec_len] = *byte;");
             ctx_.line("fspec_len++;");
-            ctx_.line("if (!(*byte & (1 << " + std::to_string(*sd.bitmap_ext) + "))) break;");
+            ctx_.line("if (!(*byte & (1 << " + std::to_string(BITS_PER_BYTE - 1 - *sd.bitmap_ext) + "))) break;");
             ctx_.dedent();
             ctx_.line("}");
         } else {
@@ -1876,12 +1880,14 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
     }
     ctx_.line();
 
+    // Sort: byte ascending, then bit-in-byte ascending so wire-first fields
+    // (low BMDL bit numbers within a byte) decode first.
     auto sorted_fields = bfields;
     std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
         int a_oct = a.bit / BITS_PER_BYTE;
         int b_oct = b.bit / BITS_PER_BYTE;
         if (a_oct != b_oct) return a_oct < b_oct;
-        return a.bit > b.bit;
+        return a.bit < b.bit;
     });
 
     optional_field_names_.clear();
@@ -1891,7 +1897,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
 
     for (const auto& bf : sorted_fields) {
         int byte_idx = bf.bit / BITS_PER_BYTE;
-        int bit_in_byte = bf.bit % BITS_PER_BYTE;
+        int bit_in_byte = BITS_PER_BYTE - 1 - (bf.bit % BITS_PER_BYTE);
         std::string member = "result." + to_member_name(bf.name);
 
         ctx_.line("if (fspec_len > " + std::to_string(byte_idx) +
@@ -1971,12 +1977,15 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             ctx_.line("if (!val) return std::unexpected(val.error());");
             ctx_.line(member + " = std::move(*val);");
         } else if (bf.has_field_scale) {
-            // Scaled bitmap field: read raw bits, apply scale/offset
+            // Scaled bitmap field: read raw bits, apply scale/offset.
+            // Bitmap fields decode from a byte-aligned position (see
+            // matching encode comment), so request the fast path so
+            // endian is honored.
             FieldTypeInfo raw_fti;
             raw_fti.bits = bf.raw_bits;
             raw_fti.is_signed = bf.raw_signed;
             raw_fti.wire_encoding = bf.wire_encoding;
-            std::string read = emit_read_expr(raw_fti, bf.raw_endian, "r", false);
+            std::string read = emit_read_expr(raw_fti, bf.raw_endian, "r", true);
             std::string scale_str = double_literal(bf.field_scale);
             std::string offset_str = double_literal(bf.field_offset);
             ctx_.line("auto raw_val = " + read + ";");
@@ -1989,7 +1998,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             bfti.is_float = bf.is_float;
             bfti.cpp_type = bf.cpp_type;
             bfti.wire_encoding = bf.wire_encoding;
-            std::string read = emit_read_expr(bfti, bf.endian, "r", false);
+            std::string read = emit_read_expr(bfti, bf.endian, "r", true);
             ctx_.line("auto val = " + read + ";");
             ctx_.line("if (!val) return std::unexpected(val.error());");
             ctx_.line(member + " = static_cast<" + qual_type + ">(*val);");
@@ -2018,12 +2027,15 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
 
 void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bfields,
                                                int from_oct, int to_oct) {
+    // Encode in wire order: byte ascending, then bit-in-byte ascending so
+    // that the lowest BMDL bit number in each byte (the MSB on the wire)
+    // is encoded first.
     auto sorted = bfields;
     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
         int a_oct = a.bit / BITS_PER_BYTE;
         int b_oct = b.bit / BITS_PER_BYTE;
         if (a_oct != b_oct) return a_oct < b_oct;
-        return a.bit > b.bit;
+        return a.bit < b.bit;
     });
 
     for (const auto& bf : sorted) {
@@ -2074,7 +2086,11 @@ void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bf
         } else if (bf.is_struct) {
             ctx_.line("CONDUIT_TRY(" + member + "->encode(w));");
         } else if (bf.has_field_scale) {
-            // Scaled bitmap field: reverse scale/offset and write raw bits
+            // Scaled bitmap field: reverse scale/offset and write raw bits.
+            // Bitmap fields start byte-aligned (FSPEC ends on a byte
+            // boundary, and ASTERIX-style bitmaps use byte-multiple field
+            // widths), so request the byte-aligned write path to honor
+            // the field's endianness.
             FieldTypeInfo raw_fti;
             raw_fti.bits = bf.raw_bits;
             raw_fti.is_signed = bf.raw_signed;
@@ -2083,7 +2099,7 @@ void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bf
             std::string scale_str = double_literal(bf.field_scale);
             std::string offset_str = double_literal(bf.field_offset);
             std::string raw_expr = "static_cast<" + storage + ">((*" + member + " - " + offset_str + ") / " + scale_str + ")";
-            emit_write_stmt(ctx_, raw_expr, raw_fti, bf.raw_endian, false);
+            emit_write_stmt(ctx_, raw_expr, raw_fti, bf.raw_endian, true);
         } else {
             FieldTypeInfo bfti;
             bfti.bits = bf.type_bits;
@@ -2091,7 +2107,9 @@ void StructEmitter::emit_bitmap_encode_fields(const std::vector<BitmapField>& bf
             bfti.is_float = bf.is_float;
             bfti.cpp_type = bf.cpp_type;
             bfti.wire_encoding = bf.wire_encoding;
-            emit_write_stmt(ctx_, "*" + member, bfti, bf.endian, false);
+            // Bitmap fields start byte-aligned: request the byte-aligned
+            // write path so endian="little" actually flips the wire bytes.
+            emit_write_stmt(ctx_, "*" + member, bfti, bf.endian, true);
         }
 
         ctx_.dedent();

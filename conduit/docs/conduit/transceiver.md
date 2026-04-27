@@ -407,10 +407,16 @@ struct TransceiverStats {
     std::atomic<uint64_t> bytes_received{0};
     std::atomic<uint64_t> bytes_sent{0};
 
-    Snapshot snapshot() const noexcept;  // consistent read of all counters
-    void reset() noexcept;              // zero all counters
+    Snapshot snapshot() const noexcept;  // point-in-time sample of all counters
+    void reset() noexcept;               // zero all counters
 };
 ```
+
+`snapshot()` reads each counter atomically (`memory_order_relaxed`), but the
+sample as a whole is *not* mutually consistent — counters can advance between
+the individual loads. For most observability use cases (dashboards, periodic
+log lines, end-of-test summaries) this is fine; if you need a strict snapshot
+relationship between two counters, take two snapshots and compare deltas.
 
 The `Snapshot` struct mirrors the same fields as plain (non-atomic) `uint64_t` values:
 
@@ -617,6 +623,37 @@ You can set only one direction; the other falls back to `filename` or prefix-bas
 | `File` | Write to log files only |
 | `Stdout` | Write to stdout only |
 | `Both` | Write to both log files and stdout |
+
+### Including Raw Bytes
+
+Set `include_raw_bytes = true` to append a hex dump of the wire bytes after
+the metadata line (and before the formatted message content):
+
+```cpp
+config.message_log.enabled = true;
+config.message_log.include_message_content = true;
+config.message_log.include_raw_bytes = true;
+```
+
+```
+[2026-02-15T10:24:53.486] SEND peer=clients/1 ... bytes=37
+  hex: AA BB 00 25 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F 20 21
+       22 23 24
+
+Cat048Record{...}
+```
+
+The dump uses 32 bytes per line, two-digit uppercase hex, space-separated.
+Disabled by default since the output can dwarf the metadata for large frames.
+
+### Peer Name Sanitization
+
+Peer names that contain path separators (`/`, `\`), `:` , or NUL are
+sanitized when interpolated into a filename — those characters are replaced
+with `_`. This matters for multi-peer transports (TCP server) where dynamic
+peers are named `<base>/<index>` (e.g., `server/0`). Without sanitization,
+`PerPeer` mode would create files inside a `server` subdirectory; with
+sanitization, the file is `<prefix>_server_0.log` in `directory`.
 
 ### Performance
 

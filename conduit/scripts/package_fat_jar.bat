@@ -31,7 +31,7 @@ set "SCRIPT_DIR=%~dp0"
 set "PROJECT_ROOT=%SCRIPT_DIR%..\.."
 set "BINDINGS_DIR=%PROJECT_ROOT%\conduit\bindings\java"
 set "RESOURCES_DIR=%BINDINGS_DIR%\src\main\resources\native"
-set VERSION=1.0.9
+set VERSION=1.1.3
 
 set "NATIVE_DIR="
 set "OUTPUT="

@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BINDINGS_DIR="$PROJECT_ROOT/conduit/bindings/java"
 RESOURCES_DIR="$BINDINGS_DIR/src/main/resources/native"
-VERSION="1.0.9"
+VERSION="1.1.3"
 
 NATIVE_DIR=""
 OUTPUT=""

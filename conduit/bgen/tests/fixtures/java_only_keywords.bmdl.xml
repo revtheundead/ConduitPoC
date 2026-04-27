@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults>
+    <namespace>java_only_keywords</namespace>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+  </types>
+
+  <messages>
+    <!-- These names are Java reserved words but NOT C++ keywords, so they
+         pass C++ validation; the Java backend must rename them by appending
+         '_'. Without that, the generated .java file fails to compile. -->
+    <message name="JavaKeywordMsg">
+      <field name="interface" type="uint8"/>
+      <field name="implements" type="uint8"/>
+      <field name="instanceof" type="uint8"/>
+      <field name="extends" type="uint8"/>
+      <field name="super" type="uint8"/>
+      <field name="synchronized" type="uint8"/>
+      <field name="transient" type="uint8"/>
+      <field name="strictfp" type="uint8"/>
+      <field name="finally" type="uint8"/>
+      <field name="assert" type="uint8"/>
+      <field name="throws" type="uint8"/>
+      <field name="null_value" type="uint8"/>
+    </message>
+  </messages>
+</bmdl>

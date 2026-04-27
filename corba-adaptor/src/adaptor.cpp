@@ -246,17 +246,18 @@ void Adaptor::dispatch_corba_decoded(const bgen11::traits::DecodedMessage& msg) 
 }
 
 void Adaptor::register_builtin_commands() {
-    command_->register_query("status", [this](const std::string&) {
-        CorbaAdaptor::CommandResult res;
-        res.status = CorbaAdaptor::CMD_OK;
+    command_->register_query("status",
+        [this](const std::string&) -> CorbaAdaptor::CommandResult {
+            CorbaAdaptor::CommandResult res;
+            res.status = CorbaAdaptor::CMD_OK;
 
-        std::ostringstream ss;
-        ss << "tcp_peer="    << (tcp_->is_connected()   ? "connected" : "disconnected")
-           << " corba_peer=" << (corba_->is_connected() ? "connected" : "disconnected")
-           << " subscribers=" << supplier_->subscriber_count();
-        res.message = CORBA::string_dup(ss.str().c_str());
-        return res;
-    });
+            std::ostringstream ss;
+            ss << "tcp_peer="    << (tcp_->is_connected()   ? "connected" : "disconnected")
+               << " corba_peer=" << (corba_->is_connected() ? "connected" : "disconnected")
+               << " subscribers=" << supplier_->subscriber_count();
+            res.message = CORBA::string_dup(ss.str().c_str());
+            return res;
+        });
 
     command_->set_shutdown_callback([this] {
         ACE_DEBUG((LM_INFO, "Adaptor: shutdown requested via command\n"));

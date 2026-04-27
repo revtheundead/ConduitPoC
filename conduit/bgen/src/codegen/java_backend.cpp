@@ -39,6 +39,27 @@ bool write_file(const std::filesystem::path& path, const std::string& content) {
 
 std::string j_class(std::string_view name) { return to_pascal_case(name); }
 
+// Java reserved words and reserved literals.  Some overlap with C++ keywords
+// (and are therefore already rejected by the validator), but listing them here
+// keeps the rule complete: the C++ keyword check would not catch Java-only
+// reservations such as `assert`, `interface`, `null`, `super`, etc.
+inline bool is_java_keyword(std::string_view name) {
+    static const std::set<std::string_view> kw = {
+        // Reserved keywords
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch",
+        "char", "class", "const", "continue", "default", "do", "double",
+        "else", "enum", "extends", "final", "finally", "float", "for",
+        "goto", "if", "implements", "import", "instanceof", "int",
+        "interface", "long", "native", "new", "package", "private",
+        "protected", "public", "return", "short", "static", "strictfp",
+        "super", "switch", "synchronized", "this", "throw", "throws",
+        "transient", "try", "void", "volatile", "while",
+        // Reserved literals
+        "true", "false", "null",
+    };
+    return kw.count(name) > 0;
+}
+
 std::string j_field(std::string_view name) {
     auto s = to_snake_case(name);
     // camelCase for Java
@@ -49,13 +70,7 @@ std::string j_field(std::string_view name) {
         if (cap) { r += static_cast<char>(std::toupper(static_cast<unsigned char>(c))); cap = false; }
         else r += c;
     }
-    // Java keywords
-    if (r == "class" || r == "default" || r == "switch" || r == "case" || r == "new" ||
-        r == "return" || r == "int" || r == "long" || r == "float" || r == "double" ||
-        r == "boolean" || r == "byte" || r == "short" || r == "char" || r == "void" ||
-        r == "static" || r == "final" || r == "public" || r == "private" || r == "protected" ||
-        r == "abstract" || r == "native" || r == "import" || r == "package")
-        r += "_";
+    if (is_java_keyword(r)) r += "_";
     return r;
 }
 
@@ -128,9 +143,11 @@ std::string j_qualify_const(const std::string& val, bool is_long = false) {
     bool is_numeric = (c == '-' || std::isdigit(static_cast<unsigned char>(c)));
     if (is_numeric) {
         try {
-            // Check if value exceeds signed long max (need unsigned hex representation)
+            // Check if value exceeds signed long max (need unsigned hex representation).
+            // Pass base=0 so std::stoull autodetects 0x/0X (hex) and leading 0 (octal);
+            // otherwise hex literals like "0xFFFFFFFF" silently parse as 0.
             if (c != '-') {
-                unsigned long long uv = std::stoull(val);
+                unsigned long long uv = std::stoull(val, nullptr, 0);
                 if (uv > 9223372036854775807ULL) {
                     // Too large for signed long literal; use hex with L suffix
                     std::ostringstream oss;
@@ -2538,15 +2555,17 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     bool has_ext = sd.bitmap_ext.has_value();
     int max_octet = max_bit / J_BITS_PER_BYTE;
     int num_octets = max_octet + 1;
-    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
+    bool fspec_le = sd.bitmap_endian == model::Endian::Little;
 
-    // Sort by bit position (octet first, then descending bit within octet)
+    // Sort: octet ascending, then bit-within-byte ascending so the lowest
+    // BMDL bit number in each byte (the MSB on the wire under the wire-order
+    // numbering convention) is encoded/decoded first.
     auto sorted_fields = bfields;
     std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
         int a_oct = a.bit / 8;
         int b_oct = b.bit / 8;
         if (a_oct != b_oct) return a_oct < b_oct;
-        return a.bit > b.bit;
+        return a.bit < b.bit;
     });
 
     std::set<std::string> type_imports;
@@ -2676,7 +2695,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
         ctx.line("int b = r.readU8();");
         ctx.line("if (fspecLen < " + std::to_string(num_octets) + ") fspec[fspecLen] = (byte) b;");
         ctx.line("fspecLen++;");
-        ctx.line("if ((b & (1 << " + std::to_string(*sd.bitmap_ext) + ")) == 0) break;");
+        ctx.line("if ((b & (1 << " + std::to_string(J_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + ")) == 0) break;");
         ctx.dedent();
         ctx.line("}");
     } else {
@@ -2692,10 +2711,11 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     }
     ctx.line();
 
-    // Decode fields based on FSPEC bits
+    // Decode fields based on FSPEC bits.
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     for (const auto& bf : sorted_fields) {
         int byte_idx = bf.bit / J_BITS_PER_BYTE;
-        int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+        int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
         std::string m = "result." + j_field(bf.name);
         ctx.line("if (fspecLen > " + std::to_string(byte_idx) +
                  " && (fspec[" + std::to_string(byte_idx) +
@@ -2860,12 +2880,13 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     ctx.line("public void encode(BitWriter w) {");
     ctx.indent();
 
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     ctx.line("byte[] fspec = new byte[" + std::to_string(num_octets) + "];");
     if (has_ext) {
         ctx.line("int lastOctet = 0;");
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
             ctx.line("if (" + j_field(bf.name) + " != null) { fspec[" +
                      std::to_string(byte_idx) + "] = (byte)(fspec[" +
                      std::to_string(byte_idx) + "] | (1 << " +
@@ -2873,7 +2894,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
                      std::to_string(byte_idx) + "); }");
         }
         ctx.line("for (int i = 0; i < lastOctet; i++) fspec[i] = (byte)(fspec[i] | (1 << " +
-                 std::to_string(*sd.bitmap_ext) + "));" );
+                 std::to_string(J_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + "));" );
         if (fspec_le) {
             ctx.line("for (int lo = 0, hi = lastOctet; lo < hi; lo++, hi--) { byte tmp = fspec[lo]; fspec[lo] = fspec[hi]; fspec[hi] = tmp; }");
         }
@@ -2881,7 +2902,7 @@ std::string generate_j_bitmap_class(const model::StructDef& sd,
     } else {
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / J_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % J_BITS_PER_BYTE;
+            int bit_in_byte = J_BITS_PER_BYTE - 1 - (bf.bit % J_BITS_PER_BYTE);
             ctx.line("if (" + j_field(bf.name) + " != null) fspec[" +
                      std::to_string(byte_idx) + "] = (byte)(fspec[" +
                      std::to_string(byte_idx) + "] | (1 << " +

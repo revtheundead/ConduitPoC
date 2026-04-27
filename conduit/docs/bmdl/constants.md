@@ -60,10 +60,12 @@ Constants can appear in any [expression](expressions.md) context (`present-when`
 
 ## Naming Convention
 
-Constant names **should** be `UPPER_SNAKE_CASE`. The expression parser uses casing to distinguish constants from field references:
+Constant names **must** be `UPPER_SNAKE_CASE` to be referenceable in expressions. The expression parser distinguishes constants from field references by casing — there is no symbol table fall-through:
 
-- `UPPER_SNAKE_CASE` tokens are resolved as constant references
-- `lower-case` or `lower_case` tokens are resolved as field references
+- A token is treated as a **constant reference** only if it starts with an uppercase letter and every remaining character is an uppercase letter, digit, or underscore (e.g., `SYNC_WORD`, `MAX_LEN_2`).
+- Any other identifier (lowercase, mixed-case, hyphenated) is treated as a **field reference**, regardless of whether a constant with that name exists.
+
+Constants whose declared name does not match `UPPER_SNAKE_CASE` (e.g., `syncWord`, `Sync_Word`) are accepted by the XML parser, but they cannot be referenced in `present-when`, `switch`, `length-from`, `count-from`, or any other expression — the expression parser will treat the reference as a field name and the validator will fail with "unknown field". Always use `UPPER_SNAKE_CASE` for constants.
 
 ## Best Practices
 
@@ -78,6 +80,6 @@ Constant names **should** be `UPPER_SNAKE_CASE`. The expression parser uses casi
 
 ## Common Pitfalls
 
-- Constant names **should** be `UPPER_SNAKE_CASE`. Non-conforming names (e.g., `syncWord`) are accepted by the parser, but the expression parser cannot resolve them -- they would be interpreted as field references. Use `UPPER_SNAKE_CASE` to ensure constants are referenceable in expressions.
+- Constant names **must** be `UPPER_SNAKE_CASE` to be referenceable. Non-conforming names (e.g., `syncWord`) are accepted by the XML parser and emitted as named constants in generated code, but they are silently invisible to the expression parser — every reference resolves to a field lookup that fails. Use `UPPER_SNAKE_CASE` for any constant you intend to reference from `present-when`, `switch`, `length-from`, etc.
 - The `type` attribute is required on every `<const>`. Omitting it is a parse error.
 - Constants are intended for integer types (`uint` or `int` base). Non-integer types are not rejected by the parser, but their behavior is unspecified.

@@ -8,8 +8,8 @@
     <struct name="Items" presence="bitmap">
       <bitmap bits="8"/>
       <!-- Duplicate bitmap bit position 7 -->
-      <field name="item-a" type="uint16" bit="7"/>
-      <field name="item-b" type="uint16" bit="7"/>
+      <field name="item-a" type="uint16" bit="0"/>
+      <field name="item-b" type="uint16" bit="0"/>
     </struct>
   </types>
   <messages>

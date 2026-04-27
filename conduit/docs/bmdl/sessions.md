@@ -117,7 +117,7 @@ Each `<message>` defined alongside a `<frame>` becomes a **leaf type** -- a conc
 
 ## Sync Pattern
 
-If the frame header starts with a field carrying `<constraint equals="..."/>`, the sync pattern is recorded. The constraint value can reference a named constant or be a direct numeric literal. Higher-level layers use it for stream synchronization -- scanning for the sync word to find message boundaries and recover from corruption or partial reads.
+The first field in the frame header that carries `<constraint equals="..."/>` is recorded as the sync pattern (the scan stops as soon as it finds one — it does not have to be the very first header field, but in practice that is where sync words live). The constraint value can reference a named constant or be a direct numeric literal. Higher-level layers use the recorded sync pattern for stream synchronization -- scanning for the sync word to find message boundaries and recover from corruption or partial reads.
 
 ```xml
 <field name="sync" type="uint16">

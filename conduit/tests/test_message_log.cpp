@@ -395,3 +395,73 @@ TEST_CASE("MessageLog: filename with {peer} only", "[message_log]") {
     CHECK(std::filesystem::exists(tmp.path / "log_r2.txt"));
     CHECK(count_files(tmp.path) == 2);
 }
+
+// ============================================================================
+// Peer name sanitization
+//
+// Multi-peer transports (TCP server) name dynamic peers "<base>/<index>".
+// Without sanitization the '/' would create a subdirectory (best case) or
+// escape the configured directory (worst case). Confirm that path separators
+// are stripped from filenames whether they come via PerPeer mode or via the
+// {peer} placeholder.
+// ============================================================================
+
+TEST_CASE("MessageLog: PerPeer mode sanitizes path separators in peer name", "[message_log]") {
+    TempDir tmp;
+    MessageLogConfig cfg;
+    cfg.enabled = true;
+    cfg.mode = MessageLogMode::PerPeer;
+    cfg.output = MessageLogOutput::File;
+    cfg.directory = tmp.path.string();
+    cfg.prefix = "log";
+
+    {
+        MessageLog log(cfg);
+        // Mimic a TCP-server child peer name with '/'.
+        log.log_send("server/0", "", "Heartbeat", 12, "", "proto", "tcp-server");
+        log.log_recv("server/1", "", "Status", 8, "", "proto", "tcp-server");
+    }
+
+    // No subdirectory should be created; the '/' is replaced with '_'.
+    CHECK(std::filesystem::exists(tmp.path / "log_server_0.log"));
+    CHECK(std::filesystem::exists(tmp.path / "log_server_1.log"));
+    CHECK_FALSE(std::filesystem::exists(tmp.path / "server"));
+    CHECK(count_files(tmp.path) == 2);
+}
+
+TEST_CASE("MessageLog: {peer} placeholder sanitizes path separators", "[message_log]") {
+    TempDir tmp;
+    MessageLogConfig cfg;
+    cfg.enabled = true;
+    cfg.mode = MessageLogMode::Combined;  // mode ignored when filename is set
+    cfg.output = MessageLogOutput::File;
+    cfg.directory = tmp.path.string();
+    cfg.filename = "{peer}.log";
+
+    {
+        MessageLog log(cfg);
+        log.log_send("group/child", "", "T", 1, "", "p", "tcp-server");
+    }
+
+    CHECK(std::filesystem::exists(tmp.path / "group_child.log"));
+    CHECK_FALSE(std::filesystem::exists(tmp.path / "group"));
+}
+
+TEST_CASE("MessageLog: backslash and colon in peer name are sanitized", "[message_log]") {
+    TempDir tmp;
+    MessageLogConfig cfg;
+    cfg.enabled = true;
+    cfg.mode = MessageLogMode::PerPeer;
+    cfg.output = MessageLogOutput::File;
+    cfg.directory = tmp.path.string();
+    cfg.prefix = "log";
+
+    {
+        MessageLog log(cfg);
+        log.log_send("a\\b", "", "T", 1, "", "p", "tcp-server");
+        log.log_send("ip:5000", "", "T", 1, "", "p", "tcp-server");
+    }
+
+    CHECK(std::filesystem::exists(tmp.path / "log_a_b.log"));
+    CHECK(std::filesystem::exists(tmp.path / "log_ip_5000.log"));
+}

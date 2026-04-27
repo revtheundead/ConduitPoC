@@ -31,19 +31,24 @@ BoundedQueue<int> queue(256);  // default: DropOldest
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `try_push` | `bool try_push(T item)` | Non-blocking push. With `Block` policy, behaves like `DropNewest` (returns false when full). |
-| `push` | `bool push(T item)` | With `Block` policy, waits until space is available. Otherwise same as `try_push`. |
-| `push_for` | `bool push_for(T item, duration timeout)` | Like `push` but with a timeout for `Block` policy. |
+| `try_push` | `bool try_push(T item)` | Non-blocking push. With `Block` policy, behaves like `DropNewest` (increments `dropped` counter and returns `false` when full). |
+| `push` | `bool push(T item)` | With `Block` policy, waits until space is available or the queue is closed. With drop policies, identical to `try_push`. |
+| `push_for` | `bool push_for(T item, duration timeout)` | Like `push` but with a timeout. With `Block` policy, returns `false` if the timeout expires before space frees up. |
 
-All return `false` if the queue is closed or the item was dropped/rejected.
+All producers return `false` if the queue is closed. Otherwise the return
+value depends on policy:
 
-When the queue is full:
+| Policy | `try_push` (queue full) | `push` (queue full) | `push_for` (queue full) |
+|--------|-------------------------|----------------------|--------------------------|
+| `DropOldest` | Drops oldest, inserts new, returns `true` | Same | Same |
+| `DropNewest` | Increments `dropped`, returns `false` | Same | Same |
+| `Block` | Increments `dropped`, returns `false` | Blocks until space or `close()`; returns `true` on insert, `false` on close | Waits up to `timeout`; on insert returns `true`, on timeout returns `false` |
 
-| Policy | `try_push` | `push` |
-|--------|-----------|--------|
-| `DropOldest` | Drops oldest, inserts new, returns `true` | Same |
-| `DropNewest` | Returns `false` (new item rejected) | Same |
-| `Block` | Returns `false` | Blocks until space or closed |
+> **Pitfall:** `try_push` with `DropPolicy::Block` is semantically a non-blocking
+> request — it never waits — so it can only fail. The `dropped` counter still
+> increments to make rejection visible to monitoring; this matches the
+> behaviour exercised by `test_bounded_queue.cpp` ("Block try_push increments
+> dropped counter").
 
 ## Consumer Operations
 

@@ -52,7 +52,12 @@ xcvr.on<my_protocol::Heartbeat>([](const my_protocol::Heartbeat& msg) {
     std::cout << "seq=" << msg.sequence() << "\n";
 });
 
+// start() returns VoidResult — check for error before relying on the
+// transceiver running.  See conduit/error-handling.md for the full pattern.
 auto result = xcvr.start();
+if (!result) {
+    std::cerr << "start failed: " << result.error().format_short() << "\n";
+}
 ```
 
 For Java and Python quick-start examples, see the [Quick Start](conduit/quick-start.md) tutorial.

@@ -46,7 +46,7 @@ When `type` is omitted but `bits` and/or `bytes` is present, an anonymous intege
 | `length` | Byte length for `bytes`/`string` fields | `"8"` or `"*"` |
 | `length-from` | Length from expression | `"payload-length"` |
 | `length-prefix` | Self-describing length prefix | `"uint8"` |
-| `length-includes-prefix` | Length value includes prefix size | `"true"` |
+| `length-includes-prefix` | Length value includes the prefix's own size. Only valid when `length-prefix` is also set; the validator rejects it otherwise. | `"true"` |
 | `bit` | Bitmap bit position (bitmap structs only) | `"7"` |
 | `present-when` | Condition for field presence | `"flags & 0x80"` |
 | `default` | Default value (see [Default Values](#default-values)) | `"0"`, `"online"` |
@@ -139,10 +139,10 @@ On decode, `altitude` is only read when `has-altitude` evaluates to true. On enc
 
 ### Bitmap Presence
 
-Inside a `presence="bitmap"` struct, fields use `bit` to tie presence to a bitmap bit:
+Inside a `presence="bitmap"` struct, fields use `bit` to tie presence to a bitmap bit. BMDL uses **wire-order bit numbering**: `bit="0"` is the first bit transmitted on the wire (MSB of byte 0), `bit="7"` is the LSB of byte 0, `bit="8"` is the MSB of byte 1, and so on:
 
 ```xml
-<field name="callsign" bit="7" type="callsign"/>
+<field name="callsign" bit="0" type="callsign"/>  <!-- first FSPEC bit on the wire -->
 ```
 
 See [Bitmap](bitmap.md) for details.
@@ -269,7 +269,7 @@ The `auto` attribute marks fields for automatic management by frames and session
 | `auto="length(field)"` | Frame, Struct, Message | Byte length of a specific sibling field. Backpatched during encode. |
 | `auto="length(field) {op} N"` | Frame, Struct, Message | Byte length of a sibling field with arithmetic modifier (literal operand). |
 | `auto="length(field) {op} other"` | Struct, Message | Byte length with field operand (see below). |
-| `auto="count(field)"` | Frame, Struct, Message | Element count of a sibling array field. Auto-computed during encode. Does not support arithmetic modifiers. |
+| `auto="count(field)"` | Frame, Struct, Message | Element count of a sibling array field. Auto-computed during encode. **No arithmetic modifiers** — `count(field) {op} N` is not parsed; use `length(...)` instead if you need an offset. |
 | `auto="config(key)"` | Frame, Struct, Message | Value from session configuration. Set during encode wrapping. |
 | `auto="increment"` | Session | Auto-incrementing counter, wrapping at type maximum. |
 | `auto="timestamp"` | Session | Milliseconds since Unix epoch (system clock), masked to field bit width. Unsigned integer only. |
@@ -292,8 +292,8 @@ Length auto-expressions support arithmetic modifiers with the operators `+`, `-`
 The wire value is computed as: `computed_byte_length {op} operand`.
 
 **Restrictions:**
-- At frame level, only integer literal operands are allowed (field operands require decoded values not available during stream parsing).
-- The `%` operator is not allowed at frame level (no inverse for frame length recovery).
+- At frame level, only integer literal operands are allowed. Field operands are rejected by the parser because the framer needs to recover the frame length from the wire value alone (the referenced field has not been decoded yet at framing time).
+- The `%` operator is not allowed at frame level (no inverse for frame length recovery — `wire % N` cannot be reversed to a unique total length).
 - Division or modulo by zero is a validation error. Multiplication by zero is also rejected.
 - Field operands must reference existing sibling fields in the same scope.
 - `auto="length"` is not valid inside `<fx>` blocks (dynamic FX layout would corrupt backpatch offsets).

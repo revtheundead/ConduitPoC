@@ -272,6 +272,8 @@ struct StructDef {
     bool is_bitmap = false;
     int bitmap_bits = 8;
     std::optional<int> bitmap_ext;
+    // Byte order of the FSPEC. Defaults to Big; set from `<bitmap endian="...">`.
+    Endian bitmap_endian = Endian::Big;
 
     std::optional<int> bit;
     std::unique_ptr<Expr> present_when;

@@ -76,7 +76,7 @@ When both count and length are specified, the decoder reads exactly the specifie
 
 ### Exact Consumption
 
-After decoding, if the sub-reader has unconsumed bytes remaining, the decoder reports an error. The array content must exactly fill the byte budget. If the protocol intentionally includes trailing padding, add a trailing `<reserved>` or `<field type="bytes" length="*"/>` inside the array element to consume it.
+After decoding, the array content must exactly fill its byte budget. The decoder reports an error in either direction: if the sub-reader has unconsumed bytes remaining at the end (`ExactConsumptionFailed`), or if an element tries to read past the budget (`BufferUnderrun`). If the protocol intentionally includes trailing padding, add a trailing `<reserved>` or `<field type="bytes" length="*"/>` inside the array element to consume it.
 
 ## Inline Element Type
 

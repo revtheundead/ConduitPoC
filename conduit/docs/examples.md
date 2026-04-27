@@ -36,7 +36,13 @@ cmake --build build
 ./conduit/examples/xcvr-cpp/poc_app 127.0.0.1 5000 --interval-ms 500
 ```
 
-**CLI options:** `--port`, `--interval-ms`, `--session`, `--log-dir`, `--log-prefix`.
+**CLI options:**
+
+- `dummy_peer server [--port N] [--interval-ms N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]`
+- `dummy_peer client [host] [port] [--interval-ms N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]`
+- `poc_app [host] [port] [--interval-ms N] [--log-dir DIR] [--log-prefix PREFIX] [--log-filename PATTERN]`
+
+`--log-filename` accepts a pattern with `{peer}` and `{direction}` placeholders (see [Message Logging](conduit/transceiver.md#custom-filename-pattern)). The `--log-*` flags configure the message log; if omitted, message logging is disabled.
 
 ---
 
@@ -187,7 +193,7 @@ dummy-peer server --port 5000 --interval-ms 500
 poc-app 127.0.0.1 5000 --interval-ms 500
 ```
 
-Alternatively, run directly from the source tree without pip-installing the example:
+Alternatively, run directly from the source tree without pip-installing the example. The `src.<module>` import path requires Python's working directory to be `conduit/examples/xcvr-python/` (or `PYTHONPATH` set to it):
 
 ```bash
 export CONDUIT_CABI_LIB=$(pwd)/conduit/lib/libconduit_cabi.so

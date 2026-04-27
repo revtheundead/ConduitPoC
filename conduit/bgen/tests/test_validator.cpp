@@ -1445,7 +1445,7 @@ TEST_CASE("Bitmap array with out-of-range bit rejected", "[validator][bitmap]") 
     REQUIRE_FALSE(validate_result.has_value());
     bool found = false;
     for (const auto& e : validate_result.error()) {
-        if (e.message.find("bit 99 out of range") != std::string::npos &&
+        if (e.message.find("bit 100 out of range") != std::string::npos &&
             e.message.find("items") != std::string::npos) {
             found = true;
             break;

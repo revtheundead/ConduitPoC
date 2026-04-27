@@ -2482,14 +2482,15 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     bool has_ext = sd.bitmap_ext.has_value();
     int max_octet = max_bit / PY_BITS_PER_BYTE;
     int num_octets = max_octet + 1;
-    bool fspec_le = !bfields.empty() && bfields[0].endian == model::Endian::Little;
+    bool fspec_le = sd.bitmap_endian == model::Endian::Little;
 
+    // Sort: byte ascending, then bit ascending so wire-first fields decode first.
     auto sorted_fields = bfields;
     std::sort(sorted_fields.begin(), sorted_fields.end(), [](const auto& a, const auto& b) {
         int a_oct = a.bit / 8;
         int b_oct = b.bit / 8;
         if (a_oct != b_oct) return a_oct < b_oct;
-        return a.bit > b.bit;
+        return a.bit < b.bit;
     });
 
     ctx.line();
@@ -2616,7 +2617,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
         ctx.line("b = r.read_u8()");
         ctx.line("if fspec_len < " + std::to_string(num_octets) + ": fspec[fspec_len] = b");
         ctx.line("fspec_len += 1");
-        ctx.line("if not (b & (1 << " + std::to_string(*sd.bitmap_ext) + ")): break");
+        ctx.line("if not (b & (1 << " + std::to_string(PY_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + ")): break");
         ctx.dedent();
     } else {
         ctx.line("for i in range(" + std::to_string(num_octets) + "):");
@@ -2630,10 +2631,11 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     }
     ctx.line();
 
-    // Decode fields based on FSPEC bits
+    // Decode fields based on FSPEC bits.
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     for (const auto& bf : sorted_fields) {
         int byte_idx = bf.bit / PY_BITS_PER_BYTE;
-        int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+        int bit_in_byte = PY_BITS_PER_BYTE - 1 - (bf.bit % PY_BITS_PER_BYTE);
         std::string m = "result." + py_field(bf.name);
         ctx.line("if fspec_len > " + std::to_string(byte_idx) +
                  " and (fspec[" + std::to_string(byte_idx) +
@@ -2785,19 +2787,20 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     // encode
     ctx.line("def encode(self, w: 'BitWriter') -> None:");
     ctx.indent();
+    // Wire-order numbering: bit_in_byte mask is `1 << (7 - (bit % 8))`.
     ctx.line("fspec = bytearray(" + std::to_string(num_octets) + ")");
     if (has_ext) {
         ctx.line("last_octet = 0");
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / PY_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+            int bit_in_byte = PY_BITS_PER_BYTE - 1 - (bf.bit % PY_BITS_PER_BYTE);
             ctx.line("if self." + py_field(bf.name) + " is not None: fspec[" +
                      std::to_string(byte_idx) + "] |= (1 << " +
                      std::to_string(bit_in_byte) + "); last_octet = max(last_octet, " +
                      std::to_string(byte_idx) + ")");
         }
         ctx.line("for i in range(last_octet): fspec[i] |= (1 << " +
-                 std::to_string(*sd.bitmap_ext) + ")");
+                 std::to_string(PY_BITS_PER_BYTE - 1 - *sd.bitmap_ext) + ")");
         if (fspec_le) {
             ctx.line("fspec[:last_octet + 1] = fspec[:last_octet + 1][::-1]");
         }
@@ -2805,7 +2808,7 @@ void emit_py_bitmap_class(EmitContext& ctx, const model::StructDef& sd,
     } else {
         for (const auto& bf : bfields) {
             int byte_idx = bf.bit / PY_BITS_PER_BYTE;
-            int bit_in_byte = bf.bit % PY_BITS_PER_BYTE;
+            int bit_in_byte = PY_BITS_PER_BYTE - 1 - (bf.bit % PY_BITS_PER_BYTE);
             ctx.line("if self." + py_field(bf.name) + " is not None: fspec[" +
                      std::to_string(byte_idx) + "] |= (1 << " +
                      std::to_string(bit_in_byte) + ")");

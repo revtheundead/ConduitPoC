@@ -532,11 +532,11 @@
         Subfield #2: Trajectory Intent Data (TID)
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="tis" bit="7" type="Cat021I110Tis">
+        <bitmap ext="7"/>
+        <field name="tis" bit="0" type="Cat021I110Tis">
           <doc>Subfield #1: Trajectory Intent Status</doc>
         </field>
-        <field name="tid" bit="6" type="Cat021I110Tid">
+        <field name="tid" bit="1" type="Cat021I110Tid">
           <doc>Subfield #2: Trajectory Intent Data</doc>
         </field>
       </struct>
@@ -851,17 +851,17 @@
         Subfield #4: Turbulence (TRB)
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="ws" bit="7" type="Cat021I220Ws">
+        <bitmap ext="7"/>
+        <field name="ws" bit="0" type="Cat021I220Ws">
           <doc>Subfield #1: Wind Speed</doc>
         </field>
-        <field name="wd" bit="6" type="Cat021I220Wd">
+        <field name="wd" bit="1" type="Cat021I220Wd">
           <doc>Subfield #2: Wind Direction</doc>
         </field>
-        <field name="tmp" bit="5" type="Cat021I220Tmp">
+        <field name="tmp" bit="2" type="Cat021I220Tmp">
           <doc>Subfield #3: Temperature</doc>
         </field>
-        <field name="trb" bit="4" type="uint8">
+        <field name="trb" bit="3" type="uint8">
           <doc>Subfield #4: Turbulence (0-15)</doc>
         </field>
       </struct>
@@ -976,78 +976,78 @@
         23 subfields, each 1 octet, LSB = 0.1 seconds.
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
         <!-- Octet 1: bits 7-1 -->
-        <field name="aos" bit="7" type="uint8">
+        <field name="aos" bit="0" type="uint8">
           <doc>#1: Age of the latest received AOS report (LSB=0.1s)</doc>
         </field>
-        <field name="trd" bit="6" type="uint8">
+        <field name="trd" bit="1" type="uint8">
           <doc>#2: Age of the latest received Target Report Descriptor (LSB=0.1s)</doc>
         </field>
-        <field name="m3a" bit="5" type="uint8">
+        <field name="m3a" bit="2" type="uint8">
           <doc>#3: Age of the latest received Mode 3/A Code (LSB=0.1s)</doc>
         </field>
-        <field name="qi" bit="4" type="uint8">
+        <field name="qi" bit="3" type="uint8">
           <doc>#4: Age of the latest received Quality Indicators (LSB=0.1s)</doc>
         </field>
-        <field name="ti" bit="3" type="uint8">
+        <field name="ti" bit="4" type="uint8">
           <doc>#5: Age of the latest received Trajectory Intent (LSB=0.1s)</doc>
         </field>
-        <field name="mam" bit="2" type="uint8">
+        <field name="mam" bit="5" type="uint8">
           <doc>#6: Age of the latest received Message Amplitude (LSB=0.1s)</doc>
         </field>
-        <field name="gh" bit="1" type="uint8">
+        <field name="gh" bit="6" type="uint8">
           <doc>#7: Age of the latest received Geometric Height (LSB=0.1s)</doc>
         </field>
         <!-- Octet 2: bits 15-9 -->
-        <field name="fl" bit="15" type="uint8">
+        <field name="fl" bit="8" type="uint8">
           <doc>#8: Age of the latest received Flight Level (LSB=0.1s)</doc>
         </field>
-        <field name="isa" bit="14" type="uint8">
+        <field name="isa" bit="9" type="uint8">
           <doc>#9: Age of the latest received Intermediate State Selected Altitude (LSB=0.1s)</doc>
         </field>
-        <field name="fsa" bit="13" type="uint8">
+        <field name="fsa" bit="10" type="uint8">
           <doc>#10: Age of the latest received Final State Selected Altitude (LSB=0.1s)</doc>
         </field>
-        <field name="as" bit="12" type="uint8">
+        <field name="as" bit="11" type="uint8">
           <doc>#11: Age of the latest received Air Speed (LSB=0.1s)</doc>
         </field>
-        <field name="tas" bit="11" type="uint8">
+        <field name="tas" bit="12" type="uint8">
           <doc>#12: Age of the latest received True Air Speed (LSB=0.1s)</doc>
         </field>
-        <field name="mh" bit="10" type="uint8">
+        <field name="mh" bit="13" type="uint8">
           <doc>#13: Age of the latest received Magnetic Heading (LSB=0.1s)</doc>
         </field>
-        <field name="bvr" bit="9" type="uint8">
+        <field name="bvr" bit="14" type="uint8">
           <doc>#14: Age of the latest received Barometric Vertical Rate (LSB=0.1s)</doc>
         </field>
         <!-- Octet 3: bits 23-17 -->
-        <field name="gvr" bit="23" type="uint8">
+        <field name="gvr" bit="16" type="uint8">
           <doc>#15: Age of the latest received Geometric Vertical Rate (LSB=0.1s)</doc>
         </field>
-        <field name="gv" bit="22" type="uint8">
+        <field name="gv" bit="17" type="uint8">
           <doc>#16: Age of the latest received Ground Vector (LSB=0.1s)</doc>
         </field>
-        <field name="tar" bit="21" type="uint8">
+        <field name="tar" bit="18" type="uint8">
           <doc>#17: Age of the latest received Track Angle Rate (LSB=0.1s)</doc>
         </field>
-        <field name="tiAge" bit="20" type="uint8">
+        <field name="tiAge" bit="19" type="uint8">
           <doc>#18: Age of the latest received Target Identification (LSB=0.1s)</doc>
         </field>
-        <field name="ts" bit="19" type="uint8">
+        <field name="ts" bit="20" type="uint8">
           <doc>#19: Age of the latest received Target Status (LSB=0.1s)</doc>
         </field>
-        <field name="met" bit="18" type="uint8">
+        <field name="met" bit="21" type="uint8">
           <doc>#20: Age of the latest received Met Information (LSB=0.1s)</doc>
         </field>
-        <field name="roa" bit="17" type="uint8">
+        <field name="roa" bit="22" type="uint8">
           <doc>#21: Age of the latest received Roll Angle (LSB=0.1s)</doc>
         </field>
         <!-- Octet 4: bits 31-25 -->
-        <field name="ara" bit="31" type="uint8">
+        <field name="ara" bit="24" type="uint8">
           <doc>#22: Age of the latest received ACAS Resolution Advisory (LSB=0.1s)</doc>
         </field>
-        <field name="scc" bit="30" type="uint8">
+        <field name="scc" bit="25" type="uint8">
           <doc>#23: Age of the latest received Surface Capabilities and Characteristics (LSB=0.1s)</doc>
         </field>
       </struct>
@@ -1278,23 +1278,23 @@
         up to 6 subfields: SUM, PNO, EM1, XP, FOM, M2.
       </doc>
       <struct name="sub" presence="bitmap">
-        <bitmap ext="0"/>
-        <field name="sum" bit="7" type="Cat021ReMesSum">
+        <bitmap ext="7"/>
+        <field name="sum" bit="0" type="Cat021ReMesSum">
           <doc>Mode 5 Summary</doc>
         </field>
-        <field name="pno" bit="6" type="Cat021ReMesPno">
+        <field name="pno" bit="1" type="Cat021ReMesPno">
           <doc>Mode 5 PIN/National Origin</doc>
         </field>
-        <field name="em1" bit="5" type="Cat021ReMesEm1">
+        <field name="em1" bit="2" type="Cat021ReMesEm1">
           <doc>Extended Mode 1 Code</doc>
         </field>
-        <field name="xp" bit="4" type="Cat021ReMesXp">
+        <field name="xp" bit="3" type="Cat021ReMesXp">
           <doc>X Pulse Presence</doc>
         </field>
-        <field name="fom" bit="3" type="Cat021ReMesFom">
+        <field name="fom" bit="4" type="Cat021ReMesFom">
           <doc>Figure of Merit</doc>
         </field>
-        <field name="m2" bit="2" type="Cat021ReMesM2">
+        <field name="m2" bit="5" type="Cat021ReMesM2">
           <doc>Mode 2 Code</doc>
         </field>
       </struct>
@@ -1314,227 +1314,227 @@
       </doc>
 
       <struct name="items" presence="bitmap">
-        <bitmap ext="0"/>
+        <bitmap ext="7"/>
 
         <!-- FSPEC Octet 1 (FRN 1-7) -->
 
         <!-- FRN 1: I021/010 - Data Source Identifier (2 octets) -->
-        <field name="i010" bit="7" type="DataSourceId">
+        <field name="i010" bit="0" type="DataSourceId">
           <doc>I021/010 - Data Source Identifier (SAC/SIC)</doc>
         </field>
 
         <!-- FRN 2: I021/040 - Target Report Descriptor (1+ octets) -->
-        <field name="i040" bit="6" type="Cat021I040">
+        <field name="i040" bit="1" type="Cat021I040">
           <doc>I021/040 - Target Report Descriptor</doc>
         </field>
 
         <!-- FRN 3: I021/161 - Track Number (2 octets) -->
-        <field name="i161" bit="5" type="Cat021I161">
+        <field name="i161" bit="2" type="Cat021I161">
           <doc>I021/161 - Track Number</doc>
         </field>
 
         <!-- FRN 4: I021/015 - Service Identification (1 octet) -->
-        <field name="i015" bit="4" type="uint8">
+        <field name="i015" bit="3" type="uint8">
           <doc>I021/015 - Service Identification</doc>
         </field>
 
         <!-- FRN 5: I021/071 - Time of Applicability for Position (3 octets) -->
-        <field name="i071" bit="3" type="TimeOfDay">
+        <field name="i071" bit="4" type="TimeOfDay">
           <doc>I021/071 - Time of Applicability for Position</doc>
         </field>
 
         <!-- FRN 6: I021/130 - Position in WGS-84 Co-ordinates (6 octets) -->
-        <field name="i130" bit="2" type="Cat021I130">
+        <field name="i130" bit="5" type="Cat021I130">
           <doc>I021/130 - Position in WGS-84 Co-ordinates</doc>
         </field>
 
         <!-- FRN 7: I021/131 - High-Res Position in WGS-84 (8 octets) -->
-        <field name="i131" bit="1" type="Cat021I131">
+        <field name="i131" bit="6" type="Cat021I131">
           <doc>I021/131 - High-Resolution Position in WGS-84 Co-ordinates</doc>
         </field>
 
         <!-- FSPEC Octet 2 (FRN 8-14) -->
 
         <!-- FRN 8: I021/072 - Time of Applicability for Velocity (3 octets) -->
-        <field name="i072" bit="15" type="TimeOfDay">
+        <field name="i072" bit="8" type="TimeOfDay">
           <doc>I021/072 - Time of Applicability for Velocity</doc>
         </field>
 
         <!-- FRN 9: I021/150 - Air Speed (2 octets) -->
-        <field name="i150" bit="14" type="Cat021I150">
+        <field name="i150" bit="9" type="Cat021I150">
           <doc>I021/150 - Air Speed</doc>
         </field>
 
         <!-- FRN 10: I021/151 - True Airspeed (2 octets) -->
-        <field name="i151" bit="13" type="Cat021I151">
+        <field name="i151" bit="10" type="Cat021I151">
           <doc>I021/151 - True Airspeed</doc>
         </field>
 
         <!-- FRN 11: I021/080 - Target Address (3 octets) -->
-        <field name="i080" bit="12" type="AircraftAddress">
+        <field name="i080" bit="11" type="AircraftAddress">
           <doc>I021/080 - Target Address (24-bit ICAO)</doc>
         </field>
 
         <!-- FRN 12: I021/073 - Time of Message Reception for Position (3 octets) -->
-        <field name="i073" bit="11" type="TimeOfDay">
+        <field name="i073" bit="12" type="TimeOfDay">
           <doc>I021/073 - Time of Message Reception for Position</doc>
         </field>
 
         <!-- FRN 13: I021/074 - Time of Msg Reception of Position - HP (4 octets) -->
-        <field name="i074" bit="10" type="Cat021I074">
+        <field name="i074" bit="13" type="Cat021I074">
           <doc>I021/074 - Time of Message Reception of Position - High Precision</doc>
         </field>
 
         <!-- FRN 14: I021/075 - Time of Message Reception for Velocity (3 octets) -->
-        <field name="i075" bit="9" type="TimeOfDay">
+        <field name="i075" bit="14" type="TimeOfDay">
           <doc>I021/075 - Time of Message Reception for Velocity</doc>
         </field>
 
         <!-- FSPEC Octet 3 (FRN 15-21) -->
 
         <!-- FRN 15: I021/076 - Time of Msg Reception of Velocity - HP (4 octets) -->
-        <field name="i076" bit="23" type="Cat021I076">
+        <field name="i076" bit="16" type="Cat021I076">
           <doc>I021/076 - Time of Message Reception of Velocity - High Precision</doc>
         </field>
 
         <!-- FRN 16: I021/140 - Geometric Height (2 octets) -->
-        <field name="i140" bit="22" type="Cat021I140">
+        <field name="i140" bit="17" type="Cat021I140">
           <doc>I021/140 - Geometric Height</doc>
         </field>
 
         <!-- FRN 17: I021/090 - Quality Indicators (1+ octets) -->
-        <field name="i090" bit="21" type="Cat021I090">
+        <field name="i090" bit="18" type="Cat021I090">
           <doc>I021/090 - Quality Indicators</doc>
         </field>
 
         <!-- FRN 18: I021/210 - MOPS Version (1 octet) -->
-        <field name="i210" bit="20" type="Cat021I210">
+        <field name="i210" bit="19" type="Cat021I210">
           <doc>I021/210 - MOPS Version</doc>
         </field>
 
         <!-- FRN 19: I021/070 - Mode 3/A Code (2 octets) -->
-        <field name="i070" bit="19" type="Cat021I070">
+        <field name="i070" bit="20" type="Cat021I070">
           <doc>I021/070 - Mode 3/A Code in Octal Representation</doc>
         </field>
 
         <!-- FRN 20: I021/230 - Roll Angle (2 octets) -->
-        <field name="i230" bit="18" type="Cat021I230">
+        <field name="i230" bit="21" type="Cat021I230">
           <doc>I021/230 - Roll Angle</doc>
         </field>
 
         <!-- FRN 21: I021/145 - Flight Level (2 octets) -->
-        <field name="i145" bit="17" type="Cat021I145">
+        <field name="i145" bit="22" type="Cat021I145">
           <doc>I021/145 - Flight Level</doc>
         </field>
 
         <!-- FSPEC Octet 4 (FRN 22-28) -->
 
         <!-- FRN 22: I021/152 - Magnetic Heading (2 octets) -->
-        <field name="i152" bit="31" type="Cat021I152">
+        <field name="i152" bit="24" type="Cat021I152">
           <doc>I021/152 - Magnetic Heading</doc>
         </field>
 
         <!-- FRN 23: I021/200 - Target Status (1 octet) -->
-        <field name="i200" bit="30" type="Cat021I200">
+        <field name="i200" bit="25" type="Cat021I200">
           <doc>I021/200 - Target Status</doc>
         </field>
 
         <!-- FRN 24: I021/155 - Barometric Vertical Rate (2 octets) -->
-        <field name="i155" bit="29" type="Cat021I155">
+        <field name="i155" bit="26" type="Cat021I155">
           <doc>I021/155 - Barometric Vertical Rate</doc>
         </field>
 
         <!-- FRN 25: I021/157 - Geometric Vertical Rate (2 octets) -->
-        <field name="i157" bit="28" type="Cat021I157">
+        <field name="i157" bit="27" type="Cat021I157">
           <doc>I021/157 - Geometric Vertical Rate</doc>
         </field>
 
         <!-- FRN 26: I021/160 - Airborne Ground Vector (4 octets) -->
-        <field name="i160" bit="27" type="Cat021I160">
+        <field name="i160" bit="28" type="Cat021I160">
           <doc>I021/160 - Airborne Ground Vector</doc>
         </field>
 
         <!-- FRN 27: I021/165 - Track Angle Rate (2 octets) -->
-        <field name="i165" bit="26" type="Cat021I165">
+        <field name="i165" bit="29" type="Cat021I165">
           <doc>I021/165 - Track Angle Rate</doc>
         </field>
 
         <!-- FRN 28: I021/077 - Time of Report Transmission (3 octets) -->
-        <field name="i077" bit="25" type="TimeOfDay">
+        <field name="i077" bit="30" type="TimeOfDay">
           <doc>I021/077 - Time of Report Transmission</doc>
         </field>
 
         <!-- FSPEC Octet 5 (FRN 29-35) -->
 
         <!-- FRN 29: I021/170 - Target Identification (6 octets) -->
-        <field name="i170" bit="39" type="AircraftIdent">
+        <field name="i170" bit="32" type="AircraftIdent">
           <doc>I021/170 - Target Identification</doc>
         </field>
 
         <!-- FRN 30: I021/020 - Emitter Category (1 octet) -->
-        <field name="i020" bit="38" type="uint8">
+        <field name="i020" bit="33" type="uint8">
           <doc>I021/020 - Emitter Category (ECAT)</doc>
         </field>
 
         <!-- FRN 31: I021/220 - Met Information (1+ octets, compound) -->
-        <field name="i220" bit="37" type="Cat021I220">
+        <field name="i220" bit="34" type="Cat021I220">
           <doc>I021/220 - Met Information</doc>
         </field>
 
         <!-- FRN 32: I021/146 - Selected Altitude (2 octets) -->
-        <field name="i146" bit="36" type="Cat021I146">
+        <field name="i146" bit="35" type="Cat021I146">
           <doc>I021/146 - Selected Altitude</doc>
         </field>
 
         <!-- FRN 33: I021/148 - Final State Selected Altitude (2 octets) -->
-        <field name="i148" bit="35" type="Cat021I148">
+        <field name="i148" bit="36" type="Cat021I148">
           <doc>I021/148 - Final State Selected Altitude</doc>
         </field>
 
         <!-- FRN 34: I021/110 - Trajectory Intent (1+ octets, compound) -->
-        <field name="i110" bit="34" type="Cat021I110">
+        <field name="i110" bit="37" type="Cat021I110">
           <doc>I021/110 - Trajectory Intent</doc>
         </field>
 
         <!-- FRN 35: I021/016 - Service Management (1 octet) -->
-        <field name="i016" bit="33" type="Cat021I016">
+        <field name="i016" bit="38" type="Cat021I016">
           <doc>I021/016 - Service Management</doc>
         </field>
 
         <!-- FSPEC Octet 6 (FRN 36-42) -->
 
         <!-- FRN 36: I021/008 - Aircraft Operational Status (1 octet) -->
-        <field name="i008" bit="47" type="Cat021I008">
+        <field name="i008" bit="40" type="Cat021I008">
           <doc>I021/008 - Aircraft Operational Status</doc>
         </field>
 
         <!-- FRN 37: I021/271 - Surface Capabilities and Characteristics (1+ octets) -->
-        <field name="i271" bit="46" type="Cat021I271">
+        <field name="i271" bit="41" type="Cat021I271">
           <doc>I021/271 - Surface Capabilities and Characteristics</doc>
         </field>
 
         <!-- FRN 38: I021/132 - Message Amplitude (1 octet) -->
-        <field name="i132" bit="45" type="int8">
+        <field name="i132" bit="42" type="int8">
           <doc>I021/132 - Message Amplitude (LSB = 1 dBm)</doc>
         </field>
 
         <!-- FRN 39: I021/250 - Mode S MB Data (1+N*8 octets) -->
-        <field name="i250" bit="44" type="Cat021I250">
+        <field name="i250" bit="43" type="Cat021I250">
           <doc>I021/250 - Mode S MB Data</doc>
         </field>
 
         <!-- FRN 40: I021/260 - ACAS Resolution Advisory Report (7 octets) -->
-        <field name="i260" bit="43" type="Cat021I260">
+        <field name="i260" bit="44" type="Cat021I260">
           <doc>I021/260 - ACAS Resolution Advisory Report</doc>
         </field>
 
         <!-- FRN 41: I021/400 - Receiver ID (1 octet) -->
-        <field name="i400" bit="42" type="uint8">
+        <field name="i400" bit="45" type="uint8">
           <doc>I021/400 - Receiver ID</doc>
         </field>
 
         <!-- FRN 42: I021/295 - Data Ages (1+ octets, compound) -->
-        <field name="i295" bit="41" type="Cat021I295">
+        <field name="i295" bit="46" type="Cat021I295">
           <doc>I021/295 - Data Ages</doc>
         </field>
 
@@ -1542,45 +1542,45 @@
         <!-- FRN 43-47: Unused -->
 
         <!-- FRN 48: RE - Reserved Expansion Field (Ed 1.3) -->
-        <struct name="re" bit="50">
+        <struct name="re" bit="53">
           <doc>Reserved Expansion Field (ASTERIX Cat021 REF Ed 1.3)</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of RE including this length byte</doc>
           </field>
           <struct name="items" presence="bitmap">
             <bitmap bits="8"/>
-            <field name="bps" bit="7" type="Cat021ReBps">
+            <field name="bps" bit="0" type="Cat021ReBps">
               <doc>BPS - Barometric Pressure Setting</doc>
             </field>
-            <field name="selh" bit="6" type="Cat021ReSelh">
+            <field name="selh" bit="1" type="Cat021ReSelh">
               <doc>SelH - Selected Heading</doc>
             </field>
-            <field name="nav" bit="5" type="Cat021ReNav">
+            <field name="nav" bit="2" type="Cat021ReNav">
               <doc>NAV - Navigation Mode</doc>
             </field>
-            <field name="gao" bit="4" type="uint8">
+            <field name="gao" bit="3" type="uint8">
               <doc>GAO - GPS Antenna Offset (lateral distance of GPS antenna from
                    the aircraft nose in metres, positive values are right of centre)</doc>
             </field>
-            <field name="sgv" bit="3" type="Cat021ReSgv">
+            <field name="sgv" bit="4" type="Cat021ReSgv">
               <doc>SGV - Surface Ground Vector</doc>
             </field>
-            <field name="sta" bit="2" type="Cat021ReSta">
+            <field name="sta" bit="5" type="Cat021ReSta">
               <doc>STA - Aircraft Status</doc>
             </field>
-            <field name="tnh" bit="1" type="uint16">
+            <field name="tnh" bit="6" type="uint16">
               <doc>TNH - True North Heading, LSB = 360/2^16 degrees (~0.0055 deg)</doc>
               <scale>0.0054931640625</scale>
               <unit>degrees</unit>
             </field>
-            <field name="mes" bit="0" type="Cat021ReMes">
+            <field name="mes" bit="7" type="Cat021ReMes">
               <doc>MES - Military Extended Squitter</doc>
             </field>
           </struct>
         </struct>
 
         <!-- FRN 49: SP - Special Purpose Field -->
-        <struct name="sp" bit="49">
+        <struct name="sp" bit="54">
           <doc>Special Purpose Field</doc>
           <field name="len" type="uint8" auto="length">
             <doc>Length of SP including this length byte</doc>

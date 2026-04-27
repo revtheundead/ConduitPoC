@@ -180,12 +180,14 @@ Inline array elements (arrays with `<field>` children instead of a `type` attrib
 
 Structs with `presence="bitmap"` use FSPEC-based encoding. Fields are assigned to bitmap bits and are all `std::optional`:
 
-- **Without `ext`**: A fixed-size FSPEC of `ceil(bitmap_bits / 8)` bytes is always written and read. The size is determined at code-generation time from the `bits` attribute on `<bitmap>`. For example, `<bitmap bits="16"/>` produces a 2-byte FSPEC.
-- **With `ext`**: Multi-byte FSPEC. The FSPEC array size is `(max_bit / 8) + 1` based on the highest bit position used across all fields (not the `bits` attribute). The extension bit position (specified by `ext` on `<bitmap>`) is set in each FSPEC byte except the last, allowing the decoder to read as many FSPEC bytes as needed.
-- Bit ordering: `fspec[byte] |= (1 << bit_within_byte)` -- bit 0 is LSB of first byte
-- All bitmap fields use optional accessors (`has_X()`, `set_X()`, `clear_X()`, etc.)
-- String fields within bitmaps are properly trimmed after decode
-- Bitmap structs may also contain inline structs and choices assigned to bitmap bits
+- **Without `ext`**: A fixed-size FSPEC of `(max_bit / 8) + 1` bytes is always written and read, where `max_bit` is the highest bit position assigned to any field in the bitmap. The size is determined at code-generation time from the actually-used bits, *not* from `<bitmap bits="N"/>` — declaring `<bitmap bits="16"/>` but only assigning fields to bits 0–4 produces a 1-byte FSPEC, not a 2-byte one. (The `bits` attribute on `<bitmap>` is purely a sanity bound; the FSPEC layout follows the assigned bits.)
+- **With `ext`**: Multi-byte FSPEC. Same `(max_bit / 8) + 1` formula, plus the extension bit at position `ext` on `<bitmap>` is set in each FSPEC byte except the last, allowing the decoder to read as many FSPEC bytes as needed. `ext="7"` is the typical value for ASTERIX-style FSPECs (FX bit at the LSB of each octet).
+- **Bit ordering** (wire-order numbering): For a field with `bit="N"`, the byte index is `N / 8` and the within-byte position counted from the MSB is `N % 8`. Encoding sets `fspec[N / 8] |= (1 << (7 - N % 8))`. Decoding tests the same bit. Bit 0 is therefore the **MSB** of FSPEC byte 0 (the very first bit transmitted), bit 7 is its LSB, bit 8 is the MSB of FSPEC byte 1, and so on. The bit numbers count up monotonically with wire transmission order — there is no jump at byte boundaries.
+- **Endianness**: `<bitmap endian="little">` reverses the FSPEC byte order on the wire (logical byte 0 sent last, highest-numbered byte sent first) and also acts as the default endianness for any multi-byte primitive bitmap fields that don't set their own `endian`. Because bitmap fields start at a byte-aligned position (FSPEC ends on a byte boundary), generated code uses the `read_uN`/`write_uN` byte-aligned fast paths that honor the field's `endian` attribute.
+- **Field encode/decode order**: byte ascending, then BMDL bit ascending within each byte. The lowest BMDL bit number that is present (which corresponds to the leftmost set bit on the wire) is encoded first.
+- All bitmap fields use optional accessors (`has_X()`, `set_X()`, `clear_X()`, etc.).
+- String fields within bitmaps are properly trimmed after decode.
+- Bitmap structs may also contain inline structs and choices assigned to bitmap bits.
 
 ## FX Blocks
 
@@ -307,7 +309,7 @@ public:
 ### decode() Internals
 
 1. Reads header fields sequentially (constraint-equals fields are read but not validated — they are encode-only constraints)
-2. Switches on the ID field value to dispatch to the correct message's `decode()`
+2. Switches on the ID field value to dispatch to the correct message's `decode()`. **Messages declared `direction="send"` are excluded from this switch** — they are encode-only and cannot be reached from `Frame::decode()`. A wire ID that maps only to a send-only message is therefore an `UnknownDiscriminator` decode error.
 3. Reads footer fields (if any)
 4. Returns the frame with the decoded payload variant
 
@@ -318,6 +320,24 @@ Each `wrap()` overload creates a frame, sets the ID field to the message's `ID_V
 The `encode_batch()` session method also initializes constraint-equals fields when constructing frames directly (without `wrap()`).
 
 Note: Individual message classes do **not** have `wrap()` overloads -- only the Frame class has `wrap()` overloads. Messages can still be encoded/decoded standalone via `encode_bytes()` / `decode_bytes()` (without the frame envelope).
+
+## JSON / Map Serialization
+
+Every generated struct, message, and enum also gets a structural-serialization
+pair, in addition to the binary `encode`/`decode`. The shape and target format
+differ per backend:
+
+| Backend | Method names | Target format | Where |
+|---------|--------------|---------------|-------|
+| C++ | `to_json(json&, const T&)` and `from_json(const json&, T&)` (free functions; ADL with nlohmann/json) | `nlohmann::json` | Emitted into `json.hpp` (separate from `messages.hpp`); include only when needed so the rest of the codec doesn't depend on `<nlohmann/json.hpp>`. |
+| Java | `Map<String, Object> toMap()` and `static <T> fromMap(Map<String, Object>)` | `java.util.Map<String, Object>` | Methods on the generated message/struct class. Use Jackson, Gson, etc. on top to serialize the Map. |
+| Python | `dict to_dict(self)` and `classmethod from_dict(cls, d) -> T` | Python `dict` | Methods on the generated message/struct class. Use `json.dumps(msg.to_dict())` for JSON output. |
+
+Field naming on the JSON / Map / dict side preserves the BMDL hyphenated
+spelling (e.g., `msg-type`), regardless of the language's identifier
+casing — so the same JSON document round-trips through any backend
+losslessly. Optional fields appear as `null` (Java/Python) or are omitted
+entirely (C++ `nlohmann::json`) when absent.
 
 ## Java and Python Struct/Message Generation
 
