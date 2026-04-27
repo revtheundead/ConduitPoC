@@ -12,6 +12,7 @@ cpp11-compat headers (compat11/ and bgen11/).
 
 from __future__ import print_function
 import argparse
+import hashlib
 import os
 import re
 import sys
@@ -573,19 +574,30 @@ def _find_matching_brace(text, open_idx):
     return -1
 
 
-def rewrite_generic_lambda_visits(text):
-    """Rewrite `::cpp11::visit([caps](const auto& v) [-> R] { body }, EXPR)`
-    into namespace-scope bgen11 detail helpers.
+def rewrite_generic_lambda_visits(text, helper_id_prefix=''):
+    """Rewrite `::cpp11::visit([caps]([const] auto& v) [-> R] { body }, EXPR)`
+    into either a namespace-scope bgen11 detail helper (for read-only
+    visitors with a fixed body) or a synthesized templated functor
+    (for the mutating frame footer-field copy whose body is
+    schema-specific).
+
+    Returns ``(rewritten_text, synthesized_helpers_block)``.  The
+    helpers block is a (possibly empty) string of namespace-scoped
+    templated-struct definitions that the caller must inject into the
+    translated file at file scope (after includes, before the codec
+    namespace).
 
     C++11 forbids member templates in local classes, which blocks the
-    straightforward "lift to local templated functor" approach.  Instead
-    we rely on a closed set of bgen emit patterns (encode / to_string /
-    session-decode) and map each to a pre-defined templated helper in
-    `::bgen11::detail`.  Unknown generic-lambda shapes are left in place
-    and will surface as compile errors so the user can extend the
-    converter explicitly rather than silently producing wrong code.
+    straightforward "lift to local templated functor" approach.  For
+    the read-only patterns we map each emit shape to a pre-defined
+    templated helper in `::bgen11::detail` (encode / to_string /
+    to_json / session-decode).  For the footer-copy pattern the field
+    set is schema-specific, so we emit a per-call-site templated
+    functor in an anonymous-equivalent helper namespace and rewrite
+    the call site to invoke it.
     """
     out = []
+    helper_blocks = []
     i = 0
     needle = '::cpp11::visit('
     counter = 0
@@ -601,10 +613,13 @@ def rewrite_generic_lambda_visits(text):
             out.append(text[idx:])
             break
 
-        # Parse "[caps](const auto& v) [-> R] {" starting just after '('.
+        # Parse "[caps](const? auto& v) [-> R] {" starting just after '('.
+        # Both `const auto&` (read-only visitors: encode, to_string,
+        # to_json, session-decode) and plain `auto&` (mutating visitor:
+        # frame footer-field copy) are accepted.
         head_start = open_paren + 1
         m = re.match(
-            r'\s*\[([^\]]*)\]\s*\(\s*const\s+auto\s*&\s*(\w+)\s*\)'
+            r'\s*\[([^\]]*)\]\s*\(\s*(const\s+)?auto\s*&\s*(\w+)\s*\)'
             r'(\s*->\s*([^\{]+))?\s*\{',
             text[head_start:close_paren])
         if not m:
@@ -613,8 +628,9 @@ def rewrite_generic_lambda_visits(text):
             continue
 
         capture = m.group(1).strip()
-        var = m.group(2)
-        ret = m.group(4).strip() if m.group(4) else None
+        is_const_param = bool(m.group(2))
+        var = m.group(3)
+        ret = m.group(5).strip() if m.group(5) else None
         brace_start = head_start + m.end() - 1  # absolute '{' pos in text
         brace_end = _find_matching_brace(text, brace_start)
         if brace_end < 0 or brace_end >= close_paren:
@@ -707,13 +723,92 @@ def rewrite_generic_lambda_visits(text):
             i = close_paren + 1
             continue
 
+        # Pattern E: frame footer-field copy.  Mutating visitor whose
+        # body is one or more `<param>.<field> = <cap>.<field>;` lines.
+        # The field list is schema-specific, so we synthesize a
+        # per-call-site templated functor at file scope and rewrite the
+        # visit invocation to use it.
+        if not is_const_param:
+            line_re = re.compile(
+                r'^\s*' + re.escape(var) + r'\.(\w+)\s*=\s*'
+                r'(\w+(?:\.\w+)*)\.(\w+)\s*;\s*$')
+            stmts = [s for s in body_stripped.split(';') if s.strip()]
+            field_pairs = []
+            cap_path = None
+            ok = bool(stmts)
+            for s in stmts:
+                mm = line_re.match(s + ';')
+                if not mm:
+                    ok = False
+                    break
+                lhs_field, src_path, rhs_field = (
+                    mm.group(1), mm.group(2), mm.group(3))
+                if cap_path is None:
+                    cap_path = src_path
+                elif src_path != cap_path:
+                    ok = False
+                    break
+                field_pairs.append((lhs_field, rhs_field))
+            # bgen's footer-copy lambdas read and write private storage
+            # members (suffixed `_`) of the variant alternatives.  That
+            # only works in the original code because the leaf classes
+            # befriend the frame class that contains the lambda.  Our
+            # synthesized helper lives in `::_bgen11_visit_helpers` and
+            # is NOT a friend, so we must route through bgen's public
+            # accessor API: `set_<name>(v)` for assignment and
+            # `<name>()` for retrieval.  Bail (leave the lambda
+            # untouched) if either side does not follow the trailing-`_`
+            # private-storage convention bgen documents in
+            # `name_utils.hpp::to_member_name`.
+            if ok and cap_path is not None and all(
+                    lhs_f.endswith('_') and rhs_f.endswith('_')
+                    for lhs_f, rhs_f in field_pairs):
+                counter += 1
+                struct_name = ('_FooterCopy_' + helper_id_prefix +
+                               '_' + str(counter))
+                body_lines = []
+                for lhs_f, rhs_f in field_pairs:
+                    lhs_acc = lhs_f[:-1]
+                    rhs_acc = rhs_f[:-1]
+                    body_lines.append(
+                        '            ' + var + '.set_' + lhs_acc +
+                        '(_src_->' + rhs_acc + '());')
+                helper = (
+                    'template <typename _SrcT_>\n'
+                    'struct ' + struct_name + ' {\n'
+                    '    _SrcT_ const* _src_;\n'
+                    '    template <typename _MsgT_>\n'
+                    '    void operator()(_MsgT_& ' + var + ') const {\n'
+                    + '\n'.join(body_lines) + '\n'
+                    '    }\n'
+                    '};\n'
+                    'template <typename _SrcT_>\n'
+                    'inline ' + struct_name + '<_SrcT_> _make' +
+                    struct_name + '(_SrcT_ const& _s_) {\n'
+                    '    ' + struct_name + '<_SrcT_> _r_ = { &_s_ };\n'
+                    '    return _r_;\n'
+                    '}\n')
+                helper_blocks.append(helper)
+                repl = ('::cpp11::visit(::_bgen11_visit_helpers::_make' +
+                        struct_name + '(' + cap_path + '), ' +
+                        variant_expr + ')')
+                out.append(repl)
+                i = close_paren + 1
+                continue
+
         # Unknown pattern: leave the visit call untouched.  The compiler
         # will flag the use of the C++14 generic lambda, and the user can
         # either teach the converter a new pattern or hand-convert the
         # call site.
         out.append(text[idx:close_paren + 1])
         i = close_paren + 1
-    return ''.join(out)
+    helpers_text = ''
+    if helper_blocks:
+        helpers_text = (
+            '\nnamespace _bgen11_visit_helpers {\n' +
+            '\n'.join(helper_blocks) +
+            '} // namespace _bgen11_visit_helpers\n')
+    return ''.join(out), helpers_text
 
 
 def strip_logger_macros(text):
@@ -795,7 +890,25 @@ def transform_file(src, dst):
     text = rewrite_default_equality(text)
     text = apply_attr_subs(text)
     text = rewrite_structured_bindings(text)
-    text = rewrite_generic_lambda_visits(text)
+    # Hash the full source path so synthesized helper struct names are
+    # unique even when two translated headers share a basename (e.g.
+    # `messages.hpp` produced from two different schemas).  Each TU
+    # that includes both headers would otherwise see colliding
+    # specializations of `::_bgen11_visit_helpers::_FooterCopy_*`.
+    base = re.sub(r'\W', '_',
+                  os.path.splitext(os.path.basename(src))[0])
+    digest = hashlib.sha1(
+        os.path.abspath(src).encode('utf-8')).hexdigest()[:8]
+    helper_id = base + '_' + digest
+    text, synthesized_helpers = rewrite_generic_lambda_visits(
+        text, helper_id_prefix=helper_id)
+    if synthesized_helpers:
+        marker = '#include "bgen11/bgen11.hpp"\n'
+        if marker in text:
+            text = text.replace(
+                marker, marker + synthesized_helpers, 1)
+        else:
+            text = synthesized_helpers + text
     text = strip_logger_macros(text)
 
     dst_dir = os.path.dirname(dst)
