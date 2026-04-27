@@ -31,6 +31,19 @@ using namespace conduit;
 using namespace conduit::transceiver;
 using namespace conduit::transceiver::transport;
 
+// Portable socket descriptor type for these tests. On Windows the OS API
+// returns SOCKET (UINT_PTR), which is wider than int; on POSIX it returns
+// int. Using a single alias avoids implicit narrow-then-widen conversions
+// when we pass descriptors back through helpers like the multicast fan-out
+// probe below.
+#ifdef _WIN32
+using test_socket_t = SOCKET;
+inline constexpr test_socket_t test_invalid_socket = INVALID_SOCKET;
+#else
+using test_socket_t = int;
+inline constexpr test_socket_t test_invalid_socket = -1;
+#endif
+
 // PID-based port allocation with offset to avoid collision with unicast UDP tests.
 static uint16_t mcast_base_port() {
     static const uint16_t base = 40000 + static_cast<uint16_t>(
@@ -154,13 +167,13 @@ static bool multicast_fanout_available() {
     if (cached >= 0) return cached != 0;
     if (!multicast_available()) { cached = 0; return false; }
 
-    auto open_recv = [](sockaddr_in& bound) -> int {
+    auto open_recv = [](sockaddr_in& bound) -> test_socket_t {
 #ifdef _WIN32
-        auto s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (s == INVALID_SOCKET) return -1;
+        test_socket_t s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s == test_invalid_socket) return test_invalid_socket;
 #else
-        auto s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-        if (s < 0) return -1;
+        test_socket_t s = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (s < 0) return test_invalid_socket;
 #endif
         int one = 1;
 #ifdef _WIN32
@@ -178,7 +191,7 @@ static bool multicast_fanout_available() {
 #else
             ::close(s);
 #endif
-            return -1;
+            return test_invalid_socket;
         }
         struct ip_mreq mreq{};
         inet_pton(AF_INET, TEST_MCAST_GROUP, &mreq.imr_multiaddr);
@@ -207,14 +220,14 @@ static bool multicast_fanout_available() {
     bound.sin_addr.s_addr = htonl(INADDR_ANY);
     bound.sin_port = 0;  // Let kernel pick for the first socket
 
-    int s1 = open_recv(bound);
-    if (s1 < 0) { cached = 0; return false; }
+    test_socket_t s1 = open_recv(bound);
+    if (s1 == test_invalid_socket) { cached = 0; return false; }
 
     socklen_t alen = sizeof(bound);
     getsockname(s1, reinterpret_cast<sockaddr*>(&bound), &alen);
 
-    int s2 = open_recv(bound);  // Bind to the same port as s1
-    if (s2 < 0) {
+    test_socket_t s2 = open_recv(bound);  // Bind to the same port as s1
+    if (s2 == test_invalid_socket) {
 #ifdef _WIN32
         ::closesocket(s1);
 #else
