@@ -645,11 +645,12 @@ def rewrite_generic_lambda_visits(text):
         if ma:
             writer_name = ma.group(1)
             # The writer must be a named single-&-capture.
-            if len(cap_names := [
+            cap_names = [
                 re.match(r'^&?\s*(\w+)$', p.strip()).group(1)
                 for p in capture.split(',')
                 if p.strip() and re.match(r'^&?\s*\w+$', p.strip())
-            ]) >= 1 and writer_name in cap_names:
+            ]
+            if len(cap_names) >= 1 and writer_name in cap_names:
                 repl = ('::bgen11::detail::variant_encode(' +
                         variant_expr + ', ' + writer_name + ')')
                 out.append(repl)
