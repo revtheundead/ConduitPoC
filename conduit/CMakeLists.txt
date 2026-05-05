@@ -323,36 +323,9 @@ endif()
 # C ABI shared libraries (optional)
 # ============================================================================
 
-# Force-link the entire static archive into a shared library, so .o files that
-# happen not to be referenced by the C ABI translation unit (e.g. bit_reader.o,
-# bit_writer.o, logger.o when only StreamFramer is used directly) are still
-# included in the resulting .so/.dylib/.dll.  Downstream C++ code that consumes
-# the shared library â€" notably bgen-generated structs that call
-# conduit::io::BitReader::read_bits / BitWriter::write_bits and the global
-# conduit::logging::Logger â€" can then resolve those symbols at link time
-# without having to also pull in the static archive.
-function(conduit_force_link_archive shared_lib archive_lib)
-    add_dependencies(${shared_lib} ${archive_lib})
-    if(MSVC)
-        target_link_libraries(${shared_lib} PRIVATE ${archive_lib})
-        target_link_options(${shared_lib} PRIVATE
-            "/WHOLEARCHIVE:$<TARGET_FILE:${archive_lib}>")
-    elseif(APPLE)
-        target_link_libraries(${shared_lib} PRIVATE
-            "-Wl,-force_load,$<TARGET_FILE:${archive_lib}>")
-    else()
-        # GNU ld / lld / MinGW ld: --whole-archive must bracket the archive.
-        target_link_libraries(${shared_lib} PRIVATE
-            "-Wl,--whole-archive"
-            ${archive_lib}
-            "-Wl,--no-whole-archive")
-    endif()
-endfunction()
-
 if(CONDUIT_BUILD_CODEC_CABI)
     add_library(conduit_codec_cabi SHARED src/cabi/conduit_codec_cabi.cpp)
-    target_link_libraries(conduit_codec_cabi PRIVATE conduit_warnings Threads::Threads)
-    conduit_force_link_archive(conduit_codec_cabi conduit_codec)
+    target_link_libraries(conduit_codec_cabi PRIVATE conduit_codec conduit_warnings Threads::Threads)
     target_include_directories(conduit_codec_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -360,11 +333,6 @@ if(CONDUIT_BUILD_CODEC_CABI)
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
-        # On Windows, auto-generate a .def file that exports every symbol with
-        # external linkage.  Without this the DLL exports only symbols marked
-        # __declspec(dllexport) (the C ABI), and downstream C++ users can't
-        # resolve BitReader/BitWriter/Logger from the DLL.
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
     if(WIN32)
         set_target_properties(conduit_codec_cabi PROPERTIES PREFIX "")
@@ -373,9 +341,7 @@ endif()
 
 if(CONDUIT_BUILD_CABI)
     add_library(conduit_cabi SHARED src/cabi/conduit_cabi.cpp)
-    target_link_libraries(conduit_cabi PRIVATE conduit_warnings Threads::Threads)
-    conduit_force_link_archive(conduit_cabi conduit)
-    conduit_force_link_archive(conduit_cabi conduit_codec)
+    target_link_libraries(conduit_cabi PRIVATE conduit conduit_warnings Threads::Threads)
     target_include_directories(conduit_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -383,14 +349,9 @@ if(CONDUIT_BUILD_CABI)
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
     if(WIN32)
         set_target_properties(conduit_cabi PROPERTIES PREFIX "")
-        # conduit (static) PUBLIC-links ws2_32, but with --whole-archive that
-        # transitive linkage isn't always honoured.  Explicit linkage here
-        # ensures Winsock symbols resolve regardless of generator/toolchain.
-        target_link_libraries(conduit_cabi PRIVATE ws2_32)
     endif()
 endif()
 
@@ -408,8 +369,7 @@ if(CONDUIT_BUILD_JNI)
             src/cabi/conduit_codec_cabi.cpp
         )
         target_link_libraries(conduit_codec_jni PRIVATE
-            conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        conduit_force_link_archive(conduit_codec_jni conduit_codec)
+            conduit_codec conduit_warnings Threads::Threads ${JNI_LIBRARIES})
         target_include_directories(conduit_codec_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
         )
@@ -425,7 +385,6 @@ if(CONDUIT_BUILD_JNI)
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
             VISIBILITY_INLINES_HIDDEN ON
-            WINDOWS_EXPORT_ALL_SYMBOLS ON
         )
         if(WIN32)
             set_target_properties(conduit_codec_jni PROPERTIES PREFIX "")
@@ -439,9 +398,7 @@ if(CONDUIT_BUILD_JNI)
             src/cabi/conduit_cabi.cpp
         )
         target_link_libraries(conduit_jni PRIVATE
-            conduit_warnings Threads::Threads ${JNI_LIBRARIES})
-        conduit_force_link_archive(conduit_jni conduit)
-        conduit_force_link_archive(conduit_jni conduit_codec)
+            conduit conduit_warnings Threads::Threads ${JNI_LIBRARIES})
         target_include_directories(conduit_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
         )
@@ -457,11 +414,9 @@ if(CONDUIT_BUILD_JNI)
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
             VISIBILITY_INLINES_HIDDEN ON
-            WINDOWS_EXPORT_ALL_SYMBOLS ON
         )
         if(WIN32)
             set_target_properties(conduit_jni PROPERTIES PREFIX "")
-            target_link_libraries(conduit_jni PRIVATE ws2_32)
         endif()
     endif()
 endif()
