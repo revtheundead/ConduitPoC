@@ -4,7 +4,7 @@
 // Identical logic to random_asterix.hpp but uses the asterix_alt namespace
 // where Cat007DownlinkRecord is send-only and Cat007UplinkRecord is receive-only.
 
-#include "asterix-alt.hpp"
+#include "asterix_alt.hpp"
 #include <array>
 #include <random>
 #include <string>

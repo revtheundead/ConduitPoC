@@ -6,6 +6,7 @@
 #include <conduit/core/error.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <conduit/logging/logger.hpp>
 #include <conduit/string/encoding.hpp>
 #include <algorithm>
 #include <array>
@@ -183,12 +184,12 @@ public:
         DataSourceId result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode DataSourceId.sac"));
             result.sac_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode DataSourceId.sic"));
             result.sic_ = static_cast<uint8>(*val);
         }
         return result;
@@ -230,8 +231,8 @@ public:
     bool operator==(const Cat007I040&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(rho_ / 0.00390625), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(theta_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -240,12 +241,12 @@ public:
         Cat007I040 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I040.rho"));
             result.rho_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I040.theta"));
             result.theta_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -297,12 +298,12 @@ public:
         Cat007I042 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'x'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I042.x"));
             result.x_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'y'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I042.y"));
             result.y_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         return result;
@@ -347,7 +348,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I161.track-number"));
             result.track_number_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -387,8 +388,8 @@ public:
     bool operator==(const Cat007I200&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(heading_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(heading_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -397,12 +398,12 @@ public:
         Cat007I200 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I200.ground-speed"));
             result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'heading'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I200.heading"));
             result.heading_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -450,12 +451,12 @@ public:
         Cat007I400 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'pri'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I400.pri"));
             result.pri_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'request-number'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I400.request-number"));
             result.request_number_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -507,7 +508,7 @@ public:
         Cat007I410 result;
         {
             auto val = decode_cat007_di_msg_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'msg-type'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I410.msg-type"));
             result.msg_type_ = std::move(*val);
         }
         return result;
@@ -621,27 +622,27 @@ public:
         Cat007I020 result;
         {
             auto val = decode_detection_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'typ'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I020.typ"));
             result.typ_ = std::move(*val);
         }
         {
             auto val = decode_sim_indicator(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'sim'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I020.sim"));
             result.sim_ = std::move(*val);
         }
         {
             auto val = decode_rdp_chain(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rdp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I020.rdp"));
             result.rdp_ = std::move(*val);
         }
         {
             auto val = decode_spi_presence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'spi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I020.spi"));
             result.spi_ = std::move(*val);
         }
         {
             auto val = decode_report_source(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rab'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I020.rab"));
             result.rab_ = std::move(*val);
         }
         // FX extension
@@ -768,7 +769,7 @@ public:
         Cat007I030 result;
         {
             auto val = r.read_bits(7);
-            if (!val) return std::unexpected(val.error().with_context("field 'we'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I030.we"));
             result.we_ = static_cast<uint8_t>(*val);
         }
         // FX extension
@@ -854,23 +855,23 @@ public:
         Cat007I050 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I050.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I050.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_smoothed(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I050.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I050.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -932,22 +933,22 @@ public:
         Cat007I055 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I055.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I055.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_smoothed(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I055.l"));
             result.l_ = std::move(*val);
         }
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I055.code"));
             result.code_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -996,7 +997,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I060.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -1039,7 +1040,7 @@ public:
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I065.qxi"));
             result.qxi_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -1096,23 +1097,23 @@ public:
         Cat007I070 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I070.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I070.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I070.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I070.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -1161,7 +1162,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I080.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -1233,37 +1234,37 @@ public:
         Cat007I085Sum result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.m5"));
             result.m5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'id'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.id"));
             result.id_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'da'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.da"));
             result.da_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.m1"));
             result.m1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.m2"));
             result.m2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.m3"));
             result.m3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Sum.mc"));
             result.mc_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
@@ -1331,19 +1332,19 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'pin'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Pmn.pin"));
             result.pin_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'nat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Pmn.nat"));
             result.nat_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(6);
-            if (!val) return std::unexpected(val.error().with_context("field 'mis'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Pmn.mis"));
             result.mis_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -1397,12 +1398,12 @@ public:
         Cat007I085Pos result;
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'latitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Pos.latitude"));
             result.latitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'longitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Pos.longitude"));
             result.longitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         return result;
@@ -1454,12 +1455,12 @@ public:
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_alt_resolution(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'res'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Ga.res"));
             result.res_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'ga'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Ga.ga"));
             result.ga_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -1518,23 +1519,23 @@ public:
         Cat007I085Em1 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Em1.v"));
             result.v_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Em1.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Em1.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'em1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Em1.em1"));
             result.em1_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -1603,27 +1604,27 @@ public:
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Xp.x5"));
             result.x5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'xc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Xp.xc"));
             result.xc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Xp.x3"));
             result.x3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Xp.x2"));
             result.x2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I085Xp.x1"));
             result.x1_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -1923,17 +1924,17 @@ public:
         Cat007I090 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I090.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I090.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'fl'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I090.fl"));
             result.fl_ = static_cast<double>(*val) * 0.25 + 0;
         }
         return result;
@@ -1995,24 +1996,24 @@ public:
         Cat007I100 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I100.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I100.g"));
             result.g_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I100.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I100.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -2063,7 +2064,7 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'height-3d'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I110.height-3d"));
             result.height_3d_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -2110,13 +2111,13 @@ public:
         Cat007I120Cal result;
         {
             auto val = decode_doppler_validity(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'd'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I120Cal.d"));
             result.d_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(5));
         {
             auto val = r.read_signed_bits(10);
-            if (!val) return std::unexpected(val.error().with_context("field 'cal'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I120Cal.cal"));
             result.cal_ = static_cast<int16_t>(*val);
         }
         return result;
@@ -2166,17 +2167,17 @@ public:
         Cat007I120Rds_dopplerElement result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'dop'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.dop"));
             result.dop_ = static_cast<int16>(*val);
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'amb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.amb"));
             result.amb_ = static_cast<uint16>(*val);
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'frq'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.frq"));
             result.frq_ = static_cast<uint16>(*val);
         }
         return result;
@@ -2214,7 +2215,7 @@ public:
     bool operator==(const Cat007I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
+        w.write_u8(static_cast<uint8>(doppler_.size()));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -2226,16 +2227,16 @@ public:
         Cat007I120Rds result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I120Rds.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'doppler'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat007I120Rds.doppler: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat007I120Rds.doppler"));
             result.doppler_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat007I120Rds_dopplerElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'doppler'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat007I120Rds.doppler"));
                 result.doppler_.push_back(std::move(*elem));
             }
         }
@@ -2457,16 +2458,16 @@ public:
         for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
         w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (srl_.has_value()) {
-            w.write_bits(*srl_, 8);
+            w.write_u8(static_cast<uint8_t>(*srl_));
         }
         if (srr_.has_value()) {
-            w.write_bits(*srr_, 8);
+            w.write_u8(static_cast<uint8_t>(*srr_));
         }
         if (sam_.has_value()) {
             w.write_signed_bits(*sam_, 8);
         }
         if (prl_.has_value()) {
-            w.write_bits(*prl_, 8);
+            w.write_u8(static_cast<uint8_t>(*prl_));
         }
         if (pam_.has_value()) {
             w.write_signed_bits(*pam_, 8);
@@ -2496,12 +2497,12 @@ public:
         }
 
         if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.srl_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.srr_ = static_cast<uint8>(*val);
         }
@@ -2511,7 +2512,7 @@ public:
             result.sam_ = static_cast<int8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.prl_ = static_cast<uint8>(*val);
         }
@@ -2707,27 +2708,27 @@ public:
         Cat007I170 result;
         {
             auto val = decode_track_confidence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'cnf'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I170.cnf"));
             result.cnf_ = std::move(*val);
         }
         {
             auto val = decode_sensor_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rad'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I170.rad"));
             result.rad_ = std::move(*val);
         }
         {
             auto val = decode_assoc_confidence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'dou'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I170.dou"));
             result.dou_ = std::move(*val);
         }
         {
             auto val = decode_horiz_maneuver(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'mah'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I170.mah"));
             result.mah_ = std::move(*val);
         }
         {
             auto val = decode_climb_descend_mode(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'cdm'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I170.cdm"));
             result.cdm_ = std::move(*val);
         }
         // FX extension
@@ -2824,10 +2825,10 @@ public:
     bool operator==(const Cat007I210&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_x_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_y_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_h_ / 0.087890625)));
+        w.write_u8(static_cast<uint8_t>(sigma_x_ / 0.0078125));
+        w.write_u8(static_cast<uint8_t>(sigma_y_ / 0.0078125));
+        w.write_u8(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05));
+        w.write_u8(static_cast<uint8_t>(sigma_h_ / 0.087890625));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -2836,22 +2837,22 @@ public:
         Cat007I210 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-x'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I210.sigma-x"));
             result.sigma_x_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-y'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I210.sigma-y"));
             result.sigma_y_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I210.sigma-v"));
             result.sigma_v_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-h'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I210.sigma-h"));
             result.sigma_h_ = static_cast<double>(*val) * 0.087890625 + 0;
         }
         return result;
@@ -2934,43 +2935,43 @@ public:
         Cat007I230 result;
         {
             auto val = decode_comm_capability(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'com'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.com"));
             result.com_ = std::move(*val);
         }
         {
             auto val = decode_flight_status(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'stat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.stat"));
             result.stat_ = std::move(*val);
         }
         {
             auto val = decode_si_ii_capability(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'si'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.si"));
             result.si_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_mode_s_service_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'mssc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.mssc"));
             result.mssc_ = std::move(*val);
         }
         {
             auto val = decode_alt_resolution(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'arc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.arc"));
             result.arc_ = std::move(*val);
         }
         {
             auto val = decode_aircraft_id_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'aic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.aic"));
             result.aic_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'b1a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.b1a"));
             result.b1a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'b1b'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I230.b1b"));
             result.b1b_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -3032,17 +3033,17 @@ public:
         Cat007I250_bdsElement result;
         {
             auto val = r.read_bits(56);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb-data'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.mb-data"));
             result.mb_data_ = static_cast<uint64_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds1"));
             result.bds1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds2"));
             result.bds2_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -3080,7 +3081,7 @@ public:
     bool operator==(const Cat007I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
+        w.write_u8(static_cast<uint8>(bds_.size()));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -3092,16 +3093,16 @@ public:
         Cat007I250 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I250.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat007I250.bds: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat007I250.bds"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat007I250_bdsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat007I250.bds"));
                 result.bds_.push_back(std::move(*elem));
             }
         }
@@ -3151,7 +3152,7 @@ public:
         Cat007I260 result;
         {
             auto val = r.read_bits(56);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb-data'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I260.mb-data"));
             result.mb_data_ = static_cast<uint64_t>(*val);
         }
         return result;
@@ -3209,22 +3210,22 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'n'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Tr.n"));
             result.n_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 't'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Tr.t"));
             result.t_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Tr.a"));
             result.a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'c'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Tr.c"));
             result.c_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -3278,12 +3279,12 @@ public:
         CONDUIT_TRY(r.skip_bits(6));
         {
             auto val = decode_cat007_lockout(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'lo'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Ms.lo"));
             result.lo_ = std::move(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-nb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I450Ms.ms-nb"));
             result.ms_nb_ = static_cast<uint8>(*val);
         }
         return result;
@@ -3366,19 +3367,19 @@ public:
             CONDUIT_TRY(tr_->encode(w));
         }
         if (m4_nb_.has_value()) {
-            w.write_bits(*m4_nb_, 8);
+            w.write_u8(static_cast<uint8_t>(*m4_nb_));
         }
         if (m5_nb_.has_value()) {
-            w.write_bits(*m5_nb_, 8);
+            w.write_u8(static_cast<uint8_t>(*m5_nb_));
         }
         if (ms_.has_value()) {
             CONDUIT_TRY(ms_->encode(w));
         }
         if (mx_nb_.has_value()) {
-            w.write_bits(*mx_nb_, 8);
+            w.write_u8(static_cast<uint8_t>(*mx_nb_));
         }
         if (sms_nb_.has_value()) {
-            w.write_bits(*sms_nb_, 8);
+            w.write_u8(static_cast<uint8_t>(*sms_nb_));
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -3404,12 +3405,12 @@ public:
             result.tr_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.m4_nb_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.m5_nb_ = static_cast<uint8>(*val);
         }
@@ -3419,12 +3420,12 @@ public:
             result.ms_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.mx_nb_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 2))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.sms_nb_ = static_cast<uint8>(*val);
         }
@@ -3709,168 +3710,168 @@ public:
         CONDUIT_TRY(r.skip_bits(7));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'lo'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.lo"));
             result.lo_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(3);
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-prob'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.ms-prob"));
             result.ms_prob_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5-format'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m5-format"));
             result.m5_format_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(2);
-            if (!val) return std::unexpected(val.error().with_context("field 'm4cs'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m4cs"));
             result.m4cs_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5s'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m5s"));
             result.m5s_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm5s'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm5s"));
             result.sm5s_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm54'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm54"));
             result.sm54_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm5c'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm5c"));
             result.sm5c_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm53'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm53"));
             result.sm53_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm52'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm52"));
             result.sm52_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm51'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm51"));
             result.sm51_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m5"));
             result.m5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'rcma'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.rcma"));
             result.rcma_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'rcmc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.rcmc"));
             result.rcmc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'cmc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.cmc"));
             result.cmc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'cm3a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.cm3a"));
             result.cm3a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ms'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.ms"));
             result.ms_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm4s'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m4s"));
             result.m4s_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'smc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.smc"));
             result.smc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm3a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm3a"));
             result.sm3a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm2"));
             result.sm2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sm1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.sm1"));
             result.sm1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mco'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.mco"));
             result.mco_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3o'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m3o"));
             result.m3o_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mcs'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.mcs"));
             result.mcs_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3s'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m3s"));
             result.m3s_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'md'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.md"));
             result.md_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.mc"));
             result.mc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.mb"));
             result.mb_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm4'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m4"));
             result.m4_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m3a"));
             result.m3a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m2"));
             result.m2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I415Rim.m1"));
             result.m1_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -3983,7 +3984,7 @@ public:
             CONDUIT_TRY(rim_->encode(w));
         }
         if (mipt_.has_value()) {
-            w.write_bits(*mipt_, 8);
+            w.write_u8(static_cast<uint8_t>(*mipt_));
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -4009,7 +4010,7 @@ public:
             result.rim_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 1))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.mipt_ = static_cast<uint8>(*val);
         }
@@ -4114,10 +4115,10 @@ public:
     bool operator==(const Cat007I420&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_start_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_end_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_start_ / 0.0054931640625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_end_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(rho_start_ / 0.00390625), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(rho_end_ / 0.00390625), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(theta_start_ / 0.0054931640625), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(theta_end_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -4126,22 +4127,22 @@ public:
         Cat007I420 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho-start'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I420.rho-start"));
             result.rho_start_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho-end'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I420.rho-end"));
             result.rho_end_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta-start'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I420.theta-start"));
             result.theta_start_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta-end'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I420.theta-end"));
             result.theta_end_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -4190,12 +4191,12 @@ public:
         Cat007I440_registersElement result;
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode registersElement.bds1"));
             result.bds1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode registersElement.bds2"));
             result.bds2_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -4231,7 +4232,7 @@ public:
     bool operator==(const Cat007I440&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(registers_.size())));
+        w.write_u8(static_cast<uint8>(registers_.size()));
         for (const auto& elem : registers_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -4243,16 +4244,16 @@ public:
         Cat007I440 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat007I440.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'registers'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat007I440.registers: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat007I440.registers"));
             result.registers_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat007I440_registersElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'registers'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat007I440.registers"));
                 result.registers_.push_back(std::move(*elem));
             }
         }
@@ -4332,37 +4333,37 @@ public:
         Cat021I008 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ra'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.ra"));
             result.ra_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_cat021_trajectory_change_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.tc"));
             result.tc_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ts'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.ts"));
             result.ts_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'arv'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.arv"));
             result.arv_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'cdtia'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.cdtia"));
             result.cdtia_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'not-tcas'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.not-tcas"));
             result.not_tcas_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sa'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I008.sa"));
             result.sa_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -4408,7 +4409,7 @@ public:
     bool operator==(const Cat021I016&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(rp_ / 0.5)));
+        w.write_u8(static_cast<uint8_t>(rp_ / 0.5));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -4417,7 +4418,7 @@ public:
         Cat021I016 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I016.rp"));
             result.rp_ = static_cast<double>(*val) * 0.5 + 0;
         }
         return result;
@@ -4587,22 +4588,22 @@ public:
         Cat021I040 result;
         {
             auto val = decode_cat021_address_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'atp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I040.atp"));
             result.atp_ = std::move(*val);
         }
         {
             auto val = decode_cat021_alt_report_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'arc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I040.arc"));
             result.arc_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'rc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I040.rc"));
             result.rc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_report_source(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rab'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I040.rab"));
             result.rab_ = std::move(*val);
         }
         // FX extension
@@ -4751,7 +4752,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I070.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -4799,12 +4800,12 @@ public:
         Cat021I074 result;
         {
             auto val = decode_cat021_full_second_ind(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'fsi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I074.fsi"));
             result.fsi_ = std::move(*val);
         }
         {
             auto val = r.read_bits(30);
-            if (!val) return std::unexpected(val.error().with_context("field 'time-frac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I074.time-frac"));
             result.time_frac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
         }
         return result;
@@ -4854,12 +4855,12 @@ public:
         Cat021I076 result;
         {
             auto val = decode_cat021_full_second_ind(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'fsi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I076.fsi"));
             result.fsi_ = std::move(*val);
         }
         {
             auto val = r.read_bits(30);
-            if (!val) return std::unexpected(val.error().with_context("field 'time-frac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I076.time-frac"));
             result.time_frac_ = static_cast<double>(*val) * 9.313225746154785e-10 + 0;
         }
         return result;
@@ -4987,12 +4988,12 @@ public:
         Cat021I090 result;
         {
             auto val = r.read_bits(3);
-            if (!val) return std::unexpected(val.error().with_context("field 'nucr-nacv'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I090.nucr-nacv"));
             result.nucr_nacv_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'nucp-nic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I090.nucp-nic"));
             result.nucp_nic_ = static_cast<uint8_t>(*val);
         }
         // FX extension
@@ -5120,12 +5121,12 @@ public:
         Cat021I110Tis result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'nav'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I110Tis.nav"));
             result.nav_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'nvb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I110Tis.nvb"));
             result.nvb_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(5));
@@ -5229,7 +5230,7 @@ public:
         w.write_bits(tra_, 1);
         w.write_bits(toa_, 1);
         w.write_bits(tov_, 24);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(ttr_ / 0.01)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(ttr_ / 0.01), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -5238,62 +5239,62 @@ public:
         Cat021I110Tid_pointsElement result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'tca'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.tca"));
             result.tca_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'nc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.nc"));
             result.nc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(6);
-            if (!val) return std::unexpected(val.error().with_context("field 'tcp-number'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.tcp-number"));
             result.tcp_number_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'altitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.altitude"));
             result.altitude_ = static_cast<double>(*val) * 10 + 0;
         }
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'latitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.latitude"));
             result.latitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'longitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.longitude"));
             result.longitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         {
             auto val = decode_cat021_point_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'point-type'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.point-type"));
             result.point_type_ = std::move(*val);
         }
         {
             auto val = decode_cat021_turn_direction(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'td'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.td"));
             result.td_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'tra'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.tra"));
             result.tra_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'toa'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.toa"));
             result.toa_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'tov'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.tov"));
             result.tov_ = static_cast<uint32_t>(*val);
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'ttr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode pointsElement.ttr"));
             result.ttr_ = static_cast<double>(*val) * 0.01 + 0;
         }
         return result;
@@ -5349,7 +5350,7 @@ public:
     bool operator==(const Cat021I110Tid&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(points_.size())));
+        w.write_u8(static_cast<uint8>(points_.size()));
         for (const auto& elem : points_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -5361,16 +5362,16 @@ public:
         Cat021I110Tid result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I110Tid.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'points'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat021I110Tid.points: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat021I110Tid.points"));
             result.points_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat021I110Tid_pointsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'points'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat021I110Tid.points"));
                 result.points_.push_back(std::move(*elem));
             }
         }
@@ -5557,12 +5558,12 @@ public:
         Cat021I130 result;
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'latitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I130.latitude"));
             result.latitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'longitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I130.longitude"));
             result.longitude_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         return result;
@@ -5614,12 +5615,12 @@ public:
         Cat021I131 result;
         {
             auto val = ([&]() -> conduit::Result<int32_t> { auto v = r.read_u32(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int32_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'latitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I131.latitude"));
             result.latitude_ = static_cast<double>(*val) * 1.6763806343078613e-07 + 0;
         }
         {
             auto val = ([&]() -> conduit::Result<int32_t> { auto v = r.read_u32(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int32_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'longitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I131.longitude"));
             result.longitude_ = static_cast<double>(*val) * 1.6763806343078613e-07 + 0;
         }
         return result;
@@ -5664,7 +5665,7 @@ public:
         Cat021I140 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'gh'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I140.gh"));
             result.gh_ = static_cast<double>(*val) * 6.25 + 0;
         }
         return result;
@@ -5707,7 +5708,7 @@ public:
         Cat021I145 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'fl'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I145.fl"));
             result.fl_ = static_cast<double>(*val) * 0.25 + 0;
         }
         return result;
@@ -5760,17 +5761,17 @@ public:
         Cat021I146 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'sas'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I146.sas"));
             result.sas_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_cat021_alt_source(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'source'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I146.source"));
             result.source_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(13);
-            if (!val) return std::unexpected(val.error().with_context("field 'altitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I146.altitude"));
             result.altitude_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -5832,22 +5833,22 @@ public:
         Cat021I148 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mv'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I148.mv"));
             result.mv_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ah'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I148.ah"));
             result.ah_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'am'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I148.am"));
             result.am_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_signed_bits(13);
-            if (!val) return std::unexpected(val.error().with_context("field 'altitude'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I148.altitude"));
             result.altitude_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -5899,12 +5900,12 @@ public:
         Cat021I150 result;
         {
             auto val = decode_cat021_ias_mach(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'im'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I150.im"));
             result.im_ = std::move(*val);
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'air-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I150.air-speed"));
             result.air_speed_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -5952,12 +5953,12 @@ public:
         Cat021I151 result;
         {
             auto val = decode_cat021_range_exceeded(r);
-            if (!val) return std::unexpected(val.error().with_context("field 're'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I151.re"));
             result.re_ = std::move(*val);
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'true-air-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I151.true-air-speed"));
             result.true_air_speed_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -5993,7 +5994,7 @@ public:
     bool operator==(const Cat021I152&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(magnetic_heading_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(magnetic_heading_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -6002,7 +6003,7 @@ public:
         Cat021I152 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'magnetic-heading'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I152.magnetic-heading"));
             result.magnetic_heading_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -6050,12 +6051,12 @@ public:
         Cat021I155 result;
         {
             auto val = decode_cat021_range_exceeded(r);
-            if (!val) return std::unexpected(val.error().with_context("field 're'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I155.re"));
             result.re_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'bvr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I155.bvr"));
             result.bvr_ = static_cast<double>(*val) * 6.25 + 0;
         }
         return result;
@@ -6105,12 +6106,12 @@ public:
         Cat021I157 result;
         {
             auto val = decode_cat021_range_exceeded(r);
-            if (!val) return std::unexpected(val.error().with_context("field 're'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I157.re"));
             result.re_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'gvr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I157.gvr"));
             result.gvr_ = static_cast<double>(*val) * 6.25 + 0;
         }
         return result;
@@ -6158,7 +6159,7 @@ public:
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
         CONDUIT_TRY(encode_cat021_range_exceeded(re_, w));
         w.write_bits(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05), 15);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(track_angle_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(track_angle_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -6167,17 +6168,17 @@ public:
         Cat021I160 result;
         {
             auto val = decode_cat021_range_exceeded(r);
-            if (!val) return std::unexpected(val.error().with_context("field 're'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I160.re"));
             result.re_ = std::move(*val);
         }
         {
             auto val = r.read_bits(15);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I160.ground-speed"));
             result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-angle'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I160.track-angle"));
             result.track_angle_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -6224,7 +6225,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I161.track-number"));
             result.track_number_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -6269,7 +6270,7 @@ public:
         CONDUIT_TRY(r.skip_bits(6));
         {
             auto val = r.read_signed_bits(10);
-            if (!val) return std::unexpected(val.error().with_context("field 'tar'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I165.tar"));
             result.tar_ = static_cast<double>(*val) * 0.03125 + 0;
         }
         return result;
@@ -6330,27 +6331,27 @@ public:
         Cat021I200 result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'icf'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I200.icf"));
             result.icf_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'lnav'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I200.lnav"));
             result.lnav_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_military_emergency(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'me'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I200.me"));
             result.me_ = std::move(*val);
         }
         {
             auto val = decode_cat021_priority_status(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ps'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I200.ps"));
             result.ps_ = std::move(*val);
         }
         {
             auto val = decode_cat021_surv_status(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ss'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I200.ss"));
             result.ss_ = std::move(*val);
         }
         return result;
@@ -6411,17 +6412,17 @@ public:
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'vns'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I210.vns"));
             result.vns_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_cat021_mops_version(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vn'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I210.vn"));
             result.vn_ = std::move(*val);
         }
         {
             auto val = decode_cat021_link_tech_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ltt'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I210.ltt"));
             result.ltt_ = std::move(*val);
         }
         return result;
@@ -6466,7 +6467,7 @@ public:
         Cat021I220Ws result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'wind-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I220Ws.wind-speed"));
             result.wind_speed_ = static_cast<uint16>(*val);
         }
         return result;
@@ -6507,7 +6508,7 @@ public:
         Cat021I220Wd result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'wind-direction'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I220Wd.wind-direction"));
             result.wind_direction_ = static_cast<uint16>(*val);
         }
         return result;
@@ -6550,7 +6551,7 @@ public:
         Cat021I220Tmp result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'temperature'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I220Tmp.temperature"));
             result.temperature_ = static_cast<double>(*val) * 0.25 + 0;
         }
         return result;
@@ -6621,7 +6622,7 @@ public:
             CONDUIT_TRY(tmp_->encode(w));
         }
         if (trb_.has_value()) {
-            w.write_bits(*trb_, 8);
+            w.write_u8(static_cast<uint8_t>(*trb_));
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -6657,7 +6658,7 @@ public:
             result.tmp_ = std::move(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.trb_ = static_cast<uint8>(*val);
         }
@@ -6767,7 +6768,7 @@ public:
         Cat021I230 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'roll-angle'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I230.roll-angle"));
             result.roll_angle_ = static_cast<double>(*val) * 0.01 + 0;
         }
         return result;
@@ -6815,17 +6816,17 @@ public:
         Cat021I250_bdsElement result;
         {
             auto val = r.read_bits(56);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb-data'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.mb-data"));
             result.mb_data_ = static_cast<uint64_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds1"));
             result.bds1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds2"));
             result.bds2_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -6863,7 +6864,7 @@ public:
     bool operator==(const Cat021I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
+        w.write_u8(static_cast<uint8>(bds_.size()));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -6875,16 +6876,16 @@ public:
         Cat021I250 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I250.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat021I250.bds: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat021I250.bds"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat021I250_bdsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat021I250.bds"));
                 result.bds_.push_back(std::move(*elem));
             }
         }
@@ -6969,42 +6970,42 @@ public:
         Cat021I260 result;
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'typ'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.typ"));
             result.typ_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(3);
-            if (!val) return std::unexpected(val.error().with_context("field 'styp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.styp"));
             result.styp_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'ara'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.ara"));
             result.ara_ = static_cast<uint16_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'rac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.rac"));
             result.rac_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'rat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.rat"));
             result.rat_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mte'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.mte"));
             result.mte_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_cat021_threat_type_ind(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tti'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.tti"));
             result.tti_ = std::move(*val);
         }
         {
             auto val = r.read_bits(26);
-            if (!val) return std::unexpected(val.error().with_context("field 'tid'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I260.tid"));
             result.tid_ = static_cast<uint32_t>(*val);
         }
         return result;
@@ -7095,27 +7096,27 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'poa'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I271.poa"));
             result.poa_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'cdti-s'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I271.cdti-s"));
             result.cdti_s_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'b2-low'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I271.b2-low"));
             result.b2_low_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ras'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I271.ras"));
             result.ras_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ident'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021I271.ident"));
             result.ident_ = static_cast<uint8_t>(*val);
         }
         // FX extension
@@ -7353,73 +7354,73 @@ public:
         for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
         w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (aos_.has_value()) {
-            w.write_bits(*aos_, 8);
+            w.write_u8(static_cast<uint8_t>(*aos_));
         }
         if (trd_.has_value()) {
-            w.write_bits(*trd_, 8);
+            w.write_u8(static_cast<uint8_t>(*trd_));
         }
         if (m3a_.has_value()) {
-            w.write_bits(*m3a_, 8);
+            w.write_u8(static_cast<uint8_t>(*m3a_));
         }
         if (qi_.has_value()) {
-            w.write_bits(*qi_, 8);
+            w.write_u8(static_cast<uint8_t>(*qi_));
         }
         if (ti_.has_value()) {
-            w.write_bits(*ti_, 8);
+            w.write_u8(static_cast<uint8_t>(*ti_));
         }
         if (mam_.has_value()) {
-            w.write_bits(*mam_, 8);
+            w.write_u8(static_cast<uint8_t>(*mam_));
         }
         if (gh_.has_value()) {
-            w.write_bits(*gh_, 8);
+            w.write_u8(static_cast<uint8_t>(*gh_));
         }
         if (fl_.has_value()) {
-            w.write_bits(*fl_, 8);
+            w.write_u8(static_cast<uint8_t>(*fl_));
         }
         if (isa_.has_value()) {
-            w.write_bits(*isa_, 8);
+            w.write_u8(static_cast<uint8_t>(*isa_));
         }
         if (fsa_.has_value()) {
-            w.write_bits(*fsa_, 8);
+            w.write_u8(static_cast<uint8_t>(*fsa_));
         }
         if (as_.has_value()) {
-            w.write_bits(*as_, 8);
+            w.write_u8(static_cast<uint8_t>(*as_));
         }
         if (tas_.has_value()) {
-            w.write_bits(*tas_, 8);
+            w.write_u8(static_cast<uint8_t>(*tas_));
         }
         if (mh_.has_value()) {
-            w.write_bits(*mh_, 8);
+            w.write_u8(static_cast<uint8_t>(*mh_));
         }
         if (bvr_.has_value()) {
-            w.write_bits(*bvr_, 8);
+            w.write_u8(static_cast<uint8_t>(*bvr_));
         }
         if (gvr_.has_value()) {
-            w.write_bits(*gvr_, 8);
+            w.write_u8(static_cast<uint8_t>(*gvr_));
         }
         if (gv_.has_value()) {
-            w.write_bits(*gv_, 8);
+            w.write_u8(static_cast<uint8_t>(*gv_));
         }
         if (tar_.has_value()) {
-            w.write_bits(*tar_, 8);
+            w.write_u8(static_cast<uint8_t>(*tar_));
         }
         if (ti_age_.has_value()) {
-            w.write_bits(*ti_age_, 8);
+            w.write_u8(static_cast<uint8_t>(*ti_age_));
         }
         if (ts_.has_value()) {
-            w.write_bits(*ts_, 8);
+            w.write_u8(static_cast<uint8_t>(*ts_));
         }
         if (met_.has_value()) {
-            w.write_bits(*met_, 8);
+            w.write_u8(static_cast<uint8_t>(*met_));
         }
         if (roa_.has_value()) {
-            w.write_bits(*roa_, 8);
+            w.write_u8(static_cast<uint8_t>(*roa_));
         }
         if (ara_.has_value()) {
-            w.write_bits(*ara_, 8);
+            w.write_u8(static_cast<uint8_t>(*ara_));
         }
         if (scc_.has_value()) {
-            w.write_bits(*scc_, 8);
+            w.write_u8(static_cast<uint8_t>(*scc_));
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -7440,117 +7441,117 @@ public:
         }
 
         if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.aos_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.trd_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.m3a_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.qi_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 3))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.ti_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 2))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.mam_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 1))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.gh_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.fl_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.isa_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 5))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.fsa_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.as_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 3))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.tas_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 2))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.mh_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 1 && (fspec[1] & (1 << 1))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.bvr_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.gvr_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.gv_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 5))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.tar_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.ti_age_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 3))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.ts_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 2))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.met_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 2 && (fspec[2] & (1 << 1))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.roa_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 3 && (fspec[3] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.ara_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 3 && (fspec[3] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.scc_ = static_cast<uint8>(*val);
         }
@@ -7774,7 +7775,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'bps'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReBps.bps"));
             result.bps_ = static_cast<double>(*val) * 0.1 + 0;
         }
         return result;
@@ -7829,17 +7830,17 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = decode_cat021_north_ref(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'hrd'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSelh.hrd"));
             result.hrd_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'stat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSelh.stat"));
             result.stat_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(10);
-            if (!val) return std::unexpected(val.error().with_context("field 'selh'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSelh.selh"));
             result.selh_ = static_cast<double>(*val) * 0.703125 + 0;
         }
         return result;
@@ -7900,22 +7901,22 @@ public:
         Cat021ReNav result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ap'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReNav.ap"));
             result.ap_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'vn'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReNav.vn"));
             result.vn_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'ah'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReNav.ah"));
             result.ah_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'am'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReNav.am"));
             result.am_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
@@ -8003,27 +8004,27 @@ public:
         Cat021ReSgv result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'stp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSgv.stp"));
             result.stp_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'hts'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSgv.hts"));
             result.hts_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = decode_cat021_north_ref(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'htt'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSgv.htt"));
             result.htt_ = std::move(*val);
         }
         {
             auto val = decode_cat021_north_ref(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'hrd'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSgv.hrd"));
             result.hrd_ = std::move(*val);
         }
         {
             auto val = r.read_bits(11);
-            if (!val) return std::unexpected(val.error().with_context("field 'gss'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSgv.gss"));
             result.gss_ = static_cast<double>(*val) * 0.125 + 0;
         }
         // FX extension
@@ -8099,12 +8100,12 @@ public:
         Cat021ReSta result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'es'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSta.es"));
             result.es_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'uat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReSta.uat"));
             result.uat_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(5));
@@ -8192,42 +8193,42 @@ public:
         Cat021ReMesSum result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.m5"));
             result.m5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'id'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.id"));
             result.id_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'da'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.da"));
             result.da_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.m1"));
             result.m1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.m2"));
             result.m2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.m3"));
             result.m3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.mc"));
             result.mc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'po'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesSum.po"));
             result.po_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -8290,13 +8291,13 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'pin'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesPno.pin"));
             result.pin_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(5));
         {
             auto val = r.read_bits(11);
-            if (!val) return std::unexpected(val.error().with_context("field 'no'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesPno.no"));
             result.no_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -8351,19 +8352,19 @@ public:
         Cat021ReMesEm1 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesEm1.v"));
             result.v_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesEm1.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'em1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesEm1.em1"));
             result.em1_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -8435,32 +8436,32 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'xp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.xp"));
             result.xp_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.x5"));
             result.x5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'xc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.xc"));
             result.xc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.x3"));
             result.x3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.x2"));
             result.x2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesXp.x1"));
             result.x1_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -8513,7 +8514,7 @@ public:
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'fom'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesFom.fom"));
             result.fom_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -8566,19 +8567,19 @@ public:
         Cat021ReMesM2 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesM2.v"));
             result.v_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesM2.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'mode2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat021ReMesM2.mode2"));
             result.mode2_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -8911,27 +8912,27 @@ public:
         Cat048I020 result;
         {
             auto val = decode_detection_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'typ'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I020.typ"));
             result.typ_ = std::move(*val);
         }
         {
             auto val = decode_sim_indicator(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'sim'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I020.sim"));
             result.sim_ = std::move(*val);
         }
         {
             auto val = decode_rdp_chain(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rdp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I020.rdp"));
             result.rdp_ = std::move(*val);
         }
         {
             auto val = decode_spi_presence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'spi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I020.spi"));
             result.spi_ = std::move(*val);
         }
         {
             auto val = decode_report_source(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rab'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I020.rab"));
             result.rab_ = std::move(*val);
         }
         // FX extension
@@ -9058,7 +9059,7 @@ public:
         Cat048I030 result;
         {
             auto val = r.read_bits(7);
-            if (!val) return std::unexpected(val.error().with_context("field 'we'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I030.we"));
             result.we_ = static_cast<uint8_t>(*val);
         }
         // FX extension
@@ -9127,8 +9128,8 @@ public:
     bool operator==(const Cat048I040&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(rho_ / 0.00390625)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(theta_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(rho_ / 0.00390625), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(theta_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -9137,12 +9138,12 @@ public:
         Cat048I040 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I040.rho"));
             result.rho_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'theta'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I040.theta"));
             result.theta_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -9194,12 +9195,12 @@ public:
         Cat048I042 result;
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'x'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I042.x"));
             result.x_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = ([&]() -> conduit::Result<int16_t> { auto v = r.read_u16(conduit::io::Endian::Big); if (!v) return std::unexpected(v.error()); return static_cast<int16_t>(*v); })();
-            if (!val) return std::unexpected(val.error().with_context("field 'y'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I042.y"));
             result.y_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         return result;
@@ -9258,23 +9259,23 @@ public:
         Cat048I050 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I050.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I050.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_smoothed(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I050.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I050.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -9336,22 +9337,22 @@ public:
         Cat048I055 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I055.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I055.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_smoothed(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I055.l"));
             result.l_ = std::move(*val);
         }
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I055.code"));
             result.code_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -9400,7 +9401,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I060.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -9443,7 +9444,7 @@ public:
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I065.qxi"));
             result.qxi_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -9500,23 +9501,23 @@ public:
         Cat048I070 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I070.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I070.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I070.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I070.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -9565,7 +9566,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I080.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -9618,17 +9619,17 @@ public:
         Cat048I090 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I090.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I090.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'fl'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I090.fl"));
             result.fl_ = static_cast<double>(*val) * 0.25 + 0;
         }
         return result;
@@ -9690,24 +9691,24 @@ public:
         Cat048I100 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I100.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I100.g"));
             result.g_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'code'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I100.code"));
             result.code_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'qxi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I100.qxi"));
             result.qxi_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -9758,7 +9759,7 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'height-3d'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I110.height-3d"));
             result.height_3d_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -9805,13 +9806,13 @@ public:
         Cat048I120Cal result;
         {
             auto val = decode_doppler_validity(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'd'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I120Cal.d"));
             result.d_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(5));
         {
             auto val = r.read_signed_bits(10);
-            if (!val) return std::unexpected(val.error().with_context("field 'cal'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I120Cal.cal"));
             result.cal_ = static_cast<int16_t>(*val);
         }
         return result;
@@ -9861,17 +9862,17 @@ public:
         Cat048I120Rds_dopplerElement result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'dop'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.dop"));
             result.dop_ = static_cast<uint16>(*val);
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'amb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.amb"));
             result.amb_ = static_cast<uint16>(*val);
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'frq'"));
+            if (!val) return std::unexpected(val.error().with_context("decode dopplerElement.frq"));
             result.frq_ = static_cast<uint16>(*val);
         }
         return result;
@@ -9909,7 +9910,7 @@ public:
     bool operator==(const Cat048I120Rds&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(doppler_.size())));
+        w.write_u8(static_cast<uint8>(doppler_.size()));
         for (const auto& elem : doppler_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -9921,16 +9922,16 @@ public:
         Cat048I120Rds result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I120Rds.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'doppler'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat048I120Rds.doppler: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat048I120Rds.doppler"));
             result.doppler_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat048I120Rds_dopplerElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'doppler'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat048I120Rds.doppler"));
                 result.doppler_.push_back(std::move(*elem));
             }
         }
@@ -10152,16 +10153,16 @@ public:
         for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
         w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (srl_.has_value()) {
-            w.write_bits(*srl_, 8);
+            w.write_u8(static_cast<uint8_t>(*srl_));
         }
         if (srr_.has_value()) {
-            w.write_bits(*srr_, 8);
+            w.write_u8(static_cast<uint8_t>(*srr_));
         }
         if (sam_.has_value()) {
             w.write_signed_bits(*sam_, 8);
         }
         if (prl_.has_value()) {
-            w.write_bits(*prl_, 8);
+            w.write_u8(static_cast<uint8_t>(*prl_));
         }
         if (pam_.has_value()) {
             w.write_signed_bits(*pam_, 8);
@@ -10191,12 +10192,12 @@ public:
         }
 
         if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.srl_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.srr_ = static_cast<uint8>(*val);
         }
@@ -10206,7 +10207,7 @@ public:
             result.sam_ = static_cast<int8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.prl_ = static_cast<uint8>(*val);
         }
@@ -10346,7 +10347,7 @@ public:
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'track-number'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I161.track-number"));
             result.track_number_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -10445,27 +10446,27 @@ public:
         Cat048I170 result;
         {
             auto val = decode_track_confidence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'cnf'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I170.cnf"));
             result.cnf_ = std::move(*val);
         }
         {
             auto val = decode_sensor_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rad'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I170.rad"));
             result.rad_ = std::move(*val);
         }
         {
             auto val = decode_assoc_confidence(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'dou'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I170.dou"));
             result.dou_ = std::move(*val);
         }
         {
             auto val = decode_horiz_maneuver(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'mah'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I170.mah"));
             result.mah_ = std::move(*val);
         }
         {
             auto val = decode_climb_descend_mode(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'cdm'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I170.cdm"));
             result.cdm_ = std::move(*val);
         }
         // FX extension
@@ -10550,8 +10551,8 @@ public:
     bool operator==(const Cat048I200&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05)), conduit::io::Endian::Big);
-        w.write_u16(static_cast<uint16_t>(static_cast<uint16_t>(heading_ / 0.0054931640625)), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(ground_speed_ / 6.103515625e-05), conduit::io::Endian::Big);
+        w.write_u16(static_cast<uint16_t>(heading_ / 0.0054931640625), conduit::io::Endian::Big);
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -10560,12 +10561,12 @@ public:
         Cat048I200 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'ground-speed'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I200.ground-speed"));
             result.ground_speed_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'heading'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I200.heading"));
             result.heading_ = static_cast<double>(*val) * 0.0054931640625 + 0;
         }
         return result;
@@ -10619,10 +10620,10 @@ public:
     bool operator==(const Cat048I210&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_x_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_y_ / 0.0078125)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05)));
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8_t>(sigma_h_ / 0.087890625)));
+        w.write_u8(static_cast<uint8_t>(sigma_x_ / 0.0078125));
+        w.write_u8(static_cast<uint8_t>(sigma_y_ / 0.0078125));
+        w.write_u8(static_cast<uint8_t>(sigma_v_ / 6.103515625e-05));
+        w.write_u8(static_cast<uint8_t>(sigma_h_ / 0.087890625));
         if (w.has_error()) return std::unexpected(w.error());
         return {};
     }
@@ -10631,22 +10632,22 @@ public:
         Cat048I210 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-x'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I210.sigma-x"));
             result.sigma_x_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-y'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I210.sigma-y"));
             result.sigma_y_ = static_cast<double>(*val) * 0.0078125 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I210.sigma-v"));
             result.sigma_v_ = static_cast<double>(*val) * 6.103515625e-05 + 0;
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sigma-h'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I210.sigma-h"));
             result.sigma_h_ = static_cast<double>(*val) * 0.087890625 + 0;
         }
         return result;
@@ -10729,43 +10730,43 @@ public:
         Cat048I230 result;
         {
             auto val = decode_comm_capability(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'com'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.com"));
             result.com_ = std::move(*val);
         }
         {
             auto val = decode_flight_status(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'stat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.stat"));
             result.stat_ = std::move(*val);
         }
         {
             auto val = decode_si_ii_capability(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'si'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.si"));
             result.si_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_mode_s_service_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'mssc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.mssc"));
             result.mssc_ = std::move(*val);
         }
         {
             auto val = decode_alt_resolution(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'arc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.arc"));
             result.arc_ = std::move(*val);
         }
         {
             auto val = decode_aircraft_id_cap(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'aic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.aic"));
             result.aic_ = std::move(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'b1a'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.b1a"));
             result.b1a_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'b1b'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I230.b1b"));
             result.b1b_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -10827,17 +10828,17 @@ public:
         Cat048I250_bdsElement result;
         {
             auto val = r.read_bits(56);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb-data'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.mb-data"));
             result.mb_data_ = static_cast<uint64_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds1"));
             result.bds1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(4);
-            if (!val) return std::unexpected(val.error().with_context("field 'bds2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode bdsElement.bds2"));
             result.bds2_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -10875,7 +10876,7 @@ public:
     bool operator==(const Cat048I250&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(bds_.size())));
+        w.write_u8(static_cast<uint8>(bds_.size()));
         for (const auto& elem : bds_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -10887,16 +10888,16 @@ public:
         Cat048I250 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I250.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'bds'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat048I250.bds: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat048I250.bds"));
             result.bds_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat048I250_bdsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'bds'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat048I250.bds"));
                 result.bds_.push_back(std::move(*elem));
             }
         }
@@ -10946,7 +10947,7 @@ public:
         Cat048I260 result;
         {
             auto val = r.read_bits(56);
-            if (!val) return std::unexpected(val.error().with_context("field 'mb-data'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048I260.mb-data"));
             result.mb_data_ = static_cast<uint64_t>(*val);
         }
         return result;
@@ -11018,37 +11019,37 @@ public:
         Cat048ReSum result;
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.m5"));
             result.m5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'id'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.id"));
             result.id_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'da'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.da"));
             result.da_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.m1"));
             result.m1_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.m2"));
             result.m2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'm3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.m3"));
             result.m3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'mc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReSum.mc"));
             result.mc_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
@@ -11111,12 +11112,12 @@ public:
         Cat048RePos result;
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'lat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048RePos.lat"));
             result.lat_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         {
             auto val = r.read_signed_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'lon'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048RePos.lon"));
             result.lon_ = static_cast<double>(*val) * 2.1457672119140625e-05 + 0;
         }
         return result;
@@ -11168,12 +11169,12 @@ public:
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = decode_alt_resolution(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'res'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReGa.res"));
             result.res_ = std::move(*val);
         }
         {
             auto val = r.read_signed_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'ga'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReGa.ga"));
             result.ga_ = static_cast<double>(*val) * 25 + 0;
         }
         return result;
@@ -11232,23 +11233,23 @@ public:
         Cat048ReEm1 result;
         {
             auto val = decode_code_validated(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'v'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReEm1.v"));
             result.v_ = std::move(*val);
         }
         {
             auto val = decode_code_garbled(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'g'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReEm1.g"));
             result.g_ = std::move(*val);
         }
         {
             auto val = decode_code_source_extracted(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'l'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReEm1.l"));
             result.l_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(1));
         {
             auto val = r.read_bits(12);
-            if (!val) return std::unexpected(val.error().with_context("field 'em1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReEm1.em1"));
             result.em1_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -11322,32 +11323,32 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'xp'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.xp"));
             result.xp_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x5'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.x5"));
             result.x5_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'xc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.xc"));
             result.xc_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x3'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.x3"));
             result.x3_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x2'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.x2"));
             result.x2_ = static_cast<uint8_t>(*val);
         }
         {
             auto val = r.read_bits(1);
-            if (!val) return std::unexpected(val.error().with_context("field 'x1'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReXp.x1"));
             result.x1_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -11417,24 +11418,24 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'pin'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReMd5Pmn.pin"));
             result.pin_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = decode_nat_origin_validity(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'nav'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReMd5Pmn.nav"));
             result.nav_ = std::move(*val);
         }
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'nat'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReMd5Pmn.nat"));
             result.nat_ = static_cast<uint8_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(6);
-            if (!val) return std::unexpected(val.error().with_context("field 'mis'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReMd5Pmn.mis"));
             result.mis_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -11733,18 +11734,18 @@ public:
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = r.read_bits(14);
-            if (!val) return std::unexpected(val.error().with_context("field 'pin'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReM5nPmn.pin"));
             result.pin_ = static_cast<uint16_t>(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = decode_nat_origin_validity(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'nov'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReM5nPmn.nov"));
             result.nov_ = std::move(*val);
         }
         {
             auto val = r.read_bits(11);
-            if (!val) return std::unexpected(val.error().with_context("field 'no'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReM5nPmn.no"));
             result.no_ = static_cast<uint16_t>(*val);
         }
         return result;
@@ -11791,7 +11792,7 @@ public:
         CONDUIT_TRY(r.skip_bits(3));
         {
             auto val = r.read_bits(5);
-            if (!val) return std::unexpected(val.error().with_context("field 'fom'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReM5nFom.fom"));
             result.fom_ = static_cast<uint8_t>(*val);
         }
         return result;
@@ -12101,7 +12102,7 @@ public:
         CONDUIT_TRY(r.skip_bits(5));
         {
             auto val = decode_foe_fri_id(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'foe-fri'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReM4e.foe-fri"));
             result.foe_fri_ = std::move(*val);
         }
         // FX extension
@@ -12178,16 +12179,16 @@ public:
         for (size_t i = 0; i < std::min(static_cast<size_t>(last_octet), fspec.size()); i++) fspec[i] |= (1 << 0);
         w.write_bytes(std::span<const uint8_t>(fspec.data(), std::min(static_cast<size_t>(last_octet) + 1, fspec.size())));
         if (sco_.has_value()) {
-            w.write_bits(*sco_, 8);
+            w.write_u8(static_cast<uint8_t>(*sco_));
         }
         if (scr_.has_value()) {
-            w.write_bits(static_cast<uint16_t>((*scr_ - 0) / 0.1), 16);
+            w.write_u16(static_cast<uint16_t>((*scr_ - 0) / 0.1), conduit::io::Endian::Big);
         }
         if (rw_.has_value()) {
-            w.write_bits(static_cast<uint16_t>((*rw_ - 0) / 0.00390625), 16);
+            w.write_u16(static_cast<uint16_t>((*rw_ - 0) / 0.00390625), conduit::io::Endian::Big);
         }
         if (ar_.has_value()) {
-            w.write_bits(static_cast<uint16_t>((*ar_ - 0) / 0.00390625), 16);
+            w.write_u16(static_cast<uint16_t>((*ar_ - 0) / 0.00390625), conduit::io::Endian::Big);
         }
         if (w.has_error()) return std::unexpected(w.error());
         return {};
@@ -12208,22 +12209,22 @@ public:
         }
 
         if (fspec_len > 0 && (fspec[0] & (1 << 7))) {
-            auto val = r.read_bits(8);
+            auto val = r.read_u8();
             if (!val) return std::unexpected(val.error());
             result.sco_ = static_cast<uint8>(*val);
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 6))) {
-            auto raw_val = r.read_bits(16);
+            auto raw_val = r.read_u16(conduit::io::Endian::Big);
             if (!raw_val) return std::unexpected(raw_val.error());
             result.scr_ = static_cast<double>(*raw_val) * 0.1 + 0;
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 5))) {
-            auto raw_val = r.read_bits(16);
+            auto raw_val = r.read_u16(conduit::io::Endian::Big);
             if (!raw_val) return std::unexpected(raw_val.error());
             result.rw_ = static_cast<double>(*raw_val) * 0.00390625 + 0;
         }
         if (fspec_len > 0 && (fspec[0] & (1 << 4))) {
-            auto raw_val = r.read_bits(16);
+            auto raw_val = r.read_u16(conduit::io::Endian::Big);
             if (!raw_val) return std::unexpected(raw_val.error());
             result.ar_ = static_cast<double>(*raw_val) * 0.00390625 + 0;
         }
@@ -12330,7 +12331,7 @@ public:
         Cat048ReErr result;
         {
             auto val = r.read_bits(24);
-            if (!val) return std::unexpected(val.error().with_context("field 'rho'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat048ReErr.rho"));
             result.rho_ = static_cast<double>(*val) * 0.00390625 + 0;
         }
         return result;
@@ -12378,17 +12379,17 @@ public:
         Cat253I025_destinationsElement result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode destinationsElement.sac"));
             result.sac_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'sic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode destinationsElement.sic"));
             result.sic_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'local-id'"));
+            if (!val) return std::unexpected(val.error().with_context("decode destinationsElement.local-id"));
             result.local_id_ = static_cast<uint8>(*val);
         }
         return result;
@@ -12426,7 +12427,7 @@ public:
     bool operator==(const Cat253I025&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(destinations_.size())));
+        w.write_u8(static_cast<uint8>(destinations_.size()));
         for (const auto& elem : destinations_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -12438,16 +12439,16 @@ public:
         Cat253I025 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I025.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'destinations'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat253I025.destinations: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat253I025.destinations"));
             result.destinations_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat253I025_destinationsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'destinations'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat253I025.destinations"));
                 result.destinations_.push_back(std::move(*elem));
             }
         }
@@ -12507,17 +12508,17 @@ public:
         Cat253I035 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'oac'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I035.oac"));
             result.oac_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'oic'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I035.oic"));
             result.oic_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'local-id'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I035.local-id"));
             result.local_id_ = static_cast<uint8>(*val);
         }
         return result;
@@ -12572,17 +12573,17 @@ public:
         Cat253I040 result;
         {
             auto val = decode_cat253_priority(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'pi'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I040.pi"));
             result.pi_ = std::move(*val);
         }
         {
             auto val = decode_cat253_direction(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'd'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I040.d"));
             result.d_ = std::move(*val);
         }
         {
             auto val = decode_cat253_msg_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'mit'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I040.mit"));
             result.mit_ = std::move(*val);
         }
         return result;
@@ -12624,7 +12625,7 @@ public:
         Cat253I050_sequencesElement result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'msid'"));
+            if (!val) return std::unexpected(val.error().with_context("decode sequencesElement.msid"));
             result.msid_ = static_cast<uint16>(*val);
         }
         return result;
@@ -12658,7 +12659,7 @@ public:
     bool operator==(const Cat253I050&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(sequences_.size())));
+        w.write_u8(static_cast<uint8>(sequences_.size()));
         for (const auto& elem : sequences_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -12670,16 +12671,16 @@ public:
         Cat253I050 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I050.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'sequences'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat253I050.sequences: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat253I050.sequences"));
             result.sequences_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat253I050_sequencesElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'sequences'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat253I050.sequences"));
                 result.sequences_.push_back(std::move(*elem));
             }
         }
@@ -12734,12 +12735,12 @@ public:
         Cat253I060 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'tnb'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I060.tnb"));
             result.tnb_ = static_cast<uint8>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'bn'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I060.bn"));
             result.bn_ = static_cast<uint8>(*val);
         }
         return result;
@@ -12990,32 +12991,32 @@ public:
         Cat253I080 result;
         {
             auto val = r.read_u16(conduit::io::Endian::Big);
-            if (!val) return std::unexpected(val.error().with_context("field 'start-index'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.start-index"));
             result.start_index_ = static_cast<uint16>(*val);
         }
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'count'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.count"));
             result.count_ = static_cast<uint8>(*val);
         }
         {
             auto val = decode_cat253_stale_ind(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'stale'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.stale"));
             result.stale_ = std::move(*val);
         }
         {
             auto val = decode_sim_indicator(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'sim'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.sim"));
             result.sim_ = std::move(*val);
         }
         {
             auto val = decode_cat253_local_ctrl(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'local-ctrl'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.local-ctrl"));
             result.local_ctrl_ = std::move(*val);
         }
         {
             auto val = decode_cat253_data_incl(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'data-included'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I080.data-included"));
             result.data_included_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(3));
@@ -13215,7 +13216,7 @@ public:
         Cat253I090_data_itemsElement result;
         {
             auto span = r.read_bytes(16);
-            if (!span) return std::unexpected(span.error().with_context("field 'data'"));
+            if (!span) return std::unexpected(span.error().with_context("decode data-itemsElement.data"));
             std::copy(span->begin(), span->end(), result.data_.begin());
         }
         return result;
@@ -13249,7 +13250,7 @@ public:
     bool operator==(const Cat253I090&) const = default;
 
     conduit::VoidResult encode(conduit::io::BitWriter& w) const {
-        w.write_u8(static_cast<uint8_t>(static_cast<uint8>(data_items_.size())));
+        w.write_u8(static_cast<uint8>(data_items_.size()));
         for (const auto& elem : data_items_) {
             CONDUIT_TRY(elem.encode(w));
         }
@@ -13261,16 +13262,16 @@ public:
         Cat253I090 result;
         {
             auto val = r.read_u8();
-            if (!val) return std::unexpected(val.error().with_context("field 'rep'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253I090.rep"));
             result.rep_ = static_cast<uint8>(*val);
         }
         {
             auto count = static_cast<size_t>(result.rep_);
-            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "invalid array count").with_context("array 'data-items'"));
+            if (count > static_cast<size_t>(INT32_MAX)) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument, "decode Cat253I090.data-items: decoded count " + std::to_string(count) + " exceeds INT32_MAX").with_context("decode Cat253I090.data-items"));
             result.data_items_.reserve(count);
             for (size_t i = 0; i < count; i++) {
                 auto elem = Cat253I090_data_itemsElement::decode(r);
-                if (!elem) return std::unexpected(elem.error().with_context("array 'data-items'"));
+                if (!elem) return std::unexpected(elem.error().with_context("decode Cat253I090.data-items"));
                 result.data_items_.push_back(std::move(*elem));
             }
         }
@@ -13325,12 +13326,12 @@ public:
         Cat253Multipath result;
         {
             auto val = decode_cat253_mp_detection(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'detection'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253Multipath.detection"));
             result.detection_ = std::move(*val);
         }
         {
             auto val = decode_cat253_mp_level(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'level'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253Multipath.level"));
             result.level_ = std::move(*val);
         }
         return result;
@@ -13384,18 +13385,18 @@ public:
         Cat253Squitter result;
         {
             auto val = decode_cat253_sq_rx_channel(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rx-channel'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253Squitter.rx-channel"));
             result.rx_channel_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = decode_cat253_sq_ms_squitter(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ms-squitter'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253Squitter.ms-squitter"));
             result.ms_squitter_ = std::move(*val);
         }
         {
             auto val = decode_cat253_sq_m5_squitter(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'm5-squitter'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253Squitter.m5-squitter"));
             result.m5_squitter_ = std::move(*val);
         }
         return result;
@@ -13578,144 +13579,144 @@ public:
         Cat253BitReport result;
         {
             auto val = decode_cat253_br_bit_type(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'bit-type'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.bit-type"));
             result.bit_type_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_success_state(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'success-state'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.success-state"));
             result.success_state_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_antenna_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'antenna-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.antenna-general"));
             result.antenna_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_antenna_scan_error(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'antenna-scan-error'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.antenna-scan-error"));
             result.antenna_scan_error_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(4));
         {
             auto val = decode_cat253_br_power_source_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'power-source-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.power-source-general"));
             result.power_source_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_ctrl_unit_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'ctrl-unit-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.ctrl-unit-general"));
             result.ctrl_unit_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_kb_crypto_comm(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-crypto-comm'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.kb-crypto-comm"));
             result.kb_crypto_comm_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_kb_rtc(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-rtc'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.kb-rtc"));
             result.kb_rtc_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_kb_heat_warning(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'kb-heat-warning'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.kb-heat-warning"));
             result.kb_heat_warning_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_bottom_band_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'bottom-band-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.bottom-band-general"));
             result.bottom_band_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_tb_ctrl_comm(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tb-ctrl-comm'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.tb-ctrl-comm"));
             result.tb_ctrl_comm_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_tb_config_upload(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'tb-config-upload'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.tb-config-upload"));
             result.tb_config_upload_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_vswr_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.vswr-general"));
             result.vswr_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_vswr_sum(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-sum'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.vswr-sum"));
             result.vswr_sum_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_vswr_diff(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-diff'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.vswr-diff"));
             result.vswr_diff_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_vswr_omni(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'vswr-omni'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.vswr-omni"));
             result.vswr_omni_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(2));
         {
             auto val = decode_cat253_br_afb_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-general"));
             result.afb_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_afb_main_synth(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-main-synth'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-main-synth"));
             result.afb_main_synth_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_afb_bit_synth(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-bit-synth'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-bit-synth"));
             result.afb_bit_synth_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_afb_total_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-total-ch'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-total-ch"));
             result.afb_total_ch_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_afb_diff_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-diff-ch'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-diff-ch"));
             result.afb_diff_ch_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_afb_omni_ch(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'afb-omni-ch'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.afb-omni-ch"));
             result.afb_omni_ch_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_rfgyb_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.rfgyb-general"));
             result.rfgyb_general_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_rfgyb_total_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-total-pwr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.rfgyb-total-pwr"));
             result.rfgyb_total_pwr_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_rfgyb_diff_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-diff-pwr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.rfgyb-diff-pwr"));
             result.rfgyb_diff_pwr_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_rfgyb_omni_pwr(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-omni-pwr'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.rfgyb-omni-pwr"));
             result.rfgyb_omni_pwr_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_rfgyb_heat_warning(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'rfgyb-heat-warning'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.rfgyb-heat-warning"));
             result.rfgyb_heat_warning_ = std::move(*val);
         }
         {
             auto val = decode_cat253_br_crypto_general(r);
-            if (!val) return std::unexpected(val.error().with_context("field 'crypto-general'"));
+            if (!val) return std::unexpected(val.error().with_context("decode Cat253BitReport.crypto-general"));
             result.crypto_general_ = std::move(*val);
         }
         CONDUIT_TRY(r.skip_bits(48));
