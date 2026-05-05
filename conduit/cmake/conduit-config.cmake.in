@@ -1,5 +1,12 @@
 @PACKAGE_INIT@
 
+include(CMakeFindDependencyMacro)
+
+# conduit_codec / conduit have Threads::Threads in their INTERFACE_LINK_LIBRARIES,
+# so downstream find_package(conduit) consumers need the same probe to resolve it.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_dependency(Threads)
+
 include("${CMAKE_CURRENT_LIST_DIR}/conduit-targets.cmake")
 
 check_required_components(conduit)

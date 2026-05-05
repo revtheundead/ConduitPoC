@@ -990,10 +990,21 @@ include(cmake/Coverage.cmake)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS conduit conduit_codec conduit_warnings
+# Always install the static libraries and their export entries.  Optional
+# C ABI / JNI shared libraries are appended below when they were built so
+# `find_package(conduit)` exposes whichever variants this build produced.
+set(_conduit_install_targets conduit conduit_codec conduit_warnings)
+foreach(_t conduit_codec_cabi conduit_cabi conduit_codec_jni conduit_jni)
+    if(TARGET ${_t})
+        list(APPEND _conduit_install_targets ${_t})
+    endif()
+endforeach()
+
+install(TARGETS ${_conduit_install_targets}
     EXPORT conduit-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(DIRECTORY include/conduit
@@ -1001,7 +1012,15 @@ install(DIRECTORY include/conduit
 )
 
 if(CONDUIT_BUILD_BGEN)
-    install(TARGETS bgen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    # Export bgen as part of conduit-targets so find_package(conduit)
+    # consumers can drive code generation through BgenGenerate.cmake without
+    # needing the source tree.  The cmake fragment below is updated to look
+    # up either `conduit::bgen` (find_package consumers) or the bare `bgen`
+    # target (in-tree).
+    install(TARGETS bgen
+        EXPORT conduit-targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
     install(FILES cmake/BgenGenerate.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/conduit
     )
