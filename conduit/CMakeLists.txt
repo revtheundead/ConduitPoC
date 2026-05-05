@@ -323,9 +323,36 @@ endif()
 # C ABI shared libraries (optional)
 # ============================================================================
 
+# Force-link the entire static archive into a shared library, so .o files that
+# happen not to be referenced by the C ABI translation unit (e.g. bit_reader.o,
+# bit_writer.o, logger.o when only StreamFramer is used directly) are still
+# included in the resulting .so/.dylib/.dll.  Downstream C++ code that consumes
+# the shared library â€" notably bgen-generated structs that call
+# conduit::io::BitReader::read_bits / BitWriter::write_bits and the global
+# conduit::logging::Logger â€" can then resolve those symbols at link time
+# without having to also pull in the static archive.
+function(conduit_force_link_archive shared_lib archive_lib)
+    add_dependencies(${shared_lib} ${archive_lib})
+    if(MSVC)
+        target_link_libraries(${shared_lib} PRIVATE ${archive_lib})
+        target_link_options(${shared_lib} PRIVATE
+            "/WHOLEARCHIVE:$<TARGET_FILE:${archive_lib}>")
+    elseif(APPLE)
+        target_link_libraries(${shared_lib} PRIVATE
+            "-Wl,-force_load,$<TARGET_FILE:${archive_lib}>")
+    else()
+        # GNU ld / lld / MinGW ld: --whole-archive must bracket the archive.
+        target_link_libraries(${shared_lib} PRIVATE
+            "-Wl,--whole-archive"
+            ${archive_lib}
+            "-Wl,--no-whole-archive")
+    endif()
+endfunction()
+
 if(CONDUIT_BUILD_CODEC_CABI)
     add_library(conduit_codec_cabi SHARED src/cabi/conduit_codec_cabi.cpp)
-    target_link_libraries(conduit_codec_cabi PRIVATE conduit_codec conduit_warnings Threads::Threads)
+    target_link_libraries(conduit_codec_cabi PRIVATE conduit_warnings Threads::Threads)
+    conduit_force_link_archive(conduit_codec_cabi conduit_codec)
     target_include_directories(conduit_codec_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -333,6 +360,11 @@ if(CONDUIT_BUILD_CODEC_CABI)
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
+        # On Windows, auto-generate a .def file that exports every symbol with
+        # external linkage.  Without this the DLL exports only symbols marked
+        # __declspec(dllexport) (the C ABI), and downstream C++ users can't
+        # resolve BitReader/BitWriter/Logger from the DLL.
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
     if(WIN32)
         set_target_properties(conduit_codec_cabi PROPERTIES PREFIX "")
@@ -341,7 +373,9 @@ endif()
 
 if(CONDUIT_BUILD_CABI)
     add_library(conduit_cabi SHARED src/cabi/conduit_cabi.cpp)
-    target_link_libraries(conduit_cabi PRIVATE conduit conduit_warnings Threads::Threads)
+    target_link_libraries(conduit_cabi PRIVATE conduit_warnings Threads::Threads)
+    conduit_force_link_archive(conduit_cabi conduit)
+    conduit_force_link_archive(conduit_cabi conduit_codec)
     target_include_directories(conduit_cabi PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     )
@@ -349,9 +383,14 @@ if(CONDUIT_BUILD_CABI)
         C_VISIBILITY_PRESET hidden
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
     if(WIN32)
         set_target_properties(conduit_cabi PROPERTIES PREFIX "")
+        # conduit (static) PUBLIC-links ws2_32, but with --whole-archive that
+        # transitive linkage isn't always honoured.  Explicit linkage here
+        # ensures Winsock symbols resolve regardless of generator/toolchain.
+        target_link_libraries(conduit_cabi PRIVATE ws2_32)
     endif()
 endif()
 
@@ -369,7 +408,8 @@ if(CONDUIT_BUILD_JNI)
             src/cabi/conduit_codec_cabi.cpp
         )
         target_link_libraries(conduit_codec_jni PRIVATE
-            conduit_codec conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+            conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+        conduit_force_link_archive(conduit_codec_jni conduit_codec)
         target_include_directories(conduit_codec_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
         )
@@ -385,6 +425,7 @@ if(CONDUIT_BUILD_JNI)
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
             VISIBILITY_INLINES_HIDDEN ON
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
         )
         if(WIN32)
             set_target_properties(conduit_codec_jni PROPERTIES PREFIX "")
@@ -398,7 +439,9 @@ if(CONDUIT_BUILD_JNI)
             src/cabi/conduit_cabi.cpp
         )
         target_link_libraries(conduit_jni PRIVATE
-            conduit conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+            conduit_warnings Threads::Threads ${JNI_LIBRARIES})
+        conduit_force_link_archive(conduit_jni conduit)
+        conduit_force_link_archive(conduit_jni conduit_codec)
         target_include_directories(conduit_jni SYSTEM PRIVATE
             ${JNI_INCLUDE_DIRS}
         )
@@ -414,9 +457,11 @@ if(CONDUIT_BUILD_JNI)
             C_VISIBILITY_PRESET hidden
             CXX_VISIBILITY_PRESET hidden
             VISIBILITY_INLINES_HIDDEN ON
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
         )
         if(WIN32)
             set_target_properties(conduit_jni PROPERTIES PREFIX "")
+            target_link_libraries(conduit_jni PRIVATE ws2_32)
         endif()
     endif()
 endif()
@@ -457,6 +502,59 @@ if(CONDUIT_BUILD_JAVA_JAR)
         set(_cmd_prefix)
     endif()
 
+    # ------------------------------------------------------------------------
+    # Native library bundling for the JAR
+    # ------------------------------------------------------------------------
+    # Compute the OS-arch tuple that matches NativeLoader.detectOsArch() in the
+    # Java loader so the bundled libraries land at the resource path the JAR
+    # extractor looks up at runtime: native/<os>-<arch>/<libfile>.
+    if(WIN32)
+        set(_native_os "windows")
+    elseif(APPLE)
+        set(_native_os "macos")
+    else()
+        set(_native_os "linux")
+    endif()
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+        set(_native_arch "x86_64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        set(_native_arch "aarch64")
+    else()
+        set(_native_arch "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    set(_native_os_arch "${_native_os}-${_native_arch}")
+
+    # Native libs to embed are whichever shared targets the user asked to
+    # build.  We embed both JNI and CABI variants so a single JAR works
+    # whether the consumer uses JNI or Panama FFI.
+    set(_native_lib_targets)
+    foreach(_t conduit_jni conduit_codec_jni conduit_cabi conduit_codec_cabi)
+        if(TARGET ${_t})
+            list(APPEND _native_lib_targets ${_t})
+        endif()
+    endforeach()
+
+    if(_native_lib_targets)
+        message(STATUS "Java JAR: bundling native libs (${_native_os_arch}): ${_native_lib_targets}")
+    else()
+        message(STATUS "Java JAR: no native shared libraries built; JAR will not include native resources")
+    endif()
+
+    # Resource staging dir inside the Java bindings tree.  Maven and Gradle
+    # pick everything under bindings/java/src/main/resources/ up automatically
+    # via the default <resource> mapping in pom.xml.  We populate this dir
+    # immediately before the build and remove it immediately after, so the
+    # source tree is clean between builds.
+    set(_native_resources_dir "${_java_bindings_dir}/src/main/resources/native/${_native_os_arch}")
+
+    # Build a list of "<source>|<dest_filename>" pairs that the cmake -P
+    # scripts iterate over.  TARGET_FILE / TARGET_FILE_NAME are evaluated at
+    # build time so the right configuration's output is picked up.
+    set(_native_lib_pairs)
+    foreach(_t ${_native_lib_targets})
+        list(APPEND _native_lib_pairs "$<TARGET_FILE:${_t}>|$<TARGET_FILE_NAME:${_t}>")
+    endforeach()
+
     # --- Strategy 1: Maven ---
     find_program(_mvn_exe mvn)
     if(_mvn_exe AND EXISTS "${_java_bindings_dir}/pom.xml")
@@ -464,31 +562,53 @@ if(CONDUIT_BUILD_JAVA_JAR)
         # Wrap in a cmake -P script for reliable error propagation on all generators
         # (Visual Studio generators don't chain multiple COMMANDs with &&)
         set(_mvn_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_mvn.cmake")
-        file(WRITE "${_mvn_build_script}" "\
-execute_process(\n\
-    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")\n\
-endif()\n\
-set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")\n\
-if(NOT EXISTS \"\${_src_jar}\")\n\
-    message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
-endif()\n\
+        file(GENERATE OUTPUT "${_mvn_build_script}" CONTENT "\
+# Stage native libraries into the Maven resources tree so the resulting JAR
+# includes them at native/<os>-<arch>/<libfile> for NativeLoader to extract.
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+set(_pairs \"${_native_lib_pairs}\")
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_resources_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_resources_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_resources_dir}/\${_name}\")
+        endif()
+    endforeach()
+endif()
+execute_process(
+    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"
+    RESULT_VARIABLE _rc
+)
+# Always clean up the staged native libs, even if the build failed, so the
+# source tree never contains stale binaries between builds.
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")
+endif()
+set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")
+if(NOT EXISTS \"\${_src_jar}\")
+    message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"
+    RESULT_VARIABLE _rc2
+)
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")
+endif()
 ")
         add_custom_command(
             OUTPUT "${_java_jar}"
             COMMAND ${CMAKE_COMMAND} -P "${_mvn_build_script}"
-            DEPENDS ${_java_core_sources}
+            DEPENDS ${_java_core_sources} ${_native_lib_targets}
             COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Maven)"
             VERBATIM
         )
@@ -501,31 +621,49 @@ endif()\n\
         if(_gradle_exe AND EXISTS "${_java_bindings_dir}/build.gradle")
             message(STATUS "Java JAR: using Gradle (gradle found, build.gradle exists)")
             set(_gradle_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_gradle.cmake")
-            file(WRITE "${_gradle_build_script}" "\
-execute_process(\n\
-    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")\n\
-endif()\n\
-set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")\n\
-if(NOT EXISTS \"\${_src_jar}\")\n\
-    message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
-endif()\n\
+            file(GENERATE OUTPUT "${_gradle_build_script}" CONTENT "\
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+set(_pairs \"${_native_lib_pairs}\")
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_resources_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_resources_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_resources_dir}/\${_name}\")
+        endif()
+    endforeach()
+endif()
+execute_process(
+    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q
+    RESULT_VARIABLE _rc
+)
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")
+endif()
+set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")
+if(NOT EXISTS \"\${_src_jar}\")
+    message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"
+    RESULT_VARIABLE _rc2
+)
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")
+endif()
 ")
             add_custom_command(
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_gradle_build_script}"
-                DEPENDS ${_java_core_sources}
+                DEPENDS ${_java_core_sources} ${_native_lib_targets}
                 COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Gradle)"
                 VERBATIM
             )
@@ -592,33 +730,69 @@ endif()\n\
             list(JOIN _java_sources "\n" _java_sources_nl)
             file(WRITE "${_javac_args_file}" "${_javac_flags_nl}\n${_java_sources_nl}\n")
 
-            # Wrap in cmake -P for reliable error propagation on all generators
+            # Wrap in cmake -P for reliable error propagation on all generators.
+            # The script also stages native libs into a private build-tree
+            # directory and adds them to the JAR via `jar -C <dir> native`,
+            # so the resulting JAR carries the libs at native/<os>-<arch>/.
             set(_javac_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_javac.cmake")
-            file(WRITE "${_javac_build_script}" "\
-file(MAKE_DIRECTORY \"${_java_classes_dir}\")\n\
-execute_process(\n\
-    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_javac_args_file}\"\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"javac compilation failed (exit code: \${_rc})\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\" -C \"${_java_classes_dir}\" .\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"jar creation failed (exit code: \${_rc2})\")\n\
-endif()\n\
-if(NOT EXISTS \"${_java_jar}\")\n\
-    message(FATAL_ERROR \"JAR not found after build: ${_java_jar}\")\n\
-endif()\n\
+            set(_native_jar_root "${CMAKE_CURRENT_BINARY_DIR}/jar-natives")
+            set(_native_jar_dir "${_native_jar_root}/native/${_native_os_arch}")
+            file(GENERATE OUTPUT "${_javac_build_script}" CONTENT "\
+file(MAKE_DIRECTORY \"${_java_classes_dir}\")
+execute_process(
+    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_javac_args_file}\"
+    RESULT_VARIABLE _rc
+)
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"javac compilation failed (exit code: \${_rc})\")
+endif()
+# Stage native libs (if any) into ${_native_jar_dir} so they appear in
+# the JAR at native/<os>-<arch>/<libfile>.
+file(REMOVE_RECURSE \"${_native_jar_root}\")
+set(_pairs \"${_native_lib_pairs}\")
+set(_have_natives FALSE)
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_jar_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_jar_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_jar_dir}/\${_name}\")
+        endif()
+    endforeach()
+    set(_have_natives TRUE)
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+if(_have_natives)
+    execute_process(
+        COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\"
+            -C \"${_java_classes_dir}\" .
+            -C \"${_native_jar_root}\" native
+        RESULT_VARIABLE _rc2
+    )
+else()
+    execute_process(
+        COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\"
+            -C \"${_java_classes_dir}\" .
+        RESULT_VARIABLE _rc2
+    )
+endif()
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"jar creation failed (exit code: \${_rc2})\")
+endif()
+if(NOT EXISTS \"${_java_jar}\")
+    message(FATAL_ERROR \"JAR not found after build: ${_java_jar}\")
+endif()
 ")
             add_custom_command(
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_javac_build_script}"
-                DEPENDS ${_java_sources}
+                DEPENDS ${_java_sources} ${_native_lib_targets}
                 COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (javac)"
                 VERBATIM
             )
