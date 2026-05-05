@@ -870,8 +870,12 @@ class Transceiver:
                 raise ConduitError(-1, f"Session encode_wrap failed for type_id=0x{type_id:x}")
             data = result['bytes']
             auto_fields = result.get('auto_fields')
-            self.send_raw(peer_id, type_id, data)
+            # Record the send attempt before invoking the transport so the
+            # message log captures it even if the peer is disconnected and
+            # send_raw raises.  Matches the C++ Transceiver, which calls
+            # message_log_->log_send before transport->send.
             self._log_decoded_send(peer_id, type_id, msg, len(data), auto_fields)
+            self.send_raw(peer_id, type_id, data)
         else:
             data = msg.encode_bytes()
             self.send_raw(peer_id, type_id, data)

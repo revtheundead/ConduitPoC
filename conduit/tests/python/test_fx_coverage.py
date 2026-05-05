@@ -181,66 +181,9 @@ class TestBitmapFxBoundaryValues:
         assert msg2.items.item030.value == 0
 
 
-# ============================================================================
-# empty_fx: EmptyFxMsg has header + FX with no extension fields
-# ============================================================================
-
-
-class TestEmptyFxRoundtrip:
-    """EmptyFxMsg has a header byte and an empty FX block."""
-
-    def test_header_roundtrip(self):
-        try:
-            from empty_fx import EmptyFxMsg
-        except ImportError:
-            pytest.skip("empty_fx module not generated (error fixture)")
-
-        msg = EmptyFxMsg()
-        msg.header = 0x42
-
-        data = msg.encode_bytes()
-        msg2 = EmptyFxMsg.decode_bytes(data)
-        assert msg2.header == 0x42
-
-    def test_header_zero(self):
-        try:
-            from empty_fx import EmptyFxMsg
-        except ImportError:
-            pytest.skip("empty_fx module not generated (error fixture)")
-
-        msg = EmptyFxMsg()
-        msg.header = 0
-
-        data = msg.encode_bytes()
-        msg2 = EmptyFxMsg.decode_bytes(data)
-        assert msg2.header == 0
-
-    def test_header_max(self):
-        try:
-            from empty_fx import EmptyFxMsg
-        except ImportError:
-            pytest.skip("empty_fx module not generated (error fixture)")
-
-        msg = EmptyFxMsg()
-        msg.header = 0xFF
-
-        data = msg.encode_bytes()
-        msg2 = EmptyFxMsg.decode_bytes(data)
-        assert msg2.header == 0xFF
-
-    def test_double_encode_stability(self):
-        try:
-            from empty_fx import EmptyFxMsg
-        except ImportError:
-            pytest.skip("empty_fx module not generated (error fixture)")
-
-        msg = EmptyFxMsg()
-        msg.header = 0xAB
-
-        data1 = msg.encode_bytes()
-        msg2 = EmptyFxMsg.decode_bytes(data1)
-        data2 = msg2.encode_bytes()
-        assert data1 == data2
+# empty_fx is rejected by the BMDL validator (FX block with no extension
+# fields is invalid) and is exercised by the bgen C++ test suite, not
+# generated for Python.
 
 
 # ============================================================================
