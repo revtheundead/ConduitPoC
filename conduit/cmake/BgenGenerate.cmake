@@ -34,15 +34,24 @@ function(bgen_generate)
         set(BGEN_LANGUAGE "cpp")
     endif()
 
-    if(NOT TARGET bgen)
-        message(FATAL_ERROR "bgen_generate: 'bgen' target not found. Enable CONDUIT_BUILD_BGEN=ON.")
+    # Resolve the bgen executable.  In-tree builds expose the `bgen` target
+    # directly; find_package(conduit) consumers see `conduit::bgen`.
+    if(TARGET conduit::bgen)
+        set(_bgen_target conduit::bgen)
+    elseif(TARGET bgen)
+        set(_bgen_target bgen)
+    else()
+        message(FATAL_ERROR
+            "bgen_generate: neither 'conduit::bgen' nor 'bgen' target is "
+            "available.  Enable CONDUIT_BUILD_BGEN=ON in-tree or call "
+            "find_package(conduit) before bgen_generate().")
     endif()
 
     get_filename_component(_input_abs "${BGEN_INPUT}" ABSOLUTE)
     get_filename_component(_output_abs "${BGEN_OUTPUT_DIR}" ABSOLUTE)
 
     # Build the bgen command line
-    set(_cmd $<TARGET_FILE:bgen> --input "${_input_abs}" --output "${_output_abs}")
+    set(_cmd $<TARGET_FILE:${_bgen_target}> --input "${_input_abs}" --output "${_output_abs}")
     if(BGEN_NAMESPACE)
         list(APPEND _cmd --namespace "${BGEN_NAMESPACE}")
     endif()
@@ -87,7 +96,7 @@ function(bgen_generate)
     add_custom_command(
         OUTPUT  ${_outputs}
         COMMAND ${_cmd}
-        DEPENDS bgen "${_input_abs}"
+        DEPENDS ${_bgen_target} "${_input_abs}"
         COMMENT "bgen(${BGEN_LANGUAGE}): generating ${BGEN_TARGET} from ${BGEN_INPUT}"
         VERBATIM
     )

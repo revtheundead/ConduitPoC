@@ -84,5 +84,6 @@ Pages are listed in recommended reading order -- each page builds on concepts fr
 
 ## Related Documentation
 
+- [Integrating Conduit into Your Project](../integration.md) -- How to link conduit from your own CMake/Maven/pip project
 - [BMDL Language Reference](../bmdl/index.md) -- The BMDL XML language specification
 - [bgen Code Generator](../bgen/index.md) -- The BMDL-to-C++/Java/Python code generator

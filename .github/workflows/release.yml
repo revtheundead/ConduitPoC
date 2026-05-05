@@ -48,20 +48,14 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p staging/bin staging/lib staging/include
-          cp build/bgen/bgen staging/bin/
-          # Static libraries
-          cp build/libconduit_codec.a staging/lib/ 2>/dev/null || true
-          cp build/libconduit.a staging/lib/ 2>/dev/null || true
-          # Shared libraries
-          cp conduit/lib/libconduit_cabi.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_cabi.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_jni.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_jni.so staging/lib/ 2>/dev/null || true
-          # Headers
-          cp -r conduit/include/conduit staging/include/
+      # `cmake --install` honours the install rules in conduit/CMakeLists.txt:
+      # static archives + cabi/jni shared libs + headers + bgen + the CMake
+      # package config (lib/cmake/conduit/conduit-config.cmake +
+      # conduit-targets*.cmake) so consumers can find_package(conduit) and
+      # link conduit::conduit / conduit::conduit_codec without having to
+      # know which transitive .a files are needed.
+      - name: Install to staging
+        run: cmake --install build --prefix staging
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
@@ -109,17 +103,8 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p staging/bin staging/lib staging/include
-          cp build/bgen/bgen staging/bin/
-          cp build/libconduit_codec.a staging/lib/ 2>/dev/null || true
-          cp build/libconduit.a staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_cabi.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_cabi.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_jni.so staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_jni.so staging/lib/ 2>/dev/null || true
-          cp -r conduit/include/conduit staging/include/
+      - name: Install to staging
+        run: cmake --install build --prefix staging
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
@@ -166,17 +151,8 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure --timeout 120
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p staging/bin staging/lib staging/include
-          cp build/bgen/bgen staging/bin/
-          cp build/libconduit_codec.a staging/lib/ 2>/dev/null || true
-          cp build/libconduit.a staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_cabi.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_cabi.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_jni.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_jni.dylib staging/lib/ 2>/dev/null || true
-          cp -r conduit/include/conduit staging/include/
+      - name: Install to staging
+        run: cmake --install build --prefix staging
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
@@ -221,17 +197,8 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Collect artifacts
-        run: |
-          mkdir -p staging/bin staging/lib staging/include
-          cp build/bgen/bgen staging/bin/
-          cp build/libconduit_codec.a staging/lib/ 2>/dev/null || true
-          cp build/libconduit.a staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_cabi.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_cabi.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_jni.dylib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/libconduit_codec_jni.dylib staging/lib/ 2>/dev/null || true
-          cp -r conduit/include/conduit staging/include/
+      - name: Install to staging
+        run: cmake --install build --prefix staging
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
@@ -278,24 +245,8 @@ jobs:
       - name: Test
         run: cd build && ctest --build-config Release --output-on-failure --timeout 120
 
-      - name: Collect artifacts
-        shell: bash
-        run: |
-          mkdir -p staging/bin staging/lib staging/include
-          cp build/bgen/Release/bgen.exe staging/bin/ 2>/dev/null || cp build/bgen/bgen.exe staging/bin/ 2>/dev/null || true
-          # Static libraries (MSVC puts .lib in Release/ subdir for multi-config)
-          cp build/Release/conduit_codec.lib staging/lib/ 2>/dev/null || cp build/conduit_codec.lib staging/lib/ 2>/dev/null || true
-          cp build/Release/conduit.lib staging/lib/ 2>/dev/null || cp build/conduit.lib staging/lib/ 2>/dev/null || true
-          # Shared libraries (CMake output dir override puts DLLs in conduit/lib/)
-          cp conduit/lib/conduit_cabi.dll staging/lib/ 2>/dev/null || true
-          cp conduit/lib/conduit_codec_cabi.dll staging/lib/ 2>/dev/null || true
-          cp conduit/lib/conduit_jni.dll staging/lib/ 2>/dev/null || true
-          cp conduit/lib/conduit_codec_jni.dll staging/lib/ 2>/dev/null || true
-          # Import libraries (.lib for DLLs)
-          cp conduit/lib/conduit_cabi.lib staging/lib/ 2>/dev/null || true
-          cp conduit/lib/conduit_codec_cabi.lib staging/lib/ 2>/dev/null || true
-          # Headers
-          cp -r conduit/include/conduit staging/include/
+      - name: Install to staging
+        run: cmake --install build --config Release --prefix staging
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
