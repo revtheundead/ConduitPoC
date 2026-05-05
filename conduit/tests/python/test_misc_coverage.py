@@ -550,10 +550,34 @@ class TestLengthArith:
     """Tests for messages with arithmetic length expressions."""
 
     def test_half_len_msg_roundtrip(self):
-        pytest.skip("codegen issue: length arithmetic operator precedence bug in HalfLenMsg encode")
+        from length_arith import HalfLenMsg
+
+        msg = HalfLenMsg()
+        msg.tag = 7
+        msg.data = b"\x01\x02\x03\x04"  # 4 bytes -> half_len = 2
+        msg.suffix = 99
+
+        data = msg.encode_bytes()
+        msg2 = HalfLenMsg.decode_bytes(data)
+        assert msg2.tag == 7
+        assert msg2.half_len == 2
+        assert msg2.data == b"\x01\x02\x03\x04"
+        assert msg2.suffix == 99
 
     def test_half_len_msg_empty_data(self):
-        pytest.skip("codegen issue: length arithmetic operator precedence bug in HalfLenMsg encode")
+        from length_arith import HalfLenMsg
+
+        msg = HalfLenMsg()
+        msg.tag = 1
+        msg.data = b""
+        msg.suffix = 2
+
+        data = msg.encode_bytes()
+        msg2 = HalfLenMsg.decode_bytes(data)
+        assert msg2.tag == 1
+        assert msg2.half_len == 0
+        assert msg2.data == b""
+        assert msg2.suffix == 2
 
     def test_offset_len_msg_roundtrip(self):
         from length_arith import OffsetLenMsg
@@ -571,7 +595,19 @@ class TestLengthArith:
         assert msg2.suffix == 42
 
     def test_double_len_msg_roundtrip(self):
-        pytest.skip("codegen issue: length arithmetic operator precedence bug in DoubleLenMsg encode")
+        from length_arith import DoubleLenMsg
+
+        msg = DoubleLenMsg()
+        msg.tag = 9
+        msg.data = b"\x10\x20\x30"  # 3 bytes -> double_len = 6
+        msg.suffix = 11
+
+        data = msg.encode_bytes()
+        msg2 = DoubleLenMsg.decode_bytes(data)
+        assert msg2.tag == 9
+        assert msg2.double_len == 6
+        assert msg2.data == b"\x10\x20\x30"
+        assert msg2.suffix == 11
 
     def test_field_op_msg_roundtrip(self):
         from length_arith import FieldOpMsg
@@ -733,7 +769,18 @@ class TestMsgConfigInline:
     """Messages with inline struct containing auto="config" fields."""
 
     def test_report_roundtrip(self):
-        pytest.skip("codegen issue: inlined struct fields (sac/sic) not in Report __slots__")
+        from msg_config_inline import Report
+
+        msg = Report()
+        msg.sac = 0x12
+        msg.sic = 0x34
+        msg.value = 0x5678
+
+        data = msg.encode_bytes()
+        msg2 = Report.decode_bytes(data)
+        assert msg2.sac == 0x12
+        assert msg2.sic == 0x34
+        assert msg2.value == 0x5678
 
     def test_status_roundtrip(self):
         from msg_config_inline import Status
@@ -746,7 +793,20 @@ class TestMsgConfigInline:
         assert msg2.code == 42
 
     def test_frame_wrap_report(self):
-        pytest.skip("codegen issue: inlined struct fields (sac/sic) not in Report __slots__")
+        from msg_config_inline import Report, Frame
+
+        msg = Report()
+        msg.sac = 0xAA
+        msg.sic = 0xBB
+        msg.value = 0xCAFE
+
+        frame = Frame.wrap(msg)
+        data = frame.encode_bytes()
+        frame2 = Frame.decode_bytes(data)
+        assert isinstance(frame2.payload, Report)
+        assert frame2.payload.sac == 0xAA
+        assert frame2.payload.sic == 0xBB
+        assert frame2.payload.value == 0xCAFE
 
     def test_frame_wrap_status(self):
         from msg_config_inline import Status, Frame
@@ -770,16 +830,60 @@ class TestNonOverlapRanges:
     """Msg with range-dispatched choice (tag 1-5 -> BodyA, tag 6-10 -> BodyB)."""
 
     def test_choice_body_a_roundtrip(self):
-        pytest.skip("codegen issue: range constants not defined")
+        from non_overlap_ranges import Msg, BodyA
+
+        msg = Msg()
+        msg.tag = 3  # in range LO_A..HI_A (1..5)
+        msg.body = BodyA()
+        msg.body.x = 0x1234
+
+        data = msg.encode_bytes()
+        msg2 = Msg.decode_bytes(data)
+        assert msg2.tag == 3
+        assert isinstance(msg2.body, BodyA)
+        assert msg2.body.x == 0x1234
 
     def test_choice_body_b_roundtrip(self):
-        pytest.skip("codegen issue: range constants not defined")
+        from non_overlap_ranges import Msg, BodyB
+
+        msg = Msg()
+        msg.tag = 8  # in range LO_B..HI_B (6..10)
+        msg.body = BodyB()
+        msg.body.y = 0x5678
+
+        data = msg.encode_bytes()
+        msg2 = Msg.decode_bytes(data)
+        assert msg2.tag == 8
+        assert isinstance(msg2.body, BodyB)
+        assert msg2.body.y == 0x5678
 
     def test_choice_body_a_at_range_boundary(self):
-        pytest.skip("codegen issue: range constants not defined")
+        from non_overlap_ranges import Msg, BodyA
+
+        for tag in (1, 5):  # LO_A and HI_A boundaries
+            msg = Msg()
+            msg.tag = tag
+            msg.body = BodyA()
+            msg.body.x = tag * 10
+            data = msg.encode_bytes()
+            msg2 = Msg.decode_bytes(data)
+            assert msg2.tag == tag
+            assert isinstance(msg2.body, BodyA)
+            assert msg2.body.x == tag * 10
 
     def test_choice_body_b_at_range_boundary(self):
-        pytest.skip("codegen issue: range constants not defined")
+        from non_overlap_ranges import Msg, BodyB
+
+        for tag in (6, 10):  # LO_B and HI_B boundaries
+            msg = Msg()
+            msg.tag = tag
+            msg.body = BodyB()
+            msg.body.y = tag * 100
+            data = msg.encode_bytes()
+            msg2 = Msg.decode_bytes(data)
+            assert msg2.tag == tag
+            assert isinstance(msg2.body, BodyB)
+            assert msg2.body.y == tag * 100
 
 
 # ============================================================================
@@ -1085,10 +1189,39 @@ class TestStressLarge:
         assert msg2.inner.inner.inner.inner.val == 5
 
     def test_stress_msg_case_a_roundtrip(self):
-        pytest.skip("codegen issue: StressMsg.decode references bare TagA/TagB/... names instead of ItemTag.TAG_A")
+        from stress_large import StressMsg, ItemTag, BigRecord
+        from stress_large.structs import CaseA
+
+        msg = StressMsg()
+        msg.header = BigRecord()
+        msg.tag = ItemTag.TAG_A
+        msg.payload = CaseA()
+        # CaseA has fields a1..a3; populate something defaulty
+        for fname in ('a1', 'a2', 'a3'):
+            if hasattr(msg.payload, fname):
+                setattr(msg.payload, fname, 0)
+
+        data = msg.encode_bytes()
+        msg2 = StressMsg.decode_bytes(data)
+        assert msg2.tag == ItemTag.TAG_A
+        assert isinstance(msg2.payload, CaseA)
 
     def test_stress_msg_case_t_roundtrip(self):
-        pytest.skip("codegen issue: StressMsg.decode references bare TagA/TagB/... names instead of ItemTag.TAG_A")
+        from stress_large import StressMsg, ItemTag, BigRecord
+        from stress_large.structs import CaseT
+
+        msg = StressMsg()
+        msg.header = BigRecord()
+        msg.tag = ItemTag.TAG_T
+        msg.payload = CaseT()
+        for fname in ('t1', 't2', 't3'):
+            if hasattr(msg.payload, fname):
+                setattr(msg.payload, fname, 0)
+
+        data = msg.encode_bytes()
+        msg2 = StressMsg.decode_bytes(data)
+        assert msg2.tag == ItemTag.TAG_T
+        assert isinstance(msg2.payload, CaseT)
 
 
 # ============================================================================
@@ -1385,93 +1518,9 @@ class TestUint64MaxDefault:
         assert len(data) == 12
 
 
-# ============================================================================
-# Error/validation-only fixtures (import tests)
-#
-# These fixtures are designed to test parser/validator error detection.
-# They may or may not generate valid Python modules. We test that the
-# generated modules can at least be imported, or skip gracefully if
-# code generation was not performed for them.
-# ============================================================================
-
-
-class TestErrorFixtureImports:
-    """Import tests for error/validation-only fixtures.
-
-    These fixtures define schemas that the BMDL validator or parser rejects
-    (e.g., recursive types, duplicate fields, overlapping cases). The Python
-    code generator may still produce modules for them, but the generated code
-    may not function correctly. We verify basic importability.
-    """
-
-    def test_bytes_overflow_import(self):
-        try:
-            import bytes_overflow  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("bytes_overflow module not generated")
-
-    def test_choice_no_switch_import(self):
-        try:
-            import choice_no_switch  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("choice_no_switch module not generated")
-
-    def test_constraint_relaxation_import(self):
-        try:
-            import constraint_relaxation  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("constraint_relaxation module not generated")
-
-    def test_duplicate_fields_import(self):
-        try:
-            import duplicate_fields  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("duplicate_fields module not generated")
-
-    def test_forward_ref_import(self):
-        try:
-            import forward_ref  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("forward_ref module not generated")
-
-    def test_missing_enum_id_import(self):
-        try:
-            import missing_enum_id  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("missing_enum_id module not generated")
-
-    def test_overlap_both_with_send_import(self):
-        try:
-            import overlap_both_send  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("overlap_both_send module not generated")
-
-    def test_overlap_same_direction_import(self):
-        try:
-            import overlap_same_dir  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("overlap_same_dir module not generated")
-
-    def test_overlapping_cases_import(self):
-        try:
-            import overlap_cases  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("overlap_cases module not generated")
-
-    def test_overlapping_ranges_import(self):
-        try:
-            import overlap_ranges  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("overlap_ranges module not generated")
-
-    def test_recursive_struct_import(self):
-        try:
-            import recursive_struct  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("recursive_struct module not generated")
-
-    def test_reserved_zero_import(self):
-        try:
-            import reserved_zero  # noqa: F401
-        except (ImportError, ModuleNotFoundError):
-            pytest.skip("reserved_zero module not generated")
+# Error/validation-only fixtures (bytes_overflow, choice_no_switch,
+# constraint_relaxation, duplicate_fields, forward_ref, missing_enum_id,
+# overlap_*, recursive_struct, reserved_zero) are intentionally rejected by
+# the BMDL validator and never code-generated for Python.  Tests for them
+# are exercised by the bgen C++ test suite (test_validator.cpp /
+# test_parser.cpp) instead.
