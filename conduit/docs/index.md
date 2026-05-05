@@ -92,6 +92,7 @@ scripts\build.bat --release --clang --test           # Same, using Clang + Ninja
 | Section | Description |
 |---------|-------------|
 | [Building & Testing](building.md) | Build scripts, compiler selection, CMake options, running tests |
+| [Integrating Conduit into Your Project](integration.md) | Library variants, release tarball layout, `find_package(conduit)` + `bgen_generate()`, Java JAR, Python `CONDUIT_CABI_LIB` |
 | [BMDL Language Reference](bmdl/index.md) | XML language for defining binary message formats |
 | [bgen Code Generator](bgen/index.md) | Reads BMDL, validates, generates C++, Java, or Python code |
 | [conduit Runtime Library](conduit/index.md) | Error handling, bit I/O, transports, transceiver |
