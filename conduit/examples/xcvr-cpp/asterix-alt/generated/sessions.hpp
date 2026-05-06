@@ -158,8 +158,16 @@ public:
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007DownlinkRecord>(&p);
-                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                    "payload type mismatch for Cat007DownlinkRecord"));
+                Cat007DownlinkRecord _decoded;
+                if (!msg) {
+                    auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+                    if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                        "payload type mismatch for Cat007DownlinkRecord"));
+                    auto dec = Cat007DownlinkRecord::decode_bytes(*raw);
+                    if (!dec) return std::unexpected(dec.error());
+                    _decoded = std::move(*dec);
+                    msg = &_decoded;
+                }
                 frame.payload().push_back(*msg);
             }
             auto enc = frame.encode_bytes();
@@ -175,8 +183,16 @@ public:
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007UplinkRecord>(&p);
-                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                    "payload type mismatch for Cat007UplinkRecord"));
+                Cat007UplinkRecord _decoded;
+                if (!msg) {
+                    auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+                    if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                        "payload type mismatch for Cat007UplinkRecord"));
+                    auto dec = Cat007UplinkRecord::decode_bytes(*raw);
+                    if (!dec) return std::unexpected(dec.error());
+                    _decoded = std::move(*dec);
+                    msg = &_decoded;
+                }
                 frame.payload().push_back(*msg);
             }
             auto enc = frame.encode_bytes();
@@ -192,8 +208,16 @@ public:
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat021Record>(&p);
-                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                    "payload type mismatch for Cat021Record"));
+                Cat021Record _decoded;
+                if (!msg) {
+                    auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+                    if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                        "payload type mismatch for Cat021Record"));
+                    auto dec = Cat021Record::decode_bytes(*raw);
+                    if (!dec) return std::unexpected(dec.error());
+                    _decoded = std::move(*dec);
+                    msg = &_decoded;
+                }
                 frame.payload().push_back(*msg);
             }
             auto enc = frame.encode_bytes();
@@ -209,8 +233,16 @@ public:
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat048Record>(&p);
-                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                    "payload type mismatch for Cat048Record"));
+                Cat048Record _decoded;
+                if (!msg) {
+                    auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+                    if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                        "payload type mismatch for Cat048Record"));
+                    auto dec = Cat048Record::decode_bytes(*raw);
+                    if (!dec) return std::unexpected(dec.error());
+                    _decoded = std::move(*dec);
+                    msg = &_decoded;
+                }
                 frame.payload().push_back(*msg);
             }
             auto enc = frame.encode_bytes();
@@ -226,8 +258,16 @@ public:
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat253Record>(&p);
-                if (!msg) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
-                    "payload type mismatch for Cat253Record"));
+                Cat253Record _decoded;
+                if (!msg) {
+                    auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+                    if (!raw) return std::unexpected(conduit::Error(conduit::ErrorCode::InvalidArgument,
+                        "payload type mismatch for Cat253Record"));
+                    auto dec = Cat253Record::decode_bytes(*raw);
+                    if (!dec) return std::unexpected(dec.error());
+                    _decoded = std::move(*dec);
+                    msg = &_decoded;
+                }
                 frame.payload().push_back(*msg);
             }
             auto enc = frame.encode_bytes();

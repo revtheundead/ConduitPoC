@@ -1,5 +1,11 @@
 # Building & Testing
 
+This page is about *building* Conduit itself.  If you're writing a
+project that wants to *consume* a built Conduit -- including how to
+link against the libraries and call the bgen code generator from
+your CMake -- see
+[Integrating Conduit into Your Project](integration.md).
+
 ## Requirements
 
 - **C++23** compiler -- required for the conduit runtime and bgen itself
