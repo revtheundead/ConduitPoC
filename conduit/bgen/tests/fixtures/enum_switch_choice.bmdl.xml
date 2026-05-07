@@ -1,0 +1,48 @@
+<bmdl version="2.0">
+  <!--
+    Regression fixture: a <choice> whose switch expression is a dotted
+    path ending at a nested enum field.  The Java backend used to emit
+    `outer.tag == 1` (comparing the enum to an int literal), which fails
+    Java type-checking.  The fix walks the path through struct type_refs
+    so the leaf enum is detected and the comparison becomes
+    `outer.tag.value == 1`.
+
+    Mirrors the Python equivalent fixed in commit 165ced1.
+  -->
+  <defaults>
+    <namespace>enum_switch_choice</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+
+    <!-- Nested struct holding the enum-typed switch field. -->
+    <struct name="Outer">
+      <field name="tag" bits="8" base="uint">
+        <enum>
+          <value id="1" name="alpha"/>
+          <value id="2" name="beta"/>
+        </enum>
+      </field>
+    </struct>
+
+    <struct name="AlphaPayload">
+      <field name="value" type="uint16"/>
+    </struct>
+    <struct name="BetaPayload">
+      <field name="value" type="uint16"/>
+    </struct>
+  </types>
+
+  <messages>
+    <message name="EnumSwitchMsg">
+      <field name="outer" type="Outer"/>
+      <choice name="payload" switch="outer.tag">
+        <case name="alpha" value="1" type="AlphaPayload"/>
+        <case name="beta" value="2" type="BetaPayload"/>
+      </choice>
+    </message>
+  </messages>
+</bmdl>

@@ -129,16 +129,20 @@ public final class CabiBindings {
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
-        // conduit_log_recv_message(xcvr, peer, type_name, byte_count, content) -> error
+        // conduit_log_recv_message(xcvr, peer, type_name, byte_count, content,
+        //                          raw_bytes, raw_bytes_len) -> error
         conduit_log_recv_message = lookup("conduit_log_recv_message",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
-        // conduit_log_send_message(xcvr, peer, type_name, byte_count, content) -> error
+                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        // conduit_log_send_message(xcvr, peer, type_name, byte_count, content,
+        //                          raw_bytes, raw_bytes_len) -> error
         conduit_log_send_message = lookup("conduit_log_send_message",
             FunctionDescriptor.of(ValueLayout.JAVA_INT,
                 ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
 
         // Handler registration: conduit_on_message(xcvr, type_id, callback, user_data) -> callback_id
         conduit_on_message = lookup("conduit_on_message",

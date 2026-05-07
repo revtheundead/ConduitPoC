@@ -409,6 +409,27 @@ TEST_CASE("Java: choice encode uses instanceof check", "[java]") {
     CHECK(all.find("instanceof") != std::string::npos);
 }
 
+TEST_CASE("Java: choice on nested enum field uses .value for comparison",
+          "[java][choice][enum]") {
+    // Regression: switch="outer.tag" where 'tag' is an enum field used to
+    // emit `outer.tag == 1` (comparing enum to int literal), which fails
+    // Java type-checking with "bad operand types for binary operator '=='".
+    // The fix walks the dotted path to detect that the leaf field is an
+    // enum and inserts .value on the comparison.
+    auto java = gen_java("enum_switch_choice.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto it = java->files.find("EnumSwitchMsg.java");
+    REQUIRE(it != java->files.end());
+    const std::string& msg = it->second;
+    // The generated decode dispatch must compare against the enum's
+    // numeric .value, not the enum itself.
+    CHECK(msg.find("outer.tag.value == 1") != std::string::npos);
+    CHECK(msg.find("outer.tag.value == 2") != std::string::npos);
+    // Sanity: no bare enum-vs-int comparison.
+    CHECK(msg.find("outer.tag == 1") == std::string::npos);
+    CHECK(msg.find("outer.tag == 2") == std::string::npos);
+}
+
 // ============================================================================
 // String feature tests
 // ============================================================================

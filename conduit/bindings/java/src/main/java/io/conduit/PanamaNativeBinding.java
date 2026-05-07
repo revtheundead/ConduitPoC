@@ -328,13 +328,21 @@ public final class PanamaNativeBinding implements NativeBinding {
 
     @Override
     public int logRecvMessage(long handle, int peerId, String typeName,
-                              long byteCount, String content) {
+                              long byteCount, String content, byte[] rawBytes) {
         try (var logArena = Arena.ofConfined()) {
             var cTypeName = logArena.allocateUtf8String(typeName);
             var cContent = (content != null)
                 ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
+            MemorySegment cRaw = MemorySegment.NULL;
+            long rawLen = 0;
+            if (rawBytes != null && rawBytes.length > 0) {
+                cRaw = logArena.allocate(rawBytes.length);
+                cRaw.asByteBuffer().put(rawBytes);
+                rawLen = rawBytes.length;
+            }
             return (int) CabiBindings.conduit_log_recv_message.invokeExact(
-                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
+                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent,
+                cRaw, rawLen);
         } catch (Throwable e) {
             throw new RuntimeException("logRecvMessage failed", e);
         }
@@ -342,13 +350,21 @@ public final class PanamaNativeBinding implements NativeBinding {
 
     @Override
     public int logSendMessage(long handle, int peerId, String typeName,
-                              long byteCount, String content) {
+                              long byteCount, String content, byte[] rawBytes) {
         try (var logArena = Arena.ofConfined()) {
             var cTypeName = logArena.allocateUtf8String(typeName);
             var cContent = (content != null)
                 ? logArena.allocateUtf8String(content) : MemorySegment.NULL;
+            MemorySegment cRaw = MemorySegment.NULL;
+            long rawLen = 0;
+            if (rawBytes != null && rawBytes.length > 0) {
+                cRaw = logArena.allocate(rawBytes.length);
+                cRaw.asByteBuffer().put(rawBytes);
+                rawLen = rawBytes.length;
+            }
             return (int) CabiBindings.conduit_log_send_message.invokeExact(
-                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent);
+                MemorySegment.ofAddress(handle), peerId, cTypeName, byteCount, cContent,
+                cRaw, rawLen);
         } catch (Throwable e) {
             throw new RuntimeException("logSendMessage failed", e);
         }

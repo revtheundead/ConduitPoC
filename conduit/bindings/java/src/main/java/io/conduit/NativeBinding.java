@@ -94,11 +94,11 @@ public interface NativeBinding extends AutoCloseable {
 
     /** Log a received message (for passthrough sessions). */
     int logRecvMessage(long handle, int peerId, String typeName,
-                       long byteCount, String content);
+                       long byteCount, String content, byte[] rawBytes);
 
     /** Log a sent message (for passthrough sessions). */
     int logSendMessage(long handle, int peerId, String typeName,
-                       long byteCount, String content);
+                       long byteCount, String content, byte[] rawBytes);
 
     // ================================================================
     // Handler registration

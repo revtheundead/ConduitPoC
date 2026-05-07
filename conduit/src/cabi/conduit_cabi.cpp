@@ -472,16 +472,22 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content) {
+    const char* content,
+    const uint8_t* raw_bytes,
+    size_t raw_bytes_len) {
 
     if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    std::span<const uint8_t> raw_span = (raw_bytes && raw_bytes_len > 0)
+        ? std::span<const uint8_t>(raw_bytes, raw_bytes_len)
+        : std::span<const uint8_t>{};
     wrapper->xcvr.log_recv_message(
         conduit::transceiver::PeerId{peer},
         type_name, byte_count,
-        content ? std::string(content) : std::string{});
+        content ? std::string(content) : std::string{},
+        raw_span);
     return CONDUIT_XCVR_OK;
     CABI_CATCH_ERR
 }
@@ -491,16 +497,22 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content) {
+    const char* content,
+    const uint8_t* raw_bytes,
+    size_t raw_bytes_len) {
 
     if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    std::span<const uint8_t> raw_span = (raw_bytes && raw_bytes_len > 0)
+        ? std::span<const uint8_t>(raw_bytes, raw_bytes_len)
+        : std::span<const uint8_t>{};
     wrapper->xcvr.log_send_message(
         conduit::transceiver::PeerId{peer},
         type_name, byte_count,
-        content ? std::string(content) : std::string{});
+        content ? std::string(content) : std::string{},
+        raw_span);
     return CONDUIT_XCVR_OK;
     CABI_CATCH_ERR
 }
@@ -867,6 +879,34 @@ public:
             "PassthroughSession: payload must be raw bytes"));
         conduit::traits::EncodeResult result;
         result.bytes = *raw;
+        return result;
+    }
+
+    // encode_batch: each payload is already an independently-framed buffer
+    // (Java/Python framed each one via encode_wrap before submitting the
+    // batch).  Concatenate them so the transport sends one back-to-back
+    // burst.  This is the only behaviour passthrough can offer — the C++
+    // side can't merge frames it doesn't understand.
+    [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
+    encode_batch(uint64_t /*type_id*/,
+                 std::span<const std::any> payloads) override {
+        if (payloads.empty()) return std::unexpected(conduit::Error(
+            conduit::ErrorCode::InvalidArgument,
+            "PassthroughSession: batch must contain at least one payload"));
+        size_t total = 0;
+        for (const auto& p : payloads) {
+            auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+            if (!raw) return std::unexpected(conduit::Error(
+                conduit::ErrorCode::InvalidArgument,
+                "PassthroughSession: batch payloads must be raw bytes"));
+            total += raw->size();
+        }
+        conduit::traits::EncodeResult result;
+        result.bytes.reserve(total);
+        for (const auto& p : payloads) {
+            const auto& raw = *std::any_cast<std::vector<uint8_t>>(&p);
+            result.bytes.insert(result.bytes.end(), raw.begin(), raw.end());
+        }
         return result;
     }
 
