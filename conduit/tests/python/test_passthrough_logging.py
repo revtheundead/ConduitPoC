@@ -52,7 +52,7 @@ _xcvr_mod._lib = None  # force reload against the production library
 
 from conduit.transceiver import Transceiver, ConduitError  # noqa: E402
 from conduit.types import (  # noqa: E402
-    TcpClientConfig, MessageLogMode, MessageLogOutput,
+    TcpClientConfig, TcpServerConfig, MessageLogMode, MessageLogOutput,
 )
 
 
@@ -207,3 +207,46 @@ def test_send_batch_passthrough_concatenates(tmp_path):
             "passthrough send_batch must not return BatchNotSupported")
     finally:
         tx.close()
+
+
+def test_send_sole_peer_logs_when_no_real_peers_exist(tmp_path):
+    """Regression: tx.send(msg) sole-peer overload used to throw from
+    sole_peer() *before* logging, so a TCP server with no clients (or
+    a UDP listener with no remote yet) produced no log file at all.
+    The fix encodes and logs with peer_id=0 (peer="<no-peer>") before
+    propagating the original sole-peer error.
+    """
+    tx = Transceiver()
+    tx.set_message_log_config(
+        enabled=True,
+        mode=MessageLogMode.SEPARATE_DIRECTION,
+        output=MessageLogOutput.FILE,
+        directory=str(tmp_path),
+        prefix="test",
+        include_message_content=True,
+        include_raw_bytes=True,
+    )
+    tx.register_session("fake", _Session())
+    # TCP server registration → MultiPeerEntry, peers_ stays empty,
+    # so sole_peer() raises PeerNotFound.
+    tx.add_peer("srv", "fake", TcpServerConfig("127.0.0.1:0"))
+    tx.start()
+    try:
+        with pytest.raises(ConduitError) as excinfo:
+            tx.send(_Msg(0x55))   # sole-peer overload
+        # The original sole-peer error must propagate, not be masked.
+        assert excinfo.value.code == -4   # PEER_NOT_FOUND
+    finally:
+        tx.close()
+
+    log_path = tmp_path / "test_sent.log"
+    assert log_path.exists(), \
+        "send(msg) must log even when sole_peer() fails"
+    body = log_path.read_text()
+    assert "SEND" in body
+    assert "type=Msg" in body
+    # Peer is unknown at the binding layer, so the C++ helper records
+    # the configured fallback name.
+    assert "peer=<no-peer>" in body
+    # Wire bytes still threaded through to the hex dump.
+    assert "00 00 00 08 00 00 00 55" in body

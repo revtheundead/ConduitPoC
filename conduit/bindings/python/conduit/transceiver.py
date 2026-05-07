@@ -845,7 +845,14 @@ class Transceiver:
 
         The message must be a bgen-generated object with TYPE_ID and
         encode_bytes(). This mirrors the C++ transceiver.send<T>(msg) API.
+
+        For the sole-peer convenience overload, if no sole peer exists
+        (e.g. a TCP server with no clients yet), the message log still
+        records the attempt under ``peer=<no-peer>`` before the
+        ``ConduitError`` propagates — matching the C++ Transceiver's
+        "log before transport" contract.
         """
+        sole_peer_error: Optional[ConduitError] = None
         if msg is None:
             # sole-peer convenience: send(msg)
             msg = peer_id_or_msg
@@ -854,7 +861,12 @@ class Transceiver:
                     f"Expected a message object with TYPE_ID and encode_bytes(), "
                     f"got {type(msg).__name__}"
                 )
-            peer_id = self.sole_peer()
+            try:
+                peer_id = self.sole_peer()
+            except ConduitError as e:
+                # Defer the error so we can still log the send attempt.
+                sole_peer_error = e
+                peer_id = 0  # sentinel — C++ helper falls back to "<no-peer>"
         else:
             peer_id = peer_id_or_msg
             if not _is_message_instance(msg):
@@ -869,6 +881,8 @@ class Transceiver:
             # Passthrough mode: session wraps message into a framed data block
             result = self._session.encode_wrap(type_id, msg)
             if result is None:
+                if sole_peer_error is not None:
+                    raise sole_peer_error
                 raise ConduitError(-1, f"Session encode_wrap failed for type_id=0x{type_id:x}")
             data = result['bytes']
             auto_fields = result.get('auto_fields')
@@ -877,8 +891,12 @@ class Transceiver:
             # send_raw raises.  Matches the C++ Transceiver, which calls
             # message_log_->log_send before transport->send.
             self._log_decoded_send(peer_id, type_id, msg, data, auto_fields)
+            if sole_peer_error is not None:
+                raise sole_peer_error
             self.send_raw(peer_id, type_id, data)
         else:
+            if sole_peer_error is not None:
+                raise sole_peer_error
             data = msg.encode_bytes()
             self.send_raw(peer_id, type_id, data)
 

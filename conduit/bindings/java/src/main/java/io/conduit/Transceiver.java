@@ -620,11 +620,53 @@ public class Transceiver implements AutoCloseable {
 
     /**
      * Send a typed message to the sole peer (convenience).
+     * <p>
+     * If no sole peer exists (e.g. a TCP server with no clients connected
+     * yet, or a UDP listener that hasn't seen a remote), the underlying
+     * {@link #solePeer()} lookup fails — but the message log still records
+     * the attempt under {@code peer=<no-peer>} before the error propagates.
+     * Mirrors the C++ Transceiver's "log before transport" contract.
      *
      * @param msg  Typed message object
      */
     public void send(Object msg) {
-        send(solePeer(), msg);
+        if (msg == null) throw new NullPointerException("msg must not be null");
+        int peerId;
+        try {
+            peerId = solePeer();
+        } catch (ConduitError e) {
+            // No usable peer ID — encode and log the attempt so the message
+            // log captures it, then propagate the original error.
+            logSendAttemptNoPeer(msg);
+            throw e;
+        }
+        send(peerId, msg);
+    }
+
+    /**
+     * Encode the outbound message and write a passthrough log entry tagged
+     * with peer_id=0 so the C++ helper falls back to {@code peer=<no-peer>}.
+     * Used when {@link #solePeer()} fails before the regular send path can
+     * call {@link #logDecodedSend}.  Best-effort: any failure here is
+     * swallowed because the caller is already about to throw the real
+     * sole-peer error and we don't want to mask it.
+     */
+    private void logSendAttemptNoPeer(Object msg) {
+        if (sessionEncodeWrap == null) return;  // not in passthrough mode
+        try {
+            long typeId = msg.getClass().getField("TYPE_ID").getLong(null);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result =
+                (Map<String, Object>) sessionEncodeWrap.invoke(javaSession, typeId, msg);
+            if (result == null) return;
+            byte[] frameBytes = (byte[]) result.get("bytes");
+            @SuppressWarnings("unchecked")
+            List<String[]> autoFields = (List<String[]>) result.get("auto_fields");
+            // peer_id=0 → find_peer misses → C++ helper logs peer="<no-peer>"
+            logDecodedSend(0, typeId, msg, frameBytes, autoFields);
+        } catch (Throwable ignored) {
+            // best-effort — never let log failures hide the real send error
+        }
     }
 
     /**
