@@ -472,16 +472,22 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content) {
+    const char* content,
+    const uint8_t* raw_bytes,
+    size_t raw_bytes_len) {
 
     if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    std::span<const uint8_t> raw_span = (raw_bytes && raw_bytes_len > 0)
+        ? std::span<const uint8_t>(raw_bytes, raw_bytes_len)
+        : std::span<const uint8_t>{};
     wrapper->xcvr.log_recv_message(
         conduit::transceiver::PeerId{peer},
         type_name, byte_count,
-        content ? std::string(content) : std::string{});
+        content ? std::string(content) : std::string{},
+        raw_span);
     return CONDUIT_XCVR_OK;
     CABI_CATCH_ERR
 }
@@ -491,16 +497,22 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content) {
+    const char* content,
+    const uint8_t* raw_bytes,
+    size_t raw_bytes_len) {
 
     if (!xcvr || !type_name) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     CABI_TRY
     auto* wrapper = reinterpret_cast<TransceiverWrapper*>(xcvr);
+    std::span<const uint8_t> raw_span = (raw_bytes && raw_bytes_len > 0)
+        ? std::span<const uint8_t>(raw_bytes, raw_bytes_len)
+        : std::span<const uint8_t>{};
     wrapper->xcvr.log_send_message(
         conduit::transceiver::PeerId{peer},
         type_name, byte_count,
-        content ? std::string(content) : std::string{});
+        content ? std::string(content) : std::string{},
+        raw_span);
     return CONDUIT_XCVR_OK;
     CABI_CATCH_ERR
 }

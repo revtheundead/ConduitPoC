@@ -98,9 +98,11 @@ public final class JniNativeBinding implements NativeBinding {
                                           byte[][] payloads, int[] lengths, int count);
 
     private static native int nLogRecvMessage(long handle, int peerId, String typeName,
-                                               long byteCount, String content);
+                                               long byteCount, String content,
+                                               byte[] rawBytes);
     private static native int nLogSendMessage(long handle, int peerId, String typeName,
-                                               long byteCount, String content);
+                                               long byteCount, String content,
+                                               byte[] rawBytes);
 
     private static native int nOnMessage(long handle, long typeId, int callbackKey);
     private static native int nOnAnyMessage(long handle, int callbackKey);
@@ -258,14 +260,14 @@ public final class JniNativeBinding implements NativeBinding {
 
     @Override
     public int logRecvMessage(long handle, int peerId, String typeName,
-                              long byteCount, String content) {
-        return nLogRecvMessage(handle, peerId, typeName, byteCount, content);
+                              long byteCount, String content, byte[] rawBytes) {
+        return nLogRecvMessage(handle, peerId, typeName, byteCount, content, rawBytes);
     }
 
     @Override
     public int logSendMessage(long handle, int peerId, String typeName,
-                              long byteCount, String content) {
-        return nLogSendMessage(handle, peerId, typeName, byteCount, content);
+                              long byteCount, String content, byte[] rawBytes) {
+        return nLogSendMessage(handle, peerId, typeName, byteCount, content, rawBytes);
     }
 
     @Override

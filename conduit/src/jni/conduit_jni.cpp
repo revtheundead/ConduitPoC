@@ -414,20 +414,31 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nSendBatch(
 // Message logging (passthrough)
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nLogRecvMessage(
     JNIEnv* env, jclass, jlong handle, jint peerId, jstring jtypeName,
-    jlong byteCount, jstring jcontent) {
+    jlong byteCount, jstring jcontent, jbyteArray jrawBytes) {
 
     if (handle == 0 || !jtypeName) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     const char* typeName = env->GetStringUTFChars(jtypeName, nullptr);
     const char* content = jcontent ? env->GetStringUTFChars(jcontent, nullptr) : nullptr;
+    jbyte* rawBytes = nullptr;
+    jsize rawLen = 0;
+    if (jrawBytes) {
+        rawLen = env->GetArrayLength(jrawBytes);
+        if (rawLen > 0) {
+            rawBytes = env->GetByteArrayElements(jrawBytes, nullptr);
+        }
+    }
 
     int err = conduit_log_recv_message(
         reinterpret_cast<conduit_transceiver_t*>(handle),
         static_cast<conduit_peer_id>(peerId),
         typeName,
         static_cast<size_t>(byteCount),
-        content);
+        content,
+        reinterpret_cast<const uint8_t*>(rawBytes),
+        static_cast<size_t>(rawLen));
 
+    if (rawBytes) env->ReleaseByteArrayElements(jrawBytes, rawBytes, JNI_ABORT);
     env->ReleaseStringUTFChars(jtypeName, typeName);
     if (content) env->ReleaseStringUTFChars(jcontent, content);
     return err;
@@ -435,20 +446,31 @@ JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nLogRecvMessage(
 
 JNIEXPORT jint JNICALL Java_io_conduit_JniNativeBinding_nLogSendMessage(
     JNIEnv* env, jclass, jlong handle, jint peerId, jstring jtypeName,
-    jlong byteCount, jstring jcontent) {
+    jlong byteCount, jstring jcontent, jbyteArray jrawBytes) {
 
     if (handle == 0 || !jtypeName) return CONDUIT_XCVR_ERR_INVALID_ARGUMENT;
 
     const char* typeName = env->GetStringUTFChars(jtypeName, nullptr);
     const char* content = jcontent ? env->GetStringUTFChars(jcontent, nullptr) : nullptr;
+    jbyte* rawBytes = nullptr;
+    jsize rawLen = 0;
+    if (jrawBytes) {
+        rawLen = env->GetArrayLength(jrawBytes);
+        if (rawLen > 0) {
+            rawBytes = env->GetByteArrayElements(jrawBytes, nullptr);
+        }
+    }
 
     int err = conduit_log_send_message(
         reinterpret_cast<conduit_transceiver_t*>(handle),
         static_cast<conduit_peer_id>(peerId),
         typeName,
         static_cast<size_t>(byteCount),
-        content);
+        content,
+        reinterpret_cast<const uint8_t*>(rawBytes),
+        static_cast<size_t>(rawLen));
 
+    if (rawBytes) env->ReleaseByteArrayElements(jrawBytes, rawBytes, JNI_ABORT);
     env->ReleaseStringUTFChars(jtypeName, typeName);
     if (content) env->ReleaseStringUTFChars(jcontent, content);
     return err;

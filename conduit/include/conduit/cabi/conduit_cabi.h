@@ -202,14 +202,18 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_recv_message(
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content);         /* nullable — omitted when include_message_content is off */
+    const char* content,           /* nullable — omitted when include_message_content is off */
+    const uint8_t* raw_bytes,      /* nullable — wire-format frame for hex dump */
+    size_t raw_bytes_len);
 
 CONDUIT_CABI_API conduit_xcvr_error_t conduit_log_send_message(
     conduit_transceiver_t* xcvr,
     conduit_peer_id peer,
     const char* type_name,
     size_t byte_count,
-    const char* content);         /* nullable */
+    const char* content,           /* nullable */
+    const uint8_t* raw_bytes,      /* nullable — wire-format frame for hex dump */
+    size_t raw_bytes_len);
 
 /* ================================================================
  * Handler registration/removal

@@ -505,7 +505,7 @@ public class Transceiver implements AutoCloseable {
                         Object payload = dm.get("payload");
 
                         // Log each decoded message with its real type name
-                        logDecodedRecv(peerId, tid, payload, data.length);
+                        logDecodedRecv(peerId, tid, payload, data);
 
                         CopyOnWriteArrayList<TypedMessageCallback<?>> handlers =
                             sessionHandlers.get(tid);
@@ -600,7 +600,7 @@ public class Transceiver implements AutoCloseable {
                 // message log captures it even if the peer is disconnected and
                 // sendRaw throws.  Mirrors the C++ Transceiver, which calls
                 // message_log_->log_send before transport->send.
-                logDecodedSend(peerId, typeId, msg, frameBytes.length, autoFields);
+                logDecodedSend(peerId, typeId, msg, frameBytes, autoFields);
                 sendRaw(peerId, typeId, frameBytes);
             } else {
                 // Original path: encode message bytes, let C++ session wrap them.
@@ -659,7 +659,8 @@ public class Transceiver implements AutoCloseable {
     // Message logging helpers (passthrough mode)
     // ================================================================
 
-    private void logDecodedRecv(int peerId, long typeId, Object payload, int frameBytes) {
+    private void logDecodedRecv(int peerId, long typeId, Object payload,
+                                byte[] rawBytes) {
         if (sessionFormatMessage == null) return;
         try {
             String tname = (String) sessionTypeName.invoke(javaSession, typeId);
@@ -667,14 +668,14 @@ public class Transceiver implements AutoCloseable {
             String content = logIncludeContent
                 ? (String) sessionFormatMessage.invoke(javaSession, typeId, payload)
                 : null;
-            binding.logRecvMessage(handle, peerId, tname, frameBytes, content);
+            binding.logRecvMessage(handle, peerId, tname, rawBytes.length, content, rawBytes);
         } catch (Exception e) {
             System.err.println("[conduit] message log error: " + e.getMessage());
         }
     }
 
     private void logDecodedSend(int peerId, long typeId, Object payload,
-                                int frameBytes, List<String[]> autoFields) {
+                                byte[] rawBytes, List<String[]> autoFields) {
         if (sessionFormatMessage == null) return;
         try {
             String tname = (String) sessionTypeName.invoke(javaSession, typeId);
@@ -689,7 +690,7 @@ public class Transceiver implements AutoCloseable {
                         javaSession, typeId, payload);
                 }
             }
-            binding.logSendMessage(handle, peerId, tname, frameBytes, content);
+            binding.logSendMessage(handle, peerId, tname, rawBytes.length, content, rawBytes);
         } catch (Exception e) {
             System.err.println("[conduit] message log error: " + e.getMessage());
         }

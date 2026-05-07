@@ -192,12 +192,18 @@ public:
 
     // Log a received message through the message log (for passthrough sessions
     // where the caller decodes frames and knows the actual message types).
+    // raw_bytes is the wire-format frame; honored when MessageLogConfig::
+    // include_raw_bytes is set.
     void log_recv_message(PeerId peer, std::string_view type_name,
-                          size_t byte_count, const std::string& content);
+                          size_t byte_count, const std::string& content,
+                          std::span<const uint8_t> raw_bytes = {});
 
     // Log a sent message through the message log (for passthrough sessions).
+    // raw_bytes is the wire-format frame; honored when MessageLogConfig::
+    // include_raw_bytes is set.
     void log_send_message(PeerId peer, std::string_view type_name,
-                          size_t byte_count, const std::string& content);
+                          size_t byte_count, const std::string& content,
+                          std::span<const uint8_t> raw_bytes = {});
 
     // Access the handler registry (for C ABI raw catch-all installation).
     HandlerRegistry& handlers() noexcept { return handlers_; }

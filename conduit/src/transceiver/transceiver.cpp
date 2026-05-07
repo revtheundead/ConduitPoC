@@ -141,7 +141,8 @@ void Transceiver::set_shutdown_timeout(std::chrono::milliseconds timeout) {
 }
 
 void Transceiver::log_recv_message(PeerId peer, std::string_view type_name,
-                                   size_t byte_count, const std::string& content) {
+                                   size_t byte_count, const std::string& content,
+                                   std::span<const uint8_t> raw_bytes) {
     if (!message_log_) return;
     std::string peer_name = "<no-peer>";
     std::string remote;
@@ -158,11 +159,12 @@ void Transceiver::log_recv_message(PeerId peer, std::string_view type_name,
         }
     }
     message_log_->log_recv(peer_name, remote, type_name, byte_count,
-                           content, protocol, transport);
+                           content, protocol, transport, raw_bytes);
 }
 
 void Transceiver::log_send_message(PeerId peer, std::string_view type_name,
-                                   size_t byte_count, const std::string& content) {
+                                   size_t byte_count, const std::string& content,
+                                   std::span<const uint8_t> raw_bytes) {
     if (!message_log_) return;
     std::string peer_name = "<no-peer>";
     std::string remote;
@@ -179,7 +181,7 @@ void Transceiver::log_send_message(PeerId peer, std::string_view type_name,
         }
     }
     message_log_->log_send(peer_name, remote, type_name, byte_count,
-                           content, protocol, transport);
+                           content, protocol, transport, raw_bytes);
 }
 
 // ============================================================================

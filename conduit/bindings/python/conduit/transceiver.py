@@ -375,12 +375,14 @@ def _setup_signatures(lib: ctypes.CDLL) -> None:
     lib.conduit_log_recv_message.argtypes = [
         ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
         ctypes.c_size_t, ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t,
     ]
     lib.conduit_log_recv_message.restype = ctypes.c_int32
 
     lib.conduit_log_send_message.argtypes = [
         ctypes.c_void_p, ctypes.c_uint32, ctypes.c_char_p,
         ctypes.c_size_t, ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t,
     ]
     lib.conduit_log_send_message.restype = ctypes.c_int32
 
@@ -694,7 +696,7 @@ class Transceiver:
                 for dm in messages:
                     tid = dm['type_id']
                     payload = dm['payload']
-                    self._log_decoded_recv(peer_id, tid, payload, len(raw))
+                    self._log_decoded_recv(peer_id, tid, payload, raw)
                     handlers = self._session_handlers.get(tid, [])
                     for h in handlers:
                         h(peer_id, payload)
@@ -874,7 +876,7 @@ class Transceiver:
             # message log captures it even if the peer is disconnected and
             # send_raw raises.  Matches the C++ Transceiver, which calls
             # message_log_->log_send before transport->send.
-            self._log_decoded_send(peer_id, type_id, msg, len(data), auto_fields)
+            self._log_decoded_send(peer_id, type_id, msg, data, auto_fields)
             self.send_raw(peer_id, type_id, data)
         else:
             data = msg.encode_bytes()
@@ -1102,8 +1104,18 @@ class Transceiver:
     # Internal
     # ========================================================================
 
+    @staticmethod
+    def _raw_bytes_arg(raw):
+        """Build a (POINTER, size_t) ctypes arg pair for the raw-bytes
+        parameters of conduit_log_*_message.  Returns (NULL, 0) when raw
+        is empty so the C side knows to skip the hex dump."""
+        if not raw:
+            return (ctypes.cast(None, ctypes.POINTER(ctypes.c_uint8)), 0)
+        buf = (ctypes.c_uint8 * len(raw)).from_buffer_copy(raw)
+        return (ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8)), len(raw))
+
     def _log_decoded_recv(self, peer_id: int, type_id: int,
-                          payload, frame_bytes: int) -> None:
+                          payload, raw_bytes: bytes) -> None:
         """Log a decoded received message (passthrough mode)."""
         if self._session is None:
             return
@@ -1117,16 +1129,18 @@ class Transceiver:
                     content = self._session.format_message(type_id, payload)
                 except Exception:
                     pass
+            raw_ptr, raw_len = self._raw_bytes_arg(raw_bytes)
             self._lib.conduit_log_recv_message(
                 self._handle, peer_id,
                 tname.encode("utf-8"),
-                frame_bytes,
-                content.encode("utf-8") if content else None)
+                len(raw_bytes),
+                content.encode("utf-8") if content else None,
+                raw_ptr, raw_len)
         except Exception:
             pass  # best-effort logging
 
     def _log_decoded_send(self, peer_id: int, type_id: int,
-                          msg, frame_bytes: int,
+                          msg, raw_bytes: bytes,
                           auto_fields=None) -> None:
         """Log a decoded sent message (passthrough mode)."""
         if self._session is None:
@@ -1144,11 +1158,13 @@ class Transceiver:
                         content = self._session.format_message(type_id, msg)
                 except Exception:
                     pass
+            raw_ptr, raw_len = self._raw_bytes_arg(raw_bytes)
             self._lib.conduit_log_send_message(
                 self._handle, peer_id,
                 tname.encode("utf-8"),
-                frame_bytes,
-                content.encode("utf-8") if content else None)
+                len(raw_bytes),
+                content.encode("utf-8") if content else None,
+                raw_ptr, raw_len)
         except Exception:
             pass  # best-effort logging
 
