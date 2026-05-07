@@ -72,6 +72,12 @@ sed -i "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" \
 sed -i "s/__version__ = \"[^\"]*\"/__version__ = \"${VERSION}\"/" \
     "$PROJECT_ROOT/conduit/bindings/python/conduit/__init__.py"
 
+# Python xcvr-python example — project version + conduit dependency pin
+sed -i "s/^version = \"[^\"]*\"/version = \"${VERSION}\"/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-python/pyproject.toml"
+sed -i "s/\"conduit>=[^\"]*\"/\"conduit>=${VERSION}\"/" \
+    "$PROJECT_ROOT/conduit/examples/xcvr-python/pyproject.toml"
+
 # Full C ABI — return "X.Y.Z"
 sed -i "s/return \"[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\"/return \"${VERSION}\"/" \
     "$PROJECT_ROOT/conduit/src/cabi/conduit_cabi.cpp"
@@ -98,6 +104,7 @@ echo "  conduit/examples/xcvr-java11/pom.xml"
 echo "  conduit/examples/xcvr-java21/pom.xml"
 echo "  conduit/bindings/python/pyproject.toml"
 echo "  conduit/bindings/python/conduit/__init__.py"
+echo "  conduit/examples/xcvr-python/pyproject.toml"
 echo "  conduit/src/cabi/conduit_cabi.cpp"
 echo "  conduit/src/cabi/conduit_codec_cabi.cpp"
 echo "  conduit/scripts/package_fat_jar.sh"
