@@ -23,11 +23,13 @@ import tempfile
 
 import pytest
 
-# Use the production CABI library, not the test-specific one — we register
-# our own passthrough session at runtime.
+# Use the production CABI library (not the test-specific one with pre-
+# registered native sessions) — we register our own passthrough session
+# at runtime, which doesn't need a special build.
+from conftest import resolve_native_lib  # noqa: E402
+
 _PROJECT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", ".."))
-_CABI_LIB = os.path.join(_PROJECT_ROOT, "lib", "libconduit_cabi.so")
 
 _BINDINGS_DIR = os.path.join(_PROJECT_ROOT, "bindings", "python")
 if _BINDINGS_DIR not in sys.path:
@@ -37,13 +39,16 @@ if _BINDINGS_DIR not in sys.path:
 # CONDUIT_CABI_LIB at a test-specific shared lib that has pre-registered
 # native sessions but no passthrough support.  Force the env var to the
 # production library and clear the cached handle so _get_lib reloads.
-if os.path.isfile(_CABI_LIB):
-    os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB
+_CABI_LIB = resolve_native_lib("CONDUIT_CABI_LIB", "conduit_cabi")
+if not os.path.isfile(_CABI_LIB):
+    pytest.skip(
+        f"libconduit_cabi not built (looked for {_CABI_LIB}); "
+        "build with -DCONDUIT_BUILD_CABI=ON or set CONDUIT_CABI_LIB",
+        allow_module_level=True)
+os.environ["CONDUIT_CABI_LIB"] = _CABI_LIB
 
 import conduit.transceiver as _xcvr_mod  # noqa: E402
-
-if os.path.isfile(_CABI_LIB):
-    _xcvr_mod._lib = None  # force reload against the production library
+_xcvr_mod._lib = None  # force reload against the production library
 
 from conduit.transceiver import Transceiver, ConduitError  # noqa: E402
 from conduit.types import (  # noqa: E402
