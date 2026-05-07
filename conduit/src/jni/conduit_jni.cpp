@@ -858,6 +858,7 @@ JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nLogAddConsoleSink(
 
 JNIEXPORT void JNICALL Java_io_conduit_JniNativeBinding_nLogAddFileSink(
         JNIEnv* env, jclass, jstring path, jint append) {
+    if (!path) return;  // Match other string-taking JNIs that guard against null
     const char* p = env->GetStringUTFChars(path, nullptr);
     if (!p) return;
     conduit_log_add_file_sink(p, append);

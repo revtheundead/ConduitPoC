@@ -42,7 +42,7 @@ std::string timestamp_now() {
     gmtime_r(&time, &tm_buf);
 #endif
     oss << std::put_time(&tm_buf, "%Y-%m-%dT%H:%M:%S");
-    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
     return oss.str();
 }
 

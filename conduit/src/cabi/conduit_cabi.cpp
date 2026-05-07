@@ -882,6 +882,34 @@ public:
         return result;
     }
 
+    // encode_batch: each payload is already an independently-framed buffer
+    // (Java/Python framed each one via encode_wrap before submitting the
+    // batch).  Concatenate them so the transport sends one back-to-back
+    // burst.  This is the only behaviour passthrough can offer — the C++
+    // side can't merge frames it doesn't understand.
+    [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
+    encode_batch(uint64_t /*type_id*/,
+                 std::span<const std::any> payloads) override {
+        if (payloads.empty()) return std::unexpected(conduit::Error(
+            conduit::ErrorCode::InvalidArgument,
+            "PassthroughSession: batch must contain at least one payload"));
+        size_t total = 0;
+        for (const auto& p : payloads) {
+            auto* raw = std::any_cast<std::vector<uint8_t>>(&p);
+            if (!raw) return std::unexpected(conduit::Error(
+                conduit::ErrorCode::InvalidArgument,
+                "PassthroughSession: batch payloads must be raw bytes"));
+            total += raw->size();
+        }
+        conduit::traits::EncodeResult result;
+        result.bytes.reserve(total);
+        for (const auto& p : payloads) {
+            const auto& raw = *std::any_cast<std::vector<uint8_t>>(&p);
+            result.bytes.insert(result.bytes.end(), raw.begin(), raw.end());
+        }
+        return result;
+    }
+
     [[nodiscard]] std::span<const uint8_t> sync_pattern() const override {
         return frame_config_.sync;
     }

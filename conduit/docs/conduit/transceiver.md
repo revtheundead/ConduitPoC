@@ -330,6 +330,8 @@ VoidResult r = xcvr.send_batch<Record>(std::span{records});
 
 `send_batch()` calls `encode_batch()` on the session, which packs all messages into a single frame and transmits the resulting bytes. For sessions that do not support batch encoding (non-array payloads), `send_batch()` returns `BatchNotSupported`.
 
+For passthrough sessions (Java/Python bindings), `encode_batch()` concatenates the pre-framed payloads back-to-back instead of producing a single combined frame — the C++ layer can't merge frames it doesn't understand, so each language-side frame becomes one wire-level frame in the burst.
+
 ## Lifecycle
 
 ```cpp

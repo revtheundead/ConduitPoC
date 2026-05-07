@@ -766,9 +766,13 @@ public class Transceiver implements AutoCloseable {
     }
 
     /**
-     * Remove a message handler.
+     * Remove a message handler for the given type_id.
+     * <p>
+     * The {@code peerId} parameter is reserved for future use and currently
+     * ignored — handlers are scoped transceiver-wide and a removal affects
+     * all peers.
      *
-     * @param peerId  Peer ID
+     * @param peerId  Peer ID (currently ignored)
      * @param typeId  Message type ID
      * @return true if a handler was removed
      */

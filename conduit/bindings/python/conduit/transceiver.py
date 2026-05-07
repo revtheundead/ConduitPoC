@@ -1079,7 +1079,14 @@ class Transceiver:
     # ========================================================================
 
     def remove_handler(self, peer_id: int, type_id: int) -> bool:
-        """Remove a message handler. Returns True if removed."""
+        """Remove a message handler for the given type_id.
+
+        The ``peer_id`` argument is reserved for future use and currently
+        ignored — handlers are scoped transceiver-wide and a removal
+        affects all peers.
+
+        Returns True if a handler was removed.
+        """
         return bool(self._lib.conduit_remove_handler(
             self._handle, peer_id, type_id))
 

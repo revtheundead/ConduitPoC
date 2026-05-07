@@ -4,8 +4,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/transceiver/message_log.hpp>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <span>
 #include <sstream>
 #include <string>
 
@@ -208,10 +210,63 @@ TEST_CASE("MessageLog: log entries contain ISO timestamp", "[message_log]") {
     }
 
     auto content = read_file(tmp.path / "test_messages.log");
-    // Expect ISO-8601-ish timestamp: [2026-02-15T10:24:53.486]
-    // Check for the pattern [YYYY-MM-DDT
+    // Expect ISO-8601 UTC timestamp: [2026-02-15T10:24:53.486Z]
     CHECK(content.find("[20") != std::string::npos);
     CHECK(content.find("T") != std::string::npos);
+    // Z suffix marks the timestamp as UTC.
+    CHECK(content.find("Z]") != std::string::npos);
+}
+
+// ============================================================================
+// Raw-bytes hex dump (include_raw_bytes flag)
+// ============================================================================
+
+TEST_CASE("MessageLog: include_raw_bytes emits uppercase hex dump", "[message_log]") {
+    TempDir tmp;
+    MessageLogConfig cfg;
+    cfg.enabled = true;
+    cfg.mode = MessageLogMode::Combined;
+    cfg.output = MessageLogOutput::File;
+    cfg.directory = tmp.path.string();
+    cfg.prefix = "test";
+    cfg.include_message_content = false;
+    cfg.include_raw_bytes = true;
+
+    const std::array<uint8_t, 4> bytes{0xDE, 0xAD, 0xBE, 0xEF};
+    {
+        MessageLog log(cfg);
+        log.log_send("peer1", "", "Heartbeat", bytes.size(),
+                     "", "proto", "tcp-client",
+                     std::span<const uint8_t>(bytes));
+    }
+
+    auto content = read_file(tmp.path / "test_messages.log");
+    CHECK(content.find("hex:") != std::string::npos);
+    CHECK(content.find("DE AD BE EF") != std::string::npos);
+}
+
+TEST_CASE("MessageLog: include_raw_bytes off omits hex dump", "[message_log]") {
+    TempDir tmp;
+    MessageLogConfig cfg;
+    cfg.enabled = true;
+    cfg.mode = MessageLogMode::Combined;
+    cfg.output = MessageLogOutput::File;
+    cfg.directory = tmp.path.string();
+    cfg.prefix = "test";
+    cfg.include_message_content = false;
+    cfg.include_raw_bytes = false;  // explicit, even though default
+
+    const std::array<uint8_t, 4> bytes{0xDE, 0xAD, 0xBE, 0xEF};
+    {
+        MessageLog log(cfg);
+        log.log_send("peer1", "", "Heartbeat", bytes.size(),
+                     "", "proto", "tcp-client",
+                     std::span<const uint8_t>(bytes));
+    }
+
+    auto content = read_file(tmp.path / "test_messages.log");
+    CHECK(content.find("hex:") == std::string::npos);
+    CHECK(content.find("DE AD BE EF") == std::string::npos);
 }
 
 // ============================================================================
