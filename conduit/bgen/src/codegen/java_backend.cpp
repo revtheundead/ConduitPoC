@@ -1927,15 +1927,60 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
 
             // Check if the switch expression field is an enum type.
             // If so, we need to use .value for numeric comparisons with constants.
+            // Walks dotted FieldRef paths (e.g. "i040.mit") so that nested
+            // enum fields are detected, not just direct siblings.
             bool switch_is_enum = false;
+            std::string switch_enum_class;
             if (cd->switch_expr->op == model::ExprOp::FieldRef) {
-                for (const auto& sib : children) {
-                    if (auto* sf = std::get_if<model::Field>(&sib)) {
-                        if (sf->name == cd->switch_expr->name) {
-                            auto sfi = j_resolve_field(*sf, index);
-                            switch_is_enum = sfi.is_enum;
+                const std::string& path = cd->switch_expr->name;
+                // Split path into dot-separated segments
+                std::vector<std::string> segs;
+                {
+                    size_t p = 0;
+                    while (p <= path.size()) {
+                        size_t dot = path.find('.', p);
+                        if (dot == std::string::npos) {
+                            segs.push_back(path.substr(p));
                             break;
                         }
+                        segs.push_back(path.substr(p, dot - p));
+                        p = dot + 1;
+                    }
+                }
+                // Walk segments; descend into struct/message type_refs.
+                const std::vector<model::StructChild>* cur = &children;
+                const model::Field* leaf = nullptr;
+                for (size_t i = 0; i < segs.size() && cur; ++i) {
+                    const model::Field* match = nullptr;
+                    for (const auto& sib : *cur) {
+                        if (auto* sf = std::get_if<model::Field>(&sib)) {
+                            if (sf->name == segs[i]) { match = sf; break; }
+                        }
+                    }
+                    if (!match) { cur = nullptr; break; }
+                    if (i + 1 == segs.size()) { leaf = match; break; }
+                    if (match->type_ref.empty()) { cur = nullptr; break; }
+                    auto resolved = index.find(match->type_ref);
+                    if (!resolved) { cur = nullptr; break; }
+                    const std::vector<model::StructChild>* next = nullptr;
+                    std::visit([&](const auto* def) {
+                        using T = std::decay_t<decltype(*def)>;
+                        if constexpr (std::is_same_v<T, model::StructDef>
+                                   || std::is_same_v<T, model::MessageDef>) {
+                            next = &def->children;
+                        }
+                    }, *resolved);
+                    cur = next;
+                }
+                if (leaf) {
+                    auto sfi = j_resolve_field(*leaf, index);
+                    // Inline enums (defined with <enum> directly on the
+                    // field) leave type_ref empty, so j_resolve_field
+                    // can't detect them.  Treat a non-empty enum_values
+                    // as enum-typed too.
+                    switch_is_enum = sfi.is_enum || !leaf->enum_values.empty();
+                    if (switch_is_enum && !leaf->type_ref.empty()) {
+                        switch_enum_class = j_class(leaf->type_ref);
                     }
                 }
             }
