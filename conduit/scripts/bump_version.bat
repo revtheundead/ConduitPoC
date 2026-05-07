@@ -65,6 +65,9 @@ REM Python pyproject.toml
 REM Python __init__.py
 %PS% "$f='%PROJECT_ROOT%\conduit\bindings\python\conduit\__init__.py'; $c=Get-Content $f -Raw; $c=$c -replace '__version__ = \""[^\""]*\""','__version__ = \""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
 
+REM Python xcvr-python example — project version + conduit dependency pin
+%PS% "$f='%PROJECT_ROOT%\conduit\examples\xcvr-python\pyproject.toml'; $c=Get-Content $f -Raw; $c=$c -replace '(?m)^version = \""[^\""]*\""','version = \""!VERSION!\""'; $c=$c -replace '\""conduit>=[^\""]*\""','\""conduit>=!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
+
 REM Full C ABI
 %PS% "$f='%PROJECT_ROOT%\conduit\src\cabi\conduit_cabi.cpp'; $c=Get-Content $f -Raw; $c=$c -replace 'return \""[0-9]+\.[0-9]+\.[0-9]+\""','return \""!VERSION!\""'; [IO.File]::WriteAllText($f,$c)"
 
@@ -87,6 +90,7 @@ echo   conduit\examples\xcvr-java11\pom.xml
 echo   conduit\examples\xcvr-java21\pom.xml
 echo   conduit\bindings\python\pyproject.toml
 echo   conduit\bindings\python\conduit\__init__.py
+echo   conduit\examples\xcvr-python\pyproject.toml
 echo   conduit\src\cabi\conduit_cabi.cpp
 echo   conduit\src\cabi\conduit_codec_cabi.cpp
 echo   conduit\scripts\package_fat_jar.sh
