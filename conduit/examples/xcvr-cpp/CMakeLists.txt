@@ -32,11 +32,43 @@ function(xcvr_set_output_dir target)
 endfunction()
 
 # ----------------------------------------------------------------------------
+# Code generation (bgen)
+#
+# The poc_app and dummy_peer sources #include the bgen-generated headers
+# directly via the asterix/generated and asterix-alt/generated paths.  Those
+# directories are .gitignored, so on a fresh checkout (or after `git clean`)
+# they will be missing and the example fails to compile.
+#
+# Wire up bgen_generate() so CMake regenerates them at build time whenever
+# the .bmdl.xml inputs change or the headers are missing.  PROTOCOL_NAME
+# matches bgen's umbrella-header naming (lower-snake-case of the protocol
+# name), so the asterix-alt umbrella lands as asterix_alt.hpp.
+# ----------------------------------------------------------------------------
+
+include(${CMAKE_SOURCE_DIR}/cmake/BgenGenerate.cmake)
+
+bgen_generate(
+    TARGET        xcvr_cpp_asterix_generated
+    INPUT         ${CMAKE_CURRENT_SOURCE_DIR}/asterix/asterix.bmdl.xml
+    OUTPUT_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/asterix/generated
+    NAMESPACE     asterix
+    PROTOCOL_NAME asterix
+)
+
+bgen_generate(
+    TARGET        xcvr_cpp_asterix_alt_generated
+    INPUT         ${CMAKE_CURRENT_SOURCE_DIR}/asterix-alt/asterix-alt.bmdl.xml
+    OUTPUT_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/asterix-alt/generated
+    NAMESPACE     asterix-alt
+    PROTOCOL_NAME asterix_alt
+)
+
+# ----------------------------------------------------------------------------
 # poc_app — TCP client using asterix (client perspective)
 # ----------------------------------------------------------------------------
 
 add_executable(poc_app src/poc_app.cpp)
-target_link_libraries(poc_app PRIVATE conduit)
+target_link_libraries(poc_app PRIVATE conduit xcvr_cpp_asterix_generated)
 target_include_directories(poc_app PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/asterix/generated
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -49,7 +81,8 @@ xcvr_set_output_dir(poc_app)
 # ----------------------------------------------------------------------------
 
 add_executable(dummy_peer src/dummy_peer.cpp)
-target_link_libraries(dummy_peer PRIVATE conduit)
+target_link_libraries(dummy_peer PRIVATE conduit
+    xcvr_cpp_asterix_generated xcvr_cpp_asterix_alt_generated)
 target_include_directories(dummy_peer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/asterix/generated
     ${CMAKE_CURRENT_SOURCE_DIR}/asterix-alt/generated

@@ -457,6 +457,59 @@ if(CONDUIT_BUILD_JAVA_JAR)
         set(_cmd_prefix)
     endif()
 
+    # ------------------------------------------------------------------------
+    # Native library bundling for the JAR
+    # ------------------------------------------------------------------------
+    # Compute the OS-arch tuple that matches NativeLoader.detectOsArch() in the
+    # Java loader so the bundled libraries land at the resource path the JAR
+    # extractor looks up at runtime: native/<os>-<arch>/<libfile>.
+    if(WIN32)
+        set(_native_os "windows")
+    elseif(APPLE)
+        set(_native_os "macos")
+    else()
+        set(_native_os "linux")
+    endif()
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+        set(_native_arch "x86_64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        set(_native_arch "aarch64")
+    else()
+        set(_native_arch "${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+    set(_native_os_arch "${_native_os}-${_native_arch}")
+
+    # Native libs to embed are whichever shared targets the user asked to
+    # build.  We embed both JNI and CABI variants so a single JAR works
+    # whether the consumer uses JNI or Panama FFI.
+    set(_native_lib_targets)
+    foreach(_t conduit_jni conduit_codec_jni conduit_cabi conduit_codec_cabi)
+        if(TARGET ${_t})
+            list(APPEND _native_lib_targets ${_t})
+        endif()
+    endforeach()
+
+    if(_native_lib_targets)
+        message(STATUS "Java JAR: bundling native libs (${_native_os_arch}): ${_native_lib_targets}")
+    else()
+        message(STATUS "Java JAR: no native shared libraries built; JAR will not include native resources")
+    endif()
+
+    # Resource staging dir inside the Java bindings tree.  Maven and Gradle
+    # pick everything under bindings/java/src/main/resources/ up automatically
+    # via the default <resource> mapping in pom.xml.  We populate this dir
+    # immediately before the build and remove it immediately after, so the
+    # source tree is clean between builds.
+    set(_native_resources_dir "${_java_bindings_dir}/src/main/resources/native/${_native_os_arch}")
+
+    # Build a list of "<source>|<dest_filename>" pairs that the cmake -P
+    # scripts iterate over.  TARGET_FILE / TARGET_FILE_NAME are evaluated at
+    # build time so the right configuration's output is picked up.
+    set(_native_lib_pairs)
+    foreach(_t ${_native_lib_targets})
+        list(APPEND _native_lib_pairs "$<TARGET_FILE:${_t}>|$<TARGET_FILE_NAME:${_t}>")
+    endforeach()
+
     # --- Strategy 1: Maven ---
     find_program(_mvn_exe mvn)
     if(_mvn_exe AND EXISTS "${_java_bindings_dir}/pom.xml")
@@ -464,31 +517,53 @@ if(CONDUIT_BUILD_JAVA_JAR)
         # Wrap in a cmake -P script for reliable error propagation on all generators
         # (Visual Studio generators don't chain multiple COMMANDs with &&)
         set(_mvn_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_mvn.cmake")
-        file(WRITE "${_mvn_build_script}" "\
-execute_process(\n\
-    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")\n\
-endif()\n\
-set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")\n\
-if(NOT EXISTS \"\${_src_jar}\")\n\
-    message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
-endif()\n\
+        file(GENERATE OUTPUT "${_mvn_build_script}" CONTENT "\
+# Stage native libraries into the Maven resources tree so the resulting JAR
+# includes them at native/<os>-<arch>/<libfile> for NativeLoader to extract.
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+set(_pairs \"${_native_lib_pairs}\")
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_resources_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_resources_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_resources_dir}/\${_name}\")
+        endif()
+    endforeach()
+endif()
+execute_process(
+    COMMAND ${_cmd_prefix} \"${_mvn_exe}\" package -B -f \"${_java_bindings_dir}/pom.xml\"
+    RESULT_VARIABLE _rc
+)
+# Always clean up the staged native libs, even if the build failed, so the
+# source tree never contains stale binaries between builds.
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"Maven build failed (exit code: \${_rc})\")
+endif()
+set(_src_jar \"${_java_bindings_dir}/target/conduit-java-${PROJECT_VERSION}.jar\")
+if(NOT EXISTS \"\${_src_jar}\")
+    message(FATAL_ERROR \"Maven did not produce JAR: \${_src_jar}\")
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"
+    RESULT_VARIABLE _rc2
+)
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")
+endif()
 ")
         add_custom_command(
             OUTPUT "${_java_jar}"
             COMMAND ${CMAKE_COMMAND} -P "${_mvn_build_script}"
-            DEPENDS ${_java_core_sources}
+            DEPENDS ${_java_core_sources} ${_native_lib_targets}
             COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Maven)"
             VERBATIM
         )
@@ -501,31 +576,49 @@ endif()\n\
         if(_gradle_exe AND EXISTS "${_java_bindings_dir}/build.gradle")
             message(STATUS "Java JAR: using Gradle (gradle found, build.gradle exists)")
             set(_gradle_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_gradle.cmake")
-            file(WRITE "${_gradle_build_script}" "\
-execute_process(\n\
-    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")\n\
-endif()\n\
-set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")\n\
-if(NOT EXISTS \"\${_src_jar}\")\n\
-    message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")\n\
-endif()\n\
+            file(GENERATE OUTPUT "${_gradle_build_script}" CONTENT "\
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+set(_pairs \"${_native_lib_pairs}\")
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_resources_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_resources_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_resources_dir}/\${_name}\")
+        endif()
+    endforeach()
+endif()
+execute_process(
+    COMMAND ${_cmd_prefix} \"${_gradle_exe}\" -p \"${_java_bindings_dir}\" jar -q
+    RESULT_VARIABLE _rc
+)
+file(REMOVE_RECURSE \"${_native_resources_dir}\")
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"Gradle build failed (exit code: \${_rc})\")
+endif()
+set(_src_jar \"${_java_bindings_dir}/build/libs/conduit-java-${PROJECT_VERSION}.jar\")
+if(NOT EXISTS \"\${_src_jar}\")
+    message(FATAL_ERROR \"Gradle did not produce JAR: \${_src_jar}\")
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+execute_process(
+    COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src_jar}\" \"${_java_jar}\"
+    RESULT_VARIABLE _rc2
+)
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"Failed to copy JAR to ${_java_jar}\")
+endif()
 ")
             add_custom_command(
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_gradle_build_script}"
-                DEPENDS ${_java_core_sources}
+                DEPENDS ${_java_core_sources} ${_native_lib_targets}
                 COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (Gradle)"
                 VERBATIM
             )
@@ -592,33 +685,69 @@ endif()\n\
             list(JOIN _java_sources "\n" _java_sources_nl)
             file(WRITE "${_javac_args_file}" "${_javac_flags_nl}\n${_java_sources_nl}\n")
 
-            # Wrap in cmake -P for reliable error propagation on all generators
+            # Wrap in cmake -P for reliable error propagation on all generators.
+            # The script also stages native libs into a private build-tree
+            # directory and adds them to the JAR via `jar -C <dir> native`,
+            # so the resulting JAR carries the libs at native/<os>-<arch>/.
             set(_javac_build_script "${CMAKE_CURRENT_BINARY_DIR}/build_java_jar_javac.cmake")
-            file(WRITE "${_javac_build_script}" "\
-file(MAKE_DIRECTORY \"${_java_classes_dir}\")\n\
-execute_process(\n\
-    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_javac_args_file}\"\n\
-    RESULT_VARIABLE _rc\n\
-)\n\
-if(NOT _rc EQUAL 0)\n\
-    message(FATAL_ERROR \"javac compilation failed (exit code: \${_rc})\")\n\
-endif()\n\
-file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")\n\
-execute_process(\n\
-    COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\" -C \"${_java_classes_dir}\" .\n\
-    RESULT_VARIABLE _rc2\n\
-)\n\
-if(NOT _rc2 EQUAL 0)\n\
-    message(FATAL_ERROR \"jar creation failed (exit code: \${_rc2})\")\n\
-endif()\n\
-if(NOT EXISTS \"${_java_jar}\")\n\
-    message(FATAL_ERROR \"JAR not found after build: ${_java_jar}\")\n\
-endif()\n\
+            set(_native_jar_root "${CMAKE_CURRENT_BINARY_DIR}/jar-natives")
+            set(_native_jar_dir "${_native_jar_root}/native/${_native_os_arch}")
+            file(GENERATE OUTPUT "${_javac_build_script}" CONTENT "\
+file(MAKE_DIRECTORY \"${_java_classes_dir}\")
+execute_process(
+    COMMAND \"${JAVAC_EXECUTABLE}\" \"@${_javac_args_file}\"
+    RESULT_VARIABLE _rc
+)
+if(NOT _rc EQUAL 0)
+    message(FATAL_ERROR \"javac compilation failed (exit code: \${_rc})\")
+endif()
+# Stage native libs (if any) into ${_native_jar_dir} so they appear in
+# the JAR at native/<os>-<arch>/<libfile>.
+file(REMOVE_RECURSE \"${_native_jar_root}\")
+set(_pairs \"${_native_lib_pairs}\")
+set(_have_natives FALSE)
+if(_pairs)
+    file(MAKE_DIRECTORY \"${_native_jar_dir}\")
+    foreach(_pair IN LISTS _pairs)
+        string(REPLACE \"|\" \";\" _split \"\${_pair}\")
+        list(GET _split 0 _src)
+        list(GET _split 1 _name)
+        execute_process(
+            COMMAND \"${CMAKE_COMMAND}\" -E copy \"\${_src}\" \"${_native_jar_dir}/\${_name}\"
+            RESULT_VARIABLE _rc_copy
+        )
+        if(NOT _rc_copy EQUAL 0)
+            message(FATAL_ERROR \"Failed to stage \${_src} -> ${_native_jar_dir}/\${_name}\")
+        endif()
+    endforeach()
+    set(_have_natives TRUE)
+endif()
+file(MAKE_DIRECTORY \"${CMAKE_SOURCE_DIR}/lib\")
+if(_have_natives)
+    execute_process(
+        COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\"
+            -C \"${_java_classes_dir}\" .
+            -C \"${_native_jar_root}\" native
+        RESULT_VARIABLE _rc2
+    )
+else()
+    execute_process(
+        COMMAND \"${JAR_EXECUTABLE}\" cf \"${_java_jar}\"
+            -C \"${_java_classes_dir}\" .
+        RESULT_VARIABLE _rc2
+    )
+endif()
+if(NOT _rc2 EQUAL 0)
+    message(FATAL_ERROR \"jar creation failed (exit code: \${_rc2})\")
+endif()
+if(NOT EXISTS \"${_java_jar}\")
+    message(FATAL_ERROR \"JAR not found after build: ${_java_jar}\")
+endif()
 ")
             add_custom_command(
                 OUTPUT "${_java_jar}"
                 COMMAND ${CMAKE_COMMAND} -P "${_javac_build_script}"
-                DEPENDS ${_java_sources}
+                DEPENDS ${_java_sources} ${_native_lib_targets}
                 COMMENT "Building conduit-java-${PROJECT_VERSION}.jar (javac)"
                 VERBATIM
             )
@@ -861,10 +990,21 @@ include(cmake/Coverage.cmake)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS conduit conduit_codec conduit_warnings
+# Always install the static libraries and their export entries.  Optional
+# C ABI / JNI shared libraries are appended below when they were built so
+# `find_package(conduit)` exposes whichever variants this build produced.
+set(_conduit_install_targets conduit conduit_codec conduit_warnings)
+foreach(_t conduit_codec_cabi conduit_cabi conduit_codec_jni conduit_jni)
+    if(TARGET ${_t})
+        list(APPEND _conduit_install_targets ${_t})
+    endif()
+endforeach()
+
+install(TARGETS ${_conduit_install_targets}
     EXPORT conduit-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 install(DIRECTORY include/conduit
@@ -872,7 +1012,15 @@ install(DIRECTORY include/conduit
 )
 
 if(CONDUIT_BUILD_BGEN)
-    install(TARGETS bgen RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    # Export bgen as part of conduit-targets so find_package(conduit)
+    # consumers can drive code generation through BgenGenerate.cmake without
+    # needing the source tree.  The cmake fragment below is updated to look
+    # up either `conduit::bgen` (find_package consumers) or the bare `bgen`
+    # target (in-tree).
+    install(TARGETS bgen
+        EXPORT conduit-targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
     install(FILES cmake/BgenGenerate.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/conduit
     )

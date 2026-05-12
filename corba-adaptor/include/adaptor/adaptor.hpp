@@ -23,6 +23,8 @@
 #include "adaptor/tcp_peer.hpp"
 #include "adaptor/types.hpp"
 
+#include "commbus/commbus.hpp"
+
 #include "corba-peer/sessions.hpp"
 
 #include <ace/Reactor.h>
@@ -76,6 +78,11 @@ public:
     TcpPeer&                tcp_peer();
     CorbaPeer&              corba_peer();
 
+    /// Access the per-Adaptor task bus.  Servant handlers and any other
+    /// long-running adaptor code can submit tasks here to keep the
+    /// caller (ORB worker thread) responsive.
+    commbus::CommBus&       bus();
+
 private:
     void register_builtin_commands();
     void wire_tcp_handlers();
@@ -100,6 +107,11 @@ private:
     std::mutex corba_session_mu_;
 
     std::unique_ptr<NamingHelper> naming_;
+
+    // Single shared CommBus for all adaptor-internal asynchronous flows.
+    // Sized to handle a small number of concurrent CORBA-fronted commands
+    // that may each block on TCP responses or other external waits.
+    std::unique_ptr<commbus::CommBus> bus_;
 
     std::atomic<bool>       running_;
     std::atomic<bool>       shutdown_requested_;

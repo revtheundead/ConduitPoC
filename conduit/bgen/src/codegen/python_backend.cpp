@@ -1792,6 +1792,60 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             std::string sv = py_expr_ctx(*cd->switch_expr, pfx, outer_ctx);
             std::string m = pfx + "." + py_field(cd->name);
 
+            // If the switch field is an enum, case values that name enum
+            // entries must be qualified (e.g. ItemTag.TAG_A) â€" otherwise
+            // generated code references undefined identifiers like `TagA`.
+            std::string switch_enum_class;
+            if (cd->switch_expr->op == model::ExprOp::FieldRef) {
+                for (const auto& sib : children) {
+                    if (auto* sf = std::get_if<model::Field>(&sib)) {
+                        if (sf->name == cd->switch_expr->name) {
+                            auto sfi = py_resolve_field(*sf, index);
+                            if (sfi.is_enum && !sf->type_ref.empty()) {
+                                switch_enum_class = py_class(sf->type_ref);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            auto qualify_case_value = [&](const std::string& v) -> std::string {
+                if (index.constants.count(v)) {
+                    return "Constants." + py_snake(v);
+                }
+                if (!switch_enum_class.empty()) {
+                    auto tit = index.types.find(cd->switch_expr->name.empty()
+                                                    ? std::string{}
+                                                    : std::string{});
+                    (void)tit;
+                    // Look up the enum by the switch field's type and check
+                    // that v really names one of its values before qualifying.
+                    for (const auto& [tn, td] : index.types) {
+                        if (py_class(tn) != switch_enum_class) continue;
+                        for (const auto& ev : td->enum_values) {
+                            if (ev.name == v) {
+                                return switch_enum_class + "." + py_enum_val(v);
+                            }
+                        }
+                        break;
+                    }
+                }
+                return v;
+            };
+            // For enum switch fields, compare against the underlying int via
+            // the enum's .value attribute so the right-hand side can be
+            // either an int literal or an EnumClass.MEMBER (whose .value
+            // also works on either side of ==, but using .value on the
+            // switch keeps numeric ranges working unchanged).
+            std::string sv_cmp = switch_enum_class.empty() ? sv : (sv + ".value");
+            auto value_for_compare = [&](const std::string& v) -> std::string {
+                std::string q = qualify_case_value(v);
+                if (!switch_enum_class.empty() && q.rfind(switch_enum_class + ".", 0) == 0) {
+                    return q + ".value";
+                }
+                return q;
+            };
+
             // Create bounded sub-reader if choice has length/length_from
             bool bounded = cd->length_from != nullptr || cd->length.has_value();
             std::string reader_var = "r";
@@ -1826,27 +1880,19 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
 
                     std::string cond;
                     if (cs.value) {
-                        std::string val = *cs.value;
-                        if (index.constants.count(*cs.value)) {
-                            val = "Constants." + py_snake(*cs.value);
-                        }
-                        cond = sv + " == " + val;
+                        cond = sv_cmp + " == " + value_for_compare(*cs.value);
                     } else if (cs.range) {
                         auto dot_pos = cs.range->find("..");
                         if (dot_pos != std::string::npos) {
-                            std::string min_s = cs.range->substr(0, dot_pos);
-                            std::string max_s = cs.range->substr(dot_pos + 2);
-                            if (index.constants.count(min_s)) min_s = "Constants." + py_snake(min_s);
-                            if (index.constants.count(max_s)) max_s = "Constants." + py_snake(max_s);
+                            std::string min_s = value_for_compare(cs.range->substr(0, dot_pos));
+                            std::string max_s = value_for_compare(cs.range->substr(dot_pos + 2));
                             if (min_s == "0") {
-                                cond = sv + " <= " + max_s;
+                                cond = sv_cmp + " <= " + max_s;
                             } else {
-                                cond = min_s + " <= " + sv + " <= " + max_s;
+                                cond = min_s + " <= " + sv_cmp + " <= " + max_s;
                             }
                         } else {
-                            std::string range_val = *cs.range;
-                            if (index.constants.count(range_val)) range_val = "Constants." + py_snake(range_val);
-                            cond = sv + " == " + range_val;
+                            cond = sv_cmp + " == " + value_for_compare(*cs.range);
                         }
                     } else {
                         continue;
@@ -2117,7 +2163,11 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
         auto al_fi = py_resolve_field(*auto_len_ref_field, index);
         bool be = (al_fi.endian == model::Endian::Big);
         std::string target_py = py_field(auto_len_ref_field->auto_expr->field_ref);
-        std::string size_expr = "w.size_bytes() - _" + target_py + "_start";
+        // Wrap the subtraction so a multiplicative modifier (*, //, %) doesn't
+        // bind tighter than the '-' under Python operator precedence and silently
+        // produce e.g. `w.size_bytes() - (_x_start * 2)` instead of
+        // `(w.size_bytes() - _x_start) * 2`.
+        std::string size_expr = "(w.size_bytes() - _" + target_py + "_start)";
         if (auto_len_ref_field->auto_expr->modifier.has_modifier()) {
             auto& mod = auto_len_ref_field->auto_expr->modifier;
             switch (mod.op) {
@@ -2280,6 +2330,27 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
                 ef.doc = f->doc;
                 fields.push_back(ef);
                 continue;
+            }
+            // Inline struct/message field: expand its children into this scope
+            // so __slots__ / __init__ list the same flat field set that
+            // encode/decode emit (which dispatch to emit_py_decode_children
+            // with the parent prefix).  Without this expansion, __slots__
+            // would contain only the inline field name (e.g. 'source') while
+            // encode/decode reference the inlined sub-fields directly
+            // (e.g. result.sac), producing AttributeError at runtime.
+            if (f->is_inline && !f->type_ref.empty()) {
+                auto sit = index.structs.find(f->type_ref);
+                if (sit != index.structs.end()) {
+                    collect_py_fields(sit->second->children, index, fields,
+                                      name_map, parent_class_name, in_fx);
+                    continue;
+                }
+                auto mit = index.messages.find(f->type_ref);
+                if (mit != index.messages.end()) {
+                    collect_py_fields(mit->second->children, index, fields,
+                                      name_map, parent_class_name, in_fx);
+                    continue;
+                }
             }
             auto fi = py_resolve_field(*f, index);
             PyFieldDef pf;

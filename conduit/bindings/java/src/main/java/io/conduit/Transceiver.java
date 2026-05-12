@@ -596,8 +596,12 @@ public class Transceiver implements AutoCloseable {
                 byte[] frameBytes = (byte[]) result.get("bytes");
                 @SuppressWarnings("unchecked")
                 List<String[]> autoFields = (List<String[]>) result.get("auto_fields");
-                sendRaw(peerId, typeId, frameBytes);
+                // Record the send attempt before invoking the transport so the
+                // message log captures it even if the peer is disconnected and
+                // sendRaw throws.  Mirrors the C++ Transceiver, which calls
+                // message_log_->log_send before transport->send.
                 logDecodedSend(peerId, typeId, msg, frameBytes.length, autoFields);
+                sendRaw(peerId, typeId, frameBytes);
             } else {
                 // Original path: encode message bytes, let C++ session wrap them.
                 byte[] data = (byte[]) cls.getMethod("encodeBytes").invoke(msg);
