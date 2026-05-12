@@ -34,6 +34,7 @@
 
 #include "error.hpp"
 #include "slot.hpp"
+#include "inbox.hpp"
 
 namespace commbus {
 
@@ -98,6 +99,59 @@ public:
         // Move the value out so a re-entered wait sees nothing — slots
         // are one-shot by contract.
         return std::move(*slot->value_);
+    }
+
+    // Bus-aware drain from an Inbox<T>.  Behaves like Inbox::recv but
+    // ALSO honours the task's cancellation flag — the bus shutting down
+    // while a task is mid-drain wakes recv() with Cancelled instead of
+    // letting it sit for the full timeout.  Tasks consuming a stream
+    // should use this rather than calling inbox->recv directly.
+    //
+    // Returns:
+    //   * the next message on success,
+    //   * Cancelled if the bus is shutting down or the inbox is closed,
+    //   * Timeout if the deadline elapses with no message.
+    //
+    // Inbox is held by shared_ptr; this method does not take ownership.
+    template <typename T>
+    Result<T> recv(std::shared_ptr<Inbox<T>> inbox,
+                   std::chrono::milliseconds timeout) {
+        if (!inbox) {
+            return cpp11::make_unexpected(
+                Error(ErrorCode_InvalidTask, "recv: null inbox"));
+        }
+
+        // Poll-the-cancel-flag pattern, same as wait() for Slot.  We
+        // can't natively wait on (inbox->cv_ OR cancel_flag_), so we
+        // wake every poll_interval to re-check the flag.  Latency is
+        // bounded at poll_interval; the inbox's cv itself wakes us
+        // immediately on push() or close(), which is the common path.
+        const auto poll_interval = std::chrono::milliseconds(50);
+        auto deadline = std::chrono::steady_clock::now() + timeout;
+
+        std::unique_lock<std::mutex> lock(inbox->mu_);
+        while (true) {
+            if (!inbox->queue_.empty()) {
+                T value = std::move(inbox->queue_.front());
+                inbox->queue_.pop_front();
+                return value;
+            }
+            if (inbox->closed_) {
+                return cpp11::make_unexpected(
+                    Error(ErrorCode_Cancelled, "inbox closed"));
+            }
+            if (stop_requested()) {
+                return cpp11::make_unexpected(cancelled_error());
+            }
+            auto now = std::chrono::steady_clock::now();
+            if (now >= deadline) {
+                return cpp11::make_unexpected(timeout_error());
+            }
+            auto next_wake = (now + poll_interval < deadline)
+                                ? (now + poll_interval)
+                                : deadline;
+            inbox->cv_.wait_until(lock, next_wake);
+        }
     }
 
     // Cooperative cancellation flag.  Long-running tasks (CPU loops,
