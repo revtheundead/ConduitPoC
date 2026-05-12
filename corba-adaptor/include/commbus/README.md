@@ -12,7 +12,8 @@ CORBA, or any other interface.
 |-----------------------|------------------------------------------------------------|
 | `commbus/error.hpp`   | Error codes (1000+ range) + `Result<T>` typedef            |
 | `commbus/slot.hpp`    | `Slot<T>` — cross-thread one-shot rendezvous primitive     |
-| `commbus/context.hpp` | `Context` — per-task handle (make_slot, wait, stop_request)|
+| `commbus/inbox.hpp`   | `Inbox<T>` — bounded stream queue; drain at your own pace  |
+| `commbus/context.hpp` | `Context` — per-task handle (make_slot, wait, recv, stop_requested) |
 | `commbus/wait_registry.hpp` | `WaitRegistry<T>` + `WaitGuard<T>` — correlation-keyed routing for many-to-one delivery |
 | `commbus/bus.hpp`     | `CommBus` — bounded queue, worker pool, three submit APIs  |
 | `commbus/commbus.hpp` | Umbrella include — pulls in everything above               |
@@ -55,6 +56,25 @@ receiver looks up the slot by id and fulfils it.
 If you have only one in-flight task per response type, you don't need a
 registry — a bare `Slot<T>` is enough.
 
+## When to use an Inbox
+
+When the protocol streams a continuous flow of messages of the same
+type — typically periodic — and your task needs to **drain that stream
+until satisfied**.  This is the right primitive when requests and
+responses are not correlatable by id and may be intermixed in a single
+stream: the task body applies its own predicate (content match, settle
+window, snapshot/diff, state machine) to recognise "I'm done".
+
+Producers (a `TcpPeer::on<T>` handler, a CORBA event subscriber, a
+timer) push into the inbox from any thread; the task drains via
+`ctx.recv(inbox, timeout)`, which is bus-shutdown aware and returns
+`Cancelled` when the bus stops, `Timeout` when the deadline elapses,
+or the next value when one is available.
+
+Inboxes are bounded; the default policy is drop-oldest with a counter
+visible via `inbox->dropped_count()`.  See `examples/commbus/06_stream_inbox.cpp`
+for the full pattern.
+
 ## Examples
 
 Working code in `examples/commbus/`:
@@ -69,6 +89,9 @@ Working code in `examples/commbus/`:
    thread-driven callbacks).
 5. **`05_cross_interface.cpp`** — request via one interface, response via
    another, both feeding the same registry.
+6. **`06_stream_inbox.cpp`** — draining a periodic stream with `Inbox`
+   until the task is satisfied with a message; demonstrates the
+   "no correlation, scan the stream" pattern for periodic protocols.
 
 Build them with the rest of the project; the targets are
 `commbus_example_01_basics` … `commbus_example_05_cross_interface`.
