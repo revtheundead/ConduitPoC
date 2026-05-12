@@ -225,6 +225,7 @@ add_library(corba_adaptor_lib STATIC
     src/subscription_manager.cpp
     src/supplier.cpp
     src/adaptor.cpp
+    src/commbus.cpp
 )
 
 target_include_directories(corba_adaptor_lib PUBLIC
@@ -250,3 +251,30 @@ target_link_libraries(corba-adaptor PRIVATE
     corba_adaptor_lib
     adaptor_warnings
 )
+
+# -----------------------------------------------------------------------------
+# CommBus examples — standalone, no TAO dependency, build by default so any
+# break in the public commbus API is caught immediately by CI.
+# -----------------------------------------------------------------------------
+
+option(CORBA_ADAPTOR_BUILD_COMMBUS_EXAMPLES
+       "Build the commbus example programs" ON)
+
+if(CORBA_ADAPTOR_BUILD_COMMBUS_EXAMPLES)
+    foreach(ex
+            01_basics
+            02_slot_external
+            03_request_response
+            04_corba_bridge
+            05_cross_interface)
+        add_executable(commbus_example_${ex}
+            examples/commbus/${ex}.cpp
+            src/commbus.cpp)
+        target_include_directories(commbus_example_${ex} PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        target_link_libraries(commbus_example_${ex} PRIVATE
+            cpp11::compat
+            adaptor_warnings
+            Threads::Threads)
+    endforeach()
+endif()

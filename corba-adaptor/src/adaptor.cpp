@@ -36,6 +36,17 @@ Adaptor::Adaptor(CORBA::ORB_ptr orb,
     corba_.reset(new CorbaPeer(orb, poa, config_.corba_peer));
     command_.reset(new CommandReceiverServant);
     corba_session_.reset(new corba_peer::CorbaPeerFrameSession);
+
+    // Bring up the task bus.  Two workers is enough headroom for the
+    // small number of concurrent CORBA-fronted commands the adaptor
+    // services today.  Raise via AdaptorConfig once measurement
+    // demands it.
+    bus_.reset(new commbus::CommBus(
+        commbus::CommBus::Config(/*queue*/ 128, /*workers*/ 2)));
+    bus_->set_error_sink([](const commbus::Error& e) {
+        ACE_ERROR((LM_ERROR, "Adaptor bus error: %s\n",
+                   e.format().c_str()));
+    });
 }
 
 Adaptor::~Adaptor() { stop(); }
@@ -107,6 +118,14 @@ void Adaptor::stop() {
     if (tcp_)   tcp_->stop();
     if (corba_) corba_->stop();
 
+    // Tear down the task bus.  drain=true lets queued tasks finish so
+    // in-progress flows can wrap up cleanly; running tasks see
+    // ctx.stop_requested() and bail.  Replace with stop(false) if you
+    // need a fast-but-lossy shutdown.
+    if (bus_) {
+        bus_->stop(/*drain=*/true);
+    }
+
     if (adaptor_reactor_) {
         adaptor_reactor_->end_reactor_event_loop();
     }
@@ -164,6 +183,7 @@ CommandReceiverServant& Adaptor::command_servant() { return *command_; }
 AdaptorSupplierServant& Adaptor::supplier()        { return *supplier_; }
 TcpPeer&                Adaptor::tcp_peer()         { return *tcp_; }
 CorbaPeer&              Adaptor::corba_peer()       { return *corba_; }
+commbus::CommBus&       Adaptor::bus()              { return *bus_; }
 
 void Adaptor::orb_thread_func() {
     try {
@@ -246,6 +266,10 @@ void Adaptor::dispatch_corba_decoded(const bgen11::traits::DecodedMessage& msg) 
 }
 
 void Adaptor::register_builtin_commands() {
+    // ── "status" — synchronous, no external wait.  Kept inline because
+    // building the status string is microseconds; the ORB thread can
+    // do it directly without bothering the bus.  This shows when to
+    // NOT use the bus: trivial work doesn't pay for a context switch.
     command_->register_query("status",
         [this](const std::string&) -> CorbaAdaptor::CommandResult {
             CorbaAdaptor::CommandResult res;
@@ -254,8 +278,55 @@ void Adaptor::register_builtin_commands() {
             std::ostringstream ss;
             ss << "tcp_peer="    << (tcp_->is_connected()   ? "connected" : "disconnected")
                << " corba_peer=" << (corba_->is_connected() ? "connected" : "disconnected")
-               << " subscribers=" << supplier_->subscriber_count();
+               << " subscribers=" << supplier_->subscriber_count()
+               << " bus_queue="   << bus_->queue_depth()
+               << " bus_in_flight=" << bus_->in_flight();
             res.message = CORBA::string_dup(ss.str().c_str());
+            return res;
+        });
+
+    // ── "bus-ping" — demonstrates the ORB→bus→slot→reply round trip.
+    //
+    // The ORB worker thread submits a bus task and blocks on its
+    // future.  The task creates a slot, kicks off a delayed fulfillment
+    // (stand-in for a real external dependency like a TCP response or
+    // CORBA reverse-callback), and waits.  This shows the production
+    // shape every bus-using command will follow.
+    //
+    // For a real production command this pattern would replace the
+    // delay-thread with whatever external machinery completes the
+    // request: peer.on<T>(handler) routing to a WaitRegistry, a CORBA
+    // reverse-callback servant, a timer, etc.
+    command_->register_query("bus-ping",
+        [this](const std::string&) -> CorbaAdaptor::CommandResult {
+            auto fut = bus_->submit_with_result<std::string>(
+                [](commbus::Context& ctx) -> commbus::Result<std::string> {
+                    auto slot = ctx.make_slot<std::string>();
+                    // Pretend external system fulfils after 50 ms.
+                    std::thread([slot]{
+                        std::this_thread::sleep_for(
+                            std::chrono::milliseconds(50));
+                        slot->fulfil(std::string("pong"));
+                    }).detach();
+                    return ctx.wait(slot, std::chrono::seconds(2));
+                });
+
+            // Outer CORBA SLA — independent of the bus's own timeout.
+            CorbaAdaptor::CommandResult res;
+            if (fut.wait_for(std::chrono::seconds(5))
+                != std::future_status::ready) {
+                res.status = CorbaAdaptor::CMD_ERROR;
+                res.message = CORBA::string_dup("CORBA SLA exceeded");
+                return res;
+            }
+            auto r = fut.get();
+            if (!r) {
+                res.status = CorbaAdaptor::CMD_ERROR;
+                res.message = CORBA::string_dup(r.error().format().c_str());
+                return res;
+            }
+            res.status = CorbaAdaptor::CMD_OK;
+            res.message = CORBA::string_dup(r->c_str());
             return res;
         });
 
