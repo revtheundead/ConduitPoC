@@ -13,6 +13,7 @@ CORBA, or any other interface.
 | `commbus/error.hpp`   | Error codes (1000+ range) + `Result<T>` typedef            |
 | `commbus/slot.hpp`    | `Slot<T>` — cross-thread one-shot rendezvous primitive     |
 | `commbus/inbox.hpp`   | `Inbox<T>` — bounded stream queue; drain at your own pace  |
+| `commbus/broadcaster.hpp` | `Broadcaster<T>` — pub/sub fan-out via `shared_ptr<const T>` (zero-copy) |
 | `commbus/context.hpp` | `Context` — per-task handle (make_slot, wait, recv, stop_requested) |
 | `commbus/wait_registry.hpp` | `WaitRegistry<T>` + `WaitGuard<T>` — correlation-keyed routing for many-to-one delivery |
 | `commbus/bus.hpp`     | `CommBus` — bounded queue, worker pool, three submit APIs  |
@@ -75,6 +76,24 @@ Inboxes are bounded; the default policy is drop-oldest with a counter
 visible via `inbox->dropped_count()`.  See `examples/commbus/06_stream_inbox.cpp`
 for the full pattern.
 
+## When to use a Broadcaster
+
+When **multiple consumers each need to see every message** from one
+source — e.g. several tasks observing the same TCP-side stream where
+each filters or processes a different subset.  A single inbox shared
+between consumers won't work: pop is destructive, consumers race for
+each message, and any message you drain is lost to the others.
+
+`Broadcaster<T>` solves that by giving each consumer its own private
+inbox of `shared_ptr<const T>`.  `publish(msg)` wraps the message
+once and hands a `shared_ptr` copy to every alive subscriber — an
+atomic refcount bump per consumer, **not** a memcpy.  For medium-to-
+large payloads (10 KB+) the per-publish cost is independent of message
+size; for small payloads it's comparable to a value-copy.
+
+Subscriber inboxes are held by weak_ptr; dropping your subscriber
+handle auto-unsubscribes.  See `examples/commbus/07_broadcaster.cpp`.
+
 ## Examples
 
 Working code in `examples/commbus/`:
@@ -92,6 +111,9 @@ Working code in `examples/commbus/`:
 6. **`06_stream_inbox.cpp`** — draining a periodic stream with `Inbox`
    until the task is satisfied with a message; demonstrates the
    "no correlation, scan the stream" pattern for periodic protocols.
+7. **`07_broadcaster.cpp`** — pub/sub fan-out: three consumers each with
+   their own inbox subscribed to one `Broadcaster<Reading>`; zero-copy
+   delivery via `shared_ptr<const T>`.
 
 Build them with the rest of the project; the targets are
 `commbus_example_01_basics` … `commbus_example_05_cross_interface`.

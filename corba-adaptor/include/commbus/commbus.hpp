@@ -21,6 +21,7 @@
 #include "error.hpp"
 #include "slot.hpp"
 #include "inbox.hpp"
+#include "broadcaster.hpp"
 #include "context.hpp"
 #include "wait_registry.hpp"
 #include "bus.hpp"
