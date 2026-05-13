@@ -44,7 +44,11 @@ CommBus::CommBus(const Config& config)
             std::unique_ptr<std::atomic<bool> >(new std::atomic<bool>(false)));
     }
     for (std::size_t i = 0; i < n_workers; ++i) {
-        workers_.emplace_back(&CommBus::worker_loop, this);
+        // Pass the index explicitly so the worker has an unambiguous
+        // handle on its own cancel flag, regardless of when the thread
+        // actually starts executing relative to the workers_ vector
+        // being fully populated.
+        workers_.emplace_back(&CommBus::worker_loop, this, i);
     }
 }
 
@@ -53,14 +57,14 @@ CommBus::~CommBus() {
 }
 
 void CommBus::stop(bool drain) {
-    {
-        std::lock_guard<std::mutex> lock(mu_);
-        if (stopping_.load()) {
-            // Idempotent; let any in-flight stop() finish.
-        }
-        stopping_.store(true);
-        drain_on_stop_.store(drain);
+    // Idempotent: only the first caller does the work.  Subsequent
+    // concurrent or repeated callers return immediately without
+    // re-joining workers (which would be UB on already-joined threads).
+    bool expected = false;
+    if (!stopping_.compare_exchange_strong(expected, true)) {
+        return;
     }
+    drain_on_stop_.store(drain);
     // Set every per-worker cancel flag so blocked ctx.wait() calls wake.
     for (auto& flag : cancel_flags_) {
         flag->store(true, std::memory_order_release);
@@ -106,26 +110,11 @@ VoidResult CommBus::submit_internal(Task task) {
 
 // ───── Worker loop ──────────────────────────────────────────────────────────
 
-void CommBus::worker_loop() {
-    // Locate this worker's cancel flag.  Workers are constructed in the
-    // same order as the flags, so the i-th worker uses the i-th flag.
-    // We discover by id->index via a brief lookup the first time around;
-    // simpler than threading the index in (and only runs once).
-    std::atomic<bool>* my_flag = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mu_);
-        for (std::size_t i = 0; i < workers_.size(); ++i) {
-            if (workers_[i].get_id() == std::this_thread::get_id()) {
-                my_flag = cancel_flags_[i].get();
-                break;
-            }
-        }
-    }
-    // Fallback for the brief race where workers_[i] isn't yet populated
-    // (the std::thread's id isn't observable until after construction
-    // completes).  Use the first flag — it's flipped along with all the
-    // others at shutdown anyway.
-    if (!my_flag) my_flag = cancel_flags_[0].get();
+void CommBus::worker_loop(std::size_t worker_index) {
+    // Each worker is assigned its own cancel flag at construction;
+    // the index resolves directly without scanning the workers_ vector
+    // (which would race with the constructor still mid-emplace_back).
+    std::atomic<bool>* my_flag = cancel_flags_[worker_index].get();
 
     while (true) {
         Task task;

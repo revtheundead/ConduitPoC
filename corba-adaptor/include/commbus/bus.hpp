@@ -200,8 +200,11 @@ private:
     // Internal: enqueue a wrapped task.
     VoidResult submit_internal(Task task);
 
-    // Internal: worker thread body.
-    void worker_loop();
+    // Internal: worker thread body.  The index uniquely identifies
+    // this worker among the pool; used to look up the corresponding
+    // per-worker cancel flag without a workers_ self-scan (which would
+    // race against the constructor still filling the workers_ vector).
+    void worker_loop(std::size_t worker_index);
 
     // Build the wrapper closure that fulfils the promise for
     // submit_with_result.  Implemented inline because R is templated.

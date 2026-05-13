@@ -267,7 +267,8 @@ if(CORBA_ADAPTOR_BUILD_COMMBUS_EXAMPLES)
             03_request_response
             04_corba_bridge
             05_cross_interface
-            06_stream_inbox)
+            06_stream_inbox
+            07_broadcaster)
         add_executable(commbus_example_${ex}
             examples/commbus/${ex}.cpp
             src/commbus.cpp)
