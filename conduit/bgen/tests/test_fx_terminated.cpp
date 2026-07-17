@@ -19,6 +19,10 @@
 #include "frame_enum_id/messages.hpp"
 #include "frame_enum_id/sessions.hpp"
 #include "frame_enum_id/protocol.hpp"
+#include "scale_identity/messages.hpp"
+
+#include <type_traits>
+#include <utility>
 
 // ============================================================================
 // Issue 1: count="fx" FX-terminated arrays
@@ -186,4 +190,35 @@ TEST_CASE("enum id: Status dispatches to the correct message",
     auto* payload = std::get_if<frame_enum_id::Status>(&decoded->payload());
     REQUIRE(payload != nullptr);
     CHECK(payload->code() == 0xBEEF);
+}
+
+// ============================================================================
+// Identity scale (scale=1) must not promote a non-float field to double
+// ============================================================================
+
+TEST_CASE("scale=1 field keeps its integer type", "[scale][identity]") {
+    scale_identity::ScaleMsg msg;
+    // A scale of 1 with no offset is the identity: the accessor must be an
+    // integer, not a double. Verified at compile time via the accessor type.
+    using UnitScaledT = std::decay_t<decltype(std::declval<scale_identity::ScaleMsg>().unit_scaled())>;
+    using InlineUnitT = std::decay_t<decltype(std::declval<scale_identity::ScaleMsg>().inline_unit())>;
+    using RealScaledT = std::decay_t<decltype(std::declval<scale_identity::ScaleMsg>().real_scaled())>;
+    STATIC_REQUIRE_FALSE(std::is_floating_point_v<UnitScaledT>);
+    STATIC_REQUIRE_FALSE(std::is_floating_point_v<InlineUnitT>);
+    // A genuine fractional scale still yields a double.
+    STATIC_REQUIRE(std::is_floating_point_v<RealScaledT>);
+
+    msg.set_unit_scaled(1000);
+    msg.set_inline_unit(42);
+    msg.set_real_scaled(3.5);
+    msg.set_plain(7);
+
+    auto enc = msg.encode_bytes();
+    REQUIRE(enc.has_value());
+    auto dec = scale_identity::ScaleMsg::decode_bytes(*enc);
+    REQUIRE(dec.has_value());
+    CHECK(dec->unit_scaled() == 1000);
+    CHECK(dec->inline_unit() == 42);
+    CHECK(dec->real_scaled() == 3.5);
+    CHECK(dec->plain() == 7);
 }

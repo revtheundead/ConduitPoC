@@ -1125,3 +1125,14 @@ TEST_CASE("Python: enum id field converts via EnumClass(value)", "[python][messa
     // The plain-int ID_VALUE is wrapped in the enum before assignment.
     CHECK(src.find("MsgId(msg.ID_VALUE)") != std::string::npos);
 }
+
+TEST_CASE("Python: scale=1 field is not promoted to float", "[python][scale]") {
+    auto py = gen_python("scale_identity.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& src = py->files["messages.py"];
+    REQUIRE(!src.empty());
+    // Identity-scale fields default to integer 0, the fractional-scale field to 0.0.
+    CHECK(src.find("self.unit_scaled = 0") != std::string::npos);
+    CHECK(src.find("self.inline_unit = 0") != std::string::npos);
+    CHECK(src.find("self.real_scaled = 0.0") != std::string::npos);
+}

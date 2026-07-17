@@ -1257,3 +1257,15 @@ TEST_CASE("Java: enum id field converts via fromValue and dispatches on .value",
     REQUIRE(!msg.empty());
     CHECK(msg.find("public MsgId msgType = null;") != std::string::npos);
 }
+
+TEST_CASE("Java: scale=1 field is not promoted to double", "[java][scale]") {
+    auto java = gen_java("scale_identity.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& src = java->files["ScaleMsg.java"];
+    REQUIRE(!src.empty());
+    // Identity scale keeps the integer accessor.
+    CHECK(src.find("public int getUnitScaled()") != std::string::npos);
+    CHECK(src.find("public int getInlineUnit()") != std::string::npos);
+    // Genuine fractional scale is still a double.
+    CHECK(src.find("public double getRealScaled()") != std::string::npos);
+}

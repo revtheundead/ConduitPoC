@@ -87,6 +87,8 @@ Fields can carry inline type modifications:
 
 Inline `<enum>`, `<flags>`, and `<scale>`/`<offset>` are mutually exclusive (same rule as on `<type>`).
 
+A `<scale>` of `1` with no `<offset>` (or an `<offset>` of `0`) is the **identity** transform, so it is ignored: the field keeps its integer type instead of being promoted to a floating-point value. A field is only represented as a floating-point value when the scale is non-unit or the offset is non-zero (or the base type is itself a `float`).
+
 ### Inline Base Types
 
 The `base` attribute allows defining a field's primitive type inline, without a separate named `<type>` definition:

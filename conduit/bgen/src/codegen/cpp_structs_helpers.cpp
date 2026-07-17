@@ -7,6 +7,17 @@
 
 namespace bgen::codegen {
 
+// A field-level scale/offset only changes the value when it is a genuine
+// transform. A scale of exactly 1 (the default) with no offset (or an offset of
+// 0) is the identity, so the field must keep its integer type rather than being
+// promoted to a floating-point (double) representation. Only a non-unit scale or
+// a non-zero offset yields a scaled field.
+bool field_scale_is_active(const model::Field& f) {
+    bool scale_nontrivial = f.scale.has_value() && *f.scale != 1.0;
+    bool offset_nontrivial = f.offset.has_value() && *f.offset != 0.0;
+    return scale_nontrivial || offset_nontrivial;
+}
+
 // ============================================================================
 // Helper: determine C++ type for a field
 // ============================================================================
@@ -59,7 +70,7 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
             info.is_signed = f.is_signed;
             info.cpp_type = storage_type_for_bits(*f.bits, f.is_signed);
             // Field-level scale/offset: promote to double with inline scale arithmetic
-            if (f.scale || f.offset) {
+            if (field_scale_is_active(f)) {
                 info.has_field_scale = true;
                 info.raw_bits = info.bits;
                 info.raw_signed = info.is_signed;
@@ -77,7 +88,7 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 info.is_signed = f.is_signed;
                 info.cpp_type = storage_type_for_bits(info.bits, f.is_signed);
                 // Support scale/offset like regular bits fields
-                if (f.scale || f.offset) {
+                if (field_scale_is_active(f)) {
                     info.has_field_scale = true;
                     info.raw_bits = info.bits;
                     info.raw_signed = info.is_signed;
@@ -156,7 +167,7 @@ FieldTypeInfo resolve_field_type(const model::Field& f, const analyzer::TypeInde
                 info.bits = def->bits;
                 info.is_signed = (def->base == model::PrimitiveBase::Int);
                 // Field-level scale/offset: promote to double with inline scale arithmetic
-                if (f.scale || f.offset) {
+                if (field_scale_is_active(f)) {
                     info.has_field_scale = true;
                     info.raw_bits = info.bits;
                     info.raw_signed = info.is_signed;

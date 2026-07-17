@@ -117,6 +117,7 @@ bgen_generate_fixture(bitmap_endian)
 bgen_generate_fixture(fx_terminated)
 bgen_generate_fixture(fx_optional_count)
 bgen_generate_fixture(frame_enum_id)
+bgen_generate_fixture(scale_identity)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -233,6 +234,7 @@ add_dependencies(bgen_tests
     gen_fx_terminated
     gen_fx_optional_count
     gen_frame_enum_id
+    gen_scale_identity
 )
 
 target_link_libraries(bgen_tests PRIVATE
