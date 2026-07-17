@@ -251,7 +251,7 @@ private:
 
     // Returns size in bits for array
     WireSize compute_array_size_bits(const model::ArrayDef& a) {
-        if (a.count_star || a.count_from) return std::nullopt;
+        if (a.count_star || a.count_from || a.count_fx) return std::nullopt;
         if (a.bit || a.present_when) return std::nullopt;  // optional arrays are dynamic
 
         if (a.fixed_count) {

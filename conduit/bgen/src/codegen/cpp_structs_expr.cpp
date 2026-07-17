@@ -53,7 +53,8 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
 // Expression code generation
 // ========================================================================
 
-std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::string& result_var) {
+std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::string& result_var,
+                                          bool value_context) {
     switch (expr.op) {
         case model::ExprOp::NumberLit:
             return std::to_string(expr.number_value);
@@ -67,6 +68,9 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
             size_t pos = 0;
             bool first_segment = true;
             bool prev_was_optional = false;
+            // Whether the final segment resolves to an optional<> member. Used
+            // to decide whether the whole expression must be dereferenced.
+            bool terminal_optional = false;
             while (pos < path.size()) {
                 size_t dot = path.find('.', pos);
                 std::string segment;
@@ -78,15 +82,18 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
                     pos = dot + 1;
                 }
                 std::string access;
+                bool segment_optional = false;
                 if (first_segment) {
                     // Check outer-scope params first (e.g., params passed to decode)
                     auto osp_it = outer_scope_params_.find(segment);
                     if (osp_it != outer_scope_params_.end()) {
                         cpp_path = osp_it->second;
                         first_segment = false;
+                        terminal_optional = false;
                         continue;
                     }
                     access = to_member_name(segment);  // private member, accessible within class
+                    segment_optional = optional_field_names_.count(to_member_name(segment)) > 0;
                 } else {
                     access = to_accessor_name(segment) + "()";  // public accessor for cross-class
                 }
@@ -94,14 +101,20 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
                     cpp_path = access;
                 } else if (prev_was_optional) {
                     cpp_path += "->" + access;
-                    prev_was_optional = false;
                 } else {
                     cpp_path += "." + access;
                 }
-                if (first_segment && optional_field_names_.count(to_member_name(segment))) {
-                    prev_was_optional = true;
-                }
+                prev_was_optional = segment_optional;
+                terminal_optional = segment_optional;
                 first_segment = false;
+            }
+            // In a value context (arithmetic / static_cast target such as an
+            // array count-from or length-from that references an optional field
+            // in the same FX extent), dereference the optional so the emitted
+            // code compiles. In a boolean context (present-when) keep the raw
+            // optional so an absent field compares unequal.
+            if (terminal_optional && value_context) {
+                cpp_path = "(*" + cpp_path + ")";
             }
             return cpp_path;
         }
@@ -110,65 +123,65 @@ std::string StructEmitter::emit_expr_code(const model::Expr& expr, const std::st
         case model::ExprOp::Remaining:
             return "(r.remaining_bits() / 8)";
         case model::ExprOp::Add:
-            return "(" + emit_expr_code(*expr.left, result_var) + " + " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " + " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Sub:
-            return "(" + emit_expr_code(*expr.left, result_var) + " - " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " - " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Mul:
-            return "(" + emit_expr_code(*expr.left, result_var) + " * " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " * " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Div:
-            return "(" + emit_expr_code(*expr.left, result_var) + " / " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " / " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Mod:
-            return "(" + emit_expr_code(*expr.left, result_var) + " % " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " % " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Eq:
-            return "(" + emit_expr_code(*expr.left, result_var) + " == " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " == " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Neq:
-            return "(" + emit_expr_code(*expr.left, result_var) + " != " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " != " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Lt:
-            return "(" + emit_expr_code(*expr.left, result_var) + " < " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " < " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Lte:
-            return "(" + emit_expr_code(*expr.left, result_var) + " <= " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " <= " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Gt:
-            return "(" + emit_expr_code(*expr.left, result_var) + " > " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " > " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Gte:
-            return "(" + emit_expr_code(*expr.left, result_var) + " >= " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " >= " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::LogAnd:
-            return "(" + emit_expr_code(*expr.left, result_var) + " && " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " && " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::LogOr:
-            return "(" + emit_expr_code(*expr.left, result_var) + " || " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " || " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::BitAnd:
-            return "(" + emit_expr_code(*expr.left, result_var) + " & " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " & " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::BitOr:
-            return "(" + emit_expr_code(*expr.left, result_var) + " | " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " | " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::BitXor:
-            return "(" + emit_expr_code(*expr.left, result_var) + " ^ " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " ^ " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::ShiftLeft:
-            return "(" + emit_expr_code(*expr.left, result_var) + " << " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " << " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::ShiftRight:
-            return "(" + emit_expr_code(*expr.left, result_var) + " >> " +
-                   emit_expr_code(*expr.right, result_var) + ")";
+            return "(" + emit_expr_code(*expr.left, result_var, value_context) + " >> " +
+                   emit_expr_code(*expr.right, result_var, value_context) + ")";
         case model::ExprOp::Negate:
-            return "(-" + emit_expr_code(*expr.left, result_var) + ")";
+            return "(-" + emit_expr_code(*expr.left, result_var, value_context) + ")";
         case model::ExprOp::BitNot:
-            return "(~" + emit_expr_code(*expr.left, result_var) + ")";
+            return "(~" + emit_expr_code(*expr.left, result_var, value_context) + ")";
         case model::ExprOp::LogNot:
-            return "(!" + emit_expr_code(*expr.left, result_var) + ")";
+            return "(!" + emit_expr_code(*expr.left, result_var, value_context) + ")";
     }
     throw std::logic_error("unhandled ExprOp in emit_expr_code: " +
                            std::to_string(static_cast<int>(expr.op)));

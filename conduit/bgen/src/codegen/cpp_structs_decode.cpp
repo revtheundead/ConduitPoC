@@ -716,7 +716,7 @@ void StructEmitter::emit_decode_child(const model::StructChild& child,
                 }
                 decode_call += ")";
                 if (c.present_when) {
-                    std::string cond = emit_expr_code(*c.present_when, result_var);
+                    std::string cond = emit_expr_code(*c.present_when, result_var, /*value_context=*/false);
                     ctx_.line("if (" + cond + ") {");
                     ctx_.indent();
                     ctx_.line("{");
@@ -744,7 +744,7 @@ void StructEmitter::emit_decode_child(const model::StructChild& child,
             }
         } else if constexpr (std::is_same_v<T, model::ArrayDef>) {
             if (c.present_when) {
-                std::string cond = emit_expr_code(*c.present_when, result_var);
+                std::string cond = emit_expr_code(*c.present_when, result_var, /*value_context=*/false);
                 ctx_.line("if (" + cond + ") {");
                 ctx_.indent();
                 emit_decode_array(c, result_var);
@@ -756,7 +756,7 @@ void StructEmitter::emit_decode_child(const model::StructChild& child,
             advance_bits_variable();
         } else if constexpr (std::is_same_v<T, model::ChoiceDef>) {
             if (c.present_when) {
-                std::string cond = emit_expr_code(*c.present_when, result_var);
+                std::string cond = emit_expr_code(*c.present_when, result_var, /*value_context=*/false);
                 ctx_.line("if (" + cond + ") {");
                 ctx_.indent();
                 emit_decode_choice(c, result_var);
@@ -787,7 +787,7 @@ void StructEmitter::emit_decode_child(const model::StructChild& child,
 void StructEmitter::emit_decode_field(const model::Field& f, const std::string& result_var) {
     // A5: present-when condition wrapper
     if (f.present_when) {
-        std::string cond = emit_expr_code(*f.present_when, result_var);
+        std::string cond = emit_expr_code(*f.present_when, result_var, /*value_context=*/false);
         ctx_.line("if (" + cond + ") {");
         ctx_.indent();
         emit_decode_field_body(f, result_var);
@@ -1189,6 +1189,40 @@ void StructEmitter::emit_decode_array(const model::ArrayDef& a, const std::strin
         }
     }
 
+    if (a.count_fx) {
+        // FX-terminated: decode one element, then a 1-bit FX continuation flag;
+        // repeat while the FX bit is set. Always yields at least one element.
+        // Element reads use unaligned bit reads because each unit (element +
+        // 1 FX bit) may leave the reader mid-byte.
+        ctx_.line("{");
+        ctx_.indent();
+        ctx_.line("bool _fx_more = true;");
+        ctx_.line("while (_fx_more) {");
+        ctx_.indent();
+        if (elem_is_enum) {
+            ctx_.line("auto elem = decode_" + enum_type_name + "(r);");
+            ctx_.line("if (!elem) return std::unexpected(elem.error()" + array_ctx + ");");
+            ctx_.line(member + ".push_back(std::move(*elem));");
+        } else if (elem_is_primitive) {
+            std::string read = emit_read_expr(elem_fti, elem_endian, "r", /*byte_aligned=*/false);
+            ctx_.line("auto elem = " + read + ";");
+            ctx_.line("if (!elem) return std::unexpected(elem.error()" + array_ctx + ");");
+            ctx_.line(member + ".push_back(static_cast<" + elem_fti.cpp_type + ">(*elem));");
+        } else {
+            ctx_.line("auto elem = " + elem_type + "::decode(r);");
+            ctx_.line("if (!elem) return std::unexpected(elem.error()" + array_ctx + ");");
+            ctx_.line(member + ".push_back(std::move(*elem));");
+        }
+        ctx_.line("auto _fxb = r.read_bits(1);");
+        ctx_.line("if (!_fxb) return std::unexpected(_fxb.error()" + array_ctx + ");");
+        ctx_.line("_fx_more = (*_fxb != 0);");
+        ctx_.dedent();
+        ctx_.line("}");
+        ctx_.dedent();
+        ctx_.line("}");
+        return;
+    }
+
     if (a.fixed_count) {
         ctx_.line(member + ".reserve(" + std::to_string(*a.fixed_count) + ");");
         ctx_.line("for (int i = 0; i < " + std::to_string(*a.fixed_count) + "; i++) {");
@@ -1409,7 +1443,9 @@ void StructEmitter::emit_decode_choice(const model::ChoiceDef& c, const std::str
     // Evaluate switch expression
     std::string switch_expr;
     if (c.switch_expr) {
-        switch_expr = emit_expr_code(*c.switch_expr, result_var);
+        // The single-field-ref optional case is dereferenced explicitly below,
+        // so keep the raw optional here (value_context=false).
+        switch_expr = emit_expr_code(*c.switch_expr, result_var, /*value_context=*/false);
     }
 
     std::string ctx_ptr_var;

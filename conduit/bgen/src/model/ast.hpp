@@ -299,6 +299,11 @@ struct ArrayDef {
     std::optional<int> fixed_count;
     std::unique_ptr<Expr> count_from;
     bool count_star = false;
+    // count="fx": elements repeat while an FX continuation bit (the last bit of
+    // each element unit) is set. Models ASTERIX items that extend an arbitrary
+    // number of times via the FX bit. Mutually exclusive with the other count
+    // mechanisms and with length/length-from.
+    bool count_fx = false;
 
     std::optional<int> length;
     std::unique_ptr<Expr> length_from;

@@ -1766,6 +1766,16 @@ void emit_py_decode_children(EmitContext& ctx, const std::vector<model::StructCh
             auto emit_array_decode = [&]() {
                 if (ad->fixed_count) {
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(" + std::to_string(*ad->fixed_count) + ")]");
+                } else if (ad->count_fx) {
+                    // FX-terminated: decode one element, then a 1-bit FX
+                    // continuation flag; repeat while the FX bit is set.
+                    ctx.line(m + " = []");
+                    ctx.line("_fx_more = True");
+                    ctx.line("while _fx_more:");
+                    ctx.indent();
+                    ctx.line(m + ".append(" + elem + ".decode(r))");
+                    ctx.line("_fx_more = r.read_bits(1) != 0");
+                    ctx.dedent();
                 } else if (ad->count_from) {
                     ctx.line(m + " = [" + elem + ".decode(r) for _ in range(int(" + py_expr_ctx(*ad->count_from, pfx, outer_ctx) + "))]");
                 } else if (ad->length_from) {
@@ -2232,7 +2242,18 @@ void emit_py_encode_children(EmitContext& ctx, const std::vector<model::StructCh
             tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + py_field(ad->name);
-            if (ad->present_when) {
+            if (ad->count_fx) {
+                // FX-terminated: after each element write a 1-bit FX continuation
+                // flag (1 = another element follows, 0 = last).
+                ctx.line("if " + m + " is not None:");
+                ctx.indent();
+                ctx.line("for _i in range(len(" + m + ")):");
+                ctx.indent();
+                ctx.line(m + "[_i].encode(w)");
+                ctx.line("w.write_bits(1 if (_i + 1 < len(" + m + ")) else 0, 1)");
+                ctx.dedent();
+                ctx.dedent();
+            } else if (ad->present_when) {
                 ctx.line("if " + m + " is not None:");
                 ctx.indent(); ctx.line("for _item in " + m + ": _item.encode(w)"); ctx.dedent();
             } else {

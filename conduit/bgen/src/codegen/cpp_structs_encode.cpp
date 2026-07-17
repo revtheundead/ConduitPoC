@@ -524,6 +524,27 @@ void StructEmitter::emit_encode_array(const model::ArrayDef& a, bool is_optional
         }
     }
 
+    if (a.count_fx) {
+        // FX-terminated: after each element write a 1-bit FX continuation flag
+        // (1 = another element follows, 0 = last). Element writes use unaligned
+        // bit writes because each unit (element + 1 FX bit) may leave the
+        // writer mid-byte.
+        ctx_.line("for (size_t _i = 0; _i < " + ref + ".size(); _i++) {");
+        ctx_.indent();
+        ctx_.line("const auto& elem = " + ref + "[_i];");
+        if (elem_is_enum) {
+            ctx_.line("CONDUIT_TRY(encode_" + elem_type_name + "(elem, w));");
+        } else if (elem_is_primitive) {
+            emit_write_stmt(ctx_, "elem", elem_fti, elem_endian, /*byte_aligned=*/false);
+        } else {
+            ctx_.line("CONDUIT_TRY(elem.encode(w));");
+        }
+        ctx_.line("w.write_bits((_i + 1 < " + ref + ".size()) ? 1 : 0, 1);");
+        ctx_.dedent();
+        ctx_.line("}");
+        return;
+    }
+
     ctx_.line("for (const auto& elem : " + ref + ") {");
     ctx_.indent();
     if (elem_is_enum) {
@@ -630,7 +651,7 @@ void StructEmitter::emit_encode_choice(const model::ChoiceDef& c, bool is_option
         if (dot != std::string::npos) root = root.substr(0, dot);
 
         if (outer_scope_params_.count(root) == 0) {
-            std::string switch_val = emit_expr_code(*c.switch_expr, {});
+            std::string switch_val = emit_expr_code(*c.switch_expr, {}, /*value_context=*/false);
             // Dereference optional switch field
             if (optional_field_names_.count(to_member_name(root))) {
                 switch_val = "*(" + switch_val + ")";

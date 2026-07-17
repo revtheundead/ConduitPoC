@@ -693,6 +693,9 @@ public:
             std::string_view cv = count_attr.value();
             if (cv == "*") {
                 ad.count_star = true;
+            } else if (cv == "fx") {
+                // FX-terminated: read elements while the trailing FX bit is set
+                ad.count_fx = true;
             } else {
                 int val = 0;
                 auto [ptr, ec] = std::from_chars(cv.data(), cv.data() + cv.size(), val, 10);
@@ -706,7 +709,7 @@ public:
         ad.count_from = parse_expr_attr(node, "count-from");
 
         // Validate mutual exclusivity of count specifications
-        if ((ad.fixed_count || ad.count_star) && ad.count_from) {
+        if ((ad.fixed_count || ad.count_star || ad.count_fx) && ad.count_from) {
             error(node, "array '" + ad.name + "' has conflicting count specifications "
                   "(use only one of: count, count-from)");
         }
@@ -718,6 +721,13 @@ public:
         if (ad.length && ad.length_from) {
             error(node, "array '" + ad.name + "' has conflicting length specifications "
                   "(use only one of: length, length-from)");
+        }
+
+        // FX-terminated arrays are bounded by the FX continuation bit, so an
+        // explicit length budget is meaningless (and would double-count bits).
+        if (ad.count_fx && (ad.length || ad.length_from)) {
+            error(node, "array '" + ad.name + "' with count=\"fx\" cannot also specify "
+                  "length or length-from (the FX bit determines termination)");
         }
 
         // Presence

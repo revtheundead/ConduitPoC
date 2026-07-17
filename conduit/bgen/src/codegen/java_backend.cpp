@@ -1902,6 +1902,12 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.line("if (" + m + " == null) " + m + " = new java.util.ArrayList<>();");
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
+                } else if (ad->count_fx) {
+                    // FX-terminated: decode one element, then a 1-bit FX
+                    // continuation flag; repeat while the FX bit is set.
+                    ctx.line("{ boolean _fxMore = true;");
+                    ctx.line("  while (_fxMore) { " + m + ".add(" + elem + ".decode(r)); _fxMore = (r.readBits(1) != 0); }");
+                    ctx.line("}");
                 } else if (ad->count_from) {
                     ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx, ef_ptr) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->length_from) {
@@ -2244,6 +2250,10 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
                 std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
                 ctx.line("else { for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) new " + elem + "().encode(w); }");
+            } else if (ad->count_fx) {
+                // FX-terminated: after each element write a 1-bit FX continuation
+                // flag (1 = another element follows, 0 = last).
+                ctx.line("if (" + m + " != null) { for (int _i=0; _i<" + m + ".size(); _i++) { " + m + ".get(_i).encode(w); w.writeBits((_i + 1 < " + m + ".size()) ? 1 : 0, 1); } }");
             } else {
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             }
@@ -2396,7 +2406,11 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
-            if (ad->present_when) {
+            if (ad->count_fx) {
+                // FX-terminated: after each element write a 1-bit FX continuation
+                // flag (1 = another element follows, 0 = last).
+                ctx.line("if (" + m + " != null) { for (int _i=0; _i<" + m + ".size(); _i++) { " + m + ".get(_i).encode(w); w.writeBits((_i + 1 < " + m + ".size()) ? 1 : 0, 1); } }");
+            } else if (ad->present_when) {
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             } else {
                 ctx.line("for (var _item : " + m + ") _item.encode(w);");

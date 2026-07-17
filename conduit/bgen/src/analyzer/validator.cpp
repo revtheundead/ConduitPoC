@@ -1431,6 +1431,88 @@ private:
         }
     }
 
+    // Conservative fixed-size check for an array element. Used to gate
+    // count="fx": the FX continuation bit is read at a fixed offset after each
+    // element, so a variable-length element is not permitted. Returns false
+    // (variable / unknown) for anything not provably fixed-size.
+    bool child_fixed_size(const model::StructChild& child) {
+        return std::visit([this](const auto& c) -> bool {
+            using T = std::decay_t<decltype(c)>;
+            if constexpr (std::is_same_v<T, model::Field>) {
+                // Explicit bit/byte width is always fixed.
+                if (c.bits || c.bytes_attr) return true;
+                // Open-ended or length-delimited (string/bytes) fields are variable.
+                if (c.length_star || c.length_from || c.length || c.terminated ||
+                    c.max_length || c.length_prefix) {
+                    return false;
+                }
+                if (c.type_ref.empty()) {
+                    // Inline field with neither width nor type: not provably fixed.
+                    return false;
+                }
+                auto resolved = index_.find(c.type_ref);
+                if (!resolved) return false;
+                return std::visit([this](const auto* def) -> bool {
+                    using DT = std::decay_t<decltype(*def)>;
+                    if constexpr (std::is_same_v<DT, model::TypeDef>) {
+                        // String types are variable unless they carry a fixed length.
+                        if (def->base == model::PrimitiveBase::String) {
+                            return def->length.has_value();
+                        }
+                        return def->bits > 0;
+                    } else if constexpr (std::is_same_v<DT, model::StructDef>) {
+                        for (const auto& sc : def->children) {
+                            if (!child_fixed_size(sc)) return false;
+                        }
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }, *resolved);
+            } else if constexpr (std::is_same_v<T, model::Reserved> ||
+                                 std::is_same_v<T, model::Align>) {
+                return true;
+            } else if constexpr (std::is_same_v<T, model::StructDef>) {
+                for (const auto& sc : c.children) {
+                    if (!child_fixed_size(sc)) return false;
+                }
+                return true;
+            } else {
+                // Arrays, choices, nested FX blocks: variable / not provably fixed.
+                return false;
+            }
+        }, child);
+    }
+
+    bool array_element_fixed_size(const model::ArrayDef& a) {
+        if (!a.type_ref.empty()) {
+            auto resolved = index_.find(a.type_ref);
+            if (!resolved) return false;
+            return std::visit([this](const auto* def) -> bool {
+                using DT = std::decay_t<decltype(*def)>;
+                if constexpr (std::is_same_v<DT, model::TypeDef>) {
+                    if (def->base == model::PrimitiveBase::String) {
+                        return def->length.has_value();
+                    }
+                    return def->bits > 0;
+                } else if constexpr (std::is_same_v<DT, model::StructDef>) {
+                    for (const auto& sc : def->children) {
+                        if (!child_fixed_size(sc)) return false;
+                    }
+                    return true;
+                } else {
+                    return false;
+                }
+            }, *resolved);
+        }
+        // Inline element children.
+        if (a.children.empty()) return false;
+        for (const auto& sc : a.children) {
+            if (!child_fixed_size(sc)) return false;
+        }
+        return true;
+    }
+
     void validate_array(const model::ArrayDef& a, const std::string& parent_name) {
         if (a.name.empty()) {
             error(a.loc, "array has empty name in " + parent_name);
@@ -1441,8 +1523,9 @@ private:
         if (a.fixed_count) count_specs++;
         if (a.count_from) count_specs++;
         if (a.count_star) count_specs++;
+        if (a.count_fx) count_specs++;
         if (count_specs == 0) {
-            error(a.loc, "array '" + a.name + "' must have 'count', 'count-from', or count=\"*\"");
+            error(a.loc, "array '" + a.name + "' must have 'count', 'count-from', count=\"*\", or count=\"fx\"");
         } else if (count_specs > 1) {
             error(a.loc, "array '" + a.name + "' has multiple count specifications");
         }
@@ -1450,6 +1533,17 @@ private:
         // type or inline children, not both
         if (!a.type_ref.empty() && !a.children.empty()) {
             error(a.loc, "array '" + a.name + "' has both 'type' and inline children");
+        }
+
+        // FX-terminated arrays must have a fixed-size element: the decoder reads
+        // one element, then a single FX continuation bit, and repeats. A
+        // variable-length element (e.g. an unbounded string, a count="*" child,
+        // or a nested FX-terminated array) would make the FX bit position
+        // ambiguous.
+        if (a.count_fx && !array_element_fixed_size(a)) {
+            error(a.loc, "array '" + a.name + "' with count=\"fx\" requires a "
+                  "fixed-size element type (the FX bit follows each element at a "
+                  "fixed bit position)");
         }
         // Note: children are validated by the caller (validate_children) which
         // passes the correct in_bounded_container context
