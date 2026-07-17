@@ -214,7 +214,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
         }
         // Record auto-id field
         if (!si.id_field_name.empty()) {
-            ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(" + leaf_type + "::ID_VALUE)});");
+            ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(static_cast<int64_t>(" + leaf_type + "::ID_VALUE))});");
         }
         ctx.line("auto enc = frame.encode_bytes();");
         ctx.line("if (!enc) return std::unexpected(enc.error());");
@@ -268,7 +268,7 @@ void emit_frame_session(EmitContext& ctx, const analyzer::SessionInfo& si,
             }
             if (!si.id_field_name.empty()) {
                 ctx.line("frame.set_" + to_accessor_name(si.id_field_name) + "(" + leaf_type + "::ID_VALUE);");
-                ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(" + leaf_type + "::ID_VALUE)});");
+                ctx.line("result.auto_fields.push_back({\"" + si.id_field_name + "\", std::to_string(static_cast<int64_t>(" + leaf_type + "::ID_VALUE))});");
             }
             ctx.line("frame.payload().reserve(payloads.size());");
             ctx.line("for (const auto& p : payloads) {");

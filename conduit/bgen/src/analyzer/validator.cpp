@@ -1837,6 +1837,9 @@ private:
             int auto_length_count = 0;
             int id_field_bits = 0;
             int length_field_bits = 0;
+            // Message-id field classification (for stricter id checks below).
+            bool id_is_enum = false;
+            bool id_is_string = false;
             std::set<std::string> config_keys;
 
             auto check_auto_fields = [&](const std::vector<model::StructChild>& children) {
@@ -1854,6 +1857,52 @@ private:
                                     } else if (!f->type_ref.empty()) {
                                         auto it = index_.types.find(f->type_ref);
                                         if (it != index_.types.end()) id_field_bits = it->second->bits;
+                                    }
+
+                                    // Rigorous id field type checks. Message id
+                                    // fields are dispatch discriminators, so they
+                                    // must be an integer, an enum, or a
+                                    // fixed-length string. Floats, bools and raw
+                                    // bytes cannot serve as a discriminator (a
+                                    // float cannot even be a switch quantity) and
+                                    // previously produced broken code or crashed
+                                    // codegen.
+                                    model::PrimitiveBase id_base = model::PrimitiveBase::Uint;
+                                    id_is_enum = !f->enum_values.empty();
+                                    if (f->base) id_base = *f->base;
+                                    if (!f->type_ref.empty()) {
+                                        auto it = index_.types.find(f->type_ref);
+                                        if (it != index_.types.end()) {
+                                            id_base = it->second->base;
+                                            if (!it->second->enum_values.empty()) id_is_enum = true;
+                                        }
+                                    }
+                                    id_is_string = (id_base == model::PrimitiveBase::String);
+
+                                    if (!id_is_enum) {
+                                        std::string prefix = "frame '" + frame.name +
+                                            "' auto=\"id\" field '" + f->name + "': ";
+                                        std::string allowed = "message id fields must be an "
+                                            "integer or enum type";
+                                        if (id_base == model::PrimitiveBase::Float) {
+                                            error(f->loc, prefix + allowed +
+                                                  "; a float cannot be a message id");
+                                        } else if (id_base == model::PrimitiveBase::Bool) {
+                                            error(f->loc, prefix + allowed +
+                                                  "; a bool cannot be a message id");
+                                        } else if (id_base == model::PrimitiveBase::Bytes) {
+                                            error(f->loc, prefix + allowed +
+                                                  "; raw bytes cannot be a message id");
+                                        } else if (id_is_string) {
+                                            // String message ids are unconventional and are not
+                                            // supported as dispatch discriminators. Reject them at
+                                            // parse time with an actionable message rather than
+                                            // emitting broken code.
+                                            error(f->loc, prefix + allowed +
+                                                  "; string message ids are not supported — map the "
+                                                  "string values to an enum and use that as the id "
+                                                  "field type");
+                                        }
                                     }
                                     break;
                                 }
@@ -2011,7 +2060,36 @@ private:
                       "' is defined but no messages exist; at least one <message> is required");
             }
 
-            // Validate message id values fit within id field bit width
+            // For an enum id field, every message id must be a numeric literal or
+            // a value name declared in that enum; a stray name would otherwise
+            // generate an undefined-identifier case label.
+            if (id_is_enum) {
+                std::set<std::string> enum_value_names;
+                for (const auto& child : frame.header_fields) {
+                    if (auto* f = std::get_if<model::Field>(&child)) {
+                        if (f->auto_expr && f->auto_expr->kind == model::AutoKind::Id) {
+                            for (const auto& ev : f->enum_values) enum_value_names.insert(ev.name);
+                            if (!f->type_ref.empty()) {
+                                auto it = index_.types.find(f->type_ref);
+                                if (it != index_.types.end()) {
+                                    for (const auto& ev : it->second->enum_values) {
+                                        enum_value_names.insert(ev.name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                for (const auto& m : proto_.messages) {
+                    if (m.id.empty()) continue;
+                    if (!is_valid_numeric_literal(m.id) && !enum_value_names.count(m.id)) {
+                        error(m.loc, "message '" + m.name + "' id='" + m.id +
+                              "' is not a numeric value or a value name of the enum id field");
+                    }
+                }
+            }
+
+            // Validate message id values fit within the id field bit width.
             if (id_field_bits > 0 && id_field_bits < 64) {
                 uint64_t max_id_val = (uint64_t(1) << id_field_bits) - 1;
                 for (const auto& m : proto_.messages) {

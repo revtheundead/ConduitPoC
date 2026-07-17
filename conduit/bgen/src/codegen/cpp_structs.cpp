@@ -6,6 +6,7 @@
 #include "cpp_enum_emitter.hpp"
 #include "../logger.hpp"
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <map>
 #include <sstream>
@@ -1055,18 +1056,30 @@ void StructEmitter::emit_message(const model::MessageDef& md,
     if (!md.id.empty() && current_session_ && current_session_->is_frame_based) {
         // Resolve the id field type from the frame
         std::string id_cpp_type = "uint8_t"; // default
+        bool id_is_enum = false;
         if (current_session_->frame) {
             for (const auto& child : current_session_->frame->header_fields) {
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (f->name == current_session_->id_field_name) {
                         auto fti = resolve_field_type(*f, index_);
                         id_cpp_type = fti.cpp_type;
+                        id_is_enum = fti.is_enum;
                         break;
                     }
                 }
             }
         }
-        ctx_.line("static constexpr " + id_cpp_type + " ID_VALUE = " + md.id + ";");
+        // For enum-typed id fields the message id is a numeric literal (or an
+        // enum value name); a scoped enum cannot be brace/copy-initialized from
+        // an integer, so an explicit static_cast is required for the generated
+        // code to compile.
+        std::string id_init = md.id;
+        bool id_is_numeric = !md.id.empty() &&
+            (std::isdigit(static_cast<unsigned char>(md.id[0])) || md.id[0] == '-' || md.id[0] == '+');
+        if (id_is_enum && id_is_numeric) {
+            id_init = "static_cast<" + id_cpp_type + ">(" + md.id + ")";
+        }
+        ctx_.line("static constexpr " + id_cpp_type + " ID_VALUE = " + id_init + ";");
     }
     ctx_.line();
 

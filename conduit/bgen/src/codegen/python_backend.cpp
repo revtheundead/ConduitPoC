@@ -3658,11 +3658,33 @@ std::string generate_py_structs(const model::Protocol& protocol,
 // Frame class generation (Packet, Frame, etc.)
 // ============================================================================
 
+// If the frame's auto="id" field resolves to an enum type, returns the Python
+// enum class name; otherwise returns an empty string. The message ID_VALUE
+// constant is a plain int, so it is converted to the enum via EnumClass(value)
+// before being assigned to the enum-typed frame id field.
+std::string py_id_enum_class(const analyzer::SessionInfo& si,
+                             const model::FrameDef& frame,
+                             const analyzer::TypeIndex& index) {
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->name == si.id_field_name) {
+                auto fi = py_resolve_field(*f, index);
+                if ((fi.is_enum || !f->enum_values.empty()) && !f->type_ref.empty()) {
+                    return py_class(f->type_ref);
+                }
+                return {};
+            }
+        }
+    }
+    return {};
+}
+
 void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
                          const analyzer::TypeIndex& index) {
     if (!si.frame) return;
     const model::FrameDef& frame = *si.frame;
     std::string cn = py_class(frame.name);
+    std::string id_enum_class = py_id_enum_class(si, frame, index);
 
     // Collect header fields
     struct FrameFieldInfo {
@@ -3762,7 +3784,10 @@ void emit_py_frame_class(EmitContext& ctx, const analyzer::SessionInfo& si,
     if (!si.id_field_name.empty()) {
         ctx.line("if hasattr(msg, 'ID_VALUE'):");
         ctx.indent();
-        ctx.line("frame." + py_field(si.id_field_name) + " = msg.ID_VALUE");
+        std::string id_rhs = id_enum_class.empty()
+            ? "msg.ID_VALUE"
+            : (id_enum_class + "(msg.ID_VALUE)");
+        ctx.line("frame." + py_field(si.id_field_name) + " = " + id_rhs);
         ctx.dedent();
     }
     if (si.payload_is_array) {
@@ -4219,6 +4244,7 @@ std::string generate_py_sessions(const model::Protocol& protocol,
         if (!si.is_frame_based || !si.frame) continue;
         std::string frame_class = py_class(si.frame->name);
         std::string sc = frame_class + "Session";
+        std::string id_enum_class = py_id_enum_class(si, *si.frame, index);
 
         // Merge config fields (frame-level + message-level, deduplicated)
         std::map<std::string, analyzer::ConfigField> all_config;
@@ -4581,7 +4607,10 @@ std::string generate_py_sessions(const model::Protocol& protocol,
 
                     // Set id field from message's ID_VALUE
                     if (!si.id_field_name.empty()) {
-                        ctx.line("frame." + py_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE");
+                        std::string id_rhs = id_enum_class.empty()
+                            ? (leaf_class + ".ID_VALUE")
+                            : (id_enum_class + "(" + leaf_class + ".ID_VALUE)");
+                        ctx.line("frame." + py_field(si.id_field_name) + " = " + id_rhs);
                     }
 
                     // Set message-level config fields on each payload
