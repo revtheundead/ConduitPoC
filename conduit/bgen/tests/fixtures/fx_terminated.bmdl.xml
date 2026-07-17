@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FX-terminated arrays: count="fx" reads elements while the trailing FX
+     continuation bit is set (ASTERIX-style variable extension). -->
+<bmdl version="2.0">
+  <defaults>
+    <namespace>fx_terminated</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <!-- 7 data bits; the 8th bit of each unit is the FX continuation bit -->
+    <type name="u7" base="uint" bits="7"/>
+  </types>
+
+  <messages>
+    <!-- Typed-element FX-terminated array: each unit is 7 data bits + 1 FX bit -->
+    <message name="TypedRepeat">
+      <field name="header" type="uint8"/>
+      <array name="octets" type="u7" count="fx"/>
+    </message>
+
+    <!-- Inline-struct-element FX-terminated array: element is 3+4=7 bits,
+         followed by the FX bit (8 bits per unit). -->
+    <message name="InlineRepeat">
+      <field name="header" type="uint8"/>
+      <array name="extents" count="fx">
+        <field name="a" bits="3"/>
+        <field name="b" bits="4"/>
+      </array>
+    </message>
+  </messages>
+</bmdl>

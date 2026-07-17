@@ -1100,3 +1100,28 @@ TEST_CASE("Python: empty struct with <empty/> generates valid code", "[python][e
     CHECK(found_empty_struct);
     CHECK(found_empty_msg);
 }
+
+// ============================================================================
+// FX-terminated arrays (count="fx") and enum-typed message-id fields
+// ============================================================================
+
+TEST_CASE("Python: count=fx generates FX-terminated decode loop", "[python][fx-terminated]") {
+    auto py = gen_python("fx_terminated.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& src = py->files["messages.py"];
+    REQUIRE(!src.empty());
+    // Decode loops while the FX continuation bit is set.
+    CHECK(src.find("_fx_more = True") != std::string::npos);
+    CHECK(src.find("_fx_more = r.read_bits(1) != 0") != std::string::npos);
+    // Encode writes a continuation bit after each element.
+    CHECK(src.find("w.write_bits(1 if (_i + 1 <") != std::string::npos);
+}
+
+TEST_CASE("Python: enum id field converts via EnumClass(value)", "[python][message-id]") {
+    auto py = gen_python("frame_enum_id.bmdl.xml");
+    REQUIRE(py.has_value());
+    auto& src = py->files["messages.py"];
+    REQUIRE(!src.empty());
+    // The plain-int ID_VALUE is wrapped in the enum before assignment.
+    CHECK(src.find("MsgId(msg.ID_VALUE)") != std::string::npos);
+}

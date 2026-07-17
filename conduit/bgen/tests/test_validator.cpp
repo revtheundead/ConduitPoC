@@ -2481,3 +2481,62 @@ TEST_CASE("Empty struct without <empty/> still passes but warns", "[validator][e
         }
     }
 }
+
+// ============================================================================
+// FX-terminated arrays (count="fx") and message-id field checks
+// ============================================================================
+
+namespace {
+// Runs build + resolve + validate and collects all error messages into one
+// string. A parse-time failure (build) or resolve failure is captured too, so a
+// single helper covers checks that fire at any stage.
+std::string collect_errors(const std::string& fixture) {
+    auto build = bgen::model::build_protocol(fixture_path(fixture));
+    if (!build) {
+        std::string out;
+        for (const auto& e : build.error()) out += e.message + "\n";
+        return out;
+    }
+    auto& protocol = *build;
+    auto resolve = bgen::analyzer::resolve_types(protocol);
+    if (!resolve) {
+        std::string out;
+        for (const auto& e : resolve.error()) out += e.message + "\n";
+        return out;
+    }
+    auto validate = bgen::analyzer::validate(protocol, *resolve);
+    if (validate) return {};
+    std::string out;
+    for (const auto& e : validate.error()) out += e.message + "\n";
+    return out;
+}
+} // namespace
+
+TEST_CASE("count=fx with variable-size element is rejected", "[validator][fx-terminated]") {
+    auto errs = collect_errors("invalid_fx_variable_element.bmdl.xml");
+    CHECK(errs.find("count=\"fx\" requires a fixed-size element") != std::string::npos);
+}
+
+TEST_CASE("count=fx combined with length is rejected", "[validator][fx-terminated]") {
+    auto errs = collect_errors("invalid_fx_count_length.bmdl.xml");
+    CHECK(errs.find("count=\"fx\" cannot also specify length") != std::string::npos);
+}
+
+TEST_CASE("float message-id field is rejected", "[validator][message-id]") {
+    auto errs = collect_errors("invalid_id_float.bmdl.xml");
+    CHECK(errs.find("a float cannot be a message id") != std::string::npos);
+}
+
+TEST_CASE("string message-id field is rejected", "[validator][message-id]") {
+    auto errs = collect_errors("invalid_id_string.bmdl.xml");
+    CHECK(errs.find("string message ids are not supported") != std::string::npos);
+}
+
+TEST_CASE("enum message-id field passes validation", "[validator][message-id]") {
+    auto build = bgen::model::build_protocol(fixture_path("frame_enum_id.bmdl.xml"));
+    REQUIRE(build.has_value());
+    auto resolve = bgen::analyzer::resolve_types(*build);
+    REQUIRE(resolve.has_value());
+    auto validate = bgen::analyzer::validate(*build, *resolve);
+    CHECK(validate.has_value());
+}

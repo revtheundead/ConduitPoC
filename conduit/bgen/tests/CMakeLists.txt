@@ -114,6 +114,9 @@ bgen_generate_fixture(bytes_numeric)
 bgen_generate_fixture(type_name_override)
 bgen_generate_fixture(nested_bitmap)
 bgen_generate_fixture(bitmap_endian)
+bgen_generate_fixture(fx_terminated)
+bgen_generate_fixture(fx_optional_count)
+bgen_generate_fixture(frame_enum_id)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -144,6 +147,7 @@ add_executable(bgen_tests
     test_wire_encoding_roundtrip.cpp
     test_fx_roundtrip.cpp
     test_fx_edge_cases.cpp
+    test_fx_terminated.cpp
     test_misc_roundtrip.cpp
     test_bitmap_roundtrip.cpp
     test_bitmap_endian.cpp
@@ -226,6 +230,9 @@ add_dependencies(bgen_tests
     gen_bytes_numeric
     gen_type_name_override
     gen_bitmap_endian
+    gen_fx_terminated
+    gen_fx_optional_count
+    gen_frame_enum_id
 )
 
 target_link_libraries(bgen_tests PRIVATE

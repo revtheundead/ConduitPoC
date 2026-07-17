@@ -12,11 +12,12 @@ Arrays represent repeated elements -- either a fixed number or a dynamic count d
 <array name="items" count="*" type="Record"/>
 <array name="items" count="*" type="Record" length="64"/>
 <array name="items" count="*" type="Record" length-from="data-length"/>
+<array name="items" count="fx" type="Octet"/>
 ```
 
 Every `<array>` requires:
 1. A `name` attribute
-2. Exactly one count mechanism: `count`, `count-from`, or `count="*"`
+2. Exactly one count mechanism: `count`, `count-from`, `count="*"`, or `count="fx"`
 3. An element type: either `type` attribute or inline children (mutually exclusive)
 
 ## Count Patterns
@@ -48,6 +49,39 @@ The count field determines how many elements are decoded.
 ```
 
 Reads elements until the container is exhausted. Only valid in bounded contexts -- inside a message, a length-delimited field, or a length-bounded choice.
+
+### FX-Terminated (`count="fx"`)
+
+```xml
+<type name="octet" base="uint" bits="7"/>
+<array name="extents" count="fx" type="octet"/>
+```
+
+Models the ASTERIX pattern where an item extends an arbitrary number of times via a trailing **FX (field-extension) continuation bit**. Each *unit* on the wire is one element followed by a single FX bit:
+
+```
+[element bits][FX:1]   <- FX=1 means another unit follows
+[element bits][FX:1]
+[element bits][FX:0]   <- FX=0 ends the array
+```
+
+The decoder reads an element, then the FX bit, and repeats while the FX bit is `1`. An FX-terminated array always contains **at least one** element (the first unit is read unconditionally); on encode the FX bit after the last element is `0` and every earlier element's FX bit is `1`. The FX bit itself is automatically managed and never appears in the generated API.
+
+Rules:
+- The element must be **fixed-size** (a numeric/enum type, a fixed-length string, or a struct of fixed-size fields). The FX bit follows each element at a fixed offset, so a variable-length element is rejected.
+- `count="fx"` is mutually exclusive with the other count mechanisms and with `length` / `length-from` -- the FX bit alone determines termination.
+- Typically the element is 7 (or 15, 23, ...) data bits so that element + FX bit lands on a byte boundary, mirroring ASTERIX octets.
+
+Inline element children work too:
+
+```xml
+<array name="extents" count="fx">
+  <field name="a" bits="3"/>
+  <field name="b" bits="4"/>
+</array>
+```
+
+> `count="fx"` is the repeating counterpart to the [`<fx>` block](fx-blocks.md): an `<fx>` block chains *different* field groups, whereas `count="fx"` repeats the *same* element while the FX bit is set.
 
 ## Length-Bounded Arrays
 

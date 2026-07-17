@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_id_float</namespace></defaults>
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="fid" base="float" bits="32"/>
+  </types>
+  <frame name="F">
+    <field name="mid" type="fid" auto="id"/>
+    <field name="len" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+  <messages><message id="1" name="A"><field name="x" type="uint16"/></message></messages>
+</bmdl>
