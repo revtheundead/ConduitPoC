@@ -17,7 +17,7 @@
 #include <vector>
 
 // ============================================================================
-// Session registry — maps string names to session factory functions
+// Session registry, maps string names to session factory functions
 // ============================================================================
 
 namespace {
@@ -459,7 +459,7 @@ CONDUIT_CODEC_API void conduit_register_session(
 // ============================================================================
 
 CONDUIT_CODEC_API const char* conduit_codec_version(void) {
-    return "1.1.3";
+    return "1.1.5";
 }
 
 } // extern "C"

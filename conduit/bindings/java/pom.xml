@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
@@ -39,7 +39,7 @@
         <plugins>
             <!--
               Default compilation: Java 11 target.
-              Panama-specific files are EXCLUDED â€” they use java.lang.foreign
+              Panama-specific files are EXCLUDED, they use java.lang.foreign
               which does not exist in Java 11. When building with JDK 21+, the
               "panama" profile adds a second compilation pass for those files.
             -->
