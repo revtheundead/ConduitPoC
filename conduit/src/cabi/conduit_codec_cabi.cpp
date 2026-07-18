@@ -17,7 +17,7 @@
 #include <vector>
 
 // ============================================================================
-// Session registry, maps string names to session factory functions
+// Session registry — maps string names to session factory functions
 // ============================================================================
 
 namespace {

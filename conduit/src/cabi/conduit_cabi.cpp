@@ -238,7 +238,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
     std::shared_ptr<trans_ns::ITransport> trans;
     std::string addr(transport->address ? transport->address : "");
 
-    // Parse "host:port" from address string (must not throw, extern "C")
+    // Parse "host:port" from address string (must not throw â€” extern "C")
     auto parse_host_port = [](const std::string& a)
         -> std::pair<std::string, uint16_t> {
         auto colon = a.rfind(':');
@@ -264,7 +264,7 @@ CONDUIT_CABI_API conduit_xcvr_error_t conduit_add_peer(
                 cfg.remote_address = rhost;
                 cfg.remote_port    = transport->remote_port ? transport->remote_port : rport;
             } else if (is_multicast) {
-                // Multicast: address/remote not required Ã¢â‚¬â€ group is the destination
+                // Multicast: address/remote not required â€” group is the destination
                 cfg.bind_port = transport->bind_port;
                 if (!addr.empty()) {
                     auto [rhost, rport] = parse_host_port(addr);
@@ -885,7 +885,7 @@ public:
     // encode_batch: each payload is already an independently-framed buffer
     // (Java/Python framed each one via encode_wrap before submitting the
     // batch).  Concatenate them so the transport sends one back-to-back
-    // burst.  This is the only behaviour passthrough can offer â€” the C++
+    // burst.  This is the only behaviour passthrough can offer — the C++
     // side can't merge frames it doesn't understand.
     [[nodiscard]] conduit::Result<conduit::traits::EncodeResult>
     encode_batch(uint64_t /*type_id*/,
