@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_fx_variable_element</namespace></defaults>
+  <types><type name="str" base="string"/></types>
+  <messages>
+    <message name="M">
+      <array name="items" type="str" count="fx"/>
+    </message>
+  </messages>
+</bmdl>

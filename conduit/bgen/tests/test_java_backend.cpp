@@ -1217,3 +1217,55 @@ TEST_CASE("Java: Java-only reserved words in field names are suffixed with _",
     CHECK(msg.find("int implements;") == std::string::npos);
     CHECK(msg.find("int super;") == std::string::npos);
 }
+
+// ============================================================================
+// FX-terminated arrays (count="fx") and enum-typed message-id fields
+// ============================================================================
+
+TEST_CASE("Java: count=fx generates FX-terminated decode loop", "[java][fx-terminated]") {
+    auto java = gen_java("fx_terminated.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& src = java->files["TypedRepeat.java"];
+    REQUIRE(!src.empty());
+    // Decode loops while the FX continuation bit is set.
+    CHECK(src.find("boolean _fxMore = true") != std::string::npos);
+    CHECK(src.find("r.readBits(1)") != std::string::npos);
+    // Encode writes a continuation bit after each element.
+    CHECK(src.find("w.writeBits((_i + 1 <") != std::string::npos);
+}
+
+TEST_CASE("Java: enum type gets fromValue helper", "[java][message-id]") {
+    auto java = gen_java("frame_enum_id.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& src = java->files["MsgId.java"];
+    REQUIRE(!src.empty());
+    CHECK(src.find("public static MsgId fromValue(") != std::string::npos);
+}
+
+TEST_CASE("Java: enum id field converts via fromValue and dispatches on .value",
+          "[java][message-id]") {
+    auto java = gen_java("frame_enum_id.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& frame = java->files["EnumFrame.java"];
+    REQUIRE(!frame.empty());
+    // ID_VALUE (int) is converted to the enum before assignment.
+    CHECK(frame.find("MsgId.fromValue(") != std::string::npos);
+    // Dispatch compares the enum's numeric .value against message ids.
+    CHECK(frame.find(".value == 1") != std::string::npos);
+    // The enum-typed frame id field defaults to null, not 0.
+    auto& msg = java->files["Heartbeat.java"];
+    REQUIRE(!msg.empty());
+    CHECK(msg.find("public MsgId msgType = null;") != std::string::npos);
+}
+
+TEST_CASE("Java: scale=1 field is not promoted to double", "[java][scale]") {
+    auto java = gen_java("scale_identity.bmdl.xml");
+    REQUIRE(java.has_value());
+    auto& src = java->files["ScaleMsg.java"];
+    REQUIRE(!src.empty());
+    // Identity scale keeps the integer accessor.
+    CHECK(src.find("public int getUnitScaled()") != std::string::npos);
+    CHECK(src.find("public int getInlineUnit()") != std::string::npos);
+    // Genuine fractional scale is still a double.
+    CHECK(src.find("public double getRealScaled()") != std::string::npos);
+}

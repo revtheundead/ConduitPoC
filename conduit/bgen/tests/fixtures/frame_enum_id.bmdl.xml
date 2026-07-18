@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Issue 3: an enum-typed auto="id" frame field. The generated ID_VALUE
+     constant and the dispatch must compile in all three backends. -->
+<bmdl version="2.0">
+  <defaults>
+    <endian>big</endian>
+    <namespace>frame_enum_id</namespace>
+  </defaults>
+
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="msg-id" base="uint" bits="8">
+      <enum>
+        <value name="heartbeat" id="1"/>
+        <value name="status" id="2"/>
+      </enum>
+    </type>
+  </types>
+
+  <frame name="EnumFrame">
+    <field name="msg-type" type="msg-id" auto="id"/>
+    <field name="length" type="uint16" auto="length"/>
+    <payload/>
+  </frame>
+
+  <messages>
+    <message id="1" name="Heartbeat">
+      <field name="ts" type="uint16"/>
+    </message>
+    <message id="2" name="Status">
+      <field name="code" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

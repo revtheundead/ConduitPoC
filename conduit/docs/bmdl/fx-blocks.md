@@ -119,6 +119,17 @@ On encode, FX bit values are determined automatically:
 - `<align>`
 - Nested `<fx>`
 
+## Repeating Extents (`count="fx"`)
+
+An `<fx>` block chains a fixed number of **different** field groups. When instead the **same** item repeats an arbitrary number of times while the FX bit is set (a common ASTERIX pattern -- e.g. a one-octet item whose last bit is an FX bit that means "read this item again"), use an [FX-terminated array](arrays.md#fx-terminated-countfx):
+
+```xml
+<type name="octet" base="uint" bits="7"/>
+<array name="extents" count="fx" type="octet"/>
+```
+
+The decoder reads an element, then the FX bit, and repeats while the bit is `1`, yielding a list of elements. See [Arrays](arrays.md#fx-terminated-countfx) for the full rules.
+
 ## Best Practices
 
 - FX blocks are most useful for ASTERIX-style protocols where fields are chained with extension bits.

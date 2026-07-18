@@ -170,7 +170,14 @@ public:
     void emit_constraint_check(const model::Constraint& c, const std::string& member,
                               const std::string& field_name, bool is_signed = true,
                               bool is_optional = false);
-    std::string emit_expr_code(const model::Expr& expr, const std::string& result_var);
+    // value_context controls how a terminal FieldRef that resolves to an
+    // optional<> member is emitted. In value contexts (length/count/switch
+    // expressions that feed a static_cast or arithmetic) the optional must be
+    // dereferenced so the generated code compiles. In boolean/comparison
+    // contexts (present-when) the raw optional is kept so an absent field
+    // compares unequal rather than dereferencing an empty optional.
+    std::string emit_expr_code(const model::Expr& expr, const std::string& result_var,
+                               bool value_context = true);
     std::string emit_field_cast(const std::string& parent_bmdl_name,
                                  const std::string& field_bmdl_name,
                                  const std::string& value_expr);

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A scale of 1 (with no offset) is the identity transform and must NOT promote
+     a non-float field to double. Only a genuine (non-unit) scale or a non-zero
+     offset produces a scaled floating-point field. -->
+<bmdl version="2.0">
+  <defaults>
+    <namespace>scale_identity</namespace>
+    <endian>big</endian>
+  </defaults>
+
+  <types>
+    <type name="uint16" base="uint" bits="16"/>
+  </types>
+
+  <messages>
+    <message name="ScaleMsg">
+      <!-- scale=1 on a type-ref field: stays an integer -->
+      <field name="unit_scaled" type="uint16"><scale>1</scale></field>
+      <!-- scale=1 on an inline-bits field: stays an integer -->
+      <field name="inline_unit" bits="12"><scale>1</scale></field>
+      <!-- genuine fractional scale: promoted to double -->
+      <field name="real_scaled" type="uint16"><scale>0.5</scale></field>
+      <!-- plain field, no scale -->
+      <field name="plain" type="uint16"/>
+    </message>
+  </messages>
+</bmdl>

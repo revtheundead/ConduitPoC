@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bmdl version="2.0">
+  <defaults><namespace>invalid_fx_count_length</namespace></defaults>
+  <types><type name="u7" base="uint" bits="7"/><type name="uint8" base="uint" bits="8"/></types>
+  <messages>
+    <message name="M">
+      <field name="n" type="uint8"/>
+      <array name="items" type="u7" count="fx" length="8"/>
+    </message>
+  </messages>
+</bmdl>

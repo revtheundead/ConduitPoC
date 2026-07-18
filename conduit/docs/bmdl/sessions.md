@@ -37,6 +37,41 @@ A frame consists of:
 - `auto="config(key)"` keys must be unique within the frame
 - At least one `<message>` must exist when a `<frame>` is defined
 
+### Message ID Field Types
+
+The `auto="id"` field is the dispatch discriminator, so its type is validated strictly at parse time:
+
+| Id field type | Allowed | Notes |
+|---------------|---------|-------|
+| Integer (`uint` / `int`) | Yes | The conventional case. Each `<message id="N">` is a numeric literal that must fit the field's bit width. |
+| Enum | Yes | Each `<message id="...">` is a numeric literal **or** a value name declared in the enum. The generated `ID_VALUE` constant is the enum type (cast from the numeric id), and dispatch compares the enum's underlying value. |
+| Float | No | Rejected -- a float cannot be a discriminator (it is not even a valid switch quantity). |
+| Bool | No | Rejected. |
+| Raw bytes | No | Rejected. |
+| String | No | Rejected -- string message ids are unconventional and unsupported. Map the string values to an `<enum>` and use that as the id field type instead. |
+
+Using an enum id field:
+
+```xml
+<type name="msg-id" base="uint" bits="8">
+  <enum>
+    <value name="heartbeat" id="1"/>
+    <value name="status" id="2"/>
+  </enum>
+</type>
+
+<frame name="EnumFrame">
+  <field name="msg-type" type="msg-id" auto="id"/>
+  <field name="length" type="uint16" auto="length"/>
+  <payload/>
+</frame>
+
+<messages>
+  <message id="1" name="Heartbeat"><field name="ts" type="uint16"/></message>
+  <message id="2" name="Status"><field name="code" type="uint16"/></message>
+</messages>
+```
+
 ### Generated Frame Class
 
 The frame generates a class with:

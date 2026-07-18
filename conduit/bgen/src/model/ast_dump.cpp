@@ -272,6 +272,7 @@ static void dump_array_def(const ArrayDef& a, std::ostream& out, int level) {
     if (a.fixed_count) out << " count=" << *a.fixed_count;
     if (a.count_from) out << " count-from=" << expr_to_string(*a.count_from);
     if (a.count_star) out << " count=*";
+    if (a.count_fx) out << " count=fx";
     if (a.length) out << " length=" << *a.length;
     if (a.length_from) out << " length-from=" << expr_to_string(*a.length_from);
     if (a.bit) out << " bit=" << *a.bit;

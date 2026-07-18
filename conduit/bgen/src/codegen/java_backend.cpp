@@ -1902,6 +1902,12 @@ void emit_j_decode_children(EmitContext& ctx, const std::vector<model::StructChi
                 ctx.line("if (" + m + " == null) " + m + " = new java.util.ArrayList<>();");
                 if (ad->fixed_count) {
                     ctx.line("for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
+                } else if (ad->count_fx) {
+                    // FX-terminated: decode one element, then a 1-bit FX
+                    // continuation flag; repeat while the FX bit is set.
+                    ctx.line("{ boolean _fxMore = true;");
+                    ctx.line("  while (_fxMore) { " + m + ".add(" + elem + ".decode(r)); _fxMore = (r.readBits(1) != 0); }");
+                    ctx.line("}");
                 } else if (ad->count_from) {
                     ctx.line("for (int _i=0; _i<" + j_expr_ctx(*ad->count_from, pfx, outer_ctx, ef_ptr) + "; _i++) " + m + ".add(" + elem + ".decode(r));");
                 } else if (ad->length_from) {
@@ -2244,6 +2250,10 @@ void emit_j_encode_fx_children(EmitContext& ctx, const std::vector<model::Struct
                 std::string elem = ad->type_ref.empty() ? j_inline_class(ad->name, name_map) : j_class(ad->type_ref);
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
                 ctx.line("else { for (int _i=0; _i<" + std::to_string(*ad->fixed_count) + "; _i++) new " + elem + "().encode(w); }");
+            } else if (ad->count_fx) {
+                // FX-terminated: after each element write a 1-bit FX continuation
+                // flag (1 = another element follows, 0 = last).
+                ctx.line("if (" + m + " != null) { for (int _i=0; _i<" + m + ".size(); _i++) { " + m + ".get(_i).encode(w); w.writeBits((_i + 1 < " + m + ".size()) ? 1 : 0, 1); } }");
             } else {
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             }
@@ -2396,7 +2406,11 @@ void emit_j_encode_children(EmitContext& ctx, const std::vector<model::StructChi
             tracker.advance_bits_variable();
         } else if (auto* ad = std::get_if<model::ArrayDef>(&child)) {
             std::string m = pfx + "." + j_field(ad->name);
-            if (ad->present_when) {
+            if (ad->count_fx) {
+                // FX-terminated: after each element write a 1-bit FX continuation
+                // flag (1 = another element follows, 0 = last).
+                ctx.line("if (" + m + " != null) { for (int _i=0; _i<" + m + ".size(); _i++) { " + m + ".get(_i).encode(w); w.writeBits((_i + 1 < " + m + ".size()) ? 1 : 0, 1); } }");
+            } else if (ad->present_when) {
                 ctx.line("if (" + m + " != null) { for (var _item : " + m + ") _item.encode(w); }");
             } else {
                 ctx.line("for (var _item : " + m + ") _item.encode(w);");
@@ -3932,6 +3946,13 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
                 tctx.dedent();
                 tctx.line("}");
                 tctx.line();
+                tctx.line("public static " + enum_name + " fromValue(" + val_type + " raw) {");
+                tctx.indent();
+                tctx.line("for (" + enum_name + " v : values()) if (v.value == raw) return v;");
+                tctx.line("throw new ConduitCodecException(\"unknown " + enum_name + " value: \" + raw);");
+                tctx.dedent();
+                tctx.line("}");
+                tctx.line();
                 tctx.line("public void encode(BitWriter w) { w.writeBits(value, " + std::to_string(bits) + "); }");
                 tctx.dedent();
                 tctx.line("}");
@@ -3992,12 +4013,35 @@ void collect_inline_types(const std::vector<model::StructChild>& children,
 // Java Frame class generation
 // ============================================================================
 
+// If the frame's auto="id" field resolves to an enum type, returns the Java
+// enum class name; otherwise returns an empty string. Enum-typed id fields need
+// int<->enum conversions: the message ID_VALUE constant is a plain int, so
+// assigning it to the enum-typed frame field goes through Enum.fromValue(...),
+// and dispatch comparisons against numeric ids use the enum's .value.
+std::string j_id_enum_class(const analyzer::SessionInfo& si,
+                            const model::FrameDef& frame,
+                            const analyzer::TypeIndex& index) {
+    for (const auto& child : frame.header_fields) {
+        if (auto* f = std::get_if<model::Field>(&child)) {
+            if (f->name == si.id_field_name) {
+                auto fi = j_resolve_field(*f, index);
+                if ((fi.is_enum || !f->enum_values.empty()) && !f->type_ref.empty()) {
+                    return j_class(f->type_ref);
+                }
+                return {};
+            }
+        }
+    }
+    return {};
+}
+
 std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                                     const analyzer::TypeIndex& index,
                                     const std::string& pkg) {
     if (!si.frame) return {};
     const model::FrameDef& frame = *si.frame;
     std::string cn = j_class(frame.name);
+    std::string id_enum_class = j_id_enum_class(si, frame, index);
 
     std::set<std::string> type_imports;
     for (const auto& lt : si.leaf_types) type_imports.insert(j_class(lt.name));
@@ -4080,7 +4124,10 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
         emit_j_wrap_frame_fields(frame.footer_fields, true);
         // Set id field from message's ID_VALUE
         if (!si.id_field_name.empty()) {
-            ctx.line("frame." + j_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE;");
+            std::string id_rhs = id_enum_class.empty()
+                ? (leaf_class + ".ID_VALUE")
+                : (id_enum_class + ".fromValue(" + leaf_class + ".ID_VALUE)");
+            ctx.line("frame." + j_field(si.id_field_name) + " = " + id_rhs + ";");
         }
         if (si.payload_is_array) {
             ctx.line("frame.payload.add(msg);");
@@ -4328,6 +4375,9 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
 
     // Dispatch on id field to decode payload
     std::string id_field = "result." + j_field(si.id_field_name);
+    // For an enum-typed id field, compare its numeric .value against the
+    // message id constants.
+    std::string id_field_cmp = id_enum_class.empty() ? id_field : (id_field + ".value");
 
     if (si.payload_is_array) {
         // Array payload: decode records
@@ -4342,7 +4392,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
             if (lt.send_only) continue;
             std::string leaf_class = j_class(lt.name);
             std::string id_val = lt.constraints.empty() ? "0" : lt.constraints[0].second;
-            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field + " == " + id_val + ") {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field_cmp + " == " + id_val + ") {");
             ctx.indent();
             ctx.line(leaf_class + " _msg = " + leaf_class + ".decode(" + reader_name + ");");
             // Copy header fields into decoded message
@@ -4373,7 +4423,7 @@ std::string generate_j_frame_class(const analyzer::SessionInfo& si,
                 if (!lt->send_only) { decode_leaf = lt; break; }
             }
             std::string leaf_class = j_class(decode_leaf->name);
-            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field + " == " + id_val + ") {");
+            ctx.line(std::string(first ? "if" : "} else if") + " (" + id_field_cmp + " == " + id_val + ") {");
             ctx.indent();
             ctx.line(leaf_class + " _msg = " + leaf_class + ".decode(" + reader_name + ");");
             // Copy header fields into decoded message
@@ -4500,6 +4550,7 @@ std::string generate_j_session_class(const model::Protocol& protocol,
     if (!si.frame) return {};
     std::string frame_class = j_class(si.frame->name);
     std::string session_class = frame_class + "Session";
+    std::string id_enum_class = j_id_enum_class(si, *si.frame, index);
 
     // Merge config fields (frame-level + message-level, deduplicated)
     std::map<std::string, analyzer::ConfigField> all_config;
@@ -4939,7 +4990,10 @@ std::string generate_j_session_class(const model::Protocol& protocol,
 
                 // Set id field
                 if (!si.id_field_name.empty()) {
-                    ctx.line("frame." + j_field(si.id_field_name) + " = " + leaf_class + ".ID_VALUE;");
+                    std::string id_rhs = id_enum_class.empty()
+                        ? (leaf_class + ".ID_VALUE")
+                        : (id_enum_class + ".fromValue(" + leaf_class + ".ID_VALUE)");
+                    ctx.line("frame." + j_field(si.id_field_name) + " = " + id_rhs + ";");
                 }
 
                 // Set message-level config fields on copies
@@ -5282,6 +5336,13 @@ bool JavaBackend::generate(
                     tctx.dedent();
                     tctx.line("}");
                     tctx.line();
+                    tctx.line("public static " + name + " fromValue(long raw) {");
+                    tctx.indent();
+                    tctx.line("for (" + name + " v : values()) if (v.value == raw) return v;");
+                    tctx.line("throw new ConduitCodecException(\"unknown " + name + " value: \" + raw);");
+                    tctx.dedent();
+                    tctx.line("}");
+                    tctx.line();
                     {
                         bool enum_signed = (t.base == model::PrimitiveBase::Int);
                         std::string enum_wr;
@@ -5467,6 +5528,9 @@ bool JavaBackend::generate(
             if (fi.is_string) fd.init = "\"\"";
             else if (fi.is_bytes) fd.init = "new byte[0]";
             else if (fi.is_bool) fd.init = "false";
+            // Enum and struct frame fields are reference types: default to null,
+            // not the integer 0 (which does not convert to the enum/struct type).
+            else if (fi.is_enum || fi.is_struct) fd.init = "null";
             else if (fi.j_type == "long") fd.init = "0L";
             else fd.init = "0";
             frame_fields.push_back(fd);
