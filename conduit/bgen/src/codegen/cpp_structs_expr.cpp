@@ -14,7 +14,7 @@ namespace bgen::codegen {
 
 void StructEmitter::emit_constraint_check(const model::Constraint& c, const std::string& member,
                                            const std::string& field_name, bool is_signed,
-                                           bool is_optional) {
+                                           bool is_optional, int bits) {
     if (c.validate == model::ValidateTiming::Deferred) return;
 
     std::string qualified = current_bmdl_name_.empty() ? field_name : (current_bmdl_name_ + "." + field_name);
@@ -30,7 +30,7 @@ void StructEmitter::emit_constraint_check(const model::Constraint& c, const std:
         ctx_.dedent();
         ctx_.line("}");
     }
-    if (c.max) {
+    if (c.max && !(bits > 0 && constraint_max_saturates_storage(*c.max, bits, is_signed))) {
         ctx_.line("if (" + member + " > " + *c.max + ") {");
         ctx_.indent();
         ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");

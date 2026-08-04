@@ -1193,7 +1193,7 @@ void StructEmitter::emit_frame_field_accessors(const std::vector<FrameFieldInfo>
             }
             ctx_.indent();
             emit_setter_constraint_checks(ffi.fi.name, qual_type, constraint,
-                ffi.fi.is_signed, std::nullopt, ffi.fi.is_bytes);
+                ffi.fi.is_signed, std::nullopt, ffi.fi.is_bytes, ffi.fti.bits);
             ctx_.line(member + " = v;");
             ctx_.line("return {};");
             ctx_.dedent();
@@ -1290,6 +1290,7 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
                 auto fti = resolve_field_type(c, index_);
                 fi.cpp_type = fti.cpp_type;
                 fi.is_signed = fti.is_signed;
+                fi.bits = fti.bits;
                 // Override type for inline enum fields
                 if (!c.enum_values.empty() && c.type_ref.empty()) {
                     std::string enum_name = to_pascal_case(current_parent_) + "_" + to_pascal_case(c.name);
@@ -1445,7 +1446,7 @@ void StructEmitter::collect_fields(const std::vector<model::StructChild>& childr
 void StructEmitter::emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
                                                     const model::Constraint* constraint, bool is_signed,
                                                     std::optional<int> max_length,
-                                                    bool is_bytes) {
+                                                    bool is_bytes, int bits) {
     std::string qualified = current_bmdl_name_.empty() ? name : (current_bmdl_name_ + "." + name);
 
     if (constraint && is_bytes) {
@@ -1481,7 +1482,7 @@ void StructEmitter::emit_setter_constraint_checks(const std::string& name, const
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
             ctx_.line("        \"set " + qualified + ": constraint violation: expected " + *constraint->equals + "\"));");
         }
-        if (constraint->max) {
+        if (constraint->max && !(bits > 0 && constraint_max_saturates_storage(*constraint->max, bits, is_signed))) {
             ctx_.line("if (v > " + *constraint->max + ")");
             ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
             ctx_.line("        \"set " + qualified + ": value \" + std::to_string(static_cast<int64_t>(v)) + \" exceeds max " + *constraint->max + "\"));");
@@ -1531,7 +1532,7 @@ void StructEmitter::emit_plain_accessors(const FieldInfo& fi) {
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes, fi.bits);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1597,7 +1598,7 @@ void StructEmitter::emit_optional_accessors(const FieldInfo& fi) {
         }
         ctx_.indent();
         emit_setter_constraint_checks(name, qual_type,
-            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes);
+            has_constraint ? constraint : nullptr, is_signed, max_length, is_bytes, fi.bits);
         ctx_.line(member + " = v;");
         ctx_.line("return {};");
         ctx_.dedent();
@@ -1756,7 +1757,7 @@ void StructEmitter::emit_bitmap_struct(const model::StructDef& sd, const std::st
             }
             ctx_.indent();
             emit_setter_constraint_checks(bf.name, qual_type,
-                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length, bf.is_bytes);
+                bm_has_constraint ? bm_constraint : nullptr, bf.is_signed, bm_max_length, bf.is_bytes, bf.type_bits);
             ctx_.line(member + " = v;");
             ctx_.line("return {};");
             ctx_.dedent();

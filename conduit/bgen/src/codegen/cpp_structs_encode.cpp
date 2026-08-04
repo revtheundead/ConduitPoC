@@ -108,7 +108,7 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
                     // I2: Constraint check for optional field (dereference the optional)
                     // Skip for byte-array fields (bytes > 8) — constraints were already warned as ignored
                     if (c.constraint && !fti.is_struct && !fti.is_enum && !fti.is_bytes) {
-                        emit_encode_constraint_check(*c.constraint, "*" + member, c.name, fti.is_signed);
+                        emit_encode_constraint_check(*c.constraint, "*" + member, c.name, fti.is_signed, fti.bits);
                     }
                     // I2: max_length check for optional strings/bytes
                     if (c.max_length && (fti.is_string || fti.is_bytes)) {
@@ -255,7 +255,7 @@ void StructEmitter::emit_encode_children(const std::vector<model::StructChild>& 
 
 // A8: Emit constraint check before encoding — returns error on violation
 void StructEmitter::emit_encode_constraint_check(const model::Constraint& c, const std::string& member,
-                                                   const std::string& field_name, bool is_signed) {
+                                                   const std::string& field_name, bool is_signed, int bits) {
     std::string qualified = current_bmdl_name_.empty() ? field_name : (current_bmdl_name_ + "." + field_name);
 
     if (c.equals) {
@@ -263,7 +263,7 @@ void StructEmitter::emit_encode_constraint_check(const model::Constraint& c, con
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
         ctx_.line("        \"encode " + qualified + ": constraint violation: expected " + *c.equals + ", got \" + std::to_string(static_cast<int64_t>(" + member + "))));");
     }
-    if (c.max) {
+    if (c.max && !(bits > 0 && constraint_max_saturates_storage(*c.max, bits, is_signed))) {
         ctx_.line("if (" + member + " > " + *c.max + ")");
         ctx_.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
         ctx_.line("        \"encode " + qualified + ": value \" + std::to_string(static_cast<int64_t>(" + member + ")) + \" exceeds max " + *c.max + "\"));");
@@ -325,7 +325,7 @@ void StructEmitter::emit_encode_field(const model::Field& f) {
     // A8: Constraint check before encoding
     // Skip for byte-array fields (bytes > 8) — constraints were already warned as ignored
     if (f.constraint && !fti.is_struct && !fti.is_enum && !fti.is_bytes) {
-        emit_encode_constraint_check(*f.constraint, member, f.name, fti.is_signed);
+        emit_encode_constraint_check(*f.constraint, member, f.name, fti.is_signed, fti.bits);
     }
 
     // G2: max_length check before encoding strings/bytes
