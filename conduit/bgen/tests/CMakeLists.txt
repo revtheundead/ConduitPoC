@@ -118,6 +118,7 @@ bgen_generate_fixture(fx_terminated)
 bgen_generate_fixture(fx_optional_count)
 bgen_generate_fixture(frame_enum_id)
 bgen_generate_fixture(scale_identity)
+bgen_generate_fixture(saturating_max)
 
 # ============================================================================
 # Single test executable combining parser/validator and generated code tests
@@ -235,6 +236,7 @@ add_dependencies(bgen_tests
     gen_fx_optional_count
     gen_frame_enum_id
     gen_scale_identity
+    gen_saturating_max
 )
 
 target_link_libraries(bgen_tests PRIVATE

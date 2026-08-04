@@ -41,6 +41,7 @@ struct FieldInfo {
     bool is_optional = false;
     bool is_variant = false;                        // choice/variant fields
     bool is_signed = false;                         // for skipping unsigned min=0 checks
+    int bits = 0;                                   // storage bit width (for skipping saturated max checks)
     const model::Constraint* constraint = nullptr;  // A9: for setter validation
     std::optional<std::string> default_value;       // A10: for optional default
     std::optional<int> max_length;                   // G2: for setter length validation

@@ -112,6 +112,42 @@ inline std::string storage_type_for_bits(int bits, bool is_signed) {
     return prefix + "64_t";
 }
 
+// Largest value the fixed-width storage type for `bits` can hold. Storage widths
+// round up to 8/16/32/64 bits (matching storage_type_for_bits), so an 8-bit
+// unsigned field is stored in uint8_t and can never exceed 255.
+inline uint64_t storage_type_max(int bits, bool is_signed) {
+    int width = bits <= 8 ? 8 : (bits <= 16 ? 16 : (bits <= 32 ? 32 : 64));
+    if (is_signed) {
+        return (static_cast<uint64_t>(1) << (width - 1)) - 1;
+    }
+    if (width >= 64) return ~static_cast<uint64_t>(0);
+    return (static_cast<uint64_t>(1) << width) - 1;
+}
+
+// A generated `value > max` constraint check is dead code — always false — when the
+// constraint's numeric max equals the largest value the field's storage type can
+// hold. For example, a uint8_t can never exceed 255, so `x > 255` is always false
+// and trips -Wtype-limits; there is no point emitting it. Callers use this to skip
+// the redundant check.
+//
+// Only literal numeric maxima are evaluated; symbolic constant references (which
+// begin with a letter or underscore) are always kept, as are maxima that don't
+// exactly saturate the storage type. Matching exactly — rather than ">=" — keeps
+// the optimization safe even when a schema specifies a max beyond the type's range,
+// where a static_cast in the emitted comparison would otherwise wrap around.
+inline bool constraint_max_saturates_storage(const std::string& max_str, int bits, bool is_signed) {
+    if (max_str.empty()) return false;
+    unsigned char first = static_cast<unsigned char>(max_str.front());
+    if (std::isalpha(first) || max_str.front() == '_') return false;  // symbolic constant
+    if (max_str.front() == '-') return false;  // negative can never saturate an integer max
+    try {
+        unsigned long long value = std::stoull(max_str, nullptr, 0);
+        return value == storage_type_max(bits, is_signed);
+    } catch (...) {  // NOLINT(bugprone-empty-catch)
+        return false;  // unparseable literal — keep the check
+    }
+}
+
 // Check if a C++ identifier (after name conversion) is a C++ keyword
 inline bool is_cpp_keyword(std::string_view name) {
     static const std::unordered_set<std::string_view> keywords = {

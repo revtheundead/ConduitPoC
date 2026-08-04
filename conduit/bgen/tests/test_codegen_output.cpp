@@ -1227,6 +1227,34 @@ TEST_CASE("C++ codegen: float16 types generate read_f16/write_f16", "[codegen][f
 // Empty struct / message codegen tests
 // ============================================================================
 
+// ============================================================================
+// Section: Redundant (type-saturating) max constraint checks are omitted
+//
+// A `value > max` check is dead code when max equals the ceiling of the field's
+// storage type (e.g. 255 for uint8_t): the value can never exceed it, so the
+// comparison is always false and trips -Wtype-limits. bgen must skip emitting
+// those checks, while keeping genuine max checks that constrain below the ceiling.
+// ============================================================================
+
+TEST_CASE("Type-saturating max constraint checks are omitted", "[codegen][constraints]") {
+    auto gc = generate_from("saturating_max.bmdl.xml");
+    REQUIRE(gc.has_value());
+
+    const auto& code = gc->messages;
+    REQUIRE(code.find("class SaturatingMaxMsg") != std::string::npos);
+
+    // Saturating maxima (uint8 max 255, int8 max 127, uint16 max 65535, inline
+    // bits=8 max 0xFF) are always-false comparisons — no check should be emitted.
+    CHECK(code.find("exceeds max 255") == std::string::npos);
+    CHECK(code.find("exceeds max 127") == std::string::npos);
+    CHECK(code.find("exceeds max 65535") == std::string::npos);
+    CHECK(code.find("exceeds max 0xFF") == std::string::npos);
+
+    // The genuine max (100, below the uint8_t ceiling) must still be checked in
+    // decode, encode, and the setter.
+    CHECK(code.find("exceeds max 100") != std::string::npos);
+}
+
 TEST_CASE("C++ codegen: empty struct with <empty/> generates valid code", "[codegen][empty]") {
     auto gc = generate_from("empty_struct_explicit.bmdl.xml");
     REQUIRE(gc.has_value());

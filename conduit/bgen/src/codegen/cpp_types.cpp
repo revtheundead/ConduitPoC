@@ -307,7 +307,7 @@ void emit_scaled_type(EmitContext& ctx, const model::TypeDef& t) {
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " constraint: expected " + *t.constraint->equals + "\"));");
             }
-            if (t.constraint->max) {
+            if (t.constraint->max && !constraint_max_saturates_storage(*t.constraint->max, t.bits, is_signed)) {
                 ctx.line("if (raw > static_cast<" + raw_type + ">(" + *t.constraint->max + "))");
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " exceeds max " + *t.constraint->max + "\"));");
@@ -331,7 +331,7 @@ void emit_scaled_type(EmitContext& ctx, const model::TypeDef& t) {
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " constraint: expected " + *t.constraint->equals + "\"));");
             }
-            if (t.constraint->max) {
+            if (t.constraint->max && !constraint_max_saturates_storage(*t.constraint->max, t.bits, is_signed)) {
                 ctx.line("if (v > static_cast<" + raw_type + ">(" + *t.constraint->max + "))");
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " exceeds max " + *t.constraint->max + "\"));");
@@ -388,7 +388,7 @@ void emit_scaled_type(EmitContext& ctx, const model::TypeDef& t) {
             ctx.dedent();
             ctx.line("}");
         }
-        if (t.constraint->max) {
+        if (t.constraint->max && !constraint_max_saturates_storage(*t.constraint->max, t.bits, is_signed)) {
             ctx.line("if (result.raw_ > static_cast<" + raw_type + ">(" + *t.constraint->max + ")) {");
             ctx.indent();
             ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
@@ -733,7 +733,7 @@ void emit_constrained_type(EmitContext& ctx, const model::TypeDef& t) {
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " constraint: expected " + *t.constraint->equals + "\"));");
             }
-            if (t.constraint->max) {
+            if (t.constraint->max && !constraint_max_saturates_storage(*t.constraint->max, t.bits, is_signed)) {
                 ctx.line("if (v > static_cast<" + raw_type + ">(" + *t.constraint->max + "))");
                 ctx.line("    return std::unexpected(conduit::Error(conduit::ErrorCode::EncodeConstraintViolation,");
                 ctx.line("        \"" + name + " exceeds max " + *t.constraint->max + "\"));");
@@ -783,7 +783,7 @@ void emit_constrained_type(EmitContext& ctx, const model::TypeDef& t) {
             ctx.dedent();
             ctx.line("}");
         }
-        if (constraint.max) {
+        if (constraint.max && !constraint_max_saturates_storage(*constraint.max, t.bits, is_signed)) {
             ctx.line("if (result.raw_ > static_cast<" + raw_type + ">(" + *constraint.max + ")) {");
             ctx.indent();
             ctx.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");

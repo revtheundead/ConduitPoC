@@ -436,6 +436,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
         model::Constraint constraint;
         bool is_signed = true;
         bool is_optional = false;
+        int bits = 0;
     };
     std::vector<DeferredField> deferred;
     for (const auto& child : children) {
@@ -445,7 +446,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
                 // Skip deferred validation for byte-array fields (bytes > 8) — numeric constraints not applicable
                 if (fti.is_bytes) continue;
                 bool opt = f->present_when || f->bit;
-                deferred.push_back({f->name, *f->constraint, fti.is_signed, opt});
+                deferred.push_back({f->name, *f->constraint, fti.is_signed, opt, fti.bits});
             }
         }
     }
@@ -471,7 +472,7 @@ void StructEmitter::emit_deferred_validate(const std::vector<model::StructChild>
             ctx_.dedent();
             ctx_.line("}");
         }
-        if (df.constraint.max) {
+        if (df.constraint.max && !(df.bits > 0 && constraint_max_saturates_storage(*df.constraint.max, df.bits, df.is_signed))) {
             ctx_.line("if (" + val + " > " + *df.constraint.max + ") {");
             ctx_.indent();
             ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolationDeferred,");
@@ -868,7 +869,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
                 ctx_.dedent();
                 ctx_.line("}");
             }
-            if (f.constraint->max) {
+            if (f.constraint->max && !(fti.bits > 0 && constraint_max_saturates_storage(*f.constraint->max, fti.bits, fti.is_signed))) {
                 ctx_.line("if (" + cast_member + " > " + *f.constraint->max + ") {");
                 ctx_.indent();
                 ctx_.line("return std::unexpected(conduit::Error(conduit::ErrorCode::ConstraintViolation,");
@@ -1122,7 +1123,7 @@ void StructEmitter::emit_decode_field_body(const model::Field& f, const std::str
         // Constraint check
         if (f.constraint) {
             bool field_optional = optional_field_names_.count(to_member_name(f.name)) > 0;
-            emit_constraint_check(*f.constraint, member, f.name, fti.is_signed, field_optional);
+            emit_constraint_check(*f.constraint, member, f.name, fti.is_signed, field_optional, fti.bits);
         }
 
         ctx_.dedent();

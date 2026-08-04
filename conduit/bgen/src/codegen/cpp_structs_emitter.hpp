@@ -100,7 +100,7 @@ public:
     void emit_setter_constraint_checks(const std::string& name, const std::string& qual_type,
                                         const model::Constraint* constraint, bool is_signed,
                                         std::optional<int> max_length,
-                                        bool is_bytes = false);
+                                        bool is_bytes = false, int bits = 0);
 
     // ========================================================================
     // Bitmap struct — in cpp_structs.cpp
@@ -118,7 +118,8 @@ public:
     void emit_encode(const std::vector<model::StructChild>& children);
     void emit_encode_children(const std::vector<model::StructChild>& children);
     void emit_encode_constraint_check(const model::Constraint& c, const std::string& member,
-                                       const std::string& field_name, bool is_signed = true);
+                                       const std::string& field_name, bool is_signed = true,
+                                       int bits = 0);
     void emit_encode_field(const model::Field& f);
     void emit_encode_array(const model::ArrayDef& a, bool is_optional = false);
     void emit_encode_fx_array(const model::ArrayDef& a);
@@ -169,7 +170,7 @@ public:
 
     void emit_constraint_check(const model::Constraint& c, const std::string& member,
                               const std::string& field_name, bool is_signed = true,
-                              bool is_optional = false);
+                              bool is_optional = false, int bits = 0);
     // value_context controls how a terminal FieldRef that resolves to an
     // optional<> member is emitted. In value contexts (length/count/switch
     // expressions that feed a static_cast or arithmetic) the optional must be

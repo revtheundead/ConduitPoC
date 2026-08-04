@@ -1,0 +1,35 @@
+<bmdl version="2.0">
+  <defaults>
+    <namespace>saturating_max</namespace>
+    <endian>big</endian>
+  </defaults>
+  <types>
+    <type name="uint8" base="uint" bits="8"/>
+    <type name="uint16" base="uint" bits="16"/>
+    <type name="int8" base="int" bits="8"/>
+  </types>
+  <messages>
+    <message name="SaturatingMaxMsg">
+      <!-- max == 255 == uint8_t ceiling: check is always false, must be omitted -->
+      <field name="full8" type="uint8">
+        <constraint max="255"/>
+      </field>
+      <!-- max == 100 < 255: a real check, must be retained -->
+      <field name="partial8" type="uint8">
+        <constraint max="100"/>
+      </field>
+      <!-- signed max == 127 == int8_t ceiling: check is always false, must be omitted -->
+      <field name="signed8" type="int8">
+        <constraint max="127"/>
+      </field>
+      <!-- max == 65535 == uint16_t ceiling: check is always false, must be omitted -->
+      <field name="full16" type="uint16">
+        <constraint max="65535"/>
+      </field>
+      <!-- inline-bits field (bits=8) with saturating max, hex form -->
+      <field name="inline8" bits="8">
+        <constraint max="0xFF"/>
+      </field>
+    </message>
+  </messages>
+</bmdl>
