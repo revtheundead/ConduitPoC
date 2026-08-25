@@ -68,6 +68,34 @@ TEST_CASE("auto count - struct Container with items", "[auto_count]") {
     CHECK(dec->items()[1].value() == 2222);
 }
 
+TEST_CASE("auto count - to_string reports element count before encode",
+          "[auto_count][to_string]") {
+    auto_count::CountMsg msg;
+    msg.set_id(42);
+    msg.mutable_entries().push_back(100);
+    msg.mutable_entries().push_back(200);
+    msg.mutable_entries().push_back(300);
+
+    // num-entries = count(entries) is patched during encode; the member is 0
+    // here. to_string must report the referenced array's element count (3).
+    CHECK(msg.num_entries() == 0);
+    auto s = msg.to_string();
+    INFO(s);
+    CHECK(s.find("num-entries=3") != std::string::npos);
+
+    // Same for a struct-level count field.
+    auto_count::Container c;
+    c.set_tag(0xAA);
+    auto_count::Record r1; r1.set_value(1111);
+    auto_count::Record r2; r2.set_value(2222);
+    c.mutable_items().push_back(r1);
+    c.mutable_items().push_back(r2);
+    CHECK(c.count() == 0);
+    auto cs = c.to_string();
+    INFO(cs);
+    CHECK(cs.find("count=2") != std::string::npos);
+}
+
 TEST_CASE("auto count - wire bytes verification", "[auto_count][wire]") {
     auto_count::CountMsg msg;
     msg.set_id(7);

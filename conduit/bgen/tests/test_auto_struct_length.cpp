@@ -42,6 +42,22 @@ TEST_CASE("auto length(field) - empty data gives len=0", "[auto_struct_length]")
     CHECK(dec->suffix() == 0xAA);
 }
 
+TEST_CASE("auto length(field) - to_string reports computed length before encode",
+          "[auto_struct_length][to_string]") {
+    auto_struct_length::TlvMsg msg;
+    msg.set_tag(0x42);
+    msg.mutable_data() = {0x01, 0x02, 0x03, 0x04, 0x05};
+    msg.set_suffix(0xFF);
+
+    // len = length(data) is patched during encode; the member is still 0 here.
+    // to_string must report the target field's byte length (5), not the stale 0.
+    CHECK(msg.len() == 0);
+    auto s = msg.to_string();
+    INFO(s);
+    CHECK(s.find("len=5") != std::string::npos);
+    CHECK(s.find("len=0") == std::string::npos);
+}
+
 TEST_CASE("auto length(field) - wire bytes verification", "[auto_struct_length][wire]") {
     auto_struct_length::TlvMsg msg;
     msg.set_tag(0x10);
