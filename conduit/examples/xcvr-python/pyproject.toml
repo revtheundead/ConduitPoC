@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conduit-example-xcvr-python"
-version = "1.1.5"
+version = "1.1.6"
 description = "ASTERIX Transceiver Example — Python"
 requires-python = ">=3.10"
 
 dependencies = [
-    "conduit>=1.1.5",
+    "conduit>=1.1.6",
 ]
 
 [project.scripts]
