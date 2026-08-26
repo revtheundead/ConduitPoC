@@ -745,6 +745,8 @@ class BitReader:
         return struct.unpack('>d' if big_endian else '<d', b)[0]
 
     def read_string(self, length: int, encoding: int = 0) -> str:
+        if self._bit_pos % 8 != 0:  # byte-oriented field starts on a byte boundary (matches C++)
+            self._bit_pos += 8 - (self._bit_pos % 8)
         b = bytearray(self.read_bits(8) for _ in range(length))
         if encoding == 2:
             b = bytearray(_EBCDIC_TO_ASCII[c] for c in b)
@@ -784,6 +786,8 @@ class BitReader:
         return ''.join(chars)
 
     def read_bytes(self, length: int) -> bytes:
+        if self._bit_pos % 8 != 0:  # byte-oriented field starts on a byte boundary (matches C++)
+            self._bit_pos += 8 - (self._bit_pos % 8)
         return bytes(self.read_bits(8) for _ in range(length))
 
     def read_bcd(self, bits: int) -> int:
@@ -906,6 +910,8 @@ class BitWriter:
             self.write_bits(byte, 8)
 
     def write_string(self, s: str, length: int, pad: int = 0, encoding: int = 0) -> None:
+        if self._bit_pos % 8 != 0:  # byte-oriented field starts on a byte boundary (matches C++)
+            self._bit_pos += 8 - (self._bit_pos % 8)
         b = bytearray(s.encode('latin-1'))
         if encoding == 2:
             b = bytearray(_ASCII_TO_EBCDIC[c] for c in b)
@@ -933,6 +939,8 @@ class BitWriter:
         self.write_u8(0x0A)
 
     def write_bytes(self, data: bytes | bytearray) -> None:
+        if self._bit_pos % 8 != 0:  # byte-oriented field starts on a byte boundary (matches C++)
+            self._bit_pos += 8 - (self._bit_pos % 8)
         for b in data:
             self.write_u8(b)
 
@@ -2333,6 +2341,10 @@ struct PyFieldDef {
     // auto-managed field. Its value is patched onto the wire during encode and
     // is not stored on the in-memory object, so __repr__ must derive it.
     const model::AutoExpr* auto_expr = nullptr;
+    // True for frame header/footer fields prepended into a leaf message. Their
+    // value is the FRAME's (set by the frame wrapper / decoded from the wire),
+    // so __repr__ uses the override-or-member path, never a body re-encode.
+    bool is_frame_field = false;
 };
 
 void collect_py_fields(const std::vector<model::StructChild>& children,
@@ -3487,12 +3499,12 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
             // Value expression producing the field's display string when no
             // override applies.
             std::string val_expr;
-            if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count && !f.auto_expr->field_ref.empty()
+            if (f.auto_expr && !f.is_frame_field && f.auto_expr->kind == model::AutoKind::Count && !f.auto_expr->field_ref.empty()
                 && by_bmdl.count(f.auto_expr->field_ref)) {
                 std::string rn = "self." + by_bmdl[f.auto_expr->field_ref]->name;
                 std::string base = "(len(" + rn + ") if " + rn + " is not None else 0)";
                 val_expr = "str(" + apply_py_arith(base, f.auto_expr->modifier) + ")";
-            } else if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length
+            } else if (f.auto_expr && !f.is_frame_field && f.auto_expr->kind == model::AutoKind::Length
                        && f.auto_expr->field_ref.empty()) {
                 // length (self): re-encode to measure this object's wire size.
                 ctx.line("try:");
@@ -3504,7 +3516,7 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
                 ctx.line("_lv = " + self_ref);
                 ctx.dedent();
                 val_expr = "str(" + apply_py_arith("_lv", f.auto_expr->modifier) + ")";
-            } else if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length
+            } else if (f.auto_expr && !f.is_frame_field && f.auto_expr->kind == model::AutoKind::Length
                        && !f.auto_expr->field_ref.empty() && by_bmdl.count(f.auto_expr->field_ref)
                        && (by_bmdl[f.auto_expr->field_ref]->is_bytes || by_bmdl[f.auto_expr->field_ref]->is_string)) {
                 std::string rn = "self." + by_bmdl[f.auto_expr->field_ref]->name;
@@ -4241,6 +4253,7 @@ std::string generate_py_messages(const model::Protocol& protocol,
             fd.name = py_field(f->name);
             fd.bmdl_name = f->name;
             fd.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
+            fd.is_frame_field = true;
             fd.py_type = fi.py_type;
             fd.constraint = f->constraint ? &*f->constraint : nullptr;
             fd.is_signed = fi.is_signed;

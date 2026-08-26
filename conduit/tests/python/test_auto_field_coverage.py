@@ -453,3 +453,16 @@ class TestAutoFieldLogging:
 
         formatted = session.format_outbound(DataItem.TYPE_ID, payloads[0], result["auto_fields"])
         assert "count=3" in formatted
+
+    def test_frame_field_length_shows_member_not_body_reencode(self):
+        # Regression: a leaf message carries the frame's auto="length" field.
+        # On a RECEIVED message the member holds the true frame length; repr
+        # must show that, not a body-only re-encode of the leaf.
+        from frame_basic import SimpleFrame
+
+        # msg-type=1 (Heartbeat), length=5, timestamp=0x0012
+        frame = SimpleFrame.decode_bytes(bytes([0x01, 0x00, 0x05, 0x00, 0x12]))
+        hb = frame.payload
+        assert hb.length == 5  # decoded frame length
+        assert "length=5" in repr(hb)
+        assert "length=2" not in repr(hb)  # not the re-encoded body size

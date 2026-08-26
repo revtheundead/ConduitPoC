@@ -170,6 +170,23 @@ public class TestFxCoverage {
     }
 
     @Test
+    @DisplayName("FxStringMsg: byte-oriented FX fields are byte-aligned (C++ interop)")
+    void testFxStringMsgWireBytesByteAligned() {
+        // The FX presence indicator is one bit, but string/bytes fields are
+        // byte-oriented and must start on a byte boundary — matching the C++
+        // reference encoder byte-for-byte so a Java<->C++ pair interoperates.
+        FxStringMsg msg = new FxStringMsg();
+        msg.header = 0xAA;
+        msg.label = "hello";
+        msg.payload = new byte[]{0x01, 0x02, 0x03, 0x04};
+        msg.extra = 0xBEEF;
+
+        StringBuilder sb = new StringBuilder();
+        for (byte b : msg.encodeBytes()) sb.append(String.format("%02X", b & 0xFF));
+        assertEquals("AA8068656C6C6F000000000001020304BEEF00", sb.toString());
+    }
+
+    @Test
     @DisplayName("FxStringMsg: short label is padded correctly")
     void testFxStringMsgShortStringPadding() {
         FxStringMsg msg = new FxStringMsg();

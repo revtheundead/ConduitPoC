@@ -832,6 +832,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("}");
     ctx.line("public String readString(int len) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("byte[] b = new byte[len];");
     ctx.line("for (int i=0;i<len;i++) b[i]=(byte)readBits(8);");
     ctx.line("return new String(b, StandardCharsets.ISO_8859_1);");
@@ -840,6 +841,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     // Encoding-aware string read: 0=ASCII, 1=IA5, 2=EBCDIC
     ctx.line("public String readStringEncoded(int len, int enc) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("byte[] b = new byte[len];");
     ctx.line("for (int i=0;i<len;i++) b[i]=(byte)readBits(8);");
     ctx.line("if (enc == 2) {");
@@ -899,6 +901,7 @@ std::string generate_j_bit_reader(const std::string& pkg) {
     ctx.line("}");
     ctx.line("public byte[] readBytes(int len) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("byte[] b = new byte[len];");
     ctx.line("for (int i=0;i<len;i++) b[i]=(byte)readBits(8);");
     ctx.line("return b;");
@@ -1137,6 +1140,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("}");
     ctx.line("public void writeString(String s, int len, int pad) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("byte[] enc = s.getBytes(StandardCharsets.ISO_8859_1);");
     ctx.line("for (int i = 0; i < len; i++) writeU8(i < enc.length ? enc[i] & 0xFF : pad);");
     ctx.dedent();
@@ -1144,6 +1148,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     // Encoding-aware string write: 0=ASCII, 1=IA5, 2=EBCDIC
     ctx.line("public void writeStringEncoded(String s, int len, int pad, int enc) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("byte[] b = s.getBytes(StandardCharsets.ISO_8859_1);");
     ctx.line("if (enc == 2) {");
     ctx.indent();
@@ -1186,6 +1191,7 @@ std::string generate_j_bit_writer(const std::string& pkg) {
     ctx.line("}");
     ctx.line("public void writeBytes(byte[] data) {");
     ctx.indent();
+    ctx.line("alignTo(1); // byte-oriented field starts on a byte boundary (matches C++)");
     ctx.line("for (byte b : data) writeU8(b & 0xFF);");
     ctx.dedent();
     ctx.line("}");
@@ -1332,6 +1338,10 @@ struct JFieldDef {
     // auto-managed field. Its value is patched onto the wire during encode and
     // is not stored on the in-memory object, so toString must derive it.
     const model::AutoExpr* auto_expr = nullptr;
+    // True for frame header/footer fields prepended into a leaf message. Their
+    // value is the FRAME's (set by the frame wrapper / decoded from the wire),
+    // so toString uses the override-or-member path, never a body re-encode.
+    bool is_frame_field = false;
 };
 
 // Helper: return Java encoding constant string for a field (0=ASCII, 1=IA5, 2=EBCDIC)
@@ -3716,7 +3726,7 @@ std::string generate_j_class(const std::string& name,
             // Compute the wire value for auto-managed body fields, which are
             // patched during encode and left zero on the in-memory object.
             std::string auto_else;
-            if (fields[i].auto_expr) {
+            if (fields[i].auto_expr && !fields[i].is_frame_field) {
                 const auto& ae = *fields[i].auto_expr;
                 if (ae.kind == model::AutoKind::Count && !ae.field_ref.empty()) {
                     auto it = by_bmdl.find(ae.field_ref);
@@ -5583,6 +5593,7 @@ bool JavaBackend::generate(
             fd.name = j_field(f->name);
             fd.bmdl_name = f->name;
             fd.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
+            fd.is_frame_field = true;
             fd.j_type = fi.j_type;
             fd.constraint = f->constraint ? &*f->constraint : nullptr;
             fd.is_signed = fi.is_signed;

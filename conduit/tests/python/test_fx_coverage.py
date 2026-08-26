@@ -318,6 +318,23 @@ class TestFxStringWithExtension:
         msg2 = FxStringMsg.decode_bytes(data)
         assert msg2.label == "0123456789"
 
+    def test_wire_bytes_are_byte_aligned_cross_language(self):
+        # The FX presence indicator is a single bit, but string/bytes fields are
+        # byte-oriented and must start on a byte boundary — matching the C++
+        # reference encoder byte-for-byte so a C++<->Python pair interoperates.
+        from fx_string import FxStringMsg
+
+        msg = FxStringMsg()
+        msg.header = 0xAA
+        msg.label = "hello"
+        msg.payload = b'\x01\x02\x03\x04'
+        msg.extra = 0xBEEF
+
+        # header, FX bit (byte-aligned padding), "hello"+5 NUL pad, payload,
+        # extra (big-endian), terminal FX byte.
+        assert msg.encode_bytes().hex().upper() == \
+            "AA8068656C6C6F000000000001020304BEEF00"
+
     def test_empty_strings_and_zero_payload(self):
         from fx_string import FxStringMsg
 

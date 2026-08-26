@@ -241,6 +241,19 @@ public class TestAutoFieldCoverage {
         assertTrue(formatted.contains("count=3"), formatted);
     }
 
+    @Test
+    @DisplayName("toString: received frame-length field shows member, not body re-encode")
+    void toStringFrameFieldLengthUsesMember() {
+        // A leaf message carries the frame's auto="length" field. On a RECEIVED
+        // message the member holds the true frame length; toString must show
+        // that, not a body-only re-encode of the leaf.
+        byte[] wire = {0x01, 0x00, 0x05, 0x00, 0x12}; // Heartbeat, length=5, ts=0x12
+        frame_basic.SimpleFrame f = frame_basic.SimpleFrame.decodeBytes(wire);
+        String s = f.payload.toString();
+        assertTrue(s.contains("length=5"), s);
+        assertFalse(s.contains("length=2"), s);
+    }
+
     private static String lookup(java.util.List<String[]> autoFields, String key) {
         for (String[] kv : autoFields) {
             if (kv[0].equals(key)) return kv[1];
