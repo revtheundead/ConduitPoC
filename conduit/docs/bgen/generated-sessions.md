@@ -184,7 +184,9 @@ Formats a decoded message payload as a human-readable string by switching on `ty
     std::span<const std::pair<std::string, std::string>> auto_fields) const override;
 ```
 
-Formats an outbound message with auto-field overrides (id, length, timestamp, etc.). The default implementation delegates to `format_message()`, ignoring `auto_fields`.
+Formats an outbound message with auto-field overrides (id, length, count, timestamp, etc.). The default implementation delegates to `format_message()`, ignoring `auto_fields`.
+
+Frame-level auto fields are patched onto the wire during encoding and are not stored on the in-memory message, so `format_outbound` overlays their real values from `auto_fields`. Body-level auto fields (`auto="length"`/`auto="count(...)"` on message or struct members) are handled directly in the generated `to_string()`: a `count` field reports the referenced array's element count, and a `length` field reports the encoded byte length (computed by re-encoding the struct). This ensures logged messages never show these patched fields as their zero-initialized member values.
 
 ### protocol_name
 
@@ -206,7 +208,7 @@ struct EncodeResult {
 ```
 
 - **`bytes`**: The fully encoded frame ready for transmission.
-- **`auto_fields`**: Metadata about auto-managed fields that were set during encoding (e.g., id, length, sequence counter, timestamp values). Each entry is a `{field_name, string_value}` pair. Used by the transceiver for message logging (`format_outbound()`).
+- **`auto_fields`**: Metadata about frame-level auto-managed fields that were set during encoding (e.g., id, length, count, sequence counter, timestamp values). Each entry is a `{field_name, string_value}` pair. Used by the transceiver for message logging (`format_outbound()`).
 
 ## Auto-Increment Counter
 

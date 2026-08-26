@@ -56,7 +56,7 @@ public:
             }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            result.auto_fields.push_back({"cat", std::to_string(Cat007DownlinkRecord::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat007DownlinkRecord::ID_VALUE))});
             auto enc = frame.encode_bytes();
             if (!enc) return std::unexpected(enc.error());
             result.auto_fields.push_back({"len", std::to_string(enc->size())});
@@ -76,7 +76,7 @@ public:
             }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            result.auto_fields.push_back({"cat", std::to_string(Cat007UplinkRecord::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat007UplinkRecord::ID_VALUE))});
             auto enc = frame.encode_bytes();
             if (!enc) return std::unexpected(enc.error());
             result.auto_fields.push_back({"len", std::to_string(enc->size())});
@@ -96,7 +96,7 @@ public:
             }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            result.auto_fields.push_back({"cat", std::to_string(Cat021Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat021Record::ID_VALUE))});
             auto enc = frame.encode_bytes();
             if (!enc) return std::unexpected(enc.error());
             result.auto_fields.push_back({"len", std::to_string(enc->size())});
@@ -116,7 +116,7 @@ public:
             }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            result.auto_fields.push_back({"cat", std::to_string(Cat048Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat048Record::ID_VALUE))});
             auto enc = frame.encode_bytes();
             if (!enc) return std::unexpected(enc.error());
             result.auto_fields.push_back({"len", std::to_string(enc->size())});
@@ -136,7 +136,7 @@ public:
             }
             conduit::traits::EncodeResult result;
             auto frame = AsterixDataBlock::wrap(*msg);
-            result.auto_fields.push_back({"cat", std::to_string(Cat253Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat253Record::ID_VALUE))});
             auto enc = frame.encode_bytes();
             if (!enc) return std::unexpected(enc.error());
             result.auto_fields.push_back({"len", std::to_string(enc->size())});
@@ -154,7 +154,7 @@ public:
             AsterixDataBlock frame;
             conduit::traits::EncodeResult result;
             frame.set_cat(Cat007DownlinkRecord::ID_VALUE);
-            result.auto_fields.push_back({"cat", std::to_string(Cat007DownlinkRecord::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat007DownlinkRecord::ID_VALUE))});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007DownlinkRecord>(&p);
@@ -179,7 +179,7 @@ public:
             AsterixDataBlock frame;
             conduit::traits::EncodeResult result;
             frame.set_cat(Cat007UplinkRecord::ID_VALUE);
-            result.auto_fields.push_back({"cat", std::to_string(Cat007UplinkRecord::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat007UplinkRecord::ID_VALUE))});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat007UplinkRecord>(&p);
@@ -204,7 +204,7 @@ public:
             AsterixDataBlock frame;
             conduit::traits::EncodeResult result;
             frame.set_cat(Cat021Record::ID_VALUE);
-            result.auto_fields.push_back({"cat", std::to_string(Cat021Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat021Record::ID_VALUE))});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat021Record>(&p);
@@ -229,7 +229,7 @@ public:
             AsterixDataBlock frame;
             conduit::traits::EncodeResult result;
             frame.set_cat(Cat048Record::ID_VALUE);
-            result.auto_fields.push_back({"cat", std::to_string(Cat048Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat048Record::ID_VALUE))});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat048Record>(&p);
@@ -254,7 +254,7 @@ public:
             AsterixDataBlock frame;
             conduit::traits::EncodeResult result;
             frame.set_cat(Cat253Record::ID_VALUE);
-            result.auto_fields.push_back({"cat", std::to_string(Cat253Record::ID_VALUE)});
+            result.auto_fields.push_back({"cat", std::to_string(static_cast<int64_t>(Cat253Record::ID_VALUE))});
             frame.payload().reserve(payloads.size());
             for (const auto& p : payloads) {
                 auto* msg = std::any_cast<Cat253Record>(&p);

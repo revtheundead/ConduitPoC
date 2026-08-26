@@ -106,7 +106,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007DownlinkRecord_items_spf{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -193,7 +197,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007DownlinkRecord_items_ref{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -1198,7 +1206,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007UplinkRecord_items_ref{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -1950,7 +1962,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat021Record_items_re{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
@@ -2037,7 +2053,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat021Record_items_sp{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -3217,7 +3237,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat048Record_items_sp{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -3447,7 +3471,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat048Record_items_re{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", items=" << items_.to_string()
             << "}";
         return oss.str();
@@ -4332,7 +4360,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253Record_items_i100{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", payload=" << std::visit([](const auto& v) { return v.to_string(); }, payload_)
             << "}";
         return oss.str();
@@ -4419,7 +4451,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253Record_items_sp{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();
@@ -4506,7 +4542,11 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253Record_items_rfs{"
-            << "len=" << +(len_)
+            << "len=" << ([this]() -> uint64_t {
+                conduit::io::BitWriter _w;
+                if (!encode(_w)) return 0;
+                return static_cast<uint64_t>(_w.size_bytes());
+            }())
             << ", data=[bytes]"
             << "}";
         return oss.str();

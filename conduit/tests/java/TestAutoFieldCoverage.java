@@ -162,4 +162,102 @@ public class TestAutoFieldCoverage {
         auto_struct_length.TlvMsg d = auto_struct_length.TlvMsg.decodeBytes(encoded);
         assertArrayEquals(new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF}, d.data);
     }
+
+    // ========================================================================
+    // Message-log formatting: auto-managed ("patched") fields must render the
+    // value written to the wire, not the zero-initialized in-memory member.
+    // ========================================================================
+
+    @Test
+    @DisplayName("toString: body auto-length shows target field length, not 0")
+    void toStringBodyAutoLength() {
+        auto_struct_length.TlvMsg msg = new auto_struct_length.TlvMsg();
+        msg.tag = 0x42;
+        msg.data = new byte[]{1, 2, 3, 4, 5};
+        msg.suffix = 0xFF;
+        assertEquals(0, msg.len); // not populated in memory
+        assertTrue(msg.toString().contains("len=5"), msg.toString());
+    }
+
+    @Test
+    @DisplayName("toString: body auto-count shows array size, not 0")
+    void toStringBodyAutoCount() {
+        auto_count.Container c = new auto_count.Container();
+        c.tag = 0xAA;
+        auto_count.Record r1 = new auto_count.Record(); r1.value = 1111;
+        auto_count.Record r2 = new auto_count.Record(); r2.value = 2222;
+        c.items.add(r1);
+        c.items.add(r2);
+        assertEquals(0, c.count);
+        assertTrue(c.toString().contains("count=2"), c.toString());
+    }
+
+    @Test
+    @DisplayName("toString: self auto-length is derived by re-encoding")
+    void toStringSelfAutoLength() {
+        outer_scope.Packet p = new outer_scope.Packet();
+        p.tag = 1;
+        outer_scope.DataA a = new outer_scope.DataA(); a.x = 10; a.y = 20;
+        p.payload = a;
+        assertEquals(0, p.len);
+        assertTrue(p.toString().contains("len=4"), p.toString());
+    }
+
+    @Test
+    @DisplayName("session: encodeWrap records count and formatOutbound surfaces it")
+    void sessionFrameCountWrap() {
+        frame_count.CountFrameSession session = new frame_count.CountFrameSession();
+        frame_count.DataItem d = new frame_count.DataItem();
+        d.value = 0x1234;
+        java.util.Map<String, Object> r = session.encodeWrap(frame_count.DataItem.TYPE_ID, d);
+        assertNotNull(r);
+        @SuppressWarnings("unchecked")
+        java.util.List<String[]> af = (java.util.List<String[]>) r.get("auto_fields");
+        assertEquals("1", lookup(af, "count"));
+
+        String formatted = session.formatOutbound(frame_count.DataItem.TYPE_ID, d, af);
+        assertTrue(formatted.contains("count=1"), formatted);
+        assertFalse(formatted.contains("count=0"), formatted);
+        assertTrue(formatted.contains("msgType=1"), formatted);
+    }
+
+    @Test
+    @DisplayName("session: encodeBatch records payload count")
+    void sessionFrameCountBatch() {
+        frame_count.CountFrameSession session = new frame_count.CountFrameSession();
+        java.util.List<frame_count.DataItem> items = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            frame_count.DataItem d = new frame_count.DataItem();
+            d.value = i;
+            items.add(d);
+        }
+        java.util.Map<String, Object> r = session.encodeBatch(frame_count.DataItem.TYPE_ID, items);
+        assertNotNull(r);
+        @SuppressWarnings("unchecked")
+        java.util.List<String[]> af = (java.util.List<String[]>) r.get("auto_fields");
+        assertEquals("3", lookup(af, "count"));
+
+        String formatted = session.formatOutbound(frame_count.DataItem.TYPE_ID, items.get(0), af);
+        assertTrue(formatted.contains("count=3"), formatted);
+    }
+
+    @Test
+    @DisplayName("toString: received frame-length field shows member, not body re-encode")
+    void toStringFrameFieldLengthUsesMember() {
+        // A leaf message carries the frame's auto="length" field. On a RECEIVED
+        // message the member holds the true frame length; toString must show
+        // that, not a body-only re-encode of the leaf.
+        byte[] wire = {0x01, 0x00, 0x05, 0x00, 0x12}; // Heartbeat, length=5, ts=0x12
+        frame_basic.SimpleFrame f = frame_basic.SimpleFrame.decodeBytes(wire);
+        String s = f.payload.toString();
+        assertTrue(s.contains("length=5"), s);
+        assertFalse(s.contains("length=2"), s);
+    }
+
+    private static String lookup(java.util.List<String[]> autoFields, String key) {
+        for (String[] kv : autoFields) {
+            if (kv[0].equals(key)) return kv[1];
+        }
+        return null;
+    }
 }

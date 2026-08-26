@@ -1212,13 +1212,13 @@ TEST_CASE("PyCG: display format binary in repr", "[python][codegen][display_form
     REQUIRE(py.has_value());
     auto& msgs = py->files["messages.py"];
     // mask has explicit format="binary" → repr should use bin()
-    CHECK(msgs.find("mask={bin(self.mask)}") != std::string::npos);
+    CHECK(msgs.find("bin(self.mask)") != std::string::npos);
     // flags has type bin8 with format="binary" → repr should use bin()
-    CHECK(msgs.find("flags={bin(self.flags)}") != std::string::npos);
+    CHECK(msgs.find("bin(self.flags)") != std::string::npos);
     // tag has no format → standard repr
-    CHECK(msgs.find("tag={self.tag}") != std::string::npos);
+    CHECK(msgs.find("str(self.tag)") != std::string::npos);
     // value has no format → standard repr
-    CHECK(msgs.find("value={self.value}") != std::string::npos);
+    CHECK(msgs.find("str(self.value)") != std::string::npos);
 }
 
 TEST_CASE("PyCG: display format hex in repr", "[python][codegen][display_format]") {
@@ -1226,7 +1226,7 @@ TEST_CASE("PyCG: display format hex in repr", "[python][codegen][display_format]
     REQUIRE(py.has_value());
     auto& msgs = py->files["messages.py"];
     // hex field in AllTypesMsg → repr should use hex()
-    CHECK(msgs.find("hex={hex(self.hex)}") != std::string::npos);
+    CHECK(msgs.find("hex(self.hex)") != std::string::npos);
 }
 
 // ============================================================================

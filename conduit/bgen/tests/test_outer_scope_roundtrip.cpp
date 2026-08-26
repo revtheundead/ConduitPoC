@@ -58,6 +58,25 @@ TEST_CASE("outer_scope: Packet with DataA roundtrip", "[outer_scope][roundtrip]"
     CHECK(p->y() == 20);
 }
 
+TEST_CASE("outer_scope: to_string reports auto-length before encode", "[outer_scope][to_string]") {
+    outer_scope::Packet pkt;
+    pkt.set_tag(1);
+
+    outer_scope::DataA data;
+    data.set_x(10);
+    data.set_y(20);
+    pkt.set_payload(data);
+
+    // The auto="length" field is only backpatched onto the wire during encode;
+    // the in-memory member stays zero-initialized. to_string must still report
+    // the value that will be written (total struct size = 4), not the stale 0.
+    CHECK(pkt.len() == 0);
+    auto s = pkt.to_string();
+    INFO(s);
+    CHECK(s.find("len=4") != std::string::npos);
+    CHECK(s.find("len=0") == std::string::npos);
+}
+
 TEST_CASE("outer_scope: Packet with DataB roundtrip", "[outer_scope][roundtrip]") {
     outer_scope::Packet pkt;
     pkt.set_tag(2);

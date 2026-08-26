@@ -145,11 +145,13 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
         bool is_typedef_wrapper = false;
         bool is_array_of_structs = false;
         int field_bits = 0;
+        const model::AutoExpr* field_auto_expr = nullptr;
         auto find_field_info = [&](const std::vector<model::StructChild>& cs, auto&& self) -> bool {
             for (const auto& child : cs) {
                 if (auto* f = std::get_if<model::Field>(&child)) {
                     if (f->name == fi.name) {
                         fmt = f->format;
+                        if (f->auto_expr) field_auto_expr = &*f->auto_expr;
                         auto fti = resolve_field_type(*f, index_);
                         // Override for inline enums
                         if (!f->enum_values.empty() && f->type_ref.empty()) {
@@ -210,6 +212,60 @@ void StructEmitter::emit_to_string(const std::vector<model::StructChild>& childr
             return false;
         };
         find_field_info(children, find_field_info);
+
+        // Auto-managed body fields (auto="length"/"count") are patched into the
+        // wire during encode; the in-memory member is left zero-initialized on
+        // the send path, so printing it verbatim would log a misleading value.
+        // Display the value that is (or will be) written to the wire instead.
+        if (field_auto_expr) {
+            const auto& ae = *field_auto_expr;
+            if (ae.kind == model::AutoKind::Count && !ae.field_ref.empty()) {
+                // count(array): the referenced array's element count.
+                std::string ref_member = to_member_name(ae.field_ref);
+                std::string size_expr = optional_field_names_.count(ref_member)
+                    ? "(" + ref_member + ".has_value() ? " + ref_member + "->size() : static_cast<size_t>(0))"
+                    : ref_member + ".size()";
+                ctx_.line("<< \"" + sep + fi.name + "=\" << (" + apply_arith(size_expr, ae.modifier) + ")");
+                continue;
+            }
+            if (ae.kind == model::AutoKind::Length && ae.field_ref.empty()) {
+                // length (self): re-encode this struct to measure its wire size.
+                std::string size_expr = apply_arith("_w.size_bytes()", ae.modifier);
+                ctx_.line("<< \"" + sep + fi.name + "=\" << ([this]() -> uint64_t {");
+                ctx_.line("    conduit::io::BitWriter _w;");
+                ctx_.line("    if (!encode(_w)) return 0;");
+                ctx_.line("    return static_cast<uint64_t>(" + size_expr + ");");
+                ctx_.line("}())");
+                continue;
+            }
+            if (ae.kind == model::AutoKind::Length && !ae.field_ref.empty()) {
+                // length(target): for byte/string targets the member's size in
+                // bytes equals the encoded length. Other target kinds fall
+                // through to the default (raw member) display.
+                bool target_is_bytelike = false;
+                auto find_target = [&](const std::vector<model::StructChild>& cs, auto&& self) -> bool {
+                    for (const auto& child : cs) {
+                        if (auto* tf = std::get_if<model::Field>(&child)) {
+                            if (tf->name == ae.field_ref) {
+                                auto tfti = resolve_field_type(*tf, index_);
+                                target_is_bytelike = tfti.is_bytes || tfti.is_string;
+                                return true;
+                            }
+                        } else if (auto* fx = std::get_if<model::FxBlock>(&child)) {
+                            if (self(fx->children, self)) return true;
+                        }
+                    }
+                    return false;
+                };
+                find_target(children, find_target);
+                if (target_is_bytelike) {
+                    std::string ref_member = to_member_name(ae.field_ref);
+                    std::string size_expr = apply_arith(ref_member + ".size()", ae.modifier);
+                    ctx_.line("<< \"" + sep + fi.name + "=\" << (" + size_expr + ")");
+                    continue;
+                }
+            }
+        }
 
         if (fi.is_optional) {
             std::string deref = "*" + member;

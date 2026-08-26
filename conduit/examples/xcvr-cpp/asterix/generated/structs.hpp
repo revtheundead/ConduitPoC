@@ -2247,7 +2247,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I120Rds{"
-            << "rep=" << +(rep_)
+            << "rep=" << (doppler_.size())
             << ", doppler=["
             ;
             for (size_t i = 0; i < doppler_.size(); ++i) {
@@ -3113,7 +3113,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I250{"
-            << "rep=" << +(rep_)
+            << "rep=" << (bds_.size())
             << ", bds=["
             ;
             for (size_t i = 0; i < bds_.size(); ++i) {
@@ -4264,7 +4264,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat007I440{"
-            << "rep=" << +(rep_)
+            << "rep=" << (registers_.size())
             << ", registers=["
             ;
             for (size_t i = 0; i < registers_.size(); ++i) {
@@ -5382,7 +5382,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I110Tid{"
-            << "rep=" << +(rep_)
+            << "rep=" << (points_.size())
             << ", points=["
             ;
             for (size_t i = 0; i < points_.size(); ++i) {
@@ -6896,7 +6896,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat021I250{"
-            << "rep=" << +(rep_)
+            << "rep=" << (bds_.size())
             << ", bds=["
             ;
             for (size_t i = 0; i < bds_.size(); ++i) {
@@ -9942,7 +9942,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I120Rds{"
-            << "rep=" << +(rep_)
+            << "rep=" << (doppler_.size())
             << ", doppler=["
             ;
             for (size_t i = 0; i < doppler_.size(); ++i) {
@@ -10908,7 +10908,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat048I250{"
-            << "rep=" << +(rep_)
+            << "rep=" << (bds_.size())
             << ", bds=["
             ;
             for (size_t i = 0; i < bds_.size(); ++i) {
@@ -12459,7 +12459,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I025{"
-            << "rep=" << +(rep_)
+            << "rep=" << (destinations_.size())
             << ", destinations=["
             ;
             for (size_t i = 0; i < destinations_.size(); ++i) {
@@ -12691,7 +12691,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I050{"
-            << "rep=" << +(rep_)
+            << "rep=" << (sequences_.size())
             << ", sequences=["
             ;
             for (size_t i = 0; i < sequences_.size(); ++i) {
@@ -13282,7 +13282,7 @@ public:
         (void)overrides;
         std::ostringstream oss;
         oss << "Cat253I090{"
-            << "rep=" << +(rep_)
+            << "rep=" << (dataItems_.size())
             << ", dataItems=["
             ;
             for (size_t i = 0; i < dataItems_.size(); ++i) {

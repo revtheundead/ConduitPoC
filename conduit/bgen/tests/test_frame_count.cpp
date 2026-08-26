@@ -4,10 +4,25 @@
 #include <catch2/catch_test_macros.hpp>
 #include <conduit/io/bit_reader.hpp>
 #include <conduit/io/bit_writer.hpp>
+#include <any>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "frame_count/messages.hpp"
+#include "frame_count/sessions.hpp"
+
+namespace {
+
+// Look up an auto-field value by key, or return "<missing>".
+std::string auto_field(const conduit::traits::EncodeResult& r, const std::string& key) {
+    for (const auto& [k, v] : r.auto_fields) {
+        if (k == key) return v;
+    }
+    return "<missing>";
+}
+
+} // namespace
 
 TEST_CASE("frame count - single item roundtrip", "[frame_count]") {
     frame_count::DataItem d;
@@ -61,6 +76,48 @@ TEST_CASE("frame count - wire bytes verification", "[frame_count][wire]") {
     // bytes[2..3] = length (total frame = 6)
     CHECK(bytes[4] == 0xAB);                             // value high
     CHECK(bytes[5] == 0xCD);                             // value low
+}
+
+TEST_CASE("frame count - encode_wrap records count in auto_fields", "[frame_count][session]") {
+    auto session = frame_count::create_count_frame_session();
+
+    frame_count::DataItem d;
+    d.set_value(0x1234);
+
+    auto encoded = session->encode_wrap(frame_count::DataItem::TYPE_ID, std::any{d});
+    REQUIRE(encoded.has_value());
+
+    // The count field is patched onto the wire during encode; without recording
+    // it in auto_fields the logger would render it as the zero-initialized
+    // member. A single wrap is always exactly one payload element.
+    CHECK(auto_field(*encoded, "count") == "1");
+
+    // format_outbound must then surface that count rather than 0.
+    auto formatted = session->format_outbound(frame_count::DataItem::TYPE_ID,
+                                              std::any{d}, encoded->auto_fields);
+    INFO(formatted);
+    CHECK(formatted.find("count=1") != std::string::npos);
+    CHECK(formatted.find("count=0") == std::string::npos);
+}
+
+TEST_CASE("frame count - encode_batch records payload count in auto_fields", "[frame_count][session]") {
+    auto session = frame_count::create_count_frame_session();
+
+    std::vector<std::any> payloads;
+    for (int i = 0; i < 3; ++i) {
+        frame_count::DataItem d;
+        d.set_value(static_cast<uint16_t>(i));
+        payloads.push_back(std::any{d});
+    }
+
+    auto encoded = session->encode_batch(frame_count::DataItem::TYPE_ID, payloads);
+    REQUIRE(encoded.has_value());
+    CHECK(auto_field(*encoded, "count") == "3");
+
+    auto formatted = session->format_outbound(frame_count::DataItem::TYPE_ID,
+                                              payloads[0], encoded->auto_fields);
+    INFO(formatted);
+    CHECK(formatted.find("count=3") != std::string::npos);
 }
 
 TEST_CASE("frame count - empty payload", "[frame_count]") {
