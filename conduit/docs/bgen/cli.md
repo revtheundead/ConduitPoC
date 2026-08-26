@@ -32,7 +32,7 @@ The `--language` argument selects the code generation backend. If omitted, C++ i
 |----------|-------|--------|
 | C++ | `cpp` (default) | 8 `.hpp` header files in the output directory: `constants.hpp`, `types.hpp`, `structs.hpp`, `messages.hpp`, `sessions.hpp`, `protocol.hpp`, `json.hpp`, and an umbrella `<protocol>.hpp` |
 | Java | `java` | `.java` source files in a package subdirectory. The package is the namespace with `.` as path separator: `--output src/gen` with package `io.conduit.asterix` produces `src/gen/io/conduit/asterix/*.java`. |
-| Python | `python` | `.py` module files in the output directory: `bit_io.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`, and `__init__.py` |
+| Python | `python` | `.py` module files in the output directory: `bit_io.py`, `constants.py`, `types.py`, `structs.py`, `messages.py`, `sessions.py`, `protocol.py`, and `__init__.py` |
 
 All backends produce wire-compatible serialization from the same BMDL schema.
 

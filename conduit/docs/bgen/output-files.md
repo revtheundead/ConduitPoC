@@ -15,7 +15,7 @@ bgen produces code files whose structure depends on the target language (`--lang
 | `sessions.hpp` | `generate_sessions()` | Session classes implementing `ISession` |
 | `protocol.hpp` | `generate_protocol()` | `ProtocolDescriptor` with type registry and session factory |
 | `json.hpp` | `generate_json()` | nlohmann/json `to_json`/`from_json` overloads for every struct, message, and enum (header-only; pulls in `<nlohmann/json.hpp>` only when this file is included) |
-| `<protocol-name>.hpp` | `generate_umbrella()` | Umbrella header that includes all of the above. The filename is derived from the protocol's namespace via `to_lower_snake_case()`, so `<defaults><namespace>my_protocol</namespace></defaults>` produces `my_protocol.hpp`, and `MyProtocol` would produce `my_protocol.hpp` as well. |
+| `<protocol-name>.hpp` | `generate_umbrella()` | Umbrella header that includes all of the above **except `json.hpp`** (kept opt-in so the codec never forces a `<nlohmann/json.hpp>` dependency). The filename is derived from the protocol's namespace via `to_lower_snake_case()`, so `<defaults><namespace>my_protocol</namespace></defaults>` produces `my_protocol.hpp`, and `MyProtocol` would produce `my_protocol.hpp` as well. |
 
 ## Include Chain
 
@@ -38,11 +38,12 @@ sessions.hpp         ("messages.hpp", conduit/traits/session_traits.hpp)
 protocol.hpp         ("sessions.hpp", conduit/traits/session_traits.hpp)
 
 json.hpp             ("messages.hpp", "structs.hpp", "types.hpp",
-                      <nlohmann/json.hpp>) — only pulled in when you
-                      explicitly include json.hpp; the umbrella header
-                      includes it as well.
+                      <nlohmann/json.hpp>) — standalone; pulled in only when
+                      you explicitly include json.hpp. The umbrella header
+                      does NOT include it, so the rest of the codec never
+                      depends on <nlohmann/json.hpp>.
 
-<protocol-name>.hpp  (includes all of the above)
+<protocol-name>.hpp  (includes all of the above except json.hpp)
 ```
 
 You only need to include the umbrella header in most cases:

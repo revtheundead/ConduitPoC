@@ -52,6 +52,8 @@ For the `TrackStatus` example:
 
 Each extent totals the sum of its declared data bits plus 1 FX bit. Typically 8 bits per extent (7 data + 1 FX), but this is not required.
 
+> **Byte-oriented fields inside an extent are byte-aligned.** Integer fields are bit-packed directly after the preceding bits, but `string`/`bytes` fields (and other byte-oriented reads/writes) always start on the next byte boundary — the same rule the codec applies everywhere (see [Bit I/O](../conduit/bit-io.md)). So a `string` placed immediately after the 1-bit FX indicator begins in the following byte, with the FX bit's byte zero-padded. All three backends encode this identically, so the wire stays interoperable.
+
 ## Flat vs. Nested FX
 
 ### Flat FX (ALL-OR-NOTHING)

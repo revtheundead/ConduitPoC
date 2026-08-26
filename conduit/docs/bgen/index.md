@@ -66,7 +66,7 @@ This produces 8 header files in `generated/`:
 | `sessions.hpp` | Session classes implementing `ISession` for frame-based dispatch |
 | `protocol.hpp` | `ProtocolDescriptor` with type registry and session factory |
 | `json.hpp` | nlohmann/json `to_json`/`from_json` overloads (only pulls in `<nlohmann/json.hpp>` when included) |
-| `my_protocol.hpp` | Umbrella header that includes all of the above |
+| `my_protocol.hpp` | Umbrella header that includes all of the above **except `json.hpp`** (which stays opt-in to avoid a hard `<nlohmann/json.hpp>` dependency) |
 
 ### Generating Java
 
