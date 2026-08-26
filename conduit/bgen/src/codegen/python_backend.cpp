@@ -2329,6 +2329,10 @@ struct PyFieldDef {
     std::string bmdl_name;
     // Documentation string from <doc> tag
     std::string doc;
+    // Auto expression (auto="length"/"count"/"id"/...) if this is an
+    // auto-managed field. Its value is patched onto the wire during encode and
+    // is not stored on the in-memory object, so __repr__ must derive it.
+    const model::AutoExpr* auto_expr = nullptr;
 };
 
 void collect_py_fields(const std::vector<model::StructChild>& children,
@@ -2436,6 +2440,7 @@ void collect_py_fields(const std::vector<model::StructChild>& children,
             pf.raw_bits = fi.raw_bits;
             pf.raw_signed = fi.raw_signed;
             pf.doc = f->doc;
+            pf.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
             fields.push_back(pf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             PyFieldDef sdf;
@@ -3437,34 +3442,97 @@ void emit_py_class(EmitContext& ctx, const std::string& name,
     ctx.dedent();
     ctx.line();
 
-    // __repr__
-    ctx.line("def __repr__(self) -> str:");
+    // __repr__ / _repr_with_overrides
+    //
+    // Auto-managed fields (auto="length"/"count") are patched onto the wire
+    // during encode and left zero on the in-memory object. format_outbound
+    // passes frame-level values via `overrides`; body-level auto fields are
+    // computed here so logged messages never show them as their default 0.
+    ctx.line("def __repr__(self) -> str: return self._repr_with_overrides(None)");
+    ctx.line();
+    ctx.line("def _repr_with_overrides(self, overrides: dict = None) -> str:");
     ctx.indent();
-    if (fields.empty()) ctx.line("return '" + cn + "()'");
-    else {
-        std::string fmt = "return f'" + cn + "(";
-        for (size_t i = 0; i < fields.size(); i++) {
-            if (i > 0) fmt += ", ";
-            bool nullable = (fields[i].default_val == "None");
-            if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex) {
-                if (nullable)
-                    fmt += fields[i].name + "={hex(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
-                else
-                    fmt += fields[i].name + "={hex(self." + fields[i].name + ")}";
-            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal) {
-                if (nullable)
-                    fmt += fields[i].name + "={oct(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
-                else
-                    fmt += fields[i].name + "={oct(self." + fields[i].name + ")}";
-            } else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary) {
-                if (nullable)
-                    fmt += fields[i].name + "={bin(self." + fields[i].name + ") if self." + fields[i].name + " is not None else None}";
-                else
-                    fmt += fields[i].name + "={bin(self." + fields[i].name + ")}";
-            } else
-                fmt += fields[i].name + "={self." + fields[i].name + "}";
+    if (fields.empty()) {
+        ctx.line("return '" + cn + "()'");
+    } else {
+        // Python arithmetic modifier applied to an int expression string.
+        auto apply_py_arith = [](const std::string& base, const model::ArithModifier& mod) -> std::string {
+            if (!mod.has_modifier()) return base;
+            std::string op;
+            switch (mod.op) {
+                case model::ArithOp::Add: op = " + "; break;
+                case model::ArithOp::Sub: op = " - "; break;
+                case model::ArithOp::Mul: op = " * "; break;
+                case model::ArithOp::Div: op = " // "; break;  // integer division (matches encoder)
+                case model::ArithOp::Mod: op = " % "; break;
+                default: break;
+            }
+            if (op.empty()) return base;
+            std::string operand = mod.is_field_operand() ? ("self." + py_field(mod.field_ref))
+                                                         : std::to_string(mod.literal);
+            return "((" + base + ")" + op + operand + ")";
+        };
+        // Index fields by BMDL name so auto="length(ref)"/"count(ref)" can find
+        // the referenced sibling member.
+        std::unordered_map<std::string, const PyFieldDef*> by_bmdl;
+        for (const auto& pf : fields) {
+            if (!pf.bmdl_name.empty()) by_bmdl.emplace(pf.bmdl_name, &pf);
         }
-        ctx.line(fmt + ")'");
+
+        ctx.line("parts = []");
+        for (const auto& f : fields) {
+            bool nullable = (f.default_val == "None");
+            std::string self_ref = "self." + f.name;
+
+            // Value expression producing the field's display string when no
+            // override applies.
+            std::string val_expr;
+            if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Count && !f.auto_expr->field_ref.empty()
+                && by_bmdl.count(f.auto_expr->field_ref)) {
+                std::string rn = "self." + by_bmdl[f.auto_expr->field_ref]->name;
+                std::string base = "(len(" + rn + ") if " + rn + " is not None else 0)";
+                val_expr = "str(" + apply_py_arith(base, f.auto_expr->modifier) + ")";
+            } else if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length
+                       && f.auto_expr->field_ref.empty()) {
+                // length (self): re-encode to measure this object's wire size.
+                ctx.line("try:");
+                ctx.indent();
+                ctx.line("_w = BitWriter(); self.encode(_w); _lv = _w.size_bytes()");
+                ctx.dedent();
+                ctx.line("except Exception:");
+                ctx.indent();
+                ctx.line("_lv = " + self_ref);
+                ctx.dedent();
+                val_expr = "str(" + apply_py_arith("_lv", f.auto_expr->modifier) + ")";
+            } else if (f.auto_expr && f.auto_expr->kind == model::AutoKind::Length
+                       && !f.auto_expr->field_ref.empty() && by_bmdl.count(f.auto_expr->field_ref)
+                       && (by_bmdl[f.auto_expr->field_ref]->is_bytes || by_bmdl[f.auto_expr->field_ref]->is_string)) {
+                std::string rn = "self." + by_bmdl[f.auto_expr->field_ref]->name;
+                std::string base = "(len(" + rn + ") if " + rn + " is not None else 0)";
+                val_expr = "str(" + apply_py_arith(base, f.auto_expr->modifier) + ")";
+            } else if (f.is_numeric && f.format == model::DisplayFormat::Hex) {
+                val_expr = nullable
+                    ? "(hex(" + self_ref + ") if " + self_ref + " is not None else 'None')"
+                    : "hex(" + self_ref + ")";
+            } else if (f.is_numeric && f.format == model::DisplayFormat::Octal) {
+                val_expr = nullable
+                    ? "(oct(" + self_ref + ") if " + self_ref + " is not None else 'None')"
+                    : "oct(" + self_ref + ")";
+            } else if (f.is_numeric && f.format == model::DisplayFormat::Binary) {
+                val_expr = nullable
+                    ? "(bin(" + self_ref + ") if " + self_ref + " is not None else 'None')"
+                    : "bin(" + self_ref + ")";
+            } else {
+                val_expr = "str(" + self_ref + ")";
+            }
+
+            std::string key = f.bmdl_name;
+            std::string ov_expr = key.empty()
+                ? val_expr
+                : "(str(overrides['" + key + "']) if overrides and '" + key + "' in overrides else " + val_expr + ")";
+            ctx.line("parts.append('" + f.name + "=' + " + ov_expr + ")");
+        }
+        ctx.line("return '" + cn + "(' + ', '.join(parts) + ')'");
     }
     ctx.dedent();
 
@@ -4172,6 +4240,7 @@ std::string generate_py_messages(const model::Protocol& protocol,
             PyFieldDef fd;
             fd.name = py_field(f->name);
             fd.bmdl_name = f->name;
+            fd.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
             fd.py_type = fi.py_type;
             fd.constraint = f->constraint ? &*f->constraint : nullptr;
             fd.is_signed = fi.is_signed;
@@ -4540,6 +4609,10 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                 if (!si.id_field_name.empty()) {
                     ctx.line("_auto_fields.append(('" + si.id_field_name + "', str(" + leaf_class + ".ID_VALUE)))");
                 }
+                // Record auto-count field. A single wrap is always one payload element.
+                if (!si.count_field_name.empty()) {
+                    ctx.line("_auto_fields.append(('" + si.count_field_name + "', '1'))");
+                }
 
                 ctx.line("data = frame.encode_bytes()");
 
@@ -4659,6 +4732,10 @@ std::string generate_py_sessions(const model::Protocol& protocol,
                     // Record auto-id field
                     if (!si.id_field_name.empty()) {
                         ctx.line("_auto_fields.append(('" + si.id_field_name + "', str(" + leaf_class + ".ID_VALUE)))");
+                    }
+                    // Record auto-count field: the number of payload elements.
+                    if (!si.count_field_name.empty()) {
+                        ctx.line("_auto_fields.append(('" + si.count_field_name + "', str(len(payloads))))");
                     }
 
                     ctx.line("frame.payload = payloads");

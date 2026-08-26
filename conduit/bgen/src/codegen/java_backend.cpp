@@ -1328,6 +1328,10 @@ struct JFieldDef {
     std::string bmdl_name;
     // Documentation string from <doc> tag
     std::string doc;
+    // Auto expression (auto="length"/"count"/"id"/...) if this is an
+    // auto-managed field. Its value is patched onto the wire during encode and
+    // is not stored on the in-memory object, so toString must derive it.
+    const model::AutoExpr* auto_expr = nullptr;
 };
 
 // Helper: return Java encoding constant string for a field (0=ASCII, 1=IA5, 2=EBCDIC)
@@ -1472,6 +1476,7 @@ void collect_j_fields(const std::vector<model::StructChild>& children,
             jf.raw_bits = fi.raw_bits;
             jf.raw_signed = fi.raw_signed;
             jf.doc = f->doc;
+            jf.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
             fields.push_back(jf);
         } else if (auto* sd = std::get_if<model::StructDef>(&child)) {
             JFieldDef sdf;
@@ -3663,27 +3668,85 @@ std::string generate_j_class(const std::string& name,
     if (fields.empty()) {
         ctx.line("return \"" + cn + "()\";");
     } else {
+        // Java arithmetic modifier applied to an int expression string.
+        auto apply_j_arith = [](const std::string& base, const model::ArithModifier& mod) -> std::string {
+            if (!mod.has_modifier()) return base;
+            std::string op;
+            switch (mod.op) {
+                case model::ArithOp::Add: op = " + "; break;
+                case model::ArithOp::Sub: op = " - "; break;
+                case model::ArithOp::Mul: op = " * "; break;
+                case model::ArithOp::Div: op = " / "; break;
+                case model::ArithOp::Mod: op = " % "; break;
+                default: break;
+            }
+            if (op.empty()) return base;
+            std::string operand = mod.is_field_operand() ? j_field(mod.field_ref)
+                                                         : std::to_string(mod.literal);
+            return "((" + base + ")" + op + operand + ")";
+        };
+        // Index fields by BMDL name so auto="length(ref)"/"count(ref)" can find
+        // the referenced sibling member.
+        std::unordered_map<std::string, const JFieldDef*> by_bmdl;
+        for (const auto& jf : fields) {
+            if (!jf.bmdl_name.empty()) by_bmdl.emplace(jf.bmdl_name, &jf);
+        }
+
         ctx.line("StringBuilder sb = new StringBuilder(\"" + cn + "(\");");
         for (size_t i = 0; i < fields.size(); i++) {
             if (i > 0) ctx.line("sb.append(\", \");");
             std::string fname = fields[i].name;
-            // Check overrides for this field
+            // Override key matches the BMDL field name the session records
+            // (e.g. "msg-type"), not the camelCase Java member name.
+            std::string ov_key = fields[i].bmdl_name.empty() ? fname : fields[i].bmdl_name;
+
+            // Raw member display expression (fallback / non-auto fields).
+            std::string member_disp;
+            if (fields[i].j_type == "byte[]")
+                member_disp = "sb.append(java.util.Arrays.toString(" + fname + "))";
+            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
+                member_disp = "sb.append(\"0x\").append(Long.toHexString(" + fname + "))";
+            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
+                member_disp = "sb.append(\"0\").append(Long.toOctalString(" + fname + "))";
+            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
+                member_disp = "sb.append(\"0b\").append(Long.toBinaryString(" + fname + "))";
+            else
+                member_disp = "sb.append(" + fname + ")";
+
+            // Compute the wire value for auto-managed body fields, which are
+            // patched during encode and left zero on the in-memory object.
+            std::string auto_else;
+            if (fields[i].auto_expr) {
+                const auto& ae = *fields[i].auto_expr;
+                if (ae.kind == model::AutoKind::Count && !ae.field_ref.empty()) {
+                    auto it = by_bmdl.find(ae.field_ref);
+                    if (it != by_bmdl.end()) {
+                        std::string rn = it->second->name;
+                        std::string base = "(" + rn + " != null ? " + rn + ".size() : 0)";
+                        auto_else = "sb.append(" + apply_j_arith(base, ae.modifier) + ");";
+                    }
+                } else if (ae.kind == model::AutoKind::Length && ae.field_ref.empty()) {
+                    std::string base = apply_j_arith("_w.sizeBytes()", ae.modifier);
+                    auto_else = "try { BitWriter _w = new BitWriter(); this.encode(_w); sb.append("
+                              + base + "); } catch (Exception _e) { " + member_disp + "; }";
+                } else if (ae.kind == model::AutoKind::Length && !ae.field_ref.empty()) {
+                    auto it = by_bmdl.find(ae.field_ref);
+                    if (it != by_bmdl.end() && (it->second->is_bytes || it->second->is_string)) {
+                        std::string rn = it->second->name;
+                        std::string sz = it->second->is_bytes ? (rn + ".length") : (rn + ".length()");
+                        std::string base = "(" + rn + " != null ? " + sz + " : 0)";
+                        auto_else = "sb.append(" + apply_j_arith(base, ae.modifier) + ");";
+                    }
+                }
+            }
+
             ctx.line("sb.append(\"" + fname + "=\");");
             ctx.line("{");
             ctx.indent();
             ctx.line("String _ov = null;");
-            ctx.line("if (overrides != null) { for (String[] kv : overrides) { if (kv[0].equals(\"" + fname + "\")) { _ov = kv[1]; break; } } }");
+            ctx.line("if (overrides != null) { for (String[] kv : overrides) { if (kv[0].equals(\"" + ov_key + "\")) { _ov = kv[1]; break; } } }");
             ctx.line("if (_ov != null) { sb.append(_ov); }");
-            if (fields[i].j_type == "byte[]")
-                ctx.line("else { sb.append(java.util.Arrays.toString(" + fname + ")); }");
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Hex)
-                ctx.line("else { sb.append(\"0x\").append(Long.toHexString(" + fname + ")); }");
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Octal)
-                ctx.line("else { sb.append(\"0\").append(Long.toOctalString(" + fname + ")); }");
-            else if (fields[i].is_numeric && fields[i].format == model::DisplayFormat::Binary)
-                ctx.line("else { sb.append(\"0b\").append(Long.toBinaryString(" + fname + ")); }");
-            else
-                ctx.line("else { sb.append(" + fname + "); }");
+            ctx.line("else { " + (auto_else.empty() ? (member_disp + ";") : auto_else) + " }");
             ctx.dedent();
             ctx.line("}");
         }
@@ -4918,6 +4981,10 @@ std::string generate_j_session_class(const model::Protocol& protocol,
             if (!si.id_field_name.empty()) {
                 ctx.line("autoFields.add(new String[]{\"" + si.id_field_name + "\", String.valueOf(" + leaf_class + ".ID_VALUE)});");
             }
+            // Record auto-count field. A single wrap is always one payload element.
+            if (!si.count_field_name.empty()) {
+                ctx.line("autoFields.add(new String[]{\"" + si.count_field_name + "\", \"1\"});");
+            }
 
             ctx.line("byte[] encoded = frame.encodeBytes();");
 
@@ -5068,6 +5135,10 @@ std::string generate_j_session_class(const model::Protocol& protocol,
                 // Record auto-id field
                 if (!si.id_field_name.empty()) {
                     ctx.line("autoFields.add(new String[]{\"" + si.id_field_name + "\", String.valueOf(" + leaf_class + ".ID_VALUE)});");
+                }
+                // Record auto-count field: the number of payload elements.
+                if (!si.count_field_name.empty()) {
+                    ctx.line("autoFields.add(new String[]{\"" + si.count_field_name + "\", String.valueOf(payloads.size())});");
                 }
 
                 ctx.line("byte[] encoded = frame.encodeBytes();");
@@ -5511,6 +5582,7 @@ bool JavaBackend::generate(
             JFieldDef fd;
             fd.name = j_field(f->name);
             fd.bmdl_name = f->name;
+            fd.auto_expr = f->auto_expr ? &*f->auto_expr : nullptr;
             fd.j_type = fi.j_type;
             fd.constraint = f->constraint ? &*f->constraint : nullptr;
             fd.is_signed = fi.is_signed;

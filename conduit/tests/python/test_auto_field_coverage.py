@@ -365,3 +365,91 @@ class TestAutoStructLengthDoubleEncode:
         msg2 = TlvMsg.decode_bytes(data1)
         data2 = msg2.encode_bytes()
         assert data1 == data2
+
+
+# ============================================================================
+# Message-log formatting: auto-managed fields ("patched fields") must show the
+# value written to the wire, not the zero-initialized in-memory member.
+# ============================================================================
+
+
+class TestAutoFieldLogging:
+    """Auto="length"/"count" fields render their real value in repr/format_outbound."""
+
+    def test_body_auto_length_repr(self):
+        # len = length(data) is patched during encode; the member stays 0.
+        from auto_struct_length import TlvMsg
+
+        msg = TlvMsg()
+        msg.tag = 0x42
+        msg.data = bytes([1, 2, 3, 4, 5])
+        msg.suffix = 0xFF
+        assert msg.len == 0  # not populated in memory
+        assert "len=5" in repr(msg)
+
+    def test_body_auto_count_repr(self):
+        from auto_count import CountMsg
+
+        msg = CountMsg()
+        msg.id = 42
+        msg.entries = [100, 200, 300]
+        assert msg.num_entries == 0
+        assert "num_entries=3" in repr(msg)
+
+    def test_struct_auto_count_repr(self):
+        from auto_count import Container, Record
+
+        c = Container()
+        c.tag = 0xAA
+        r1 = Record(); r1.value = 1111
+        r2 = Record(); r2.value = 2222
+        c.items = [r1, r2]
+        assert c.count == 0
+        assert "count=2" in repr(c)
+
+    def test_self_length_repr_reencodes(self):
+        # auto="length" (whole struct) is derived by re-encoding.
+        from outer_scope import Packet, DataA
+
+        p = Packet()
+        p.tag = 1
+        a = DataA(); a.x = 10; a.y = 20
+        p.payload = a
+        assert p.len == 0
+        assert "len=4" in repr(p)
+
+    def test_frame_count_in_auto_fields(self):
+        # Frame-level count must be recorded so format_outbound can surface it.
+        from frame_count import DataItem
+        from frame_count.sessions import CountFrameSession
+
+        session = CountFrameSession()
+        d = DataItem()
+        d.value = 0x1234
+        result = session.encode_wrap(DataItem.TYPE_ID, d)
+        assert result is not None
+        af = dict(result["auto_fields"])
+        assert af.get("count") == "1"
+        assert af.get("length") is not None
+
+        formatted = session.format_outbound(DataItem.TYPE_ID, d, result["auto_fields"])
+        assert "count=1" in formatted
+        assert "count=0" not in formatted
+        assert "msg_type=1" in formatted
+
+    def test_frame_count_batch_in_auto_fields(self):
+        from frame_count import DataItem
+        from frame_count.sessions import CountFrameSession
+
+        session = CountFrameSession()
+        payloads = []
+        for i in range(3):
+            d = DataItem(); d.value = i
+            payloads.append(d)
+        result = session.encode_batch(DataItem.TYPE_ID, payloads)
+        assert result is not None
+        af = dict(result["auto_fields"])
+        assert af.get("count") == "3"
+
+        formatted = session.format_outbound(DataItem.TYPE_ID, payloads[0], result["auto_fields"])
+        assert "count=3" in formatted
